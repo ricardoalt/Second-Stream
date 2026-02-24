@@ -18,6 +18,7 @@ from app.models.proposal import Proposal
 from app.models.proposal_rating import ProposalRating
 from app.models.timeline import TimelineEvent
 from app.models.user import User
+from app.models.voice_interview import ImportRunIdempotencyKey, VoiceInterview
 
 __all__ = [
     "Company",
@@ -25,6 +26,7 @@ __all__ = [
     "FeedbackAttachment",
     "ImportItem",
     "ImportRun",
+    "ImportRunIdempotencyKey",
     "IncomingMaterial",
     "IncomingMaterialCategory",
     "IntakeNote",
@@ -40,4 +42,5 @@ __all__ = [
     "ProposalRating",
     "TimelineEvent",
     "User",
+    "VoiceInterview",
 ]

@@ -22,16 +22,18 @@ from uuid import UUID
 import structlog
 from fastapi import HTTPException, status
 from PyPDF2 import PdfReader
-from sqlalchemy import case, delete, func, select, text, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.bulk_import import ImportItem, ImportRun
 from app.models.bulk_import_output import NormalizedLocationDataV1, NormalizedProjectDataV1
 from app.models.company import Company
+from app.models.intake_suggestion import IntakeSuggestion
 from app.models.location import Location
 from app.models.project import Project
 from app.models.user import User
+from app.models.voice_interview import ImportRunIdempotencyKey, VoiceInterview
 from app.schemas.bulk_import import BulkImportFinalizeSummary
 from app.services.bulk_import_ai_extractor import (
     BulkImportAIExtractorError,
@@ -39,8 +41,12 @@ from app.services.bulk_import_ai_extractor import (
     ParsedRow,
     bulk_import_ai_extractor,
 )
-from app.services.s3_service import download_file_content
+from app.services.idempotency import canonical_sha256
+from app.services.intake_field_catalog import build_questionnaire_registry, normalize_field_id
+from app.services.s3_service import download_file_content, upload_file_to_s3
 from app.services.storage_delete_service import delete_storage_keys
+from app.services.voice_status_sync import sync_import_run_status_for_voice
+from app.services.voice_transcription_service import voice_transcription_service
 from app.templates.assessment_questionnaire import get_assessment_questionnaire
 
 logger = structlog.get_logger(__name__)
@@ -59,6 +65,10 @@ MAX_IMPORT_ITEMS = 4000
 PARSER_TIMEOUT_SECONDS = 25
 MAX_TEXT_LEN = 4000
 PARSER_WORKER_NAME = "bulk-import-parse-worker"
+
+VOICE_CHUNK_TOKENS = 4000
+VOICE_CHUNK_OVERLAP_TOKENS = 200
+VOICE_MAX_CHUNKS = 20
 
 RETENTION_DAYS_UNFINALIZED = 90
 
@@ -232,8 +242,8 @@ class BulkImportService:
     """Bulk import orchestration across worker and API layers."""
 
     async def claim_next_run(self, db: AsyncSession) -> ImportRun | None:
-        candidate = (
-            select(ImportRun.id)
+        result = await db.execute(
+            select(ImportRun)
             .where(ImportRun.status == "uploaded")
             .where(ImportRun.processing_attempts < MAX_PROCESSING_ATTEMPTS)
             .where(
@@ -243,73 +253,71 @@ class BulkImportService:
             .order_by(ImportRun.processing_available_at.nullsfirst(), ImportRun.created_at)
             .with_for_update(skip_locked=True)
             .limit(1)
-            .cte("candidate")
         )
-        stmt = (
-            update(ImportRun)
-            .where(ImportRun.id.in_(select(candidate.c.id)))
-            .where(ImportRun.status == "uploaded")
-            .values(
-                status="processing",
-                progress_step="reading_file",
-                processing_attempts=ImportRun.processing_attempts + 1,
-                processing_started_at=func.now(),
-                processing_available_at=func.now() + text(f"INTERVAL '{LEASE_SECONDS} seconds'"),
-                processing_error=None,
-            )
-            .returning(ImportRun)
-        )
-        result = await db.execute(stmt)
         run = result.scalar_one_or_none()
+        if run is None:
+            return None
+
+        run.processing_attempts += 1
+        run.processing_started_at = datetime.now(UTC)
+        run.processing_available_at = datetime.now(UTC) + timedelta(seconds=LEASE_SECONDS)
+        run.processing_error = None
+        run.progress_step = "reading_file"
+        if run.source_type == "voice_interview":
+            voice = await self._lock_voice_for_run(db, run_id=run.id)
+            voice.status = "transcribing"
+            voice.error_code = None
+            voice.failed_stage = None
+            sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+        else:
+            run.status = "processing"
         return run
 
     async def requeue_stale_runs(self, db: AsyncSession, limit: int = 100) -> int:
-        stale_requeue = (
-            select(ImportRun.id)
+        result = await db.execute(
+            select(ImportRun)
             .where(ImportRun.status == "processing")
             .where(ImportRun.processing_available_at < func.now())
             .where(ImportRun.processing_attempts < MAX_PROCESSING_ATTEMPTS)
             .order_by(ImportRun.processing_available_at)
             .limit(limit)
-            .cte("stale_requeue")
+            .with_for_update(skip_locked=True)
         )
-        requeue_stmt = (
-            update(ImportRun)
-            .where(ImportRun.id.in_(select(stale_requeue.c.id)))
-            .where(ImportRun.status == "processing")
-            .values(
-                status="uploaded",
-                processing_error="lease_expired_requeued",
-                processing_available_at=func.now(),
-                processing_started_at=None,
-            )
-            .returning(ImportRun.id)
-        )
-        requeued_result = await db.execute(requeue_stmt)
-        return len(requeued_result.scalars().all())
+        runs = list(result.scalars().all())
+        for run in runs:
+            run.processing_error = "lease_expired_requeued"
+            run.processing_available_at = datetime.now(UTC)
+            run.processing_started_at = None
+            run.progress_step = None
+            if run.source_type == "voice_interview":
+                voice = await self._lock_voice_for_run(db, run_id=run.id)
+                voice.status = "queued"
+                sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+            else:
+                run.status = "uploaded"
+        return len(runs)
 
     async def fail_exhausted_runs(self, db: AsyncSession, limit: int = 100) -> int:
-        exhausted = (
-            select(ImportRun.id)
+        result = await db.execute(
+            select(ImportRun)
             .where(ImportRun.status.in_(["uploaded", "processing"]))
             .where(ImportRun.processing_attempts >= MAX_PROCESSING_ATTEMPTS)
             .order_by(ImportRun.updated_at)
             .limit(limit)
-            .cte("exhausted")
+            .with_for_update(skip_locked=True)
         )
-        stmt = (
-            update(ImportRun)
-            .where(ImportRun.id.in_(select(exhausted.c.id)))
-            .where(ImportRun.status.in_(["uploaded", "processing"]))
-            .values(
-                status="failed",
-                progress_step=None,
-                processing_error="max_attempts_reached",
-            )
-            .returning(ImportRun.id)
-        )
-        result = await db.execute(stmt)
-        return len(result.scalars().all())
+        runs = list(result.scalars().all())
+        for run in runs:
+            run.progress_step = None
+            run.processing_error = "max_attempts_reached"
+            if run.source_type == "voice_interview":
+                voice = await self._lock_voice_for_run(db, run_id=run.id)
+                voice.status = "failed"
+                voice.error_code = "VOICE_MAX_ATTEMPTS_REACHED"
+                sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+            else:
+                run.status = "failed"
+        return len(runs)
 
     async def purge_expired_artifacts(self, db: AsyncSession, limit: int = 100) -> int:
         cutoff = datetime.now(UTC) - timedelta(days=RETENTION_DAYS_UNFINALIZED)
@@ -321,6 +329,7 @@ class BulkImportService:
                     ["uploaded", "processing", "review_ready", "failed", "no_data"]
                 )
             )
+            .where(ImportRun.source_type != "voice_interview")
             .where(ImportRun.artifacts_purged_at.is_(None))
             .order_by(ImportRun.created_at)
             .limit(limit)
@@ -360,6 +369,10 @@ class BulkImportService:
         try:
             if run.status != "processing":
                 raise ValueError("run_not_processing")
+
+            if run.source_type == "voice_interview":
+                await self._process_voice_run(db=db, run=run)
+                return
 
             await self._persist_progress_checkpoint(db, run, "reading_file")
             file_bytes = await download_file_content(run.source_file_path)
@@ -434,6 +447,146 @@ class BulkImportService:
             await db.rollback()
             await self._handle_processing_failure(db, run_id=run_id, exc=exc)
 
+    async def _process_voice_run(self, db: AsyncSession, run: ImportRun) -> None:
+        voice_result = await db.execute(
+            select(VoiceInterview)
+            .where(VoiceInterview.bulk_import_run_id == run.id)
+            .with_for_update()
+        )
+        voice = voice_result.scalar_one_or_none()
+        if voice is None:
+            raise ValueError("voice_interview_not_found")
+
+        extension = Path(run.source_filename).suffix.casefold()
+        content_type = {
+            ".mp3": "audio/mpeg",
+            ".wav": "audio/wav",
+            ".m4a": "audio/mp4",
+        }.get(extension)
+        if content_type is None:
+            raise ValueError("unsupported_file_type")
+
+        voice.status = "transcribing"
+        sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+        run.progress_step = "transcribing"
+        await db.flush()
+
+        audio_bytes = await download_file_content(run.source_file_path)
+        if not audio_bytes:
+            raise ValueError("empty_file")
+
+        transcription = await voice_transcription_service.transcribe_audio(
+            audio_bytes=audio_bytes,
+            filename=run.source_filename,
+            content_type=content_type,
+        )
+        transcript_text = transcription.text.strip()
+        if not transcript_text:
+            raise ValueError("voice_transcript_empty")
+
+        transcript_key = f"voice-interviews/{run.organization_id}/{voice.id}/transcript.txt"
+        await upload_file_to_s3(
+            io.BytesIO(transcript_text.encode("utf-8")),
+            transcript_key,
+            "text/plain",
+        )
+        voice.transcript_object_key = transcript_key
+        run.transcription_model = transcription.model
+
+        voice.status = "extracting"
+        sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+        run.progress_step = "extracting"
+        await db.flush()
+
+        parsed_rows = await self._extract_voice_rows(
+            transcript_text=transcript_text,
+            source_filename=run.source_filename,
+        )
+        await db.execute(delete(ImportItem).where(ImportItem.run_id == run.id))
+        staged_items = await self._build_import_items(db, run, parsed_rows)
+
+        if not staged_items:
+            run.progress_step = None
+            run.total_items = 0
+            run.accepted_count = 0
+            run.rejected_count = 0
+            run.amended_count = 0
+            run.invalid_count = 0
+            run.duplicate_count = 0
+            run.processing_error = None
+            voice.status = "review_ready"
+            sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+            await db.flush()
+            return
+
+        if len(staged_items) > MAX_IMPORT_ITEMS:
+            raise ParserLimitError("max_items_exceeded")
+
+        db.add_all(staged_items)
+        await db.flush()
+        await self.refresh_run_counters(db, run)
+        voice.status = "review_ready"
+        sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+        run.progress_step = None
+        run.processing_error = None
+        voice.error_code = None
+        voice.failed_stage = None
+        await db.flush()
+
+    async def _extract_voice_rows(
+        self,
+        *,
+        transcript_text: str,
+        source_filename: str,
+    ) -> list[ParsedRow]:
+        chunks = self._chunk_transcript(transcript_text)
+        all_rows: list[ParsedRow] = []
+        for index, chunk in enumerate(chunks):
+            result = await bulk_import_ai_extractor.extract_parsed_rows_from_text(
+                extracted_text=chunk,
+                filename=f"voice-chunk-{index + 1}-{source_filename}.txt",
+            )
+            all_rows.extend(result.rows)
+
+        deduped: dict[str, ParsedRow] = {}
+        for row in all_rows:
+            location_key = ""
+            if row.location_data is not None:
+                location_key = self._location_key(
+                    self._normalize_location_payload(row.location_data)
+                )
+            project_name = ""
+            if row.project_data is not None:
+                project_name = _normalize_token(row.project_data.get("name") or "")
+            dedupe_key = f"{location_key}|{project_name}"
+            if dedupe_key in deduped:
+                continue
+            deduped[dedupe_key] = row
+
+        return list(deduped.values())
+
+    def _chunk_transcript(self, transcript_text: str) -> list[str]:
+        words = transcript_text.split()
+        if not words:
+            return []
+
+        max_words = max(1, int(VOICE_CHUNK_TOKENS * 0.75))
+        overlap_words = max(0, int(VOICE_CHUNK_OVERLAP_TOKENS * 0.75))
+        step = max(1, max_words - overlap_words)
+
+        chunks: list[str] = []
+        for start in range(0, len(words), step):
+            chunk_words = words[start : start + max_words]
+            if not chunk_words:
+                continue
+            chunks.append(" ".join(chunk_words))
+            if start + max_words >= len(words):
+                break
+
+        if len(chunks) > VOICE_MAX_CHUNKS:
+            raise ValueError("VOICE_TRANSCRIPT_TOO_LONG")
+        return chunks
+
     async def _persist_progress_checkpoint(
         self,
         db: AsyncSession,
@@ -451,6 +604,9 @@ class BulkImportService:
         run_id: UUID,
         organization_id: UUID,
         current_user: User,
+        resolved_group_ids: list[str] | None = None,
+        idempotency_key: str | None = None,
+        close_reason: str | None = None,
     ) -> BulkImportFinalizeSummary:
         result = await db.execute(
             select(ImportRun)
@@ -460,6 +616,16 @@ class BulkImportService:
         run = result.scalar_one_or_none()
         if not run:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+
+        if run.source_type == "voice_interview":
+            return await self._finalize_voice_run(
+                db,
+                run=run,
+                current_user=current_user,
+                resolved_group_ids=resolved_group_ids or [],
+                idempotency_key=idempotency_key,
+                close_reason=close_reason,
+            )
 
         if run.status == "completed":
             return self._summary_from_run(run)
@@ -611,13 +777,14 @@ class BulkImportService:
         run.summary_data = summary.model_dump(mode="json")
         await self.refresh_run_counters(db, run)
 
-        try:
-            await delete_storage_keys([run.source_file_path])
-            run.artifacts_purged_at = datetime.now(UTC)
-        except Exception:
-            logger.warning(
-                "bulk_import_finalize_artifact_delete_failed", run_id=str(run.id), exc_info=True
-            )
+        if run.source_type != "voice_interview":
+            try:
+                await delete_storage_keys([run.source_file_path])
+                run.artifacts_purged_at = datetime.now(UTC)
+            except Exception:
+                logger.warning(
+                    "bulk_import_finalize_artifact_delete_failed", run_id=str(run.id), exc_info=True
+                )
 
         await db.flush()
         return summary
@@ -694,6 +861,455 @@ class BulkImportService:
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"Duplicate detected before finalize for item {item.id}",
                 )
+
+    async def _finalize_voice_run(
+        self,
+        db: AsyncSession,
+        *,
+        run: ImportRun,
+        current_user: User,
+        resolved_group_ids: list[str],
+        idempotency_key: str | None,
+        close_reason: str | None,
+    ) -> BulkImportFinalizeSummary:
+        voice_result = await db.execute(
+            select(VoiceInterview)
+            .where(VoiceInterview.bulk_import_run_id == run.id)
+            .with_for_update()
+        )
+        voice = voice_result.scalar_one_or_none()
+        if voice is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Voice interview not found"
+            )
+
+        sorted_group_ids = sorted(set(resolved_group_ids))
+        request_hash = canonical_sha256(
+            {
+                "resolved_group_ids_sorted": sorted_group_ids,
+                "close_reason": close_reason,
+                "run_id": str(run.id),
+            }
+        )
+
+        if close_reason != "empty_extraction" and not idempotency_key:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="idempotency_key required"
+            )
+
+        idempotency_record: ImportRunIdempotencyKey | None = None
+        if idempotency_key:
+            idem_result = await db.execute(
+                select(ImportRunIdempotencyKey)
+                .where(
+                    ImportRunIdempotencyKey.operation_type == "finalize",
+                    ImportRunIdempotencyKey.run_id == run.id,
+                    ImportRunIdempotencyKey.idempotency_key == idempotency_key,
+                )
+                .with_for_update()
+            )
+            idempotency_record = idem_result.scalar_one_or_none()
+            if idempotency_record is not None:
+                if idempotency_record.request_hash != request_hash:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail={
+                            "message": "Idempotency key payload mismatch",
+                            "code": "IDEMPOTENCY_KEY_PAYLOAD_MISMATCH",
+                        },
+                    )
+                persisted_summary = idempotency_record.response_json.get("summary")
+                if not isinstance(persisted_summary, dict):
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Invalid idempotency replay payload",
+                    )
+                return BulkImportFinalizeSummary.model_validate(persisted_summary)
+
+        if run.status != "review_ready" or voice.status not in {
+            "review_ready",
+            "partial_finalized",
+        }:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Voice run is not ready for finalize",
+            )
+
+        items_result = await db.execute(
+            select(ImportItem).where(ImportItem.run_id == run.id).with_for_update()
+        )
+        all_items = list(items_result.scalars().all())
+        run_group_ids = sorted(
+            {group_id for group_id in (item.group_id for item in all_items) if group_id}
+        )
+
+        if close_reason == "empty_extraction":
+            if sorted_group_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="resolved_group_ids must be empty for empty extraction close",
+                )
+            if run_group_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="empty extraction close only allowed when run has zero groups",
+                )
+            summary = BulkImportFinalizeSummary(
+                run_id=run.id,
+                locations_created=0,
+                projects_created=0,
+                rejected=0,
+                invalid=0,
+                duplicates_resolved=0,
+            )
+            voice.status = "finalized"
+            sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+            run.finalized_by_user_id = current_user.id
+            run.finalized_at = datetime.now(UTC)
+            run.summary_data = summary.model_dump(mode="json")
+            if idempotency_key and idempotency_record is None:
+                db.add(
+                    ImportRunIdempotencyKey(
+                        operation_type="finalize",
+                        run_id=run.id,
+                        idempotency_key=idempotency_key,
+                        request_hash=request_hash,
+                        response_json={
+                            "status": run.status,
+                            "summary": summary.model_dump(mode="json"),
+                        },
+                        response_status_code=200,
+                    )
+                )
+            await db.flush()
+            return summary
+
+        if not sorted_group_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="resolved_group_ids required",
+            )
+
+        unknown_group_ids = [
+            group_id for group_id in sorted_group_ids if group_id not in run_group_ids
+        ]
+        if unknown_group_ids:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"message": "Unknown group ids", "group_ids": unknown_group_ids},
+            )
+
+        unresolved_in_request = sorted(
+            {
+                item.group_id
+                for item in all_items
+                if item.group_id in sorted_group_ids and item.status == "pending_review"
+            }
+        )
+        if unresolved_in_request:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Requested groups are unresolved",
+                    "group_ids": unresolved_in_request,
+                },
+            )
+
+        target_items = [item for item in all_items if item.group_id in sorted_group_ids]
+        active_items = [item for item in target_items if item.status in {"accepted", "amended"}]
+        location_items = [item for item in active_items if item.item_type == "location"]
+        project_items = [item for item in active_items if item.item_type == "project"]
+
+        company = await self._load_entrypoint_company(db, run)
+        company_cache: dict[UUID, Company] = {}
+        if company is not None:
+            company_cache[company.id] = company
+
+        location_by_parent_item_id: dict[UUID, Location] = {}
+        created_locations_count = 0
+        created_projects_count = 0
+
+        for item in location_items:
+            if item.created_location_id is not None:
+                existing_location = await db.get(Location, item.created_location_id)
+                if existing_location is not None:
+                    location_by_parent_item_id[item.id] = existing_location
+                continue
+            mapped_location = await self._resolve_existing_location_for_finalize(
+                db=db,
+                run=run,
+                item=item,
+                company=company,
+            )
+            if mapped_location is not None:
+                item.created_location_id = mapped_location.id
+                location_by_parent_item_id[item.id] = mapped_location
+                continue
+            normalized = self._validated_location_data(item)
+            if company is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Location items are not allowed for location entrypoint",
+                )
+            location = Location(
+                organization_id=run.organization_id,
+                company_id=company.id,
+                name=normalized.name,
+                city=normalized.city,
+                state=normalized.state,
+                address=normalized.address,
+                created_by_user_id=current_user.id,
+            )
+            db.add(location)
+            await db.flush()
+            item.created_location_id = location.id
+            location_by_parent_item_id[item.id] = location
+            created_locations_count += 1
+
+        entrypoint_location: Location | None = None
+        if run.entrypoint_type == "location":
+            entrypoint_location = await db.get(Location, run.entrypoint_id)
+            if (
+                not entrypoint_location
+                or entrypoint_location.organization_id != run.organization_id
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Entrypoint location not found",
+                )
+
+        registry = build_questionnaire_registry()
+        suggestions_created_count = 0
+
+        for item in project_items:
+            if item.created_project_id is not None:
+                continue
+            normalized = self._validated_project_data(item)
+            target_location = await self._resolve_project_location_for_finalize(
+                db=db,
+                run=run,
+                item=item,
+                location_by_parent_item_id=location_by_parent_item_id,
+                fallback_location=entrypoint_location,
+            )
+            mapped_project = await self._resolve_existing_project_for_finalize(
+                db=db,
+                run=run,
+                item=item,
+                target_location=target_location,
+            )
+            if mapped_project is not None:
+                item.created_project_id = mapped_project.id
+                continue
+            company_for_project = company_cache.get(target_location.company_id)
+            if company_for_project is None:
+                company_for_project = await db.get(Company, target_location.company_id)
+                if company_for_project is not None:
+                    company_cache[target_location.company_id] = company_for_project
+            if company_for_project is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Target location has no company",
+                )
+
+            project_data: dict[str, object] = {
+                "technical_sections": copy.deepcopy(get_assessment_questionnaire())
+            }
+            if normalized.category and normalized.category.strip():
+                project_data["bulk_import_category"] = normalized.category.strip()
+
+            project = Project(
+                organization_id=run.organization_id,
+                user_id=current_user.id,
+                location_id=target_location.id,
+                name=normalized.name,
+                client=company_for_project.name,
+                sector=normalized.sector or company_for_project.sector,
+                subsector=normalized.subsector or company_for_project.subsector,
+                location=f"{target_location.name}, {target_location.city}",
+                project_type=normalized.project_type,
+                description=normalized.description,
+                budget=0.0,
+                schedule_summary="To be defined",
+                tags=[],
+                status="In Preparation",
+                progress=0,
+                project_data=project_data,
+            )
+            db.add(project)
+            await db.flush()
+            item.created_project_id = project.id
+            created_projects_count += 1
+            suggestions_created_count += self._create_pending_intake_suggestions_from_project_item(
+                db=db,
+                project=project,
+                source_item=item,
+                registry=registry,
+                user_id=current_user.id,
+            )
+
+        if suggestions_created_count > 0:
+            logger.info(
+                "voice_finalize_intake_suggestions_created",
+                run_id=str(run.id),
+                suggestions_created=suggestions_created_count,
+            )
+
+        unresolved_group_count = len(
+            {
+                item.group_id
+                for item in all_items
+                if item.group_id
+                and (
+                    item.status == "pending_review"
+                    or (
+                        item.status in {"accepted", "amended"}
+                        and item.item_type == "location"
+                        and item.created_location_id is None
+                    )
+                    or (
+                        item.status in {"accepted", "amended"}
+                        and item.item_type == "project"
+                        and item.created_project_id is None
+                    )
+                )
+            }
+        )
+
+        rejected_count = sum(1 for item in target_items if item.status == "rejected")
+        invalid_count = sum(1 for item in target_items if item.status == "invalid")
+        duplicates_resolved = sum(
+            1
+            for item in active_items
+            if item.duplicate_candidates
+            and len(item.duplicate_candidates) > 0
+            and item.confirm_create_new
+        )
+
+        summary = BulkImportFinalizeSummary(
+            run_id=run.id,
+            locations_created=created_locations_count,
+            projects_created=created_projects_count,
+            rejected=rejected_count,
+            invalid=invalid_count,
+            duplicates_resolved=duplicates_resolved,
+        )
+
+        voice.status = "finalized" if unresolved_group_count == 0 else "partial_finalized"
+        sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+        run.finalized_by_user_id = current_user.id
+        if voice.status == "finalized":
+            run.finalized_at = datetime.now(UTC)
+        run.summary_data = summary.model_dump(mode="json")
+        await self.refresh_run_counters(db, run)
+
+        if idempotency_key and idempotency_record is None:
+            db.add(
+                ImportRunIdempotencyKey(
+                    operation_type="finalize",
+                    run_id=run.id,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    response_json={
+                        "status": run.status,
+                        "summary": summary.model_dump(mode="json"),
+                    },
+                    response_status_code=200,
+                )
+            )
+
+        await db.flush()
+        return summary
+
+    async def _resolve_existing_location_for_finalize(
+        self,
+        *,
+        db: AsyncSession,
+        run: ImportRun,
+        item: ImportItem,
+        company: Company | None,
+    ) -> Location | None:
+        if item.confirm_create_new:
+            return None
+        candidate_ids = self._duplicate_candidate_ids(item)
+        if not candidate_ids:
+            return None
+        if len(candidate_ids) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Location duplicate mapping ambiguous for item {item.id}",
+            )
+        if company is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Company entrypoint required",
+            )
+        location = await db.get(Location, candidate_ids[0])
+        if (
+            location is None
+            or location.organization_id != run.organization_id
+            or location.company_id != company.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Location duplicate target invalid for item {item.id}",
+            )
+        return location
+
+    async def _resolve_existing_project_for_finalize(
+        self,
+        *,
+        db: AsyncSession,
+        run: ImportRun,
+        item: ImportItem,
+        target_location: Location,
+    ) -> Project | None:
+        if item.confirm_create_new:
+            return None
+        candidate_ids = self._duplicate_candidate_ids(item)
+        if not candidate_ids:
+            return None
+        if len(candidate_ids) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Project duplicate mapping ambiguous for item {item.id}",
+            )
+        project = await db.get(Project, candidate_ids[0])
+        if (
+            project is None
+            or project.organization_id != run.organization_id
+            or project.location_id != target_location.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Project duplicate target invalid for item {item.id}",
+            )
+        return project
+
+    def _duplicate_candidate_ids(self, item: ImportItem) -> list[UUID]:
+        candidates = item.duplicate_candidates or []
+        ids: list[UUID] = []
+        for candidate in candidates:
+            raw_id = candidate.get("id") if isinstance(candidate, dict) else None
+            if not isinstance(raw_id, str):
+                continue
+            try:
+                parsed_id = UUID(raw_id)
+            except ValueError:
+                continue
+            ids.append(parsed_id)
+        return list(dict.fromkeys(ids))
+
+    async def _lock_voice_for_run(self, db: AsyncSession, *, run_id: UUID) -> VoiceInterview:
+        result = await db.execute(
+            select(VoiceInterview)
+            .where(VoiceInterview.bulk_import_run_id == run_id)
+            .with_for_update()
+        )
+        voice = result.scalar_one_or_none()
+        if voice is None:
+            raise ValueError("voice_interview_not_found")
+        return voice
 
     async def _location_duplicate_exists_for_finalize(
         self,
@@ -1306,8 +1922,33 @@ class BulkImportService:
         if run is None:
             return
 
+        voice: VoiceInterview | None = None
+        if run.source_type == "voice_interview":
+            voice_result = await db.execute(
+                select(VoiceInterview)
+                .where(VoiceInterview.bulk_import_run_id == run_id)
+                .with_for_update()
+            )
+            voice = voice_result.scalar_one_or_none()
+
+        failed_stage = None
+        reason_code = reason.casefold()
+        if "transcrib" in reason_code:
+            failed_stage = "transcribing"
+        elif "extract" in reason_code or "voice_transcript" in reason_code:
+            failed_stage = "extracting"
+
         if retryable and run.processing_attempts < MAX_PROCESSING_ATTEMPTS:
-            run.status = "uploaded"
+            if run.source_type == "voice_interview":
+                if voice is None:
+                    raise ValueError("voice_interview_not_found")
+                voice.status = "queued"
+                voice.error_code = reason
+                voice.failed_stage = failed_stage
+                voice.processing_attempts = run.processing_attempts
+                sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+            else:
+                run.status = "uploaded"
             run.progress_step = None
             run.processing_error = reason
             run.processing_available_at = datetime.now(UTC) + timedelta(
@@ -1317,7 +1958,16 @@ class BulkImportService:
             await db.flush()
             return
 
-        run.status = "failed"
+        if run.source_type == "voice_interview":
+            if voice is None:
+                raise ValueError("voice_interview_not_found")
+            voice.status = "failed"
+            voice.error_code = reason
+            voice.failed_stage = failed_stage
+            voice.processing_attempts = run.processing_attempts
+            sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+        else:
+            run.status = "failed"
         run.progress_step = None
         run.processing_error = reason
         await db.flush()
@@ -1726,6 +2376,7 @@ class BulkImportService:
                 normalized_data=normalized,
                 duplicate_candidates=duplicate_candidates or None,
                 confirm_create_new=False,
+                group_id=self._group_id_for_location_key(run=run, location_key=key),
             )
             items.append(item)
             location_items_by_key[key] = item
@@ -1766,6 +2417,10 @@ class BulkImportService:
                     normalized_data=normalized,
                     review_notes="Project row missing location context",
                     confirm_create_new=False,
+                    group_id=self._group_id_for_unresolved_project(
+                        run=run,
+                        normalized_project=normalized,
+                    ),
                 )
                 items.append(item)
                 continue
@@ -1796,6 +2451,7 @@ class BulkImportService:
                 duplicate_candidates=duplicate_candidates or None,
                 parent_item_id=parent_item.id if parent_item else None,
                 confirm_create_new=False,
+                group_id=parent_item.group_id if parent_item else None,
             )
             items.append(item)
 
@@ -1836,6 +2492,7 @@ class BulkImportService:
                         extracted_data=_sanitize_payload(row.raw),
                         normalized_data=normalized_location,
                         review_notes="Location items invalid for location entrypoint",
+                        group_id=self._group_id_for_location_key(run=run, location_key=key),
                     )
                     invalid_locations_by_key[key] = invalid_item
                     items.append(invalid_item)
@@ -1881,6 +2538,16 @@ class BulkImportService:
                 duplicate_candidates=duplicate_candidates or None,
                 review_notes=review_notes,
                 confirm_create_new=False,
+                group_id=(
+                    self._group_id_for_location_key(
+                        run=run,
+                        location_key=self._location_key(
+                            self._normalize_location_payload(row.location_data)
+                        ),
+                    )
+                    if row.location_data
+                    else self._group_id_for_location_entrypoint(run)
+                ),
             )
             items.append(item)
 
@@ -1917,6 +2584,125 @@ class BulkImportService:
         city = _normalize_token(str(normalized_location.get("city") or ""))
         state_value = _normalize_token(str(normalized_location.get("state") or ""))
         return f"{name}|{city}|{state_value}"
+
+    def _group_id_for_location_key(self, *, run: ImportRun, location_key: str) -> str | None:
+        if run.source_type != "voice_interview":
+            return None
+        digest = hashlib.sha256(f"{run.id}:{location_key}".encode()).hexdigest()
+        return f"grp_{digest[:16]}"
+
+    def _group_id_for_unresolved_project(
+        self,
+        *,
+        run: ImportRun,
+        normalized_project: dict[str, object],
+    ) -> str | None:
+        if run.source_type != "voice_interview":
+            return None
+        concept = _normalize_token(str(normalized_project.get("name") or "unresolved"))
+        digest = hashlib.sha256(f"{run.id}:unresolved:{concept}".encode()).hexdigest()
+        return f"grp_{digest[:16]}"
+
+    def _group_id_for_location_entrypoint(self, run: ImportRun) -> str | None:
+        if run.source_type != "voice_interview":
+            return None
+        digest = hashlib.sha256(f"{run.id}:entrypoint:{run.entrypoint_id}".encode()).hexdigest()
+        return f"grp_{digest[:16]}"
+
+    def _create_pending_intake_suggestions_from_project_item(
+        self,
+        *,
+        db: AsyncSession,
+        project: Project,
+        source_item: ImportItem,
+        registry: dict[str, Any],
+        user_id: UUID,
+    ) -> int:
+        extracted = source_item.extracted_data
+        raw_metadata = extracted.get("stream_metadata") if isinstance(extracted, dict) else None
+        if not isinstance(raw_metadata, str) or not raw_metadata:
+            return 0
+
+        try:
+            metadata = json.loads(raw_metadata)
+        except json.JSONDecodeError:
+            return 0
+        if not isinstance(metadata, dict):
+            return 0
+
+        raw_hints = metadata.get("questionnaire_hints")
+        if not isinstance(raw_hints, list):
+            return 0
+
+        created_count = 0
+        seen_keys: set[tuple[str, str, str | None]] = set()
+        for hint in raw_hints:
+            if not isinstance(hint, dict):
+                continue
+            normalized_field_id = normalize_field_id(str(hint.get("field_id") or ""))
+            registry_item_obj = registry.get(normalized_field_id)
+            if registry_item_obj is None:
+                continue
+
+            if not hasattr(registry_item_obj, "section_id"):
+                continue
+            section_id = str(registry_item_obj.section_id)
+            section_title = str(registry_item_obj.section_title)
+            field_id = str(registry_item_obj.field_id)
+            field_label = str(registry_item_obj.field_label)
+
+            raw_value = hint.get("value")
+            if raw_value is None:
+                continue
+            value = str(raw_value).strip()
+            if not value:
+                continue
+
+            raw_unit = hint.get("unit")
+            unit = str(raw_unit).strip() if isinstance(raw_unit, str) else None
+            dedupe_key = (field_id, value, unit)
+            if dedupe_key in seen_keys:
+                continue
+            seen_keys.add(dedupe_key)
+
+            raw_confidence = hint.get("confidence")
+            confidence_value = source_item.confidence if source_item.confidence is not None else 70
+            if isinstance(raw_confidence, int):
+                confidence_value = raw_confidence
+            elif isinstance(raw_confidence, float):
+                confidence_value = int(raw_confidence)
+            confidence = max(0, min(100, confidence_value))
+
+            value_type = "number" if self._is_number_like(value) else "string"
+
+            suggestion = IntakeSuggestion(
+                organization_id=project.organization_id,
+                project_id=project.id,
+                source_file_id=None,
+                field_id=field_id,
+                field_label=field_label,
+                section_id=section_id,
+                section_title=section_title,
+                value=value,
+                value_type=value_type,
+                unit=unit,
+                confidence=confidence,
+                status="pending",
+                source="notes",
+                evidence=None,
+                created_by_user_id=user_id,
+            )
+            created_count += 1
+            db.add(suggestion)
+
+        return created_count
+
+    def _is_number_like(self, value: str) -> bool:
+        try:
+            float(value)
+        except ValueError:
+            return False
+        return True
 
     def _find_location_duplicates(
         self,

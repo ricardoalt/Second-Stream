@@ -11,7 +11,7 @@ import {
 	Plus,
 	Trash2,
 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 /**
  * Company detail page - Shows company info and locations
  * Combines company details and location management in one view
@@ -23,6 +23,8 @@ import { InlineDropZone } from "@/components/features/bulk-import/inline-drop-zo
 import { InlineImportProgress } from "@/components/features/bulk-import/inline-import-progress";
 import { CreateCompanyDialog } from "@/components/features/companies/create-company-dialog";
 import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
+import { VoiceInterviewLauncher } from "@/components/features/voice-interview/voice-interview-launcher";
+import { VoiceReviewWorkspace } from "@/components/features/voice-interview/voice-review-workspace";
 import { ArchivedBanner } from "@/components/shared/archived-banner";
 import { formatSubsector } from "@/components/shared/forms/compact-sector-select";
 import { Breadcrumb } from "@/components/shared/navigation/breadcrumb";
@@ -59,6 +61,7 @@ import type { LocationSummary } from "@/lib/types/company";
 export default function CompanyDetailPage() {
 	const params = useParams();
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const companyId = params.id as string;
 	const { canCreateClientData } = useAuth();
 	const {
@@ -109,6 +112,9 @@ export default function CompanyDetailPage() {
 		null,
 	);
 	const [showReviewSection, setShowReviewSection] = useState(false);
+	const [activeVoiceInterviewId, setActiveVoiceInterviewId] = useState<
+		string | null
+	>(null);
 	const dismissedRunsKey = `dismissed_import_runs_${companyId}`;
 	// Global drag & drop
 	const [_dragActive, setDragActive] = useState(false);
@@ -200,6 +206,25 @@ export default function CompanyDetailPage() {
 			void reloadCompanyData().catch(() => {});
 		}
 	}, [companyId, reloadCompanyData]);
+
+	useEffect(() => {
+		const voiceRunId = searchParams.get("voiceRunId");
+		const voiceInterviewId = searchParams.get("voiceInterviewId");
+		if (!voiceRunId) return;
+		void bulkImportAPI
+			.getRun(voiceRunId)
+			.then((run) => {
+				setActiveImportRun(run);
+				setActiveVoiceInterviewId(voiceInterviewId);
+				setShowReviewSection(true);
+				router.replace(`/companies/${companyId}`);
+			})
+			.catch(() => {
+				toast.error("Could not load voice interview run");
+				setActiveVoiceInterviewId(null);
+				router.replace(`/companies/${companyId}`);
+			});
+	}, [searchParams, companyId, router]);
 
 	// Auto-resume pending import on page load
 	useEffect(() => {
@@ -437,6 +462,17 @@ export default function CompanyDetailPage() {
 						Archive
 					</Button>
 				)}
+				{canCreateClientData && !isArchived && (
+					<VoiceInterviewLauncher
+						companyId={companyId}
+						onRunReady={async ({ runId, voiceInterviewId }) => {
+							const run = await bulkImportAPI.getRun(runId);
+							setActiveImportRun(run);
+							setActiveVoiceInterviewId(voiceInterviewId);
+							setShowReviewSection(true);
+						}}
+					/>
+				)}
 			</div>
 
 			{/* Company Info */}
@@ -583,69 +619,38 @@ export default function CompanyDetailPage() {
 			)}
 
 			{/* Import Review Section — appears when items are ready */}
-			{showReviewSection && activeImportRun && (
-				<ImportReviewSection
-					run={activeImportRun}
-					onRunUpdated={setActiveImportRun}
-					onFinalized={() => {
-						setShowReviewSection(false);
-						// Persist so picker doesn't reappear on navigation/refresh
-						try {
-							const dismissed = JSON.parse(
-								localStorage.getItem(dismissedRunsKey) || "[]",
-							) as string[];
-							if (!dismissed.includes(activeImportRun.id)) {
-								dismissed.push(activeImportRun.id);
-								localStorage.setItem(
-									dismissedRunsKey,
-									JSON.stringify(dismissed),
-								);
-							}
-						} catch {
-							/* ignore */
-						}
-						setActiveImportRun(null);
-						// Reload locations to show newly created items
-						void reloadCompanyData().catch(() => {});
-					}}
-					onDismiss={() => {
-						setShowReviewSection(false);
-						if (activeImportRun) {
-							try {
-								const dismissed = JSON.parse(
-									localStorage.getItem(dismissedRunsKey) || "[]",
-								) as string[];
-								if (!dismissed.includes(activeImportRun.id)) {
-									dismissed.push(activeImportRun.id);
-									localStorage.setItem(
-										dismissedRunsKey,
-										JSON.stringify(dismissed),
-									);
-								}
-							} catch {
-								/* ignore */
-							}
-						}
-						setActiveImportRun(null);
-					}}
-					reviewMode="company"
-					companyLocations={locations.map((l) => ({
-						id: l.id,
-						name: l.name,
-						city: l.city,
-					}))}
-					onAssignOrphans={async (locationId, _locationName, itemIds) => {
-						try {
-							const result = await bulkImportAPI.importOrphanProjects(
-								activeImportRun.id,
-								locationId,
-								itemIds,
-							);
-							toast.success(
-								`${result.projectsCreated} waste stream${result.projectsCreated === 1 ? "" : "s"} imported successfully`,
-							);
+			{showReviewSection &&
+				activeImportRun &&
+				activeImportRun.sourceType === "voice_interview" &&
+				activeVoiceInterviewId && (
+					<VoiceReviewWorkspace
+						run={activeImportRun}
+						voiceInterviewId={activeVoiceInterviewId}
+						onRunUpdated={setActiveImportRun}
+						onDismiss={() => {
 							setShowReviewSection(false);
-							// Persist so picker won't reappear on navigation/refresh
+							setActiveImportRun(null);
+							setActiveVoiceInterviewId(null);
+						}}
+						onDone={() => {
+							setShowReviewSection(false);
+							setActiveImportRun(null);
+							setActiveVoiceInterviewId(null);
+							void reloadCompanyData().catch(() => {});
+						}}
+					/>
+				)}
+
+			{showReviewSection &&
+				activeImportRun &&
+				(activeImportRun.sourceType !== "voice_interview" ||
+					!activeVoiceInterviewId) && (
+					<ImportReviewSection
+						run={activeImportRun}
+						onRunUpdated={setActiveImportRun}
+						onFinalized={() => {
+							setShowReviewSection(false);
+							// Persist so picker doesn't reappear on navigation/refresh
 							try {
 								const dismissed = JSON.parse(
 									localStorage.getItem(dismissedRunsKey) || "[]",
@@ -661,17 +666,75 @@ export default function CompanyDetailPage() {
 								/* ignore */
 							}
 							setActiveImportRun(null);
+							setActiveVoiceInterviewId(null);
+							// Reload locations to show newly created items
 							void reloadCompanyData().catch(() => {});
-						} catch (error) {
-							toast.error(
-								error instanceof Error
-									? error.message
-									: "Failed to import waste streams",
-							);
-						}
-					}}
-				/>
-			)}
+						}}
+						onDismiss={() => {
+							setShowReviewSection(false);
+							if (activeImportRun) {
+								try {
+									const dismissed = JSON.parse(
+										localStorage.getItem(dismissedRunsKey) || "[]",
+									) as string[];
+									if (!dismissed.includes(activeImportRun.id)) {
+										dismissed.push(activeImportRun.id);
+										localStorage.setItem(
+											dismissedRunsKey,
+											JSON.stringify(dismissed),
+										);
+									}
+								} catch {
+									/* ignore */
+								}
+							}
+							setActiveImportRun(null);
+							setActiveVoiceInterviewId(null);
+						}}
+						reviewMode="company"
+						companyLocations={locations.map((l) => ({
+							id: l.id,
+							name: l.name,
+							city: l.city,
+						}))}
+						onAssignOrphans={async (locationId, _locationName, itemIds) => {
+							try {
+								const result = await bulkImportAPI.importOrphanProjects(
+									activeImportRun.id,
+									locationId,
+									itemIds,
+								);
+								toast.success(
+									`${result.projectsCreated} waste stream${result.projectsCreated === 1 ? "" : "s"} imported successfully`,
+								);
+								setShowReviewSection(false);
+								// Persist so picker won't reappear on navigation/refresh
+								try {
+									const dismissed = JSON.parse(
+										localStorage.getItem(dismissedRunsKey) || "[]",
+									) as string[];
+									if (!dismissed.includes(activeImportRun.id)) {
+										dismissed.push(activeImportRun.id);
+										localStorage.setItem(
+											dismissedRunsKey,
+											JSON.stringify(dismissed),
+										);
+									}
+								} catch {
+									/* ignore */
+								}
+								setActiveImportRun(null);
+								void reloadCompanyData().catch(() => {});
+							} catch (error) {
+								toast.error(
+									error instanceof Error
+										? error.message
+										: "Failed to import waste streams",
+								);
+							}
+						}}
+					/>
+				)}
 
 			{/* Locations Section */}
 			<div className="space-y-4">

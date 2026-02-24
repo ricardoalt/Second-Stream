@@ -21,6 +21,7 @@ RunStatus = Literal[
 ]
 ItemStatus = Literal["pending_review", "accepted", "amended", "rejected", "invalid"]
 ItemType = Literal["location", "project"]
+RunSourceType = Literal["bulk_import", "voice_interview"]
 
 
 class BulkImportUploadResponse(BaseSchema):
@@ -33,6 +34,7 @@ class BulkImportRunResponse(BaseSchema):
     entrypoint_type: Literal["company", "location"]
     entrypoint_id: UUID
     source_filename: str
+    source_type: RunSourceType
     status: RunStatus
     progress_step: str | None = None
     processing_error: str | None = None
@@ -65,6 +67,7 @@ class BulkImportItemResponse(BaseSchema):
     parent_item_id: UUID | None = None
     created_location_id: UUID | None = None
     created_project_id: UUID | None = None
+    group_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -94,6 +97,22 @@ class BulkImportFinalizeSummary(BaseSchema):
 class BulkImportFinalizeResponse(BaseSchema):
     status: RunStatus
     summary: BulkImportFinalizeSummary
+
+
+class BulkImportFinalizeRequest(BaseSchema):
+    resolved_group_ids: list[str] = Field(default_factory=list)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
+    close_reason: Literal["empty_extraction"] | None = None
+
+    @model_validator(mode="after")
+    def validate_close_reason_contract(self) -> BulkImportFinalizeRequest:
+        if self.close_reason == "empty_extraction":
+            return self
+        if not self.resolved_group_ids:
+            raise ValueError("resolved_group_ids required unless close_reason=empty_extraction")
+        if not self.idempotency_key:
+            raise ValueError("idempotency_key required unless close_reason=empty_extraction")
+        return self
 
 
 class BulkImportSummaryResponse(BaseSchema):

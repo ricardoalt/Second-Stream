@@ -3158,10 +3158,10 @@ async def test_upload_commit_failure_cleans_up_storage_key(monkeypatch):
             entrypoint_type="company",
             entrypoint_id=entrypoint_id,
             file=upload,
-            current_user=SimpleNamespace(id=user_id),  # type: ignore[arg-type]
-            org=SimpleNamespace(id=organization_id),  # type: ignore[arg-type]
-            db=db_stub,  # type: ignore[arg-type]
-        )  # type: ignore[arg-type]
+            current_user=SimpleNamespace(id=user_id),
+            org=SimpleNamespace(id=organization_id),
+            db=db_stub,
+        )
 
     assert db_stub.rollback_called is True
     assert len(uploaded_keys) == 1

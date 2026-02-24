@@ -137,6 +137,25 @@ class BulkImportAIExtractor:
 
         raise BulkImportAIExtractorError("unsupported_file_type")
 
+    async def extract_parsed_rows_from_text(
+        self,
+        *,
+        extracted_text: str,
+        filename: str,
+    ) -> ExtractionResult:
+        diagnostics = ExtractionDiagnostics(
+            route="voice_text",
+            char_count=len(extracted_text),
+            truncated=False,
+        )
+        if not extracted_text.strip():
+            return ExtractionResult(rows=[], diagnostics=diagnostics)
+        try:
+            rows = await self._extract_from_text(extracted_text=extracted_text, filename=filename)
+        except BulkImportAIExtractorError as exc:
+            raise BulkImportAIExtractorError(exc.code, diagnostics=diagnostics) from exc
+        return ExtractionResult(rows=rows, diagnostics=diagnostics)
+
     async def _extract_from_binary(self, *, file_bytes: bytes, filename: str) -> list[ParsedRow]:
         media_type = self._media_type_for_extension(Path(filename).suffix.casefold())
         output = await self._run_agent(

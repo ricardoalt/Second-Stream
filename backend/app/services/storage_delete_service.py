@@ -12,7 +12,13 @@ from app.services.s3_service import LOCAL_UPLOADS_DIR, USE_S3, delete_file_from_
 
 logger = structlog.get_logger(__name__)
 
-_ALLOWED_PREFIXES = ("projects/", "proposals/", "feedback/", "imports/")
+_ALLOWED_PREFIXES = (
+    "projects/",
+    "proposals/",
+    "feedback/",
+    "imports/",
+    "voice-interviews/",
+)
 
 
 class StorageDeleteError(ValueError):

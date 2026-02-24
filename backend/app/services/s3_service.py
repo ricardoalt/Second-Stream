@@ -34,7 +34,13 @@ LOCAL_UPLOADS_DIR.mkdir(exist_ok=True, parents=True)
 USE_S3 = bool(S3_BUCKET and S3_BUCKET.strip())
 
 logger = structlog.get_logger(__name__)
-_ALLOWED_LOCAL_PREFIXES = ("projects/", "proposals/", "feedback/", "imports/")
+_ALLOWED_LOCAL_PREFIXES = (
+    "projects/",
+    "proposals/",
+    "feedback/",
+    "imports/",
+    "voice-interviews/",
+)
 ATTACHMENT_PRESIGNED_TTL_SECONDS = 600
 _MAX_HEADER_FILENAME_LENGTH = 150
 

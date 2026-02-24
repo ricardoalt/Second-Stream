@@ -12,6 +12,7 @@ import structlog
 
 from app.core.database import AsyncSessionLocal
 from app.services.bulk_import_service import BulkImportService
+from app.services.voice_retention_service import voice_retention_service
 
 logger = structlog.get_logger(__name__)
 
@@ -63,6 +64,9 @@ async def run_worker() -> None:
                     await service.requeue_stale_runs(db)
                     await service.fail_exhausted_runs(db)
                     await service.purge_expired_artifacts(db)
+                    await voice_retention_service.purge_expired_audio(db)
+                    await voice_retention_service.purge_expired_transcripts(db)
+                    await voice_retention_service.purge_expired_audit_events(db)
                     await db.commit()
                     last_reaper = now
 

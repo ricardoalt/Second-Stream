@@ -38,6 +38,10 @@ class ImportRun(BaseModel):
             "status IN ('uploaded', 'processing', 'review_ready', 'finalizing', 'completed', 'failed', 'no_data')",
             name="ck_import_runs_status",
         ),
+        CheckConstraint(
+            "source_type IN ('bulk_import', 'voice_interview')",
+            name="ck_import_runs_source_type",
+        ),
         CheckConstraint("processing_attempts >= 0", name="ck_import_runs_processing_attempts"),
         CheckConstraint("total_items >= 0", name="ck_import_runs_total_items"),
         CheckConstraint("accepted_count >= 0", name="ck_import_runs_accepted_count"),
@@ -47,6 +51,7 @@ class ImportRun(BaseModel):
         CheckConstraint("duplicate_count >= 0", name="ck_import_runs_duplicate_count"),
         UniqueConstraint("id", "organization_id", name="uq_import_runs_id_org"),
         Index("ix_import_runs_org_status", "organization_id", "status"),
+        Index("ix_import_runs_source_type_status", "source_type", "status"),
         Index("ix_import_runs_entrypoint", "entrypoint_type", "entrypoint_id"),
         Index("ix_import_runs_status_created", "status", "created_at"),
         Index(
@@ -71,6 +76,7 @@ class ImportRun(BaseModel):
 
     source_file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     source_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False, default="bulk_import")
 
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="uploaded")
     progress_step: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -106,6 +112,9 @@ class ImportRun(BaseModel):
         JSONB(none_as_null=True),
         nullable=True,
     )
+    audio_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    speaker_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    transcription_model: Mapped[str | None] = mapped_column(Text, nullable=True)
     artifacts_purged_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -140,6 +149,12 @@ class ImportItem(BaseModel):
             name="ck_import_items_confidence",
         ),
         Index("ix_import_items_run_status", "run_id", "status"),
+        Index(
+            "ix_import_items_run_group",
+            "run_id",
+            "group_id",
+            postgresql_where=text("group_id IS NOT NULL"),
+        ),
         Index("ix_import_items_run_created_id", "run_id", "created_at", "id"),
         Index("ix_import_items_org_status", "organization_id", "status"),
         Index("ix_import_items_type_status", "item_type", "status"),
@@ -183,6 +198,7 @@ class ImportItem(BaseModel):
         ForeignKey("projects.id", ondelete="SET NULL"),
         nullable=True,
     )
+    group_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     run = relationship("ImportRun", back_populates="items", lazy="selectin")
     parent = relationship(

@@ -8,7 +8,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Literal, TypeVar
+from typing import Annotated, Literal, TypeVar, cast
 from uuid import UUID
 
 import structlog
@@ -25,9 +25,11 @@ from app.core.config import settings
 from app.models.bulk_import import ImportItem, ImportRun
 from app.models.company import Company
 from app.models.location import Location
+from app.models.voice_interview import ImportRunIdempotencyKey
 from app.schemas.bulk_import import (
     AssignOrphansRequest,
     AssignOrphansResponse,
+    BulkImportFinalizeRequest,
     BulkImportFinalizeResponse,
     BulkImportFinalizeSummary,
     BulkImportItemPatchRequest,
@@ -36,6 +38,7 @@ from app.schemas.bulk_import import (
     BulkImportSummaryResponse,
     BulkImportUploadResponse,
     ItemStatus,
+    RunStatus,
 )
 from app.schemas.common import PaginatedResponse
 from app.services.bulk_import_service import MAX_IMPORT_FILE_BYTES, BulkImportService
@@ -234,6 +237,7 @@ async def finalize_bulk_import_run(
     current_user: CurrentBulkImportUser,
     org: OrganizationContext,
     db: AsyncDB,
+    payload: BulkImportFinalizeRequest | None = None,
 ) -> BulkImportFinalizeResponse:
     async def _operation() -> BulkImportFinalizeSummary:
         return await service.finalize_run(
@@ -241,13 +245,29 @@ async def finalize_bulk_import_run(
             run_id=run_id,
             organization_id=org.id,
             current_user=current_user,
+            resolved_group_ids=payload.resolved_group_ids if payload else None,
+            idempotency_key=payload.idempotency_key if payload else None,
+            close_reason=payload.close_reason if payload else None,
         )
 
     summary = await _execute_in_transaction(db, _operation)
     run = await service.get_run(db, organization_id=org.id, run_id=run_id)
     if not run:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
-    return BulkImportFinalizeResponse(status="completed", summary=summary)
+    if payload and payload.idempotency_key and run.source_type == "voice_interview":
+        from sqlalchemy import select
+
+        replay_result = await db.execute(
+            select(ImportRunIdempotencyKey.response_json).where(
+                ImportRunIdempotencyKey.operation_type == "finalize",
+                ImportRunIdempotencyKey.run_id == run.id,
+                ImportRunIdempotencyKey.idempotency_key == payload.idempotency_key,
+            )
+        )
+        replay_json = replay_result.scalar_one_or_none()
+        if isinstance(replay_json, dict):
+            return BulkImportFinalizeResponse.model_validate(replay_json)
+    return BulkImportFinalizeResponse(status=_run_status_literal(run.status), summary=summary)
 
 
 @router.get("/runs/{run_id}/summary", response_model=BulkImportSummaryResponse)
@@ -291,7 +311,32 @@ async def import_orphan_projects(
         user_id=current_user.id,
     )
     await db.commit()
-    return AssignOrphansResponse(**result)
+    projects_created_raw = result.get("projects_created")
+    created_project_ids_raw = result.get("created_project_ids")
+    skipped_raw = result.get("skipped")
+    if not isinstance(projects_created_raw, int):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid response"
+        )
+    if not isinstance(created_project_ids_raw, dict):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid response"
+        )
+    if not isinstance(skipped_raw, int):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid response"
+        )
+    projects_created = projects_created_raw
+    created_project_ids_untyped = cast(dict[object, object], created_project_ids_raw)
+    skipped = skipped_raw
+    created_project_ids = {
+        str(key): str(value) for key, value in created_project_ids_untyped.items()
+    }
+    return AssignOrphansResponse(
+        projects_created=projects_created,
+        created_project_ids=created_project_ids,
+        skipped=skipped,
+    )
 
 
 async def _validate_entrypoint(
@@ -334,3 +379,17 @@ async def _execute_in_transaction(
     except Exception:
         await db.rollback()
         raise
+
+
+def _run_status_literal(status_value: str) -> RunStatus:
+    if status_value not in {
+        "uploaded",
+        "processing",
+        "review_ready",
+        "finalizing",
+        "completed",
+        "failed",
+        "no_data",
+    }:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Invalid run status")
+    return cast(RunStatus, status_value)

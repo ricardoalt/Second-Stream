@@ -124,6 +124,7 @@ function buildReviewGroups(
 			parentItemId: null,
 			createdLocationId: context.id,
 			createdProjectId: null,
+			groupId: null,
 			createdAt: firstProj.createdAt,
 			updatedAt: firstProj.updatedAt,
 		};

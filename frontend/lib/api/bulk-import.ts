@@ -27,6 +27,7 @@ export type ItemStatus =
 
 export type ItemType = "location" | "project";
 export type EntrypointType = "company" | "location";
+export type RunSourceType = "bulk_import" | "voice_interview";
 export type ItemAction = "accept" | "amend" | "reject" | "reset";
 
 export interface BulkImportUploadResponse {
@@ -39,6 +40,7 @@ export interface BulkImportRun {
 	entrypointType: EntrypointType;
 	entrypointId: string;
 	sourceFilename: string;
+	sourceType: RunSourceType;
 	status: RunStatus;
 	progressStep: string | null;
 	processingError: string | null;
@@ -78,8 +80,15 @@ export interface BulkImportItem {
 	parentItemId: string | null;
 	createdLocationId: string | null;
 	createdProjectId: string | null;
+	groupId: string | null;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export interface BulkImportFinalizeRequest {
+	resolvedGroupIds?: string[];
+	idempotencyKey?: string;
+	closeReason?: "empty_extraction";
 }
 
 export interface PaginatedItems {
@@ -202,9 +211,24 @@ export const bulkImportAPI = {
 	/**
 	 * Finalize the import run — creates real entities.
 	 */
-	async finalize(runId: string): Promise<BulkImportFinalizeResponse> {
+	async finalize(
+		runId: string,
+		payload?: BulkImportFinalizeRequest,
+	): Promise<BulkImportFinalizeResponse> {
+		const body = payload
+			? {
+					...(payload.resolvedGroupIds
+						? { resolved_group_ids: payload.resolvedGroupIds }
+						: {}),
+					...(payload.idempotencyKey
+						? { idempotency_key: payload.idempotencyKey }
+						: {}),
+					...(payload.closeReason ? { close_reason: payload.closeReason } : {}),
+				}
+			: undefined;
 		return apiClient.post<BulkImportFinalizeResponse>(
 			`${BASE}/runs/${runId}/finalize`,
+			body,
 		);
 	},
 

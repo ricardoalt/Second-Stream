@@ -501,6 +501,7 @@ from app.api.v1 import (
     project_data,
     projects,
     proposals,
+    voice_interviews,
 )
 
 # Health checks (available at root and API prefix)
@@ -585,6 +586,12 @@ app.include_router(
     bulk_import.router,
     prefix=f"{settings.API_V1_PREFIX}/bulk-import",
     tags=["Bulk Import"],
+)
+
+app.include_router(
+    voice_interviews.router,
+    prefix=f"{settings.API_V1_PREFIX}/voice-interviews",
+    tags=["Voice Interviews"],
 )
 
 # ============================================================================
