@@ -101,6 +101,7 @@ export function LocationCombobox({
 								companyId={companyId}
 								onSuccess={(location) => {
 									loadLocationsByCompany(companyId);
+									if (!location) return;
 									onValueChange?.(location.id);
 									setOpen(false);
 								}}

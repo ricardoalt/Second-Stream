@@ -7,7 +7,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from conftest import create_company, create_location, create_org, create_project, create_user
@@ -291,6 +290,58 @@ async def test_project_without_category_can_accept_and_finalize(
     assert isinstance(technical_sections, list)
     assert len(technical_sections) == len(get_assessment_questionnaire())
     assert len(technical_sections) > 0
+
+
+@pytest.mark.asyncio
+async def test_finalize_creates_location_without_zip(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Import Zip", "org-import-zip")
+    user = await create_user(
+        db_session,
+        email=f"import-zip-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Import Zip Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    location_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="location",
+        status="pending_review",
+        normalized_data={"name": "No Zip", "city": "C", "state": "S"},
+    )
+
+    set_current_user(user)
+
+    accept_location = await client.patch(
+        f"/api/v1/bulk-import/items/{location_item.id}",
+        json={"action": "accept"},
+    )
+    assert accept_location.status_code == 200
+
+    finalize_response = await client.post(f"/api/v1/bulk-import/runs/{run.id}/finalize")
+    assert finalize_response.status_code == 200
+    assert finalize_response.json()["status"] == "completed"
+
+    created_location_result = await db_session.execute(
+        select(Location)
+        .where(Location.organization_id == org.id)
+        .where(Location.name == "No Zip")
+        .order_by(Location.created_at.desc())
+    )
+    created_location = created_location_result.scalars().first()
+    assert created_location is not None
+    assert created_location.zip_code is None
 
 
 @pytest.mark.asyncio
@@ -2412,9 +2463,6 @@ async def test_import_orphan_projects_non_voice_still_completes_run(db_session):
         org_id=org.id,
         company_id=company.id,
         name="Plant Orphan",
-        city="Monterrey",
-        state="NL",
-        address="A",
     )
     run = await _create_run(
         db_session,
@@ -3283,32 +3331,8 @@ async def test_large_ipc_payload_does_not_false_timeout():
     assert len(result) == 1400
 
 
-class _UploadDbCommitFailStub:
-    def __init__(self, organization_id):
-        self.organization_id = organization_id
-        self.rollback_called = False
-        self.added_run = None
-
-    async def get(self, _model, entrypoint_id):
-        return SimpleNamespace(id=entrypoint_id, organization_id=self.organization_id)
-
-    def add(self, run):
-        self.added_run = run
-
-    async def commit(self):
-        raise RuntimeError("commit_failed")
-
-    async def rollback(self):
-        self.rollback_called = True
-
-
 @pytest.mark.asyncio
-async def test_upload_commit_failure_cleans_up_storage_key(monkeypatch):
-    organization_id = uuid.uuid4()
-    entrypoint_id = uuid.uuid4()
-    user_id = uuid.uuid4()
-
-    db_stub = _UploadDbCommitFailStub(organization_id)
+async def test_upload_commit_failure_cleans_up_storage_key(monkeypatch, db_session):
     uploaded_keys: list[str] = []
     deleted_keys: list[str] = []
 
@@ -3326,17 +3350,41 @@ async def test_upload_commit_failure_cleans_up_storage_key(monkeypatch):
         filename="import.xlsx",
     )
 
+    org = await create_org(db_session, "Org Upload Commit Fail", "org-upload-commit")
+    user = await create_user(
+        db_session,
+        email=f"upload-commit-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Upload Commit Co")
+
+    rollback_called = False
+    original_rollback = db_session.rollback
+
+    async def _fail_commit():
+        raise RuntimeError("commit_failed")
+
+    async def _track_rollback():
+        nonlocal rollback_called
+        rollback_called = True
+        await original_rollback()
+
+    monkeypatch.setattr(db_session, "commit", _fail_commit)
+    monkeypatch.setattr(db_session, "rollback", _track_rollback)
+
     with pytest.raises(RuntimeError, match="commit_failed"):
         await bulk_import_api.upload_bulk_import_file(
             entrypoint_type="company",
-            entrypoint_id=entrypoint_id,
+            entrypoint_id=company.id,
             file=upload,
-            current_user=SimpleNamespace(id=user_id),
-            org=SimpleNamespace(id=organization_id),
-            db=db_stub,
+            current_user=user,
+            org=org,
+            db=db_session,
         )
 
-    assert db_stub.rollback_called is True
+    assert rollback_called is True
     assert len(uploaded_keys) == 1
     assert deleted_keys == uploaded_keys
 

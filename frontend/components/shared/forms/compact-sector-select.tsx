@@ -53,7 +53,12 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import type { Sector, SectorGroupKey, Subsector } from "@/lib/sectors-config";
+import type {
+	KnownSubsector,
+	Sector,
+	SectorGroupKey,
+	Subsector,
+} from "@/lib/sectors-config";
 import {
 	getSectorsByGroup,
 	getSubsectors,
@@ -84,13 +89,13 @@ const SECTOR_ICONS = {
 	consumer_goods_fmcg: Store,
 	financial_commercial_offices: Building2,
 	specialty_high_risk: Target,
-} as const;
+} satisfies Record<Sector, typeof Target>;
 
 interface CompactSectorSelectProps {
 	sector: Sector | "";
-	subsector: Subsector | string;
+	subsector: Subsector | "";
 	onSectorChange: (sector: Sector) => void;
-	onSubsectorChange: (subsector: Subsector | string) => void;
+	onSubsectorChange: (subsector: Subsector) => void;
 	disabled?: boolean;
 	className?: string;
 	/** Error message to display under sector select */
@@ -120,23 +125,21 @@ export function CompactSectorSelect({
 	// Get available subsectors for selected sector
 	const availableSubsectors = useMemo(() => {
 		if (!sector) return [];
-		return getSubsectors(sector as Sector);
+		return getSubsectors(sector);
 	}, [sector]);
 
 	// Find selected subsector label
 	const selectedSubsectorLabel = useMemo(() => {
 		if (!subsector) return "";
 		const found = availableSubsectors.find((s) => s.id === subsector);
-		if (found) return found.label;
-		// Custom subsector - return as-is with proper formatting
-		return subsector.replace(/_/g, " ");
+		return found?.label ?? subsector.replace(/_/g, " ");
 	}, [subsector, availableSubsectors]);
 
 	// Handle sector change - reset subsector
-	const handleSectorChange = (newSector: string) => {
-		onSectorChange(newSector as Sector);
+	const handleSectorChange = (newSector: Sector) => {
+		onSectorChange(newSector);
 		// Auto-select first subsector or clear
-		const newSubsectors = getSubsectors(newSector as Sector);
+		const newSubsectors = getSubsectors(newSector);
 		if (newSubsectors.length > 0 && newSubsectors[0]) {
 			onSubsectorChange(newSubsectors[0].id);
 		} else {
@@ -147,32 +150,42 @@ export function CompactSectorSelect({
 	};
 
 	// Handle subsector selection (from list or custom)
-	const handleSubsectorSelect = (value: string) => {
-		onSubsectorChange(value as Subsector);
+	const handleSubsectorSelect = (value: KnownSubsector) => {
+		onSubsectorChange(value);
 		setSearchValue("");
 		setSubsectorOpen(false);
 	};
 
 	// Handle creating custom subsector from search input
 	const handleCreateCustom = () => {
-		if (!searchValue.trim()) return;
+		const trimmed = searchValue.trim();
+		if (!trimmed) return;
 		// Convert to slug format for storage
-		const slug = searchValue
+		const slug = trimmed
 			.toLowerCase()
 			.replace(/\s+/g, "_")
 			.replace(/[^a-z0-9_]/g, "");
-		onSubsectorChange(slug || searchValue);
+		if (!slug) return;
+		onSubsectorChange(slug);
 		setSearchValue("");
 		setSubsectorOpen(false);
 	};
 
 	// Check if search matches any existing option
+	const normalizedSearch = searchValue.trim().toLowerCase();
 	const hasExactMatch = availableSubsectors.some(
-		(s) => s.label.toLowerCase() === searchValue.toLowerCase(),
+		(s) => s.label.toLowerCase() === normalizedSearch,
 	);
 
 	// Group keys for iteration
-	const groupKeys = Object.keys(SECTOR_GROUPS) as SectorGroupKey[];
+	const groupKeys: SectorGroupKey[] = [
+		"production",
+		"materials",
+		"food",
+		"services",
+		"technology",
+	];
+	const sectorIcons = SECTOR_ICONS;
 
 	return (
 		<div className={cn("space-y-4", className)}>
@@ -197,10 +210,7 @@ export function CompactSectorSelect({
 							{selectedSectorConfig ? (
 								<span className="flex items-center gap-2">
 									{(() => {
-										const Icon =
-											SECTOR_ICONS[
-												selectedSectorConfig.id as keyof typeof SECTOR_ICONS
-											] || Target;
+										const Icon = sectorIcons[selectedSectorConfig.id] || Target;
 										return (
 											<Icon className="h-4 w-4 text-muted-foreground shrink-0" />
 										);
@@ -235,10 +245,7 @@ export function CompactSectorSelect({
 											{index > 0 && <CommandSeparator />}
 											<CommandGroup heading={group.label}>
 												{groupSectors.map((sectorConfig) => {
-													const Icon =
-														SECTOR_ICONS[
-															sectorConfig.id as keyof typeof SECTOR_ICONS
-														] || Target;
+													const Icon = sectorIcons[sectorConfig.id] || Target;
 													return (
 														<CommandItem
 															key={sectorConfig.id}

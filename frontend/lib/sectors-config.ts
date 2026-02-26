@@ -23,7 +23,7 @@ export type Sector =
 	| "financial_commercial_offices"
 	| "specialty_high_risk";
 
-export type Subsector =
+export type KnownSubsector =
 	// Manufacturing & Industrial
 	| "automotive_manufacturing"
 	| "aerospace_manufacturing"
@@ -181,11 +181,15 @@ export type Subsector =
 	// General fallback
 	| "other";
 
+export type CustomSubsector = string;
+
+export type Subsector = KnownSubsector | CustomSubsector;
+
 export interface SectorConfig {
 	id: Sector;
 	label: string;
 	subsectors: {
-		id: Subsector;
+		id: KnownSubsector;
 		label: string;
 	}[];
 	description?: string;
@@ -547,13 +551,13 @@ export const getSectorConfig = (sectorId: Sector): SectorConfig | undefined => {
 
 export const getSubsectors = (
 	sectorId: Sector,
-): { id: Subsector; label: string }[] => {
+): { id: KnownSubsector; label: string }[] => {
 	const sector = getSectorConfig(sectorId);
 	return sector?.subsectors || [];
 };
 
 export const getSectorBySubsector = (
-	subsectorId: Subsector,
+	subsectorId: KnownSubsector,
 ): SectorConfig | undefined => {
 	return sectorsConfig.find((sector) =>
 		sector.subsectors.some((subsector) => subsector.id === subsectorId),

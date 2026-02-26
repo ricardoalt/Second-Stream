@@ -22,6 +22,7 @@ const PremiumProjectWizard = dynamic(
 	{ ssr: false, loading: () => null },
 );
 
+import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
 import { IncomingMaterialsCard } from "@/components/features/locations/incoming-materials-card";
 import { LocationContactsCard } from "@/components/features/locations/location-contacts-card";
 import { ArchivedBanner } from "@/components/shared/archived-banner";
@@ -38,6 +39,7 @@ import type { ArchivedFilter } from "@/lib/api/companies";
 import { useAuth } from "@/lib/contexts/auth-context";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { useLocationStore } from "@/lib/stores/location-store";
+import { ADDRESS_TYPE_LABELS } from "@/lib/types/company";
 
 export default function LocationDetailPage() {
 	const params = useParams();
@@ -47,8 +49,12 @@ export default function LocationDetailPage() {
 	const locationId = params.locationId as string;
 	const [wizardOpen, setWizardOpen] = useState(false);
 	const { canWriteLocationContacts, canCreateClientData, user } = useAuth();
-	const { canArchiveLocation, canRestoreLocation, canPurgeLocation } =
-		usePermissions();
+	const {
+		canArchiveLocation,
+		canEditLocation,
+		canRestoreLocation,
+		canPurgeLocation,
+	} = usePermissions();
 	const canCreateProject = Boolean(canCreateClientData);
 	const canDeleteContacts = Boolean(
 		user?.isSuperuser || user?.role === "org_admin",
@@ -64,6 +70,7 @@ export default function LocationDetailPage() {
 		error,
 		clearError,
 	} = useLocationStore();
+	const [editDialogOpen, setEditDialogOpen] = useState(false);
 
 	// Archive dialog states
 	const [showArchiveDialog, setShowArchiveDialog] = useState(false);
@@ -267,6 +274,7 @@ export default function LocationDetailPage() {
 					</div>
 					<p className="text-muted-foreground mt-1">
 						{currentLocation.city}, {currentLocation.state}
+						{currentLocation.zipCode ? ` ${currentLocation.zipCode}` : ""}
 					</p>
 				</div>
 				<Badge variant="outline">
@@ -283,6 +291,11 @@ export default function LocationDetailPage() {
 					>
 						<Archive className="mr-2 h-4 w-4" />
 						Archive
+					</Button>
+				)}
+				{!isArchived && canEditLocation(currentLocation) && (
+					<Button variant="outline" onClick={() => setEditDialogOpen(true)}>
+						Edit Location
 					</Button>
 				)}
 			</div>
@@ -308,6 +321,24 @@ export default function LocationDetailPage() {
 								<p className="text-sm">{currentLocation.company.name}</p>
 							</div>
 						)}
+					</div>
+
+					<Separator />
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div>
+							<p className="text-sm font-medium text-muted-foreground">
+								Address Type
+							</p>
+							<Badge variant="secondary">
+								{ADDRESS_TYPE_LABELS[currentLocation.addressType]}
+							</Badge>
+						</div>
+						<div>
+							<p className="text-sm font-medium text-muted-foreground">
+								ZIP Code
+							</p>
+							<p className="text-sm">{currentLocation.zipCode ?? "—"}</p>
+						</div>
 					</div>
 
 					{currentLocation.notes && (
@@ -428,6 +459,26 @@ export default function LocationDetailPage() {
 				entityName={currentLocation.name}
 				loading={isPurging}
 			/>
+
+			{editDialogOpen && (
+				<CreateLocationDialog
+					companyId={companyId}
+					locationToEdit={{
+						id: currentLocation.id,
+						name: currentLocation.name,
+						addressType: currentLocation.addressType,
+						city: currentLocation.city,
+						state: currentLocation.state,
+						address: currentLocation.address ?? "",
+						zipCode: currentLocation.zipCode ?? null,
+						notes: currentLocation.notes ?? "",
+					}}
+					onSuccess={() => {
+						setEditDialogOpen(false);
+						void loadLocation(locationId, projectsFilter).catch(() => {});
+					}}
+				/>
+			)}
 
 			{/* Contextual Wizard */}
 			{!isArchived && (

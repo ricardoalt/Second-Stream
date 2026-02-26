@@ -13,12 +13,22 @@ export interface CompanyBase {
 	industry: string;
 	sector: Sector;
 	subsector: Subsector;
+	customerType: CustomerType;
 	contactName?: string;
 	contactEmail?: string;
 	contactPhone?: string;
 	notes?: string;
 	tags?: string[];
 }
+
+export const CUSTOMER_TYPES = ["buyer", "generator", "both"] as const;
+export type CustomerType = (typeof CUSTOMER_TYPES)[number];
+
+export const CUSTOMER_TYPE_LABELS: Record<CustomerType, string> = {
+	buyer: "Buyer",
+	generator: "Generator",
+	both: "Both",
+};
 
 export interface CompanyCreate extends CompanyBase {}
 
@@ -50,7 +60,24 @@ export interface LocationBase {
 	latitude?: number;
 	longitude?: number;
 	notes?: string;
+	addressType: AddressType;
+	zipCode?: string | null;
 }
+
+export const ADDRESS_TYPES = [
+	"headquarters",
+	"pickup",
+	"delivery",
+	"billing",
+] as const;
+export type AddressType = (typeof ADDRESS_TYPES)[number];
+
+export const ADDRESS_TYPE_LABELS: Record<AddressType, string> = {
+	headquarters: "Headquarters",
+	pickup: "Pick-up",
+	delivery: "Delivery",
+	billing: "Billing",
+};
 
 export interface LocationCreate extends LocationBase {
 	companyId: string;
@@ -151,8 +178,9 @@ export interface IncomingMaterial {
 export interface CompanyFormData {
 	name: string;
 	industry: string;
-	sector: Sector;
-	subsector: Subsector;
+	sector: Sector | "";
+	subsector: Subsector | "";
+	customerType: CustomerType | "";
 	contactName: string;
 	contactEmail: string;
 	contactPhone: string;
@@ -164,5 +192,7 @@ export interface LocationFormData {
 	city: string;
 	state: string;
 	address: string;
+	addressType: AddressType;
+	zipCode: string;
 	notes?: string;
 }

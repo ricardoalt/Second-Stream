@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     DateTime,
+    Enum,
     Float,
     ForeignKey,
     ForeignKeyConstraint,
@@ -68,6 +69,21 @@ class Location(BaseModel):
 
     # Additional info
     notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    address_type: Mapped[str] = mapped_column(
+        Enum(
+            "headquarters",
+            "pickup",
+            "delivery",
+            "billing",
+            name="address_type",
+            validate_strings=True,
+            create_type=False,
+        ),
+        nullable=False,
+        server_default="headquarters",
+        index=True,
+    )
+    zip_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     created_by_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id"),
@@ -136,6 +152,8 @@ class Location(BaseModel):
     def full_address(self) -> str:
         """Formatted full address."""
         parts = [self.address, self.city, self.state]
+        if self.zip_code:
+            parts.append(self.zip_code)
         return ", ".join(p for p in parts if p)
 
     @property

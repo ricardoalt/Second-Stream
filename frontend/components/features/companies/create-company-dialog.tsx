@@ -30,12 +30,32 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingButton } from "@/components/ui/loading-button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { isForbiddenError } from "@/lib/api/client";
 import { useToast } from "@/lib/hooks/use-toast";
 import type { Sector, Subsector } from "@/lib/sectors-config";
+import { sectorsConfig } from "@/lib/sectors-config";
 import { useCompanyStore } from "@/lib/stores/company-store";
-import type { CompanyDetail, CompanyFormData } from "@/lib/types/company";
+import type {
+	CompanyDetail,
+	CompanyFormData,
+	CustomerType,
+} from "@/lib/types/company";
+
+const isCustomerType = (value: string): value is CustomerType => {
+	return value === "buyer" || value === "generator" || value === "both";
+};
+
+const isSector = (value: string): value is Sector => {
+	return sectorsConfig.some((sector) => sector.id === value);
+};
 
 interface CreateCompanyDialogProps {
 	onSuccess?: (company: CompanyDetail | null) => void;
@@ -51,6 +71,7 @@ interface CreateCompanyDialogProps {
 		contactEmail?: string;
 		contactPhone?: string;
 		notes?: string;
+		customerType?: CustomerType;
 	};
 }
 
@@ -58,8 +79,9 @@ interface CreateCompanyDialogProps {
 const EMPTY_FORM: CompanyFormData = {
 	name: "",
 	industry: "", // Auto-generated from subsector
-	sector: "" as Sector,
-	subsector: "" as Subsector,
+	sector: "",
+	subsector: "",
+	customerType: "",
 	contactName: "",
 	contactEmail: "",
 	contactPhone: "",
@@ -86,8 +108,9 @@ export function CreateCompanyDialog({
 			setFormData({
 				name: companyToEdit.name,
 				industry: companyToEdit.industry || "",
-				sector: companyToEdit.sector || ("" as Sector),
-				subsector: companyToEdit.subsector || ("" as Subsector),
+				sector: companyToEdit.sector ?? "",
+				subsector: companyToEdit.subsector ?? "",
+				customerType: companyToEdit.customerType || "both",
 				contactName: companyToEdit.contactName || "",
 				contactEmail: companyToEdit.contactEmail || "",
 				contactPhone: companyToEdit.contactPhone || "",
@@ -101,14 +124,39 @@ export function CreateCompanyDialog({
 		setLoading(true);
 
 		try {
+			if (
+				!isCustomerType(formData.customerType) ||
+				!isSector(formData.sector)
+			) {
+				toast({
+					title: "Validation Error",
+					description: "Please complete required fields",
+					variant: "destructive",
+				});
+				return;
+			}
+
+			const trimmedSubsector = formData.subsector.trim();
+			if (!trimmedSubsector) {
+				toast({
+					title: "Validation Error",
+					description: "Please select a subsector",
+					variant: "destructive",
+				});
+				return;
+			}
+
 			// Auto-generate industry from subsector for backend compatibility
-			const industry = formData.subsector
-				? formatSubsector(formData.subsector)
+			const industry = trimmedSubsector
+				? formatSubsector(trimmedSubsector)
 				: formData.sector || "Other";
 
 			const dataToSubmit = {
 				...formData,
 				industry,
+				sector: formData.sector,
+				subsector: trimmedSubsector,
+				customerType: formData.customerType,
 			};
 
 			let company: CompanyDetail;
@@ -166,7 +214,11 @@ export function CreateCompanyDialog({
 	const isEmailValid =
 		!formData.contactEmail ||
 		/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail);
-	const isFormValid = formData.name.trim() && formData.sector && isEmailValid;
+	const isFormValid =
+		formData.name.trim() &&
+		formData.customerType &&
+		formData.sector &&
+		isEmailValid;
 
 	return (
 		<Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
@@ -216,6 +268,49 @@ export function CreateCompanyDialog({
 							)}
 						</div>
 
+						{/* Customer Type */}
+						<div className="grid gap-2">
+							<Label htmlFor="customerType">
+								Customer Type <span className="text-destructive">*</span>
+							</Label>
+							<Select
+								value={formData.customerType}
+								onValueChange={(value) => {
+									if (
+										value !== "buyer" &&
+										value !== "generator" &&
+										value !== "both"
+									) {
+										return;
+									}
+									setFormData({
+										...formData,
+										customerType: value,
+									});
+									setTouched((prev) => ({ ...prev, customerType: true }));
+								}}
+							>
+								<SelectTrigger
+									id="customerType"
+									onBlur={() =>
+										setTouched((prev) => ({ ...prev, customerType: true }))
+									}
+								>
+									<SelectValue placeholder="Select type..." />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="buyer">Buyer</SelectItem>
+									<SelectItem value="generator">Generator</SelectItem>
+									<SelectItem value="both">Both</SelectItem>
+								</SelectContent>
+							</Select>
+							{touched.customerType && !formData.customerType && (
+								<p className="text-sm text-destructive">
+									Please select a customer type
+								</p>
+							)}
+						</div>
+
 						{/* Sector / Subsector - single reusable component */}
 						<CompactSectorSelect
 							sector={formData.sector}
@@ -226,7 +321,7 @@ export function CreateCompanyDialog({
 							onSubsectorChange={(subsector) =>
 								setFormData((prev) => ({
 									...prev,
-									subsector: subsector as Subsector,
+									subsector,
 								}))
 							}
 							error={

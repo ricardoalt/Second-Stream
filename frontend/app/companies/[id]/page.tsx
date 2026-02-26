@@ -58,6 +58,7 @@ import { usePermissions } from "@/lib/hooks/use-permissions";
 import { useCompanyStore } from "@/lib/stores/company-store";
 import { useLocationStore } from "@/lib/stores/location-store";
 import type { LocationSummary } from "@/lib/types/company";
+import { ADDRESS_TYPE_LABELS, CUSTOMER_TYPE_LABELS } from "@/lib/types/company";
 
 export default function CompanyDetailPage() {
 	const params = useParams();
@@ -475,6 +476,15 @@ export default function CompanyDetailPage() {
 					<CardTitle>Company Information</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
+					<div>
+						<p className="text-sm font-medium text-muted-foreground mb-1">
+							Customer Type
+						</p>
+						<Badge variant="secondary">
+							{CUSTOMER_TYPE_LABELS[currentCompany.customerType]}
+						</Badge>
+					</div>
+					<Separator />
 					{/* Industry/Sub-Industry - only show if set */}
 					{currentCompany.sector &&
 						currentCompany.subsector &&
@@ -850,9 +860,15 @@ export default function CompanyDetailPage() {
 													</Badge>
 												)}
 											</div>
-											<p className="text-sm text-muted-foreground mt-1">
-												{location.city}, {location.state}
-											</p>
+											<div className="flex flex-wrap items-center gap-2 mt-1">
+												<p className="text-sm text-muted-foreground">
+													{location.city}, {location.state}
+													{location.zipCode ? ` ${location.zipCode}` : ""}
+												</p>
+												<Badge variant="secondary" className="text-xs">
+													{ADDRESS_TYPE_LABELS[location.addressType]}
+												</Badge>
+											</div>
 										</button>
 										<div className="flex items-center gap-2">
 											<Badge
@@ -998,6 +1014,7 @@ export default function CompanyDetailPage() {
 						industry: currentCompany.industry,
 						sector: currentCompany.sector,
 						subsector: currentCompany.subsector,
+						customerType: currentCompany.customerType,
 						...(currentCompany.contactName && {
 							contactName: currentCompany.contactName,
 						}),

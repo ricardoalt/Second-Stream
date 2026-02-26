@@ -1126,6 +1126,84 @@ async def test_voice_finalize_group_resolver_map_create_reject(
 
 
 @pytest.mark.asyncio
+async def test_voice_finalize_creates_location_without_zip(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(db_session, "Voice Zip Org", "voice-zip-org")
+    user = await create_user(
+        db_session,
+        email=f"voice-zip-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Voice Zip Co")
+    set_current_user(user)
+
+    run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="voice-interviews/zip/audio.wav",
+        source_filename="audio.wav",
+        source_type="voice_interview",
+        status="review_ready",
+        processing_attempts=0,
+        created_by_user_id=user.id,
+    )
+    interview = VoiceInterview(
+        organization_id=org.id,
+        company_id=company.id,
+        location_id=None,
+        bulk_import_run_id=run.id,
+        audio_object_key="voice-interviews/zip/audio.wav",
+        transcript_object_key="voice-interviews/zip/transcript.txt",
+        status="review_ready",
+        error_code=None,
+        failed_stage=None,
+        processing_attempts=1,
+        consent_at=datetime.now(UTC),
+        consent_by_user_id=user.id,
+        consent_copy_version="v1",
+        audio_retention_expires_at=datetime.now(UTC) + timedelta(days=180),
+        transcript_retention_expires_at=datetime.now(UTC) + timedelta(days=730),
+        created_by_user_id=user.id,
+    )
+    db_session.add(run)
+    db_session.add(interview)
+    await db_session.flush()
+
+    location_item = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="location",
+        status="accepted",
+        needs_review=False,
+        confidence=90,
+        extracted_data={},
+        normalized_data={"name": "Voice Zip Plant", "city": "MTY", "state": "NL"},
+        confirm_create_new=True,
+        group_id="grp_zip",
+    )
+    db_session.add(location_item)
+    await db_session.commit()
+
+    response = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={"resolved_group_ids": ["grp_zip"], "idempotency_key": "voice-zip-k1"},
+    )
+    assert response.status_code == 200
+
+    created_location = await db_session.scalar(
+        select(Location).where(
+            Location.organization_id == org.id, Location.name == "Voice Zip Plant"
+        )
+    )
+    assert created_location is not None
+    assert created_location.zip_code is None
+
+
+@pytest.mark.asyncio
 async def test_voice_accept_location_with_duplicates_and_confirm_create_new_false_allowed(
     client: AsyncClient, db_session, set_current_user
 ) -> None:
@@ -1785,9 +1863,6 @@ async def test_voice_import_orphan_projects_syncs_voice_and_run_status(
         org_id=org.id,
         company_id=company.id,
         name="Plant Sync",
-        city="Monterrey",
-        state="NL",
-        address="A",
     )
     set_current_user(user)
 

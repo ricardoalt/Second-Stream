@@ -1087,8 +1087,20 @@ async def update_location(
     """Update location information."""
     current_user, location = current_user_location
 
-    # Update only provided fields
     update_data = location_data.model_dump(exclude_unset=True, by_alias=False)
+    zip_code_in_payload = "zip_code" in update_data
+    if location.zip_code is None and not zip_code_in_payload:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="ZIP code is required",
+        )
+    if zip_code_in_payload and update_data["zip_code"] is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="ZIP code is required",
+        )
+
+    # Update only provided fields
     for field, value in update_data.items():
         setattr(location, field, value)
 

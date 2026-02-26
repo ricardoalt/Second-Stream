@@ -5,7 +5,7 @@ Pydantic schemas for Company model.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -38,6 +38,7 @@ class CompanyBase(BaseSchema):
     contact_phone: str | None = Field(None, max_length=50)
     notes: str | None = None
     tags: list[str] = Field(default_factory=list)
+    customer_type: Literal["buyer", "generator", "both"] = "both"
 
 
 class CompanyCreate(CompanyBase):
@@ -58,6 +59,7 @@ class CompanyUpdate(BaseSchema):
     contact_phone: str | None = Field(None, max_length=50)
     notes: str | None = None
     tags: list[str] | None = None
+    customer_type: Literal["buyer", "generator", "both"] | None = None
 
 
 class CompanySummary(CompanyBase):

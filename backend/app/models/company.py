@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import (
     JSON,
     DateTime,
+    Enum,
     ForeignKey,
     String,
     Text,
@@ -70,6 +71,19 @@ class Company(BaseModel):
         JSON,
         default=list,
         comment="Categorization tags",
+    )
+    customer_type: Mapped[str] = mapped_column(
+        Enum(
+            "buyer",
+            "generator",
+            "both",
+            name="customer_type",
+            validate_strings=True,
+            create_type=False,
+        ),
+        nullable=False,
+        server_default="both",
+        index=True,
     )
 
     created_by_user_id: Mapped[UUID | None] = mapped_column(

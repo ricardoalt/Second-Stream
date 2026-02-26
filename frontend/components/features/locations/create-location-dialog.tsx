@@ -16,17 +16,43 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingButton } from "@/components/ui/loading-button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { isForbiddenError } from "@/lib/api/client";
 import { locationSchema } from "@/lib/forms/schemas";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useLocationStore } from "@/lib/stores/location-store";
-import type { LocationSummary } from "@/lib/types/company";
+import type { AddressType, LocationSummary } from "@/lib/types/company";
+
+const isAddressType = (value: string): value is AddressType => {
+	return (
+		value === "headquarters" ||
+		value === "pickup" ||
+		value === "delivery" ||
+		value === "billing"
+	);
+};
 
 interface CreateLocationDialogProps {
 	companyId: string;
-	onSuccess?: (location: LocationSummary) => void;
+	onSuccess?: (location: LocationSummary | null) => void;
 	trigger?: React.ReactNode;
+	locationToEdit?: {
+		id: string;
+		name: string;
+		addressType: AddressType;
+		city: string;
+		state: string;
+		address?: string;
+		zipCode?: string | null;
+		notes?: string;
+	};
 }
 
 /**
@@ -37,18 +63,22 @@ export function CreateLocationDialog({
 	companyId,
 	onSuccess,
 	trigger,
+	locationToEdit,
 }: CreateLocationDialogProps) {
-	const [open, setOpen] = useState(false);
-	const { createLocation } = useLocationStore();
+	const isEditMode = Boolean(locationToEdit);
+	const [open, setOpen] = useState(isEditMode);
+	const { createLocation, updateLocation } = useLocationStore();
 	const { toast } = useToast();
 
 	const form = useForm({
 		defaultValues: {
-			name: "",
-			city: "",
-			state: "",
-			address: "",
-			notes: "",
+			name: locationToEdit?.name ?? "",
+			addressType: locationToEdit?.addressType ?? "headquarters",
+			city: locationToEdit?.city ?? "",
+			state: locationToEdit?.state ?? "",
+			address: locationToEdit?.address ?? "",
+			zipCode: locationToEdit?.zipCode ?? "",
+			notes: locationToEdit?.notes ?? "",
 		},
 		onSubmit: async ({ value }) => {
 			// Validate with Zod before submit
@@ -64,8 +94,24 @@ export function CreateLocationDialog({
 			}
 
 			try {
+				if (isEditMode && locationToEdit) {
+					const location = await updateLocation(locationToEdit.id, {
+						...result.data,
+						zipCode: result.data.zipCode.trim(),
+					});
+					toast({
+						title: "Location updated",
+						description: `${result.data.name} has been updated successfully.`,
+					});
+					setOpen(false);
+					form.reset();
+					onSuccess?.(location);
+					return;
+				}
+
 				const location = await createLocation(companyId, {
 					...result.data,
+					zipCode: result.data.zipCode.trim(),
 					companyId,
 				});
 
@@ -91,16 +137,29 @@ export function CreateLocationDialog({
 		},
 	});
 
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (!nextOpen) {
+			setOpen(false);
+			if (isEditMode) {
+				onSuccess?.(null);
+			}
+			return;
+		}
+		setOpen(true);
+	};
+
 	return (
-		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogTrigger asChild>
-				{trigger || (
-					<Button>
-						<MapPin className="mr-2 h-4 w-4" />
-						New Location
-					</Button>
-				)}
-			</DialogTrigger>
+		<Dialog open={open} onOpenChange={handleOpenChange}>
+			{!isEditMode && (
+				<DialogTrigger asChild>
+					{trigger || (
+						<Button>
+							<MapPin className="mr-2 h-4 w-4" />
+							New Location
+						</Button>
+					)}
+				</DialogTrigger>
+			)}
 
 			<DialogContent className="sm:max-w-[500px]">
 				<form
@@ -111,9 +170,13 @@ export function CreateLocationDialog({
 					}}
 				>
 					<DialogHeader>
-						<DialogTitle>Create New Location</DialogTitle>
+						<DialogTitle>
+							{isEditMode ? "Edit Location" : "Create New Location"}
+						</DialogTitle>
 						<DialogDescription>
-							Add a new location/site for this company.
+							{isEditMode
+								? "Update location information."
+								: "Add a new location/site for this company."}
 						</DialogDescription>
 					</DialogHeader>
 
@@ -131,6 +194,41 @@ export function CreateLocationDialog({
 										onChange={(e) => field.handleChange(e.target.value)}
 										onBlur={field.handleBlur}
 									/>
+									{field.state.meta.errors.length > 0 && (
+										<p className="text-xs text-destructive">
+											{field.state.meta.errors.join(", ")}
+										</p>
+									)}
+								</div>
+							)}
+						</form.Field>
+
+						{/* Address Type */}
+						<form.Field name="addressType">
+							{(field) => (
+								<div className="grid gap-2">
+									<Label htmlFor={field.name}>
+										Address Type <span className="text-destructive">*</span>
+									</Label>
+									<Select
+										value={field.state.value}
+										onValueChange={(v) => {
+											if (!isAddressType(v)) {
+												return;
+											}
+											field.handleChange(v);
+										}}
+									>
+										<SelectTrigger id={field.name}>
+											<SelectValue placeholder="Select type…" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="headquarters">Headquarters</SelectItem>
+											<SelectItem value="pickup">Pick-up</SelectItem>
+											<SelectItem value="delivery">Delivery</SelectItem>
+											<SelectItem value="billing">Billing</SelectItem>
+										</SelectContent>
+									</Select>
 									{field.state.meta.errors.length > 0 && (
 										<p className="text-xs text-destructive">
 											{field.state.meta.errors.join(", ")}
@@ -200,6 +298,32 @@ export function CreateLocationDialog({
 							)}
 						</form.Field>
 
+						{/* ZIP Code */}
+						<form.Field name="zipCode">
+							{(field) => (
+								<div className="grid gap-2">
+									<Label htmlFor={field.name}>
+										ZIP Code <span className="text-destructive">*</span>
+									</Label>
+									<Input
+										id={field.name}
+										type="text"
+										inputMode="text"
+										autoComplete="postal-code"
+										placeholder="e.g. 90210"
+										value={field.state.value}
+										onChange={(e) => field.handleChange(e.target.value)}
+										onBlur={field.handleBlur}
+									/>
+									{field.state.meta.errors.length > 0 && (
+										<p className="text-xs text-destructive">
+											{field.state.meta.errors.join(", ")}
+										</p>
+									)}
+								</div>
+							)}
+						</form.Field>
+
 						{/* Notes */}
 						<form.Field name="notes">
 							{(field) => (
@@ -222,8 +346,10 @@ export function CreateLocationDialog({
 							selector={(state) => ({
 								canSubmit: Boolean(
 									state.values.name?.trim() &&
+										state.values.addressType &&
 										state.values.city?.trim() &&
-										state.values.state?.trim(),
+										state.values.state?.trim() &&
+										state.values.zipCode?.trim(),
 								),
 								isSubmitting: state.isSubmitting,
 							})}
@@ -233,7 +359,12 @@ export function CreateLocationDialog({
 									<Button
 										type="button"
 										variant="outline"
-										onClick={() => setOpen(false)}
+										onClick={() => {
+											setOpen(false);
+											if (isEditMode) {
+												onSuccess?.(null);
+											}
+										}}
 										disabled={isSubmitting}
 									>
 										Cancel
@@ -243,7 +374,7 @@ export function CreateLocationDialog({
 										loading={isSubmitting}
 										disabled={!canSubmit}
 									>
-										Create Location
+										{isEditMode ? "Update Location" : "Create Location"}
 									</LoadingButton>
 								</>
 							)}

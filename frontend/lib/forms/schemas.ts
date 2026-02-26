@@ -10,6 +10,9 @@ import { z } from "zod";
 
 export const companySchema = z.object({
 	name: z.string().min(1, "Company name is required").max(100),
+	customerType: z.enum(["buyer", "generator", "both"], {
+		required_error: "Please select a customer type",
+	}),
 	industry: z.string().optional(),
 	sector: z.string().min(1, "Please select a sector"),
 	subsector: z.string().min(1, "Please select a subsector"),
@@ -41,9 +44,18 @@ export const companyBasicSchema = companySchema.pick({
 
 export const locationSchema = z.object({
 	name: z.string().min(1, "Location name is required").max(100),
+	addressType: z.enum(["headquarters", "pickup", "delivery", "billing"], {
+		required_error: "Please select an address type",
+	}),
 	city: z.string().min(1, "City is required"),
 	state: z.string().min(1, "State is required"),
 	address: z.string().default(""),
+	zipCode: z
+		.string()
+		.trim()
+		.min(1, "ZIP code is required")
+		.regex(/^\d{5}(-\d{4})?$/, "Invalid ZIP format")
+		.default(""),
 	notes: z.string().default(""),
 });
 

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useProjects } from "@/lib/stores/project-store";
 import type { CompanySummary } from "@/lib/types/company";
+import { CUSTOMER_TYPE_LABELS } from "@/lib/types/company";
 import { CreateCompanyDialog } from "./create-company-dialog";
 
 interface CompanyCardProps {
@@ -62,6 +63,9 @@ export function CompanyCard({ company, onDelete }: CompanyCardProps) {
 					>
 						<Building2 className="h-5 w-5 text-primary shrink-0" />
 						<CardTitle className="text-lg truncate">{company.name}</CardTitle>
+						<Badge variant="secondary" className="shrink-0">
+							{CUSTOMER_TYPE_LABELS[company.customerType]}
+						</Badge>
 						<Badge variant="outline" className="shrink-0">
 							{company.subsector
 								? formatSubsector(company.subsector)
@@ -225,6 +229,7 @@ export function CompanyCard({ company, onDelete }: CompanyCardProps) {
 						industry: company.industry,
 						sector: company.sector,
 						subsector: company.subsector,
+						customerType: company.customerType,
 						...(company.contactName && { contactName: company.contactName }),
 						...(company.contactEmail && { contactEmail: company.contactEmail }),
 						...(company.contactPhone && { contactPhone: company.contactPhone }),
