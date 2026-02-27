@@ -54,7 +54,7 @@ export const locationSchema = z.object({
 		.string()
 		.trim()
 		.min(1, "ZIP code is required")
-		.regex(/^\d{5}(-\d{4})?$/, "Invalid ZIP format")
+		.regex(/^\d{5}(-\d{4})?$/, "Enter ZIP as 12345 or 12345-6789")
 		.default(""),
 	notes: z.string().default(""),
 });
