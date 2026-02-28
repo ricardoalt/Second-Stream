@@ -375,8 +375,8 @@ export function CompanyContactDialog({
 								<div>
 									<p className="text-sm font-medium">Primary contact</p>
 									<p className="text-xs text-muted-foreground">
-										Setting this as primary will update the existing primary
-										contact.
+										Only one primary contact is allowed. Unset the current
+										primary contact first.
 									</p>
 								</div>
 								<form.Field name="isPrimary">
