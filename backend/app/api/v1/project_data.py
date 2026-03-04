@@ -8,7 +8,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Request
 
 from app.api.dependencies import (
-    ActiveProjectDep,
+    ActiveProjectDataEditorDep,
     AsyncDB,
     CurrentUser,
     OrganizationContext,
@@ -48,7 +48,7 @@ async def get_project_data(
 @limiter.limit("30/minute")
 async def update_project_data(
     request: Request,
-    project: ActiveProjectDep,
+    project: ActiveProjectDataEditorDep,
     current_user: CurrentUser,
     org: OrganizationContext,
     updates: dict[str, Any],
@@ -77,7 +77,7 @@ async def update_project_data(
 @limiter.limit("20/minute")
 async def replace_project_data(
     request: Request,
-    project: ActiveProjectDep,
+    project: ActiveProjectDataEditorDep,
     current_user: CurrentUser,
     org: OrganizationContext,
     data: dict[str, Any],
@@ -105,7 +105,7 @@ async def replace_project_data(
 @limiter.limit("30/minute")
 async def add_quality_parameter(
     request: Request,
-    project: ActiveProjectDep,
+    project: ActiveProjectDataEditorDep,
     current_user: CurrentUser,
     org: OrganizationContext,
     parameter_name: str,
@@ -140,7 +140,7 @@ async def add_quality_parameter(
 @limiter.limit("30/minute")
 async def delete_quality_parameter(
     request: Request,
-    project: ActiveProjectDep,
+    project: ActiveProjectDataEditorDep,
     current_user: CurrentUser,
     org: OrganizationContext,
     parameter_name: str,
@@ -171,7 +171,7 @@ async def delete_quality_parameter(
 @limiter.limit("20/minute")
 async def add_custom_section(
     request: Request,
-    project: ActiveProjectDep,
+    project: ActiveProjectDataEditorDep,
     current_user: CurrentUser,
     org: OrganizationContext,
     section: dict[str, Any],
@@ -202,7 +202,7 @@ async def add_custom_section(
 @limiter.limit("20/minute")
 async def delete_custom_section(
     request: Request,
-    project: ActiveProjectDep,
+    project: ActiveProjectDataEditorDep,
     current_user: CurrentUser,
     org: OrganizationContext,
     section_id: str,

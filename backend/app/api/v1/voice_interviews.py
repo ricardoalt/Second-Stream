@@ -15,7 +15,9 @@ from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile, st
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.api.dependencies import AsyncDB, CurrentBulkImportUser, OrganizationContext
+from app.api.dependencies import AsyncDB, CurrentBulkImportUser, CurrentUser, OrganizationContext
+from app.authz import permissions
+from app.authz.authz import raise_org_access_denied, raise_resource_not_found, require_permission
 from app.models.bulk_import import ImportRun
 from app.models.company import Company
 from app.models.location import Location
@@ -61,22 +63,35 @@ async def create_voice_interview(
     audio_file: Annotated[UploadFile, File()],
     company_id: Annotated[UUID, Form()],
     consent_given: Annotated[bool, Form()],
-    current_user: CurrentBulkImportUser,
+    current_user: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
     location_id: Annotated[UUID | None, Form()] = None,
 ) -> VoiceInterviewCreateResponse:
+    require_permission(current_user, permissions.VOICE_INTERVIEW_MANAGE)
     if not consent_given:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Consent is required")
 
     company = await db.get(Company, company_id)
-    if not company or company.organization_id != org.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    if company is None:
+        raise_resource_not_found("Company not found", details={"company_id": str(company_id)})
+    assert company is not None
+    if company.organization_id != org.id:
+        raise_org_access_denied(org_id=str(org.id))
 
     if location_id is not None:
         location = await db.get(Location, location_id)
-        if not location or location.organization_id != org.id or location.company_id != company.id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+        if location is None:
+            raise_resource_not_found(
+                "Location not found", details={"location_id": str(location_id)}
+            )
+        assert location is not None
+        if location.organization_id != org.id:
+            raise_org_access_denied(org_id=str(org.id))
+        if location.company_id != company.id:
+            raise_resource_not_found(
+                "Location not found", details={"location_id": str(location_id)}
+            )
 
     filename = _sanitize_filename(audio_file.filename or "")
     extension = Path(filename).suffix.casefold()
@@ -186,31 +201,28 @@ async def get_voice_interview(
 @router.post("/{voice_interview_id}/retry", response_model=VoiceInterviewRetryResponse)
 async def retry_voice_interview(
     voice_interview_id: UUID,
-    current_user: CurrentBulkImportUser,
+    current_user: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> VoiceInterviewRetryResponse:
+    require_permission(current_user, permissions.VOICE_INTERVIEW_MANAGE)
     if not idempotency_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Idempotency-Key header is required",
         )
 
-    interview_ref_result = await db.execute(
-        select(VoiceInterview.bulk_import_run_id)
-        .where(
-            VoiceInterview.id == voice_interview_id,
-            VoiceInterview.organization_id == org.id,
+    interview_probe = await db.get(VoiceInterview, voice_interview_id)
+    if interview_probe is None:
+        raise_resource_not_found(
+            "Voice interview not found",
+            details={"voice_interview_id": str(voice_interview_id)},
         )
-        .limit(1)
-    )
-    run_id = interview_ref_result.scalar_one_or_none()
-    if run_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Voice interview not found",
-        )
+    assert interview_probe is not None
+    if interview_probe.organization_id != org.id:
+        raise_org_access_denied(org_id=str(org.id))
+    run_id = interview_probe.bulk_import_run_id
 
     run_result = await db.execute(select(ImportRun).where(ImportRun.id == run_id).with_for_update())
     run = run_result.scalar_one_or_none()

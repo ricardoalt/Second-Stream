@@ -61,6 +61,8 @@ interface BackendUserResponse {
 	is_superuser: boolean;
 	role: UserRole;
 	organization_id?: string | null;
+	permissions?: string[];
+	permissions_version?: string;
 }
 
 // Auth API service
@@ -183,6 +185,9 @@ export const authAPI = {
 			isSuperuser: response.is_superuser ?? false,
 			role: response.role ?? "field_agent",
 			organizationId: response.organization_id ?? null,
+			permissions: response.permissions ?? [],
+			permissionsVersion:
+				response.permissions_version ?? "2026-02-28-role-authz-mvp-v1",
 		};
 	},
 

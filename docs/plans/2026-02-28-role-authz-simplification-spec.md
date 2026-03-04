@@ -72,7 +72,7 @@
 - `backend/app/authz/permissions.py`: catalogo canonico.
 - `backend/app/authz/role_permissions.py`: matriz rol -> permisos.
 - `backend/app/authz/authz.py`: resolver contexto + `effective_role(...)` + `can()` + `require_permission()`.
-- `backend/app/authz/contract_v1.py` (o equivalente): tabla ejecutable `endpoint -> permission -> ownership -> error_mode`.
+- Nota: `contract_v1/read_contract` y guardrail por script fueron retirados; ahora se valida con QA manual + runtime authz core.
 
 ### Endpoints
 - Mutating: siempre `Depends(require_permission("resource:action"))`.
@@ -87,11 +87,9 @@
 - FE no usa `role` para autorizar acciones.
 
 ## Gates pre-implementacion (must pass)
-- Gate 1 - Contrato ejecutable authz v1:
-  - Congelar tabla `endpoint -> permission -> ownership -> error_mode` para vertical MVP.
-  - Ownership canonico se define por endpoint (no solo por recurso).
+- Gate 1 - Semantica authz runtime:
+  - Ownership canonico se define por endpoint critico.
   - Regla fija: `404` solo para recurso inexistente dentro de scope autorizado; fuera de scope siempre `403`.
-  - Sin entrada en contrato: endpoint mutating no se migra.
 - Gate 2 - Contrato HTTP testeado:
   - Tests de contrato para `401/400/403/404` en rutas MVP.
   - `X-Organization-Id` missing/malformed/inaccessible/inactive cubierto.
@@ -102,11 +100,9 @@
 - Gate 4 - Enforcement unico backend:
   - Endpoints mutating MVP usan `require_permission(...)`.
   - Prohibido check inline por `role` en endpoints migrados.
-- Gate 5 - Guardrail CI temprano:
-  - Fuente de verdad: `contract_v1`.
-  - CI falla si endpoint mutating MVP no declara permiso en contrato o no usa enforcement unico.
-  - CI falla si endpoint migrado contiene check inline por `role`.
-  - Script obligatorio: `backend/scripts/check_authz_coverage.py`.
+- Gate 5 - Control de regresion:
+  - Verificacion via QA manual y revision de codigo en endpoints criticos migrados.
+  - `contract_v1/read_contract` y `check_authz_coverage.py` retirados.
 - Gate 6 - Baseline de regresion authz:
   - Matriz role x permission minima.
   - Integracion allow/deny por endpoint critico.
@@ -127,8 +123,8 @@
 ### Paso 1 - Congelar semantica
 - Cerrar tabla role x permission.
 - Documentar y validar invariante `is_superuser <-> role=admin`.
-- Cerrar ownership canonico por endpoint critico en `contract_v1`.
-- Cerrar inventory endpoint->permission para vertical MVP.
+- Cerrar ownership canonico por endpoint critico.
+- Cerrar inventory endpoint->permission para vertical MVP (manual).
 - Cerrar contrato `/me` org-scoped (`permissions[]`, `organization_id`, `permissions_version`).
 
 ### Paso 2 - Migrar vertical critica
@@ -155,7 +151,7 @@
 - Suite authz en verde.
 - Contrato HTTP 401/400/403/404 consistente en endpoints migrados.
 - `/me` org-scoped estable: sin permisos stale despues de cambiar org.
-- CI bloquea endpoints mutating sin contrato/enforcement.
+- QA/manual review bloquea endpoints mutating sin enforcement.
 
 ## Quality targets (post-MVP)
 - Simplicidad >= 9/10: 1 path de enforcement y 0 excepciones ad-hoc en verticales migradas.

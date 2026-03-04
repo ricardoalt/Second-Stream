@@ -14,15 +14,13 @@ from sqlalchemy.orm import load_only, selectinload
 
 from app.api.dependencies import (
     ActiveCompanyEditor,
+    ActiveCompanyInScopeDep,
     ActiveCompanyLocationCreator,
     ActiveLocationDep,
     ActiveLocationEditor,
     ArchivedFilter,
     AsyncDB,
     CompanyAdminActionDep,
-    CurrentCompanyContactsCreator,
-    CurrentCompanyContactsDeleter,
-    CurrentCompanyContactsEditor,
     CurrentCompanyCreator,
     CurrentIncomingMaterialsCreator,
     CurrentIncomingMaterialsDeleter,
@@ -38,6 +36,8 @@ from app.api.dependencies import (
     RateLimitUser60,
     apply_archived_filter,
 )
+from app.authz import permissions
+from app.authz.authz import Ownership, can, require_permission
 from app.models import Company, CompanyContact, IncomingMaterial, Location, LocationContact, Project
 from app.models.file import ProjectFile
 from app.models.proposal import Proposal
@@ -106,7 +106,7 @@ async def _get_project_counts_by_location(
         count_conditions.append(Project.archived_at.is_(None))
     elif archived == "archived":
         count_conditions.append(Project.archived_at.isnot(None))
-    if not current_user.can_see_all_org_projects():
+    if not can(current_user, permissions.PROJECT_PURGE):
         count_conditions.append(Project.user_id == current_user.id)
 
     counts_result = await db.execute(
@@ -677,6 +677,7 @@ async def archive_company(
     db: AsyncDB,
     _rate_limit: RateLimitUser10,
 ):
+    require_permission(current_user, permissions.COMPANY_ARCHIVE)
     return await _archive_company(
         db=db,
         org_id=org.id,
@@ -688,10 +689,12 @@ async def archive_company(
 @router.post("/{company_id}/restore", response_model=SuccessResponse)
 async def restore_company(
     company: CompanyAdminActionDep,
+    current_user: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
     _rate_limit: RateLimitUser10,
 ):
+    require_permission(current_user, permissions.COMPANY_RESTORE)
     return await _restore_company(
         db=db,
         org_id=org.id,
@@ -702,11 +705,13 @@ async def restore_company(
 @router.post("/{company_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
 async def purge_company(
     company: CompanyAdminActionDep,
+    current_user: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
     _rate_limit: RateLimitUser10,
     payload: dict[str, str] | None = None,
 ):
+    require_permission(current_user, permissions.COMPANY_PURGE)
     confirm_name = extract_confirm_name(payload)
     if not confirm_name:
         raise HTTPException(
@@ -758,6 +763,7 @@ async def delete_company(
     """
     Archive company (compat).
     """
+    require_permission(current_user, permissions.COMPANY_DELETE)
     return await _archive_company(
         db=db,
         org_id=org.id,
@@ -777,13 +783,19 @@ async def delete_company(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_company_contact(
-    current_user_company: CurrentCompanyContactsCreator,
+    company: ActiveCompanyInScopeDep,
+    current_user: CurrentUser,
     contact_data: CompanyContactCreate,
     db: AsyncDB,
     org: OrganizationContext,
     _rate_limit: RateLimitUser30,
 ):
-    _, company = current_user_company
+    require_permission(
+        current_user,
+        permissions.COMPANY_CONTACT_CREATE,
+        ownership=Ownership.OWN,
+        owner_user_id=company.created_by_user_id,
+    )
     contact = CompanyContact(
         **contact_data.model_dump(by_alias=False),
         organization_id=org.id,
@@ -812,14 +824,20 @@ async def create_company_contact(
 
 @router.put("/{company_id}/contacts/{contact_id}", response_model=CompanyContactRead)
 async def update_company_contact(
-    current_user_company: CurrentCompanyContactsEditor,
+    company: ActiveCompanyInScopeDep,
+    current_user: CurrentUser,
     contact_id: UUID,
     contact_data: CompanyContactUpdate,
     db: AsyncDB,
     org: OrganizationContext,
     _rate_limit: RateLimitUser30,
 ):
-    _, company = current_user_company
+    require_permission(
+        current_user,
+        permissions.COMPANY_CONTACT_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=company.created_by_user_id,
+    )
     result = await db.execute(
         select(CompanyContact).where(
             CompanyContact.id == contact_id,
@@ -861,13 +879,19 @@ async def update_company_contact(
 
 @router.delete("/{company_id}/contacts/{contact_id}", response_model=SuccessResponse)
 async def delete_company_contact(
-    current_user_company: CurrentCompanyContactsDeleter,
+    company: ActiveCompanyInScopeDep,
+    current_user: CurrentUser,
     contact_id: UUID,
     db: AsyncDB,
     org: OrganizationContext,
     _rate_limit: RateLimitUser10,
 ):
-    _, company = current_user_company
+    require_permission(
+        current_user,
+        permissions.COMPANY_CONTACT_DELETE,
+        ownership=Ownership.OWN,
+        owner_user_id=company.created_by_user_id,
+    )
     result = await db.execute(
         select(CompanyContact).where(
             CompanyContact.id == contact_id,
@@ -1216,7 +1240,7 @@ async def get_location(
         project_conditions.append(Project.archived_at.is_(None))
     elif archived == "archived":
         project_conditions.append(Project.archived_at.isnot(None))
-    if not current_user.can_see_all_org_projects():
+    if not can(current_user, permissions.PROJECT_PURGE):
         project_conditions.append(Project.user_id == current_user.id)
 
     projects_result = await db.execute(
@@ -1309,7 +1333,7 @@ async def update_location(
         project_conditions.append(Project.archived_at.is_(None))
     elif archived == "archived":
         project_conditions.append(Project.archived_at.isnot(None))
-    if not current_user.can_see_all_org_projects():
+    if not can(current_user, permissions.PROJECT_PURGE):
         project_conditions.append(Project.user_id == current_user.id)
 
     projects_result = await db.execute(
@@ -1347,6 +1371,7 @@ async def archive_location(
     db: AsyncDB,
     _rate_limit: RateLimitUser10,
 ):
+    require_permission(current_user, permissions.LOCATION_ARCHIVE)
     return await _archive_location(
         db=db,
         org_id=org.id,
@@ -1358,10 +1383,12 @@ async def archive_location(
 @router.post("/locations/{location_id}/restore", response_model=SuccessResponse)
 async def restore_location(
     location: LocationAdminActionDep,
+    current_user: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
     _rate_limit: RateLimitUser10,
 ):
+    require_permission(current_user, permissions.LOCATION_RESTORE)
     return await _restore_location(
         db=db,
         org_id=org.id,
@@ -1372,11 +1399,13 @@ async def restore_location(
 @router.post("/locations/{location_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
 async def purge_location(
     location: LocationAdminActionDep,
+    current_user: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
     _rate_limit: RateLimitUser10,
     payload: dict[str, str] | None = None,
 ):
+    require_permission(current_user, permissions.LOCATION_PURGE)
     confirm_name = extract_confirm_name(payload)
     if not confirm_name:
         raise HTTPException(
@@ -1428,6 +1457,7 @@ async def delete_location(
     """
     Archive location (compat).
     """
+    require_permission(current_user, permissions.LOCATION_DELETE)
     return await _archive_location(
         db=db,
         org_id=org.id,

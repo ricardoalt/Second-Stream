@@ -31,6 +31,14 @@ from app.api.dependencies import (
     apply_archived_filter,
     require_not_archived,
 )
+from app.authz import permissions
+from app.authz.authz import (
+    Ownership,
+    has_any_scope_access,
+    raise_org_access_denied,
+    raise_resource_not_found,
+    require_permission,
+)
 from app.main import limiter
 from app.models.project import Project
 from app.schemas.common import ErrorResponse, PaginatedResponse, SuccessResponse
@@ -139,6 +147,7 @@ async def list_projects(
 
     Returns lightweight ProjectSummary objects.
     """
+    require_permission(current_user, permissions.PROJECT_READ)
     # Build query with selective loading
     # proposals_count is a scalar subquery column_property (no relationship load needed)
     # Load location_rel and company for company_name/location_name computed fields
@@ -152,7 +161,7 @@ async def list_projects(
 
     # Organization + permission filter
     query = query.where(Project.organization_id == org.id)
-    if not current_user.can_see_all_org_projects():
+    if not has_any_scope_access(current_user, permissions.PROJECT_READ):
         query = query.where(Project.user_id == current_user.id)
 
     query = apply_archived_filter(query, Project, archived)
@@ -237,9 +246,10 @@ async def get_dashboard_stats(
     Returns:
         DashboardStatsResponse with totals, averages, and pipeline breakdown
     """
+    require_permission(current_user, permissions.PROJECT_READ)
     # Single aggregation query
     conditions = [Project.organization_id == org.id]
-    if not current_user.can_see_all_org_projects():
+    if not has_any_scope_access(current_user, permissions.PROJECT_READ):
         conditions.append(Project.user_id == current_user.id)
     if archived == "active":
         conditions.append(Project.archived_at.is_(None))
@@ -321,6 +331,7 @@ async def get_project(
     Returns last 10 timeline events (limited in serializer).
     Use dedicated endpoint for full timeline history.
     """
+    require_permission(current_user, permissions.PROJECT_READ)
     from app.models.location import Location
 
     # Permission: superusers can access any project; members only their own
@@ -328,7 +339,7 @@ async def get_project(
         Project.id == project_id,
         Project.organization_id == org.id,
     ]
-    if not current_user.can_see_all_org_projects():
+    if not has_any_scope_access(current_user, permissions.PROJECT_READ):
         conditions.append(Project.user_id == current_user.id)
 
     result = await db.execute(
@@ -392,10 +403,14 @@ async def create_project(
 
     # Validation: location must exist
     if not location:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Location {project_data.location_id} not found",
+        cross_tenant_location = await db.get(Location, project_data.location_id)
+        if cross_tenant_location is not None:
+            raise_org_access_denied(org_id=str(org.id))
+        raise_resource_not_found(
+            "Location not found",
+            details={"location_id": str(project_data.location_id)},
         )
+    assert location is not None
     require_not_archived(location)
 
     # Validation: location must have company (fail-fast)
@@ -404,6 +419,7 @@ async def create_project(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Location '{location.name}' has no associated company. Please assign a company first.",
         )
+    assert location.company is not None
 
     # Inherit all data from company/location
     sector = location.company.sector
@@ -504,22 +520,28 @@ async def update_project(
     """Update project fields and log timeline event."""
     from app.services.timeline_service import create_timeline_event
 
-    # Permission: superusers can update any project; members only their own
-    conditions = [
-        Project.id == project_id,
-        Project.organization_id == org.id,
-    ]
-    if not current_user.can_see_all_org_projects():
-        conditions.append(Project.user_id == current_user.id)
-
-    result = await db.execute(select(Project).where(*conditions).with_for_update())
+    result = await db.execute(
+        select(Project)
+        .where(
+            Project.id == project_id,
+            Project.organization_id == org.id,
+        )
+        .with_for_update()
+    )
     project = result.scalar_one_or_none()
 
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
+    if project is None:
+        cross_tenant_probe = await db.get(Project, project_id)
+        if cross_tenant_probe is not None:
+            raise_org_access_denied(org_id=str(org.id))
+        raise_resource_not_found("Project not found", details={"project_id": str(project_id)})
+    assert project is not None
+    require_permission(
+        current_user,
+        permissions.PROJECT_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     require_not_archived(project)
 
     # Update fields
@@ -567,6 +589,12 @@ async def archive_project(
     org: OrganizationContext,
     db: AsyncDB,
 ):
+    require_permission(
+        current_user,
+        permissions.PROJECT_ARCHIVE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     return await _archive_project(
         db=db,
         org_id=org.id,
@@ -578,9 +606,16 @@ async def archive_project(
 @router.post("/{project_id}/restore", response_model=SuccessResponse)
 async def restore_project(
     project: ProjectArchiveActionDep,
+    current_user: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
 ):
+    require_permission(
+        current_user,
+        permissions.PROJECT_RESTORE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     return await _restore_project(
         db=db,
         org_id=org.id,
@@ -657,6 +692,12 @@ async def delete_project(
     current_user: CurrentUser,
 ):
     """Archive a project (compat delete)."""
+    require_permission(
+        current_user,
+        permissions.PROJECT_DELETE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     response = await _archive_project(
         db=db,
         org_id=project.organization_id,

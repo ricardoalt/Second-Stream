@@ -148,14 +148,6 @@ class User(SQLAlchemyBaseUserTableUUID, TimestampMixin, Base):
         """Tenant admin within an organization."""
         return self.role == UserRole.ORG_ADMIN
 
-    def can_see_all_org_projects(self) -> bool:
-        """Org admin sees all projects in their org, not only their own."""
-        return self.is_superuser or self.role == UserRole.ORG_ADMIN
-
-    def can_manage_org_users(self) -> bool:
-        """Org Admin or Platform Admin can manage users within an organization."""
-        return self.is_superuser or self.role == UserRole.ORG_ADMIN
-
     def can_create_projects(self) -> bool:
         """Check if user can create projects."""
         return self.role in (UserRole.ADMIN, UserRole.FIELD_AGENT, UserRole.CONTRACTOR)

@@ -52,6 +52,7 @@ import {
 	adminUsersAPI,
 	type TransferOrganizationInput,
 } from "@/lib/api/admin-users";
+import { APIClientError } from "@/lib/api/client";
 import {
 	type Organization,
 	type OrganizationUpdateInput,
@@ -164,7 +165,11 @@ export default function OrganizationDetailPage() {
 			toast.success(`User "${newUser.email}" created`);
 		} catch (error: unknown) {
 			const message =
-				error instanceof Error ? error.message : "Failed to create user";
+				error instanceof APIClientError
+					? error.message
+					: error instanceof Error
+						? error.message
+						: "Failed to create user";
 			toast.error(message);
 			throw error;
 		}

@@ -18,6 +18,10 @@ import uuid
 from fastapi_users import schemas
 from pydantic import ConfigDict, Field
 
+from app.authz.authz import permissions_for_user
+from app.authz.permissions import PERMISSIONS_VERSION
+from app.models.user import User
+
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
     """
@@ -44,6 +48,15 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
         description="Organization ID for tenant users (null for platform admins)",
     )
 
+    permissions: list[str] = Field(
+        default_factory=list,
+        description="Effective org-scoped permissions for UX gating",
+    )
+    permissions_version: str = Field(
+        default=PERMISSIONS_VERSION,
+        description="Version string for FE permission cache invalidation",
+    )
+
     # Custom profile fields
     first_name: str = Field(..., description="User's first name")
     last_name: str = Field(..., description="User's last name")
@@ -53,6 +66,34 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
     subsector: str | None = Field(None, description="Industry subsector")
 
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_user(
+        cls,
+        user: User,
+        *,
+        organization_id: uuid.UUID | None,
+        permissions: list[str] | None = None,
+    ) -> "UserRead":
+        return cls(
+            id=user.id,
+            email=user.email,
+            is_active=user.is_active,
+            is_superuser=user.is_superuser,
+            is_verified=user.is_verified,
+            role=user.role,
+            organization_id=organization_id,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            company_name=user.company_name,
+            location=user.location,
+            sector=user.sector,
+            subsector=user.subsector,
+            permissions=permissions
+            if permissions is not None
+            else list(permissions_for_user(user)),
+            permissions_version=PERMISSIONS_VERSION,
+        )
 
 
 class UserCreate(schemas.BaseUserCreate):

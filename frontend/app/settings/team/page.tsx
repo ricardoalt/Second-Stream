@@ -54,17 +54,27 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { APIClientError } from "@/lib/api/client";
 import {
 	type OrgUserCreateInput,
 	organizationsAPI,
 } from "@/lib/api/organizations";
+import { PERMISSIONS } from "@/lib/authz/permissions";
 import { useAuth } from "@/lib/contexts";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
 import type { User, UserRole } from "@/lib/types/user";
 
 export default function SettingsTeamPage() {
-	const { user: currentUser, isOrgAdmin, isSuperAdmin } = useAuth();
-	const canManageUsers = isOrgAdmin;
+	const { user: currentUser, isSuperAdmin } = useAuth();
+	const canViewUsers = Boolean(
+		currentUser?.permissions?.includes(PERMISSIONS.ORG_USER_READ),
+	);
+	const canCreateUsers = Boolean(
+		currentUser?.permissions?.includes(PERMISSIONS.ORG_USER_CREATE),
+	);
+	const canUpdateUsers = Boolean(
+		currentUser?.permissions?.includes(PERMISSIONS.ORG_USER_UPDATE),
+	);
 	const { currentOrganization, loadCurrentOrganization } =
 		useOrganizationStore();
 
@@ -86,10 +96,10 @@ export default function SettingsTeamPage() {
 	}, []);
 
 	useEffect(() => {
-		if (!canManageUsers) return;
+		if (!canViewUsers) return;
 		void fetchUsers();
 		void loadCurrentOrganization();
-	}, [canManageUsers, loadCurrentOrganization, fetchUsers]);
+	}, [canViewUsers, loadCurrentOrganization, fetchUsers]);
 
 	const stats = useMemo(() => {
 		const total = users.length;
@@ -105,7 +115,11 @@ export default function SettingsTeamPage() {
 			toast.success(`User "${newUser.email}" created`);
 		} catch (error: unknown) {
 			const message =
-				error instanceof Error ? error.message : "Failed to create user";
+				error instanceof APIClientError
+					? error.message
+					: error instanceof Error
+						? error.message
+						: "Failed to create user";
 			toast.error(message);
 			throw error;
 		}
@@ -144,7 +158,7 @@ export default function SettingsTeamPage() {
 		}
 	};
 
-	if (!canManageUsers) {
+	if (!canViewUsers) {
 		if (isSuperAdmin) {
 			return (
 				<div className="flex items-center justify-center min-h-[400px]">
@@ -191,7 +205,7 @@ export default function SettingsTeamPage() {
 								<span tabIndex={!isOrgActive ? 0 : undefined}>
 									<Button
 										onClick={() => setModalOpen(true)}
-										disabled={!isOrgActive}
+										disabled={!isOrgActive || !canCreateUsers}
 									>
 										<Plus className="h-4 w-4 mr-2" />
 										Add Member
@@ -260,8 +274,8 @@ export default function SettingsTeamPage() {
 						<UsersTable
 							users={users}
 							currentUserId={currentUser?.id}
-							canEditRoles={isOrgActive}
-							canEditStatus={isOrgActive}
+							canEditRoles={isOrgActive && canUpdateUsers}
+							canEditStatus={isOrgActive && canUpdateUsers}
 							onRoleChange={handleRoleChange}
 							onStatusChange={handleStatusChange}
 						/>

@@ -7,6 +7,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.agents.notes_analysis_agent import NotesAnalysisError
 from app.api.dependencies import ActiveProjectDep, AsyncDB, CurrentUser, RateLimitUser10
+from app.authz import permissions
+from app.authz.authz import Ownership, require_permission
 from app.schemas.common import ErrorResponse
 from app.schemas.intake import (
     AnalyzeNotesRequest,
@@ -70,6 +72,12 @@ async def save_intake_notes(
     current_user: CurrentUser,
     db: AsyncDB,
 ) -> IntakeNotesUpdateResponse:
+    require_permission(
+        current_user,
+        permissions.INTAKE_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     note = await IntakeService.save_notes(
         db=db,
         project=project,
@@ -88,9 +96,16 @@ async def save_intake_notes(
 async def analyze_intake_notes(
     project: ActiveProjectDep,
     payload: AnalyzeNotesRequest,
+    current_user: CurrentUser,
     db: AsyncDB,
     _rate_limit: RateLimitUser10,
 ) -> AnalyzeNotesResponse:
+    require_permission(
+        current_user,
+        permissions.INTAKE_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     try:
         (
             suggestions_count,
@@ -151,6 +166,12 @@ async def update_suggestion_status(
     current_user: CurrentUser,
     db: AsyncDB,
 ) -> IntakeSuggestionStatusResponse:
+    require_permission(
+        current_user,
+        permissions.INTAKE_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     try:
         if payload.status == "applied":
             suggestion = await IntakeService.apply_suggestion(
@@ -201,6 +222,12 @@ async def batch_update_suggestions(
     current_user: CurrentUser,
     db: AsyncDB,
 ) -> IntakeSuggestionBatchResponse:
+    require_permission(
+        current_user,
+        permissions.INTAKE_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     try:
         results = await IntakeBatchService.batch_update_suggestions(
             db=db,
@@ -257,6 +284,12 @@ async def map_unmapped_note(
     current_user: CurrentUser,
     db: AsyncDB,
 ) -> IntakeMapUnmappedResponse:
+    require_permission(
+        current_user,
+        permissions.INTAKE_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     note, suggestion = await IntakeService.map_unmapped_note(
         db=db,
         project=project,
@@ -283,8 +316,15 @@ async def map_unmapped_note(
 async def dismiss_unmapped_note(
     project: ActiveProjectDep,
     note_id: UUID,
+    current_user: CurrentUser,
     db: AsyncDB,
 ) -> IntakeDismissUnmappedResponse:
+    require_permission(
+        current_user,
+        permissions.INTAKE_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     note = await IntakeService.dismiss_unmapped_note(
         db=db,
         project=project,
@@ -302,8 +342,15 @@ async def dismiss_unmapped_note(
 async def dismiss_unmapped_notes_bulk(
     project: ActiveProjectDep,
     payload: IntakeDismissUnmappedBulkRequest,
+    current_user: CurrentUser,
     db: AsyncDB,
 ) -> IntakeDismissUnmappedBulkResponse:
+    require_permission(
+        current_user,
+        permissions.INTAKE_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     if payload.scope == "all":
         dismissed_count = await IntakeService.dismiss_all_unmapped(db=db, project=project)
     elif payload.scope == "low_confidence":

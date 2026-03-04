@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.api.dependencies import require_not_archived
+from app.authz import permissions
+from app.authz.authz import Ownership, require_permission
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.project_data import ProjectAIInput
@@ -83,8 +85,12 @@ class ProjectDataService:
         if not project:
             raise HTTPException(404, "Project not found")
 
-        if not current_user.can_see_all_org_projects() and project.user_id != current_user.id:
-            raise HTTPException(404, "Project not found")
+        require_permission(
+            current_user,
+            permissions.PROJECT_READ,
+            ownership=Ownership.OWN,
+            owner_user_id=project.user_id,
+        )
 
         return project.project_data or {}
 
@@ -118,8 +124,12 @@ class ProjectDataService:
         if not project:
             raise HTTPException(404, "Project not found")
 
-        if not current_user.can_see_all_org_projects() and project.user_id != current_user.id:
-            raise HTTPException(404, "Project not found")
+        require_permission(
+            current_user,
+            permissions.PROJECT_DATA_UPDATE,
+            ownership=Ownership.OWN,
+            owner_user_id=project.user_id,
+        )
 
         require_not_archived(project)
 

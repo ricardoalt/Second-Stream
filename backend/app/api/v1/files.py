@@ -22,6 +22,13 @@ from app.api.dependencies import (
     ProjectDep,
     require_not_archived,
 )
+from app.authz import permissions
+from app.authz.authz import (
+    Ownership,
+    raise_org_access_denied,
+    raise_resource_not_found,
+    require_permission,
+)
 from app.core.config import settings
 from app.core.database import get_async_db
 from app.models.file import ProjectFile
@@ -177,6 +184,12 @@ async def upload_file(
       -F "process_with_ai=true"
     ```
     """
+    require_permission(
+        current_user,
+        permissions.FILE_UPLOAD,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     # Validate file
     validate_file(file)
 
@@ -468,22 +481,28 @@ async def download_file(
     """
     from app.services.s3_service import StorageError
 
-    # Get file (verify access through join)
-    conditions = [
-        ProjectFile.id == file_id,
-        Project.organization_id == org.id,
-    ]
-    if not current_user.can_see_all_org_projects():
-        conditions.append(Project.user_id == current_user.id)
-
-    result = await db.execute(select(ProjectFile).join(Project).where(*conditions))
-    file = result.scalar_one_or_none()
-
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found",
+    result = await db.execute(
+        select(ProjectFile, Project.user_id)
+        .join(Project, Project.id == ProjectFile.project_id)
+        .where(
+            ProjectFile.id == file_id,
+            Project.organization_id == org.id,
         )
+    )
+    row = result.first()
+    if row is None:
+        cross_tenant_probe = await db.get(ProjectFile, file_id)
+        if cross_tenant_probe is not None:
+            raise_org_access_denied(org_id=str(org.id))
+        raise_resource_not_found("File not found", details={"file_id": str(file_id)})
+    assert row is not None
+    file, owner_user_id = row
+    require_permission(
+        current_user,
+        permissions.FILE_READ,
+        ownership=Ownership.OWN,
+        owner_user_id=owner_user_id,
+    )
 
     # Fail fast: let StorageError propagate with proper error code
     try:
@@ -513,6 +532,12 @@ async def delete_file(
 
     Deletes both the database record and the physical file.
     """
+    require_permission(
+        current_user,
+        permissions.FILE_DELETE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     result = await db.execute(
         select(ProjectFile).where(
             ProjectFile.id == file_id,

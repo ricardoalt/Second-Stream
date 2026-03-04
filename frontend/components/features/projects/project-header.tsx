@@ -54,8 +54,12 @@ interface ProjectHeaderProps {
 export function ProjectHeader({ project }: ProjectHeaderProps) {
 	const router = useRouter();
 	const { archiveProject, restoreProject, purgeProject } = useProjectActions();
-	const { canArchiveProject, canRestoreProject, canPurgeProject } =
-		usePermissions();
+	const {
+		canArchiveProject,
+		canEditProject,
+		canRestoreProject,
+		canPurgeProject,
+	} = usePermissions();
 
 	const [showEditDialog, setShowEditDialog] = useState(false);
 	const [showArchiveDialog, setShowArchiveDialog] = useState(false);
@@ -257,7 +261,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
 									Generate Proposal
 								</DropdownMenuItem>
 								<DropdownMenuItem
-									disabled={isArchived}
+									disabled={isArchived || !canEditProject(project)}
 									onSelect={(event) => {
 										event.preventDefault();
 										setMenuOpen(false);

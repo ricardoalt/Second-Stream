@@ -2,10 +2,18 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import type React from "react";
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { authAPI } from "@/lib/api/auth";
 import { apiClient } from "@/lib/api/client";
+import { PERMISSIONS } from "@/lib/authz/permissions";
 import { isPublicRoute } from "@/lib/constants";
 import { SELECTED_ORG_STORAGE_KEY } from "@/lib/constants/storage";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
@@ -57,6 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 	const resetOrganizationStore = useOrganizationStore(
 		(state) => state.resetStore,
 	);
+	const selectedOrgId = useOrganizationStore((state) => state.selectedOrgId);
+	const previousOrgIdRef = useRef<string | null>(selectedOrgId);
 
 	useEffect(() => {
 		// Global 401 handler - uses hard refresh to ensure clean state
@@ -172,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 	};
 
 	// Only logout on 401; 403 means action denied, not auth failure
-	const refreshUser = async () => {
+	const refreshUser = useCallback(async () => {
 		try {
 			const currentUser = await authAPI.getCurrentUser();
 			setUser(currentUser);
@@ -187,24 +197,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 			// 403: Keep session, user is authenticated but action was denied
 			// Network/5xx: silently keep current session
 		}
-	};
+	}, []);
+
+	useEffect(() => {
+		if (!user?.isSuperuser) {
+			previousOrgIdRef.current = selectedOrgId;
+			return;
+		}
+		if (previousOrgIdRef.current === selectedOrgId) {
+			return;
+		}
+		previousOrgIdRef.current = selectedOrgId;
+		void refreshUser();
+	}, [refreshUser, selectedOrgId, user?.isSuperuser]);
+
+	const hasPermission = (permission: string): boolean =>
+		Boolean(user?.permissions?.includes(permission));
 
 	const canWriteClientData = Boolean(
-		user && (user.isSuperuser || user.role === "org_admin"),
+		hasPermission(PERMISSIONS.COMPANY_UPDATE) ||
+			hasPermission(PERMISSIONS.LOCATION_UPDATE) ||
+			hasPermission(PERMISSIONS.PROJECT_UPDATE),
 	);
 	const canCreateClientData = Boolean(
-		user &&
-			(user.isSuperuser ||
-				user.role === "org_admin" ||
-				user.role === "field_agent" ||
-				user.role === "contractor"),
+		hasPermission(PERMISSIONS.COMPANY_CREATE) ||
+			hasPermission(PERMISSIONS.LOCATION_CREATE) ||
+			hasPermission(PERMISSIONS.PROJECT_CREATE) ||
+			hasPermission(PERMISSIONS.BULK_IMPORT_MANAGE) ||
+			hasPermission(PERMISSIONS.VOICE_INTERVIEW_MANAGE),
 	);
 	const canWriteLocationContacts = Boolean(
-		user &&
-			(user.isSuperuser ||
-				user.role === "org_admin" ||
-				user.role === "field_agent" ||
-				user.role === "contractor"),
+		hasPermission(PERMISSIONS.LOCATION_CONTACT_CREATE) ||
+			hasPermission(PERMISSIONS.LOCATION_CONTACT_UPDATE) ||
+			hasPermission(PERMISSIONS.INCOMING_MATERIAL_CREATE) ||
+			hasPermission(PERMISSIONS.INCOMING_MATERIAL_UPDATE),
 	);
 
 	return (

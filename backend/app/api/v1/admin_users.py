@@ -4,9 +4,12 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi_users.exceptions import UserAlreadyExists
 from sqlalchemy import select
 
 from app.api.dependencies import AsyncDB, CurrentSuperUser, CurrentUser
+from app.authz import permissions
+from app.authz.authz import require_permission
 from app.core.user_manager import UserManager, get_user_manager
 from app.models.user import User
 from app.schemas.admin_user_transfer import (
@@ -32,10 +35,11 @@ from app.main import limiter
 @limiter.limit("60/minute")
 async def list_platform_admins(
     request: Request,
-    current_admin: CurrentSuperUser,
+    current_user: CurrentUser,
     db: AsyncDB,
 ):
     """Return platform admins (superusers without organization) ordered by most recent."""
+    require_permission(current_user, permissions.ADMIN_USER_READ)
     result = await db.execute(
         select(User)
         .where(User.is_superuser.is_(True))
@@ -61,12 +65,23 @@ async def create_user(
     user_manager: Annotated[UserManager, Depends(get_user_manager)],
 ):
     """Create a user with the provided credentials (admin only)."""
+    require_permission(current_admin, permissions.ADMIN_USER_CREATE)
     if payload.is_superuser is not True or payload.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Platform admins must be created with role=admin and is_superuser=true",
         )
-    return await user_manager.create(payload)
+    try:
+        return await user_manager.create(payload)
+    except UserAlreadyExists as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "USER_ALREADY_EXISTS",
+                "message": "A user with this email already exists in this organization.",
+                "details": {"email": payload.email},
+            },
+        ) from exc
 
 
 class AdminUpdateUserRequest(UserUpdate):
@@ -89,6 +104,7 @@ async def update_user(
     user_manager: Annotated[UserManager, Depends(get_user_manager)],
 ):
     """Update user fields (role, status, password)."""
+    require_permission(current_admin, permissions.ADMIN_USER_UPDATE)
     user = await user_manager.get(user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -172,25 +188,7 @@ async def transfer_user_to_organization(
     db: AsyncDB,
 ):
     request_id = request.headers.get("x-request-id")
-
-    if not current_user.is_superuser:
-        logger.warning(
-            "admin_user_transfer_attempt",
-            actor_user_id=str(current_user.id),
-            target_user_id=str(user_id),
-            to_organization_id=str(payload.target_organization_id),
-            reason=payload.reason,
-            result="error",
-            error_code="FORBIDDEN_SUPERADMIN_REQUIRED",
-            request_id=request_id,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": "FORBIDDEN_SUPERADMIN_REQUIRED",
-                "message": "Superadmin required",
-            },
-        )
+    require_permission(current_user, permissions.ADMIN_USER_TRANSFER)
 
     try:
         transfer_result = await transfer_user_organization(

@@ -21,4 +21,6 @@ export interface User {
 	isSuperuser: boolean;
 	role: UserRole;
 	organizationId: string | null;
+	permissions: string[];
+	permissionsVersion: string;
 }

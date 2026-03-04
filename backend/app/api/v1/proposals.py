@@ -15,13 +15,21 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import (
-    ActiveProjectDep,
     AsyncDB,
     CurrentUser,
     OrganizationContext,
+    ProjectArchiveActionDep,
     ProjectDep,
     RateLimitUser30,
     require_not_archived,
+)
+from app.authz import permissions
+from app.authz.authz import (
+    Ownership,
+    has_any_scope_access,
+    raise_org_access_denied,
+    raise_resource_not_found,
+    require_permission,
 )
 from app.core.database import get_async_db
 from app.main import limiter
@@ -115,11 +123,12 @@ async def _get_accessible_project_for_ratings(
     current_user: User,
     organization_id: UUID,
 ) -> Project:
+    require_permission(current_user, permissions.PROPOSAL_READ)
     conditions = [
         Project.id == project_id,
         Project.organization_id == organization_id,
     ]
-    if not current_user.can_see_all_org_projects():
+    if not has_any_scope_access(current_user, permissions.PROPOSAL_READ):
         conditions.append(Project.user_id == current_user.id)
 
     result = await db.execute(select(Project).where(*conditions))
@@ -131,6 +140,49 @@ async def _get_accessible_project_for_ratings(
         )
 
     return project
+
+
+async def _get_project_in_scope_for_ratings(
+    *,
+    db: AsyncSession,
+    project_id: UUID,
+    organization_id: UUID,
+) -> Project:
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.organization_id == organization_id,
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+    return project
+
+
+async def _get_project_in_scope_or_raise(
+    *,
+    db: AsyncSession,
+    project_id: UUID,
+    organization_id: UUID,
+) -> Project:
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.organization_id == organization_id,
+        )
+    )
+    project = result.scalar_one_or_none()
+    if project is not None:
+        return project
+
+    cross_tenant_probe = await db.get(Project, project_id)
+    if cross_tenant_probe is not None:
+        raise_org_access_denied(org_id=str(organization_id))
+    raise_resource_not_found("Project not found", details={"project_id": str(project_id)})
 
 
 async def _get_project_proposal_for_ratings(
@@ -185,11 +237,16 @@ async def upsert_proposal_rating(
     _rate_limit: RateLimitUser30,
 ):
     org = await _resolve_user_organization_for_ratings(db=db, current_user=current_user)
-    project = await _get_accessible_project_for_ratings(
+    project = await _get_project_in_scope_for_ratings(
         db=db,
         project_id=project_id,
-        current_user=current_user,
         organization_id=org.id,
+    )
+    require_permission(
+        current_user,
+        permissions.PROPOSAL_RATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
     )
     proposal = await _get_project_proposal_for_ratings(
         db=db,
@@ -405,14 +462,12 @@ async def generate_proposal(
     - **status**: "queued" (initial state)
     - **estimated_time**: Estimated completion time in seconds
     """
-    conditions = [
-        Project.id == proposal_request.project_id,
-        Project.organization_id == org.id,
-    ]
-    if not current_user.can_see_all_org_projects():
-        conditions.append(Project.user_id == current_user.id)
-
-    result = await db.execute(select(Project).where(*conditions))
+    result = await db.execute(
+        select(Project).where(
+            Project.id == proposal_request.project_id,
+            Project.organization_id == org.id,
+        )
+    )
     project = result.scalar_one_or_none()
 
     if not project:
@@ -420,6 +475,12 @@ async def generate_proposal(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
+    require_permission(
+        current_user,
+        permissions.PROPOSAL_GENERATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
     require_not_archived(project)
 
     # Start proposal generation
@@ -975,7 +1036,7 @@ async def get_proposal_pdf(
 @limiter.limit("10/minute")  # ⭐ Rate limit: Delete operation (conservative)
 async def delete_proposal(
     request: Request,  # Required for rate limiter
-    project: ActiveProjectDep,
+    project: ProjectArchiveActionDep,
     proposal_id: UUID,
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_async_db)],
@@ -993,6 +1054,13 @@ async def delete_proposal(
     - Returns 404 if proposal doesn't exist (prevents info leakage)
     - Atomic operation (DB + file deletion)
     """
+    require_permission(
+        current_user,
+        permissions.PROPOSAL_DELETE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
+
     # Get proposal
     from app.models.proposal import Proposal
 
@@ -1072,9 +1140,10 @@ async def delete_proposal(
 @limiter.limit("60/minute")  # ⭐ Rate limit: Read operation (permissive)
 async def get_proposal_ai_metadata(
     request: Request,  # Required for rate limiter
-    project: ProjectDep,
+    project_id: UUID,
     proposal_id: UUID,
     current_user: CurrentUser,
+    org: OrganizationContext,
     db: Annotated[AsyncSession, Depends(get_async_db)],
 ):
     """
@@ -1127,6 +1196,18 @@ async def get_proposal_ai_metadata(
     Use this data in a "Validation" or "AI Insights" tab to show
     engineers the reasoning behind the proposal.
     """
+    project = await _get_project_in_scope_or_raise(
+        db=db,
+        project_id=project_id,
+        organization_id=org.id,
+    )
+    require_permission(
+        current_user,
+        permissions.PROPOSAL_READ,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
+
     # Get proposal
     from app.models.proposal import Proposal
 

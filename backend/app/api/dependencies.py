@@ -17,7 +17,16 @@ import structlog
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
 
-from app.authz import policies
+from app.authz import permissions
+from app.authz.authz import (
+    Ownership,
+    has_any_scope_access,
+    raise_bad_request,
+    raise_org_access_denied,
+    raise_org_header_malformed,
+    raise_resource_not_found,
+    require_permission,
+)
 from app.core.fastapi_users_instance import (
     current_active_user,
     current_active_user_optional,
@@ -129,7 +138,7 @@ ArchivedFilter = Annotated[
 # Centralizes project loading + access check (replaces 22+ repeated patterns)
 # ==============================================================================
 
-from fastapi import Path, status
+from fastapi import Path
 
 from app.models.project import Project
 
@@ -140,7 +149,7 @@ from app.models.project import Project
 
 async def get_organization_context(
     current_user: User = Depends(current_active_user),
-    x_organization_id: UUID | None = Header(None, alias="X-Organization-Id"),
+    x_organization_id: str | None = Header(None, alias="X-Organization-Id"),
     db: AsyncSession = Depends(get_async_db),
 ) -> Organization:
     """
@@ -164,14 +173,19 @@ async def get_organization_context(
         )
 
     if x_organization_id is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Super admin must select organization via X-Organization-Id header",
-        )
+        raise_bad_request("Super admin must select organization via X-Organization-Id header")
+    org_header = x_organization_id
+    assert org_header is not None
 
-    org = await db.get(Organization, x_organization_id)
-    if not org or not org.is_active:
-        raise HTTPException(status_code=404, detail="Organization not found")
+    try:
+        org_id = UUID(org_header)
+    except ValueError:
+        raise_org_header_malformed(value=org_header)
+
+    org = await db.get(Organization, org_id)
+    if org is None or not org.is_active:
+        raise_org_access_denied(org_id=str(org_id))
+    assert org is not None
 
     return org
 
@@ -220,6 +234,69 @@ def require_not_archived(entity: ArchivableT) -> ArchivableT:
     return entity
 
 
+async def _load_company_in_scope_or_raise(
+    *,
+    db: AsyncSession,
+    company_id: UUID,
+    org: Organization,
+) -> Company:
+    result = await db.execute(
+        select(Company).where(
+            Company.id == company_id,
+            Company.organization_id == org.id,
+        )
+    )
+    company = result.scalar_one_or_none()
+    if company is not None:
+        return company
+    cross_tenant_probe = await db.get(Company, company_id)
+    if cross_tenant_probe is not None:
+        raise_org_access_denied(org_id=str(org.id))
+    raise_resource_not_found("Company not found", details={"company_id": str(company_id)})
+
+
+async def _load_location_in_scope_or_raise(
+    *,
+    db: AsyncSession,
+    location_id: UUID,
+    org: Organization,
+) -> Location:
+    result = await db.execute(
+        select(Location).where(
+            Location.id == location_id,
+            Location.organization_id == org.id,
+        )
+    )
+    location = result.scalar_one_or_none()
+    if location is not None:
+        return location
+    cross_tenant_probe = await db.get(Location, location_id)
+    if cross_tenant_probe is not None:
+        raise_org_access_denied(org_id=str(org.id))
+    raise_resource_not_found("Location not found", details={"location_id": str(location_id)})
+
+
+async def _load_project_in_scope_or_raise(
+    *,
+    db: AsyncSession,
+    project_id: UUID,
+    org: Organization,
+) -> Project:
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.organization_id == org.id,
+        )
+    )
+    project = result.scalar_one_or_none()
+    if project is not None:
+        return project
+    cross_tenant_probe = await db.get(Project, project_id)
+    if cross_tenant_probe is not None:
+        raise_org_access_denied(org_id=str(org.id))
+    raise_resource_not_found("Project not found", details={"project_id": str(project_id)})
+
+
 def apply_archived_filter(query, model, archived: Literal["active", "archived", "all"]):
     if archived == "active":
         return query.where(model.archived_at.is_(None))
@@ -243,46 +320,28 @@ async def get_super_admin_only(
 SuperAdminOnly = Annotated[User, Depends(get_super_admin_only)]
 
 
-async def get_current_project_creator(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_create_project(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to create projects",
-        )
-    return current_user
+def require_permission_dependency(permission: str, *, ownership: Ownership = Ownership.ANY):
+    async def _dependency(
+        current_user: User = Depends(current_active_user),
+        _org: Organization = Depends(get_organization_context),
+    ) -> User:
+        require_permission(current_user, permission, ownership=ownership)
+        return current_user
+
+    return _dependency
 
 
-CurrentProjectCreator = Annotated[User, Depends(get_current_project_creator)]
+CurrentProjectCreator = Annotated[
+    User, Depends(require_permission_dependency(permissions.PROJECT_CREATE))
+]
 
+CurrentProjectDeleter = Annotated[
+    User, Depends(require_permission_dependency(permissions.PROJECT_DELETE))
+]
 
-async def get_current_project_deleter(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_delete_project(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to delete projects",
-        )
-    return current_user
-
-
-CurrentProjectDeleter = Annotated[User, Depends(get_current_project_deleter)]
-
-
-async def get_current_company_creator(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_create_company(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to create companies",
-        )
-    return current_user
-
-
-CurrentCompanyCreator = Annotated[User, Depends(get_current_company_creator)]
+CurrentCompanyCreator = Annotated[
+    User, Depends(require_permission_dependency(permissions.COMPANY_CREATE))
+]
 
 
 async def get_current_company_editor(
@@ -291,22 +350,18 @@ async def get_current_company_editor(
     org: Organization = Depends(get_organization_context),
     db: AsyncSession = Depends(get_async_db),
 ) -> tuple[User, Company]:
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.organization_id == org.id)
+    company = await _load_company_in_scope_or_raise(
+        db=db,
+        company_id=company_id,
+        org=org,
     )
-    company = result.scalar_one_or_none()
 
-    if not company:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Company {company_id} not found",
-        )
-
-    if not policies.can_update_company(current_user, company):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to update company",
-        )
+    require_permission(
+        current_user,
+        permissions.COMPANY_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=company.created_by_user_id,
+    )
 
     return current_user, company
 
@@ -330,37 +385,32 @@ async def get_active_company_editor(
 
 
 ActiveCompanyEditor = Annotated[tuple[User, Company], Depends(get_active_company_editor)]
-CurrentCompanyContactsCreator = ActiveCompanyEditor
-CurrentCompanyContactsEditor = ActiveCompanyEditor
-CurrentCompanyContactsDeleter = ActiveCompanyEditor
 
 
-async def get_current_company_deleter(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_delete_company(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to delete company",
-        )
-    return current_user
+async def get_active_company_in_scope(
+    company_id: UUID,
+    org: Organization = Depends(get_organization_context),
+    db: AsyncSession = Depends(get_async_db),
+) -> Company:
+    company = await _load_company_in_scope_or_raise(
+        db=db,
+        company_id=company_id,
+        org=org,
+    )
+    return require_not_archived(company)
 
 
-CurrentCompanyDeleter = Annotated[User, Depends(get_current_company_deleter)]
+ActiveCompanyInScopeDep = Annotated[Company, Depends(get_active_company_in_scope)]
 
 
-async def get_current_location_creator(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_create_location(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to create locations",
-        )
-    return current_user
+CurrentCompanyDeleter = Annotated[
+    User, Depends(require_permission_dependency(permissions.COMPANY_DELETE))
+]
 
 
-CurrentLocationCreator = Annotated[User, Depends(get_current_location_creator)]
+CurrentLocationCreator = Annotated[
+    User, Depends(require_permission_dependency(permissions.LOCATION_CREATE))
+]
 
 
 async def get_current_company_location_creator(
@@ -369,22 +419,13 @@ async def get_current_company_location_creator(
     org: Organization = Depends(get_organization_context),
     db: AsyncSession = Depends(get_async_db),
 ) -> tuple[User, Company]:
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.organization_id == org.id)
+    company = await _load_company_in_scope_or_raise(
+        db=db,
+        company_id=company_id,
+        org=org,
     )
-    company = result.scalar_one_or_none()
 
-    if not company:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Company {company_id} not found",
-        )
-
-    if not policies.can_create_location_for_company(current_user, company):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to create location",
-        )
+    require_permission(current_user, permissions.LOCATION_CREATE)
 
     return current_user, company
 
@@ -420,25 +461,18 @@ async def get_current_location_editor(
     org: Organization = Depends(get_organization_context),
     db: AsyncSession = Depends(get_async_db),
 ) -> tuple[User, Location]:
-    result = await db.execute(
-        select(Location).where(
-            Location.id == location_id,
-            Location.organization_id == org.id,
-        )
+    location = await _load_location_in_scope_or_raise(
+        db=db,
+        location_id=location_id,
+        org=org,
     )
-    location = result.scalar_one_or_none()
 
-    if not location:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Location {location_id} not found",
-        )
-
-    if not policies.can_update_location(current_user, location):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to update location",
-        )
+    require_permission(
+        current_user,
+        permissions.LOCATION_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=location.created_by_user_id,
+    )
 
     return current_user, location
 
@@ -464,116 +498,44 @@ async def get_active_location_editor(
 ActiveLocationEditor = Annotated[tuple[User, Location], Depends(get_active_location_editor)]
 
 
-async def get_current_location_deleter(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_delete_location(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to delete location",
-        )
-    return current_user
+CurrentLocationDeleter = Annotated[
+    User, Depends(require_permission_dependency(permissions.LOCATION_DELETE))
+]
 
 
-CurrentLocationDeleter = Annotated[User, Depends(get_current_location_deleter)]
+CurrentLocationContactsCreator = Annotated[
+    User, Depends(require_permission_dependency(permissions.LOCATION_CONTACT_CREATE))
+]
 
 
-async def get_current_location_contacts_creator(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_create_location_contact(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to create location contacts",
-        )
-    return current_user
+CurrentLocationContactsEditor = Annotated[
+    User, Depends(require_permission_dependency(permissions.LOCATION_CONTACT_UPDATE))
+]
 
 
-CurrentLocationContactsCreator = Annotated[User, Depends(get_current_location_contacts_creator)]
+CurrentLocationContactsDeleter = Annotated[
+    User, Depends(require_permission_dependency(permissions.LOCATION_CONTACT_DELETE))
+]
 
 
-async def get_current_location_contacts_editor(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_update_location_contact(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to update location contacts",
-        )
-    return current_user
+CurrentIncomingMaterialsCreator = Annotated[
+    User, Depends(require_permission_dependency(permissions.INCOMING_MATERIAL_CREATE))
+]
 
 
-CurrentLocationContactsEditor = Annotated[User, Depends(get_current_location_contacts_editor)]
+CurrentIncomingMaterialsEditor = Annotated[
+    User, Depends(require_permission_dependency(permissions.INCOMING_MATERIAL_UPDATE))
+]
 
 
-async def get_current_location_contacts_deleter(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_delete_location_contact(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to delete location contacts",
-        )
-    return current_user
+CurrentIncomingMaterialsDeleter = Annotated[
+    User, Depends(require_permission_dependency(permissions.INCOMING_MATERIAL_DELETE))
+]
 
 
-CurrentLocationContactsDeleter = Annotated[User, Depends(get_current_location_contacts_deleter)]
-
-
-async def get_current_incoming_materials_creator(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_create_incoming_material(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to create incoming materials",
-        )
-    return current_user
-
-
-CurrentIncomingMaterialsCreator = Annotated[User, Depends(get_current_incoming_materials_creator)]
-
-
-async def get_current_incoming_materials_editor(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_update_incoming_material(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to update incoming materials",
-        )
-    return current_user
-
-
-CurrentIncomingMaterialsEditor = Annotated[User, Depends(get_current_incoming_materials_editor)]
-
-
-async def get_current_incoming_materials_deleter(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_delete_incoming_material(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to delete incoming materials",
-        )
-    return current_user
-
-
-CurrentIncomingMaterialsDeleter = Annotated[User, Depends(get_current_incoming_materials_deleter)]
-
-
-async def get_current_bulk_import_user(
-    current_user: User = Depends(current_active_user),
-) -> User:
-    if not policies.can_manage_bulk_import(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to use bulk import",
-        )
-    return current_user
-
-
-CurrentBulkImportUser = Annotated[User, Depends(get_current_bulk_import_user)]
+CurrentBulkImportUser = Annotated[
+    User, Depends(require_permission_dependency(permissions.BULK_IMPORT_MANAGE))
+]
 
 
 async def get_active_location(
@@ -581,19 +543,11 @@ async def get_active_location(
     org: Organization = Depends(get_organization_context),
     db: AsyncSession = Depends(get_async_db),
 ) -> Location:
-    result = await db.execute(
-        select(Location).where(
-            Location.id == location_id,
-            Location.organization_id == org.id,
-        )
+    location = await _load_location_in_scope_or_raise(
+        db=db,
+        location_id=location_id,
+        org=org,
     )
-    location = result.scalar_one_or_none()
-
-    if not location:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Location {location_id} not found",
-        )
 
     return require_not_archived(location)
 
@@ -601,33 +555,17 @@ async def get_active_location(
 ActiveLocationDep = Annotated[Location, Depends(get_active_location)]
 
 
-def require_org_admin(user: User) -> None:
-    if not (user.is_superuser or user.is_org_admin()):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions for admin action",
-        )
-
-
 async def get_company_admin_action(
     company_id: UUID,
-    current_user: User = Depends(current_active_user),
+    _current_user: User = Depends(current_active_user),
     org: Organization = Depends(get_organization_context),
     db: AsyncSession = Depends(get_async_db),
 ) -> Company:
-    require_org_admin(current_user)
-
-    result = await db.execute(
-        select(Company).where(Company.id == company_id, Company.organization_id == org.id)
+    return await _load_company_in_scope_or_raise(
+        db=db,
+        company_id=company_id,
+        org=org,
     )
-    company = result.scalar_one_or_none()
-    if not company:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Company {company_id} not found",
-        )
-
-    return company
 
 
 CompanyAdminActionDep = Annotated[Company, Depends(get_company_admin_action)]
@@ -635,26 +573,15 @@ CompanyAdminActionDep = Annotated[Company, Depends(get_company_admin_action)]
 
 async def get_location_admin_action(
     location_id: UUID,
-    current_user: User = Depends(current_active_user),
+    _current_user: User = Depends(current_active_user),
     org: Organization = Depends(get_organization_context),
     db: AsyncSession = Depends(get_async_db),
 ) -> Location:
-    require_org_admin(current_user)
-
-    result = await db.execute(
-        select(Location).where(
-            Location.id == location_id,
-            Location.organization_id == org.id,
-        )
+    return await _load_location_in_scope_or_raise(
+        db=db,
+        location_id=location_id,
+        org=org,
     )
-    location = result.scalar_one_or_none()
-    if not location:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Location {location_id} not found",
-        )
-
-    return location
 
 
 LocationAdminActionDep = Annotated[Location, Depends(get_location_admin_action)]
@@ -662,31 +589,15 @@ LocationAdminActionDep = Annotated[Location, Depends(get_location_admin_action)]
 
 async def get_project_archive_action(
     project_id: UUID = Path(..., description="Project unique identifier"),
-    current_user: User = Depends(current_active_user),
+    _current_user: User = Depends(current_active_user),
     org: Organization = Depends(get_organization_context),
     db: AsyncSession = Depends(get_async_db),
 ) -> Project:
-    result = await db.execute(
-        select(Project).where(
-            Project.id == project_id,
-            Project.organization_id == org.id,
-        )
+    project = await _load_project_in_scope_or_raise(
+        db=db,
+        project_id=project_id,
+        org=org,
     )
-    project = result.scalar_one_or_none()
-
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-
-    if not (
-        current_user.is_superuser
-        or current_user.is_org_admin()
-        or project.user_id == current_user.id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to archive project",
-        )
-
     return project
 
 
@@ -699,20 +610,12 @@ async def get_project_purge_action(
     org: Organization = Depends(get_organization_context),
     db: AsyncSession = Depends(get_async_db),
 ) -> Project:
-    require_org_admin(current_user)
-
-    result = await db.execute(
-        select(Project).where(
-            Project.id == project_id,
-            Project.organization_id == org.id,
-        )
+    require_permission(current_user, permissions.PROJECT_PURGE)
+    return await _load_project_in_scope_or_raise(
+        db=db,
+        project_id=project_id,
+        org=org,
     )
-    project = result.scalar_one_or_none()
-
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-
-    return project
 
 
 ProjectPurgeActionDep = Annotated[Project, Depends(get_project_purge_action)]
@@ -727,19 +630,10 @@ async def get_accessible_project(
     """
     Load a project ensuring the user has access.
 
-    Access rules:
-    - Superusers can access ANY project
-    - Regular users can only access their OWN projects
-
-    Security:
-    - Returns 404 for both "not found" AND "no access" (prevents info leakage)
-    - Single query with WHERE clause (no separate existence check)
-
-    Usage:
-        @router.get("/{project_id}/data")
-        async def get_data(project: ProjectDep):
-            # project is guaranteed to exist and user has access
-            return project.data
+    Read access rules:
+    - Superusers + org admins can access all org projects
+    - Other users can access their own projects only
+    - Returns 404 for no-access to avoid leaking existence on read paths
     """
     project = await _load_project_with_access(
         project_id=project_id,
@@ -747,11 +641,25 @@ async def get_accessible_project(
         org=org,
         db=db,
     )
-
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    if project is None:
+        raise_resource_not_found("Project not found", details={"project_id": str(project_id)})
+    assert project is not None
 
     return project
+
+
+async def _load_project_in_scope(
+    project_id: UUID,
+    org: Organization,
+    db: AsyncSession,
+) -> Project | None:
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.organization_id == org.id,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def _load_project_with_access(
@@ -764,9 +672,8 @@ async def _load_project_with_access(
         Project.id == project_id,
         Project.organization_id == org.id,
     ]
-    if not current_user.can_see_all_org_projects():
+    if not has_any_scope_access(current_user, permissions.PROJECT_READ):
         conditions.append(Project.user_id == current_user.id)
-
     result = await db.execute(select(Project).where(*conditions))
     return result.scalar_one_or_none()
 
@@ -789,13 +696,37 @@ async def get_active_project(
         db=db,
     )
 
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    if project is None:
+        raise_resource_not_found("Project not found", details={"project_id": str(project_id)})
+    assert project is not None
 
     return require_not_archived(project)
 
 
 ActiveProjectDep = Annotated[Project, Depends(get_active_project)]
+
+
+async def get_active_project_data_editor(
+    project_id: UUID = Path(..., description="Project unique identifier"),
+    current_user: User = Depends(current_active_user),
+    org: Organization = Depends(get_organization_context),
+    db: AsyncSession = Depends(get_async_db),
+) -> Project:
+    project = await _load_project_in_scope_or_raise(
+        project_id=project_id,
+        org=org,
+        db=db,
+    )
+    require_permission(
+        current_user,
+        permissions.PROJECT_DATA_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
+    return require_not_archived(project)
+
+
+ActiveProjectDataEditorDep = Annotated[Project, Depends(get_active_project_data_editor)]
 
 # ==============================================================================
 # Usage Examples

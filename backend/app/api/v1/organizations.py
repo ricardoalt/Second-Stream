@@ -9,9 +9,12 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
+from fastapi_users.exceptions import UserAlreadyExists
 from sqlalchemy import select
 
 from app.api.dependencies import AsyncDB, CurrentUser, OrganizationContext, SuperAdminOnly
+from app.authz import permissions
+from app.authz.authz import raise_org_access_denied, require_permission
 from app.core.user_manager import UserManager, get_user_manager
 from app.main import limiter
 from app.models.organization import Organization
@@ -71,6 +74,17 @@ def _raise_org_inactive_for_user_mutation(org_id: UUID) -> NoReturn:
     )
 
 
+def _raise_user_already_exists(email: str) -> NoReturn:
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "code": "USER_ALREADY_EXISTS",
+            "message": "A user with this email already exists in this organization.",
+            "details": {"email": email},
+        },
+    )
+
+
 def _ensure_superadmin_global(current_user: User) -> None:
     if not current_user.is_superuser:
         _raise_forbidden_superadmin_required()
@@ -116,6 +130,7 @@ async def create_organization(
     admin: SuperAdminOnly,
     db: AsyncDB,
 ):
+    require_permission(admin, permissions.ORGANIZATION_CREATE)
     raw_payload = await request.json()
     if isinstance(raw_payload, dict) and ("is_active" in raw_payload or "isActive" in raw_payload):
         raise HTTPException(
@@ -148,8 +163,7 @@ async def list_my_org_users(
     db: AsyncDB,
 ):
     """List users in my organization. Org Admin or Platform Admin only."""
-    if not current_user.can_manage_org_users():
-        raise HTTPException(status_code=403, detail="Not authorized to manage users")
+    require_permission(current_user, permissions.ORG_USER_READ)
 
     query = select(User).where(User.organization_id == org.id).order_by(User.email)
     result = await db.execute(query)
@@ -165,8 +179,7 @@ async def create_user_in_my_org(
     user_manager: Annotated[UserManager, Depends(get_user_manager)],
 ):
     """Create user in my organization. Org Admin or Platform Admin only."""
-    if not current_user.can_manage_org_users():
-        raise HTTPException(status_code=403, detail="Not authorized to manage users")
+    require_permission(current_user, permissions.ORG_USER_CREATE)
 
     locked_org = await _get_organization_for_update(db, org.id)
     if locked_org is None:
@@ -186,7 +199,10 @@ async def create_user_in_my_org(
         organization_id=locked_org.id,
         is_superuser=False,
     )
-    return await user_manager.create(user_create)
+    try:
+        return await user_manager.create(user_create)
+    except UserAlreadyExists:
+        _raise_user_already_exists(data.email)
 
 
 @router.get("/{org_id}", response_model=OrganizationRead)
@@ -204,15 +220,16 @@ async def get_organization(
 @router.get("/{org_id}/users", response_model=list[UserRead])
 async def list_org_users(
     org_id: UUID,
-    admin: SuperAdminOnly,
+    current_user: CurrentUser,
+    org: OrganizationContext,
     db: AsyncDB,
 ):
     """List users of a specific organization. Platform Admin only."""
-    org = await db.get(Organization, org_id)
-    if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
+    require_permission(current_user, permissions.ORG_USER_READ)
+    if org.id != org_id:
+        raise_org_access_denied(org_id=str(org_id))
 
-    query = select(User).where(User.organization_id == org_id).order_by(User.email)
+    query = select(User).where(User.organization_id == org.id).order_by(User.email)
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -226,6 +243,7 @@ async def create_org_user(
     user_manager: Annotated[UserManager, Depends(get_user_manager)],
 ):
     """Create user in a specific organization. Platform Admin only."""
+    require_permission(admin, permissions.ORG_USER_CREATE)
     org = await _get_organization_for_update(db, org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -244,7 +262,10 @@ async def create_org_user(
         organization_id=org.id,
         is_superuser=False,
     )
-    user = await user_manager.create(user_create)
+    try:
+        user = await user_manager.create(user_create)
+    except UserAlreadyExists:
+        _raise_user_already_exists(data.email)
     return user
 
 
@@ -257,6 +278,7 @@ async def update_organization(
     db: AsyncDB,
 ):
     """Update an organization. Platform Admin only."""
+    require_permission(admin, permissions.ORGANIZATION_UPDATE)
     raw_payload = await request.json()
     if isinstance(raw_payload, dict) and ("is_active" in raw_payload or "isActive" in raw_payload):
         raise HTTPException(
@@ -305,6 +327,7 @@ async def archive_organization_endpoint(
 
     try:
         _ensure_superadmin_global(current_user)
+        require_permission(current_user, permissions.ORGANIZATION_ARCHIVE)
     except HTTPException as exc:
         logger.warning(
             "organization_archive_attempt",
@@ -379,6 +402,7 @@ async def restore_organization_endpoint(
 
     try:
         _ensure_superadmin_global(current_user)
+        require_permission(current_user, permissions.ORGANIZATION_RESTORE)
     except HTTPException as exc:
         logger.warning(
             "organization_restore_attempt",
@@ -438,6 +462,7 @@ async def purge_force_organization_endpoint(
 
     try:
         _ensure_superadmin_global(current_user)
+        require_permission(current_user, permissions.ORGANIZATION_PURGE)
     except HTTPException as exc:
         logger.warning(
             "organization_purge_force_attempt",
@@ -548,8 +573,7 @@ async def update_my_org_user(
     db: AsyncDB,
 ):
     """Update user role or status in my organization. Org Admin or Platform Admin only."""
-    if not current_user.can_manage_org_users():
-        raise HTTPException(status_code=403, detail="Not authorized to manage users")
+    require_permission(current_user, permissions.ORG_USER_UPDATE)
 
     user = await db.get(User, user_id)
     if not user or user.organization_id != org.id:
@@ -621,6 +645,7 @@ async def update_org_user(
     db: AsyncDB,
 ):
     """Update user role or status in a specific organization. Platform Admin only."""
+    require_permission(admin, permissions.ORG_USER_UPDATE)
     locked_org = await _get_organization_for_update(db, org_id)
     if not locked_org:
         raise HTTPException(status_code=404, detail="Organization not found")

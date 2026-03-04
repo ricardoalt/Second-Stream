@@ -18,6 +18,7 @@ import {
 	type AdminCreateUserInput,
 	adminUsersAPI,
 } from "@/lib/api/admin-users";
+import { APIClientError } from "@/lib/api/client";
 import type { User } from "@/lib/types/user";
 import { isValidPassword, PASSWORD_HINT, passwordsMatch } from "../utils";
 
@@ -84,8 +85,14 @@ export function CreateAdminDialog({
 			toast.success("User created");
 			onOpenChange(false);
 			resetForm();
-		} catch {
-			toast.error("Failed to create user");
+		} catch (error: unknown) {
+			const message =
+				error instanceof APIClientError
+					? error.message
+					: error instanceof Error
+						? error.message
+						: "Failed to create user";
+			toast.error(message);
 		} finally {
 			setSubmitting(false);
 		}

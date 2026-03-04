@@ -361,14 +361,42 @@ async def granular_rate_limit_middleware(request: Request, call_next):
 # Map HTTP status codes to error codes for consistent API responses
 HTTP_ERROR_CODES = {
     400: "BAD_REQUEST",
-    401: "UNAUTHORIZED",
+    401: "AUTH_REQUIRED",
     403: "FORBIDDEN",
-    404: "NOT_FOUND",
+    404: "RESOURCE_NOT_FOUND",
     405: "METHOD_NOT_ALLOWED",
     409: "CONFLICT",
     422: "VALIDATION_ERROR",
     429: "RATE_LIMITED",
 }
+
+
+def _build_error_payload(
+    *,
+    message: str,
+    code: str,
+    details: dict | None = None,
+) -> dict:
+    """
+    Backward-compatible error payload.
+
+    Stable contract fields live at top-level: code/message/details.
+    Legacy fields remain present during migration to avoid breaking consumers.
+    """
+    error_response = ErrorResponse(
+        error=APIError(
+            message=message,
+            code=code,
+            details=details,
+        )
+    )
+    payload = error_response.model_dump(mode="json")
+    payload["code"] = code
+    payload["message"] = message
+    payload["detail"] = message
+    if details is not None:
+        payload["details"] = details
+    return payload
 
 
 @app.exception_handler(HTTPException)
@@ -392,17 +420,9 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         error_code = HTTP_ERROR_CODES.get(exc.status_code, "ERROR")
         details = None
 
-    error_response = ErrorResponse(
-        error=APIError(
-            message=message,
-            code=error_code,
-            details=details,
-        )
-    )
-
     return JSONResponse(
         status_code=exc.status_code,
-        content=error_response.model_dump(mode="json"),
+        content=_build_error_payload(message=message, code=error_code, details=details),
         headers=exc.headers,  # Preserve headers like Retry-After
     )
 
@@ -422,17 +442,13 @@ async def validation_exception_handler(
         error_count=len(exc.errors()),
     )
 
-    error_response = ErrorResponse(
-        error=APIError(
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=_build_error_payload(
             message="Validation error",
             code="VALIDATION_ERROR",
             details={"error_id": error_id, "errors": exc.errors()},
-        )
-    )
-
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=error_response.model_dump(mode="json"),
+        ),
     )
 
 
@@ -453,17 +469,13 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
     if settings.DEBUG:
         details["type"] = type(exc).__name__
 
-    error_response = ErrorResponse(
-        error=APIError(
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=_build_error_payload(
             message="Internal server error" if not settings.DEBUG else str(exc),
             code="INTERNAL_ERROR",
             details=details,
-        )
-    )
-
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content=error_response.model_dump(mode="json"),
+        ),
     )
 
 

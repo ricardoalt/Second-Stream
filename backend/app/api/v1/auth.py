@@ -22,11 +22,18 @@ Best Practices:
     - Type-safe with Pydantic
 """
 
-import structlog
-from fastapi import APIRouter
+from typing import Annotated
 
+import structlog
+from fastapi import APIRouter, Depends, Header
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.authz.authz import raise_org_access_denied, raise_org_header_malformed
 from app.core.config import settings
-from app.core.fastapi_users_instance import auth_backend, fastapi_users
+from app.core.database import get_async_db
+from app.core.fastapi_users_instance import auth_backend, current_active_user, fastapi_users
+from app.models.organization import Organization
+from app.models.user import User
 from app.schemas.user_fastapi import UserCreate, UserRead, UserUpdate
 
 logger = structlog.get_logger(__name__)
@@ -71,12 +78,61 @@ else:
 #   GET    /auth/me       - Get current user profile
 #   PATCH  /auth/me       - Update current user profile
 #   DELETE /auth/me       - Delete current user account
-router.include_router(
-    fastapi_users.get_users_router(UserRead, UserUpdate),
-    prefix="",
-    tags=["auth"],
-)
-logger.info("✅ Registered users router: /auth/me")
+# Users Router - Profile Management
+# Keep PATCH/DELETE /auth/me from FastAPI Users, replace GET /auth/me with custom payload.
+users_router = fastapi_users.get_users_router(UserRead, UserUpdate)
+users_router.routes = [
+    route
+    for route in users_router.routes
+    if not (getattr(route, "path", "") == "/me" and "GET" in getattr(route, "methods", set()))
+]
+
+
+@router.get("/me", tags=["auth"])
+async def get_current_user_profile(
+    current_user: Annotated[User, Depends(current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+    x_organization_id: Annotated[str | None, Header(alias="X-Organization-Id")] = None,
+) -> UserRead:
+    active_org_id = current_user.organization_id
+    effective_permissions: list[str] | None = None
+
+    if current_user.is_superuser:
+        if x_organization_id is not None:
+            try:
+                from uuid import UUID
+
+                org_id = UUID(x_organization_id)
+            except ValueError:
+                raise_org_header_malformed(value=x_organization_id)
+
+            org = await db.get(Organization, org_id)
+            if org is None or not org.is_active:
+                raise_org_access_denied(org_id=str(org_id))
+            assert org is not None
+            active_org_id = org.id
+        else:
+            active_org_id = None
+            effective_permissions = []
+    else:
+        if current_user.organization_id is None:
+            raise_org_access_denied()
+        org = await db.get(Organization, current_user.organization_id)
+        if org is None or not org.is_active:
+            raise_org_access_denied(org_id=str(current_user.organization_id))
+        assert org is not None
+        active_org_id = org.id
+
+    return UserRead.from_user(
+        current_user,
+        organization_id=active_org_id,
+        permissions=effective_permissions,
+    )
+
+
+router.include_router(users_router, prefix="", tags=["auth"])
+logger.info("✅ Registered users router: PATCH/DELETE /auth/me + /auth/{id}")
+
 
 if settings.AUTH_ENABLE_PASSWORD_RESET:
     # Password Reset Router

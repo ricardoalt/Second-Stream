@@ -36,6 +36,7 @@ import { ConfirmPurgeDialog } from "@/components/ui/confirm-purge-dialog";
 import { ConfirmRestoreDialog } from "@/components/ui/confirm-restore-dialog";
 import { Separator } from "@/components/ui/separator";
 import type { ArchivedFilter } from "@/lib/api/companies";
+import { PERMISSIONS } from "@/lib/authz/permissions";
 import { useAuth } from "@/lib/contexts/auth-context";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { useLocationStore } from "@/lib/stores/location-store";
@@ -48,7 +49,7 @@ export default function LocationDetailPage() {
 	const companyId = params.id as string;
 	const locationId = params.locationId as string;
 	const [wizardOpen, setWizardOpen] = useState(false);
-	const { canWriteLocationContacts, canCreateClientData, user } = useAuth();
+	const { canCreateClientData, user } = useAuth();
 	const {
 		canArchiveLocation,
 		canEditLocation,
@@ -57,7 +58,18 @@ export default function LocationDetailPage() {
 	} = usePermissions();
 	const canCreateProject = Boolean(canCreateClientData);
 	const canDeleteContacts = Boolean(
-		user?.isSuperuser || user?.role === "org_admin",
+		user?.permissions?.includes(PERMISSIONS.LOCATION_CONTACT_DELETE),
+	);
+	const canWriteContacts = Boolean(
+		user?.permissions?.includes(PERMISSIONS.LOCATION_CONTACT_CREATE) ||
+			user?.permissions?.includes(PERMISSIONS.LOCATION_CONTACT_UPDATE),
+	);
+	const canWriteMaterials = Boolean(
+		user?.permissions?.includes(PERMISSIONS.INCOMING_MATERIAL_CREATE) ||
+			user?.permissions?.includes(PERMISSIONS.INCOMING_MATERIAL_UPDATE),
+	);
+	const canDeleteMaterials = Boolean(
+		user?.permissions?.includes(PERMISSIONS.INCOMING_MATERIAL_DELETE),
 	);
 
 	const {
@@ -360,7 +372,7 @@ export default function LocationDetailPage() {
 			<LocationContactsCard
 				contacts={currentLocation.contacts ?? []}
 				locationId={locationId}
-				canWriteContacts={canWriteLocationContacts && !isArchived}
+				canWriteContacts={canWriteContacts && !isArchived}
 				canDeleteContacts={canDeleteContacts && !isArchived}
 				onContactsUpdated={() => loadLocation(locationId, projectsFilter)}
 			/>
@@ -368,8 +380,8 @@ export default function LocationDetailPage() {
 			<IncomingMaterialsCard
 				materials={currentLocation.incomingMaterials ?? []}
 				locationId={locationId}
-				canWriteMaterials={canWriteLocationContacts && !isArchived}
-				canDeleteMaterials={canDeleteContacts && !isArchived}
+				canWriteMaterials={canWriteMaterials && !isArchived}
+				canDeleteMaterials={canDeleteMaterials && !isArchived}
 				onMaterialsUpdated={() => loadLocation(locationId, projectsFilter)}
 			/>
 

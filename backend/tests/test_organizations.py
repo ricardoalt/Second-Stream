@@ -106,6 +106,88 @@ async def test_create_org_user_as_admin(client: AsyncClient, db_session, set_cur
 
 
 @pytest.mark.asyncio
+async def test_create_org_user_duplicate_email_returns_409_current_users(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Duplicate Current", "org-duplicate-current")
+    admin = await create_user(
+        db_session,
+        email=f"org-admin-duplicate-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    duplicate_email = f"duplicate-current-{uid}@example.com"
+    await create_user(
+        db_session,
+        email=duplicate_email,
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    set_current_user(admin)
+    response = await client.post(
+        "/api/v1/organizations/current/users",
+        json={
+            "email": duplicate_email,
+            "password": "Password1",
+            "first_name": "Dupe",
+            "last_name": "Current",
+            "role": UserRole.FIELD_AGENT.value,
+        },
+    )
+
+    assert response.status_code == 409
+    payload = response.json()
+    assert payload["code"] == "USER_ALREADY_EXISTS"
+    assert payload["message"] == "A user with this email already exists in this organization."
+    assert payload["details"]["email"] == duplicate_email
+
+
+@pytest.mark.asyncio
+async def test_create_org_user_duplicate_email_returns_409_org_users(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Duplicate Scoped", "org-duplicate-scoped")
+    superadmin = await create_user(
+        db_session,
+        email=f"superadmin-duplicate-{uid}@example.com",
+        org_id=None,
+        role=UserRole.ADMIN.value,
+        is_superuser=True,
+    )
+    duplicate_email = f"duplicate-org-{uid}@example.com"
+    await create_user(
+        db_session,
+        email=duplicate_email,
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    set_current_user(superadmin)
+    response = await client.post(
+        f"/api/v1/organizations/{org.id}/users",
+        json={
+            "email": duplicate_email,
+            "password": "Password1",
+            "first_name": "Dupe",
+            "last_name": "Scoped",
+            "role": UserRole.FIELD_AGENT.value,
+        },
+    )
+
+    assert response.status_code == 409
+    payload = response.json()
+    assert payload["code"] == "USER_ALREADY_EXISTS"
+    assert payload["message"] == "A user with this email already exists in this organization."
+    assert payload["details"]["email"] == duplicate_email
+
+
+@pytest.mark.asyncio
 async def test_create_org_user_cannot_create_platform_admin(
     client: AsyncClient, db_session, set_current_user
 ):

@@ -21,6 +21,7 @@ from app.api.dependencies import (
     PageNumber,
     PageSize,
 )
+from app.authz.authz import raise_bad_request, raise_org_access_denied, raise_resource_not_found
 from app.core.config import settings
 from app.models.bulk_import import ImportItem, ImportRun
 from app.models.company import Company
@@ -215,6 +216,13 @@ async def patch_bulk_import_item(
     org: OrganizationContext,
     db: AsyncDB,
 ) -> BulkImportItemResponse:
+    item_probe = await db.get(ImportItem, item_id)
+    if item_probe is None:
+        raise_resource_not_found("Item not found", details={"item_id": str(item_id)})
+    assert item_probe is not None
+    if item_probe.organization_id != org.id:
+        raise_org_access_denied(org_id=str(org.id))
+
     async def _operation() -> ImportItem:
         return await service.update_item_decision(
             db,
@@ -239,6 +247,13 @@ async def finalize_bulk_import_run(
     db: AsyncDB,
     payload: BulkImportFinalizeRequest | None = None,
 ) -> BulkImportFinalizeResponse:
+    run_probe = await db.get(ImportRun, run_id)
+    if run_probe is None:
+        raise_resource_not_found("Run not found", details={"run_id": str(run_id)})
+    assert run_probe is not None
+    if run_probe.organization_id != org.id:
+        raise_org_access_denied(org_id=str(org.id))
+
     async def _operation() -> BulkImportFinalizeSummary:
         return await service.finalize_run(
             db,
@@ -302,6 +317,13 @@ async def import_orphan_projects(
     db: AsyncDB,
 ) -> AssignOrphansResponse:
     """Create projects directly from orphan items without re-analysis."""
+    run_probe = await db.get(ImportRun, run_id)
+    if run_probe is None:
+        raise_resource_not_found("Run not found", details={"run_id": str(run_id)})
+    assert run_probe is not None
+    if run_probe.organization_id != org.id:
+        raise_org_access_denied(org_id=str(org.id))
+
     result = await service.import_orphan_projects(
         db,
         organization_id=org.id,
@@ -348,17 +370,25 @@ async def _validate_entrypoint(
 ) -> None:
     if entrypoint_type == "company":
         company = await db.get(Company, entrypoint_id)
-        if not company or company.organization_id != org_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+        if company is None:
+            raise_resource_not_found(
+                "Company not found", details={"company_id": str(entrypoint_id)}
+            )
+        assert company is not None
+        if company.organization_id != org_id:
+            raise_org_access_denied(org_id=str(org_id))
         return
     if entrypoint_type == "location":
         location = await db.get(Location, entrypoint_id)
-        if not location or location.organization_id != org_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+        if location is None:
+            raise_resource_not_found(
+                "Location not found", details={"location_id": str(entrypoint_id)}
+            )
+        assert location is not None
+        if location.organization_id != org_id:
+            raise_org_access_denied(org_id=str(org_id))
         return
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid entrypoint_type"
-    )
+    raise_bad_request("Invalid entrypoint_type")
 
 
 def _sanitize_filename(filename: str) -> str:

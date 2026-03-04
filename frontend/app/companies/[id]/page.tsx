@@ -252,6 +252,7 @@ export default function CompanyDetailPage() {
 	}, [companyId, reloadCompanyData]);
 
 	useEffect(() => {
+		if (!canCreateClientData) return;
 		const voiceRunId = searchParams.get("voiceRunId");
 		const voiceInterviewId = searchParams.get("voiceInterviewId");
 		if (!voiceRunId) return;
@@ -268,7 +269,7 @@ export default function CompanyDetailPage() {
 				setActiveVoiceInterviewId(null);
 				router.replace(`/companies/${companyId}`);
 			});
-	}, [searchParams, companyId, router]);
+	}, [canCreateClientData, searchParams, companyId, router]);
 
 	// Auto-resume pending import on page load
 	useEffect(() => {

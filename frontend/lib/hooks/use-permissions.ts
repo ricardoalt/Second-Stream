@@ -1,73 +1,99 @@
+import { PERMISSIONS } from "@/lib/authz/permissions";
 import { useAuth } from "@/lib/contexts/auth-context";
 import type { ProjectSummary } from "@/lib/project-types";
 import type { CompanySummary, LocationSummary } from "@/lib/types/company";
 
 export function usePermissions() {
 	const { user } = useAuth();
-	const isAdmin = Boolean(user?.isSuperuser || user?.role === "org_admin");
-	const isAgent = Boolean(
-		user?.role === "field_agent" || user?.role === "contractor",
-	);
+	const hasPermission = (permission: string): boolean =>
+		Boolean(user?.permissions?.includes(permission));
+	const hasProjectAdminBypass = hasPermission(PERMISSIONS.PROJECT_PURGE);
+	const hasCompanyAdminBypass = hasPermission(PERMISSIONS.COMPANY_ARCHIVE);
+	const hasLocationAdminBypass = hasPermission(PERMISSIONS.LOCATION_ARCHIVE);
 
 	// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 	// COMPANY PERMISSIONS
 	// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 	const canEditCompany = (company: CompanySummary): boolean => {
-		if (isAdmin) return true;
-		return isAgent && company.createdByUserId === user?.id;
+		if (!hasPermission(PERMISSIONS.COMPANY_UPDATE)) return false;
+		return hasCompanyAdminBypass || company.createdByUserId === user?.id;
 	};
 
-	const canDeleteCompany = (): boolean => isAdmin;
+	const canDeleteCompany = (): boolean =>
+		hasPermission(PERMISSIONS.COMPANY_DELETE);
 
-	const canArchiveCompany = (): boolean => isAdmin;
+	const canArchiveCompany = (): boolean =>
+		hasPermission(PERMISSIONS.COMPANY_ARCHIVE);
 
-	const canRestoreCompany = (): boolean => isAdmin;
+	const canRestoreCompany = (): boolean =>
+		hasPermission(PERMISSIONS.COMPANY_RESTORE);
 
-	const canPurgeCompany = (): boolean => isAdmin;
+	const canPurgeCompany = (): boolean =>
+		hasPermission(PERMISSIONS.COMPANY_PURGE);
 
 	// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 	// LOCATION PERMISSIONS
 	// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 	const canEditLocation = (location: LocationSummary): boolean => {
-		if (isAdmin) return true;
-		return isAgent && location.createdByUserId === user?.id;
+		if (!hasPermission(PERMISSIONS.LOCATION_UPDATE)) return false;
+		return hasLocationAdminBypass || location.createdByUserId === user?.id;
 	};
 
-	const canDeleteLocation = (): boolean => isAdmin;
+	const canDeleteLocation = (): boolean =>
+		hasPermission(PERMISSIONS.LOCATION_DELETE);
 
-	const canArchiveLocation = (): boolean => isAdmin;
+	const canArchiveLocation = (): boolean =>
+		hasPermission(PERMISSIONS.LOCATION_ARCHIVE);
 
-	const canRestoreLocation = (): boolean => isAdmin;
+	const canRestoreLocation = (): boolean =>
+		hasPermission(PERMISSIONS.LOCATION_RESTORE);
 
-	const canPurgeLocation = (): boolean => isAdmin;
+	const canPurgeLocation = (): boolean =>
+		hasPermission(PERMISSIONS.LOCATION_PURGE);
 
 	// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 	// PROJECT PERMISSIONS
 	// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 	const canEditProject = (project: ProjectSummary): boolean => {
-		if (isAdmin) return true;
-		return isAgent && project.userId === user?.id;
+		if (!hasPermission(PERMISSIONS.PROJECT_UPDATE)) return false;
+		return hasProjectAdminBypass || project.userId === user?.id;
 	};
 
 	const canDeleteProject = (project: ProjectSummary): boolean => {
-		if (isAdmin) return true;
-		return isAgent && project.userId === user?.id;
+		if (!hasPermission(PERMISSIONS.PROJECT_DELETE)) return false;
+		return hasProjectAdminBypass || project.userId === user?.id;
 	};
 
 	const canArchiveProject = (project: ProjectSummary): boolean => {
-		if (isAdmin) return true;
-		return Boolean(project.userId === user?.id);
+		if (!hasPermission(PERMISSIONS.PROJECT_ARCHIVE)) return false;
+		return hasProjectAdminBypass || project.userId === user?.id;
 	};
 
 	const canRestoreProject = (project: ProjectSummary): boolean => {
-		if (isAdmin) return true;
-		return Boolean(project.userId === user?.id);
+		if (!hasPermission(PERMISSIONS.PROJECT_RESTORE)) return false;
+		return hasProjectAdminBypass || project.userId === user?.id;
 	};
 
-	const canPurgeProject = (): boolean => isAdmin;
+	const canPurgeProject = (): boolean =>
+		hasPermission(PERMISSIONS.PROJECT_PURGE);
+
+	const canReadOrgUsers = (): boolean =>
+		hasPermission(PERMISSIONS.ORG_USER_READ);
+
+	const canCreateOrgUsers = (): boolean =>
+		hasPermission(PERMISSIONS.ORG_USER_CREATE);
+
+	const canUpdateOrgUsers = (): boolean =>
+		hasPermission(PERMISSIONS.ORG_USER_UPDATE);
+
+	const canReadAdminUsers = (): boolean =>
+		hasPermission(PERMISSIONS.ADMIN_USER_READ);
+
+	const canCreateAdminUsers = (): boolean =>
+		hasPermission(PERMISSIONS.ADMIN_USER_CREATE);
 
 	return {
 		// Company
@@ -88,5 +114,11 @@ export function usePermissions() {
 		canArchiveProject,
 		canRestoreProject,
 		canPurgeProject,
+		// User management
+		canReadOrgUsers,
+		canCreateOrgUsers,
+		canUpdateOrgUsers,
+		canReadAdminUsers,
+		canCreateAdminUsers,
 	};
 }

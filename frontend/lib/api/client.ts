@@ -34,7 +34,7 @@ interface APIError {
 	details?: JsonLike;
 }
 
-class APIClientError extends Error {
+export class APIClientError extends Error {
 	code?: string | undefined;
 	details?: JsonLike | undefined;
 
@@ -481,7 +481,6 @@ export const API_ERROR_CODES = {
 	NOT_FOUND: "HTTP_404",
 } as const;
 
-export { APIClientError };
 export type { APIError, RequestConfig };
 
 export const isForbiddenError = (error: unknown): boolean =>

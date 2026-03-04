@@ -21,8 +21,9 @@ from app.api.dependencies import (
     RateLimitUser10,
     RateLimitUser30,
     RateLimitUser60,
-    SuperAdminOnly,
 )
+from app.authz import permissions
+from app.authz.authz import require_permission
 from app.core.config import settings
 from app.models.feedback import Feedback
 from app.models.feedback_attachment import FeedbackAttachment
@@ -153,6 +154,7 @@ async def create_feedback(
     db: AsyncDB,
     _rate_limit: RateLimitUser30,
 ):
+    require_permission(current_user, permissions.FEEDBACK_CREATE)
     feedback = Feedback(
         organization_id=org.id,
         user_id=current_user.id,
@@ -179,6 +181,8 @@ async def upload_feedback_attachments(
     db: AsyncDB,
     _rate_limit: RateLimitUser10,
 ):
+    require_permission(current_user, permissions.FEEDBACK_ATTACHMENT_UPLOAD)
+
     async def rollback_and_cleanup_uploaded_keys(*, log_message: str) -> None:
         await db.rollback()
         if not uploaded_keys:
@@ -312,7 +316,7 @@ async def upload_feedback_attachments(
 
 @admin_router.get("", response_model=list[FeedbackAdminRead])
 async def list_feedback(
-    current_admin: SuperAdminOnly,
+    current_user: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
     _rate_limit: RateLimitUser60,
@@ -324,6 +328,7 @@ async def list_feedback(
     feedback_type: FeedbackTypeFilter = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ):
+    require_permission(current_user, permissions.FEEDBACK_READ)
     attachment_count_subq = (
         select(func.count(FeedbackAttachment.id))
         .where(
@@ -370,11 +375,12 @@ async def list_feedback(
 )
 async def list_feedback_attachments(
     feedback_id: UUID,
-    current_admin: SuperAdminOnly,
+    current_user: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
     _rate_limit: RateLimitUser60,
 ):
+    require_permission(current_user, permissions.FEEDBACK_READ)
     feedback_exists = await db.scalar(
         select(Feedback.id).where(
             Feedback.id == feedback_id,
@@ -437,11 +443,12 @@ async def list_feedback_attachments(
 )
 async def delete_feedback(
     feedback_id: UUID,
-    current_admin: SuperAdminOnly,
+    current_admin: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
     _rate_limit: RateLimitUser30,
 ):
+    require_permission(current_admin, permissions.FEEDBACK_MODERATE)
     result = await db.execute(
         select(Feedback)
         .where(
@@ -497,11 +504,12 @@ async def delete_feedback(
 async def update_feedback(
     feedback_id: UUID,
     payload: FeedbackUpdate,
-    current_admin: SuperAdminOnly,
+    current_admin: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
     _rate_limit: RateLimitUser30,
 ):
+    require_permission(current_admin, permissions.FEEDBACK_MODERATE)
     result = await db.execute(
         select(Feedback)
         .options(selectinload(Feedback.user).load_only(User.id, User.first_name, User.last_name))
