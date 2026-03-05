@@ -77,3 +77,6 @@ infrastructure/**/*.tfstate.backup
 infrastructure/**/.terraform/
 infrastructure/**/.terraform.lock.hcl
 
+# Local AI planning docs (kept local, not versioned)
+/docs/plans/**
+/docs/agents/**
