@@ -1,0 +1,351 @@
+# Discovery Phase: Análisis Completo y Propuesta de Rediseño
+
+---
+
+## 1. El Problema Central
+
+> *"La propuesta es trivial; lo difícil es convertir un material ambiguo en un movimiento compliant y rentable sin perderse en el discovery."* — Insights de entrevista con Russ
+
+**El discovery es el mayor cuello de botella de la empresa.** Russ describe un proceso donde:
+
+1. El **nombre del material casi nunca sirve** (códigos internos como "5850", "B980")
+2. La **información llega incompleta** y de fuentes inconsistentes (EHS con conocimiento variable)
+3. **"Esperar información" domina el funnel** — deals se congelan sin visibilidad de qué falta
+4. El conocimiento para pricing y classificación es **tribal** ("llama a alguien que movió esto hace 4.5 años")
+5. El discovery es **multidimensional**: composición, proceso generador, estado legal, ruta de salida, y clasificación de transporte
+
+---
+
+## 2. Gap Analysis: Sistema Actual vs. Necesidad Real
+
+### Lo que tenemos hoy
+
+| Componente | Cómo funciona | Archivos clave |
+|---|---|---|
+| **Project Model** | JSONB `project_data` genérico con campos técnicos de water projects | [project.py](file:///Users/ricardoaltamirano/Developer/waste-platform/backend/app/models/project.py) |
+| **Technical Data Sheet** | Secciones con campos tipo formulario (design flow, population served, etc.) | [technical-data-sheet.tsx](file:///Users/ricardoaltamirano/Developer/waste-platform/frontend/components/features/projects/technical-data-sheet.tsx) |
+| **Intake Panel** | Sidebar con sugerencias de IA de documentos, con animación "fly to field" | [intake-panel-content.tsx](file:///Users/ricardoaltamirano/Developer/waste-platform/frontend/components/features/projects/intake-panel/intake-panel-content.tsx) |
+| **Voice Interview** | Captura de audio → transcripción → extracción → review workspace | [voice-review-workspace.tsx](file:///Users/ricardoaltamirano/Developer/waste-platform/frontend/components/features/voice-interview/voice-review-workspace.tsx) |
+| **Tabs** | Overview → Technical → Files → Proposals (4 tabs lineales) | [project-tabs.tsx](file:///Users/ricardoaltamirano/Developer/waste-platform/frontend/components/features/projects/project-tabs.tsx) |
+
+### Lo que necesita el broker (según Russ)
+
+| Necesidad | ¿Lo tenemos? | Gap |
+|---|---|---|
+| **Identidad del material** (familia + alias + estado waste/product/unknown) | ❌ | Usamos "project name" y campos de water project |
+| **Proceso generador** (cambia lo permitido legalmente) | ❌ | No existe captura del proceso |
+| **Documentos como evidencia con confianza** (SDS, waste profile, manifest, BOL, lab analysis con fecha y freshness) | 🟡 Parcial | Tenemos upload de archivos pero sin metadata de freshness/confianza |
+| **Estado legal dinámico** (waste vs product, cambia según ruta) | ❌ | No existe clasificación regulatoria |
+| **Volumen + densidad + packaging** (tanque, silo, drums) | ❌ | Solo campos genéricos de water |
+| **Recurrencia** (one-off vs semanal/mensual) | ❌ | No se captura |
+| **Prioridades del cliente** (brand protection, "no export", urgencia) | ❌ | No existe |
+| **Costo actual real** (invoice line items, hidden fees) | ❌ | No existe captura de costos |
+| **Deadline / urgencia** | ❌ | No hay campo de urgencia |
+| **Tracking de info faltante** con visibilidad de bloqueadores | 🟡 Parcial | Progress % existe, pero NO indica *qué* falta ni *quién* lo debe proporcionar |
+| **AI que sugiere preguntas que no sabías preguntar** | ❌ | AI extrae de docs pero no genera preguntas inteligentes |
+
+### Diagnóstico
+
+> **El sistema actual es un "technical questionnaire tool" diseñado para water projects. El negocio necesita un "Material Discovery Intelligence System" que convierta información ambigua en un material operativamente definido.**
+
+La buena noticia: la **infraestructura ya es sólida** — JSONB flexible, intake panel con AI suggestions, voice interview, file processing pipeline. Lo que falta es **reconfigurar el modelo de datos y el flujo UX** para el verdadero workflow del broker.
+
+---
+
+## 3. Propuesta: Nuevo Flujo de Discovery
+
+### 3.1 Visión del Flujo
+
+```mermaid
+flowchart TB
+    subgraph CAPTURE["📥 Captura Multi-Canal"]
+        V[🎤 Voice Interview] 
+        D[📄 Document Upload<br/>SDS / Profile / Manifest]
+        M[✍️ Manual Entry]
+        P[📸 Photo / Image]
+    end
+
+    subgraph INTAKE["🧠 Material Intake Inteligente"]
+        ID[Material Identity<br/>Familia + alias + estado]
+        PROC[Proceso Generador]
+        FORM[Forma / Packaging]
+        VOL[Cantidad + Densidad]
+        LOC[Ubicación]
+        REC[Recurrencia]
+        PRIO[Prioridades del cliente]
+        COST[Costo Actual]
+        DEAD[Deadline / Urgencia]
+    end
+
+    subgraph EVIDENCE["📋 Evidence Dashboard"]
+        DOCS[Documentos con<br/>Freshness + Confianza]
+        GAPS[Gap Detector<br/>¿Qué falta? ¿Quién lo da?]
+        COPILOT[Discovery Copilot<br/>Preguntas sugeridas]
+    end
+
+    CAPTURE --> INTAKE
+    INTAKE --> EVIDENCE
+    EVIDENCE -->|Completo| READY[✅ Discovery Complete<br/>Listo para Propuesta]
+```
+
+### 3.2 La Experiencia: Cómo se Verá
+
+#### **Tab "Discovery" (Reemplaza "Technical")**
+
+El tab principal ya no es un formulario de secciones técnicas de agua. Es un **Material Discovery Dashboard** dividido en 3 zonas:
+
+```
+┌─────────────────────────────────────────────────────┐
+│ 🔬 Material Discovery                    68% ████░░│
+├─────────────────────┬───────────────────────────────┤
+│                     │                               │
+│  MATERIAL CARD      │   EVIDENCE PANEL              │
+│  ┌───────────────┐  │   ┌─────────────────────────┐│
+│  │ ⚗️ Solvent     │  │   │ 📄 SDS          ✅ Fresh ││
+│  │ "Used MEK"    │  │   │ 📄 Waste Profile ⚠️ 2yr  ││
+│  │ Familia: Sol. │  │   │ 📄 Lab Analysis  ❌ None  ││
+│  │ Estado: Waste  │  │   │ 📄 Manifest      ✅ OK    ││
+│  │ Proceso: Paint │  │   │                         ││
+│  │ Packaging: Dru │  │   │ Freshness Score: 62%    ││
+│  └───────────────┘  │   └─────────────────────────┘│
+│                     │                               │
+│  QUICK INFO         │   DISCOVERY COPILOT           │
+│  ┌───────────────┐  │   ┌─────────────────────────┐│
+│  │ Volume: 500gal│  │   │ 🤖 "Este solvente se    ││
+│  │ Recurrence: Mo│  │   │  usa en paint stripping? ││
+│  │ Urgency: 10d  │  │   │  Si es así, pregunte    ││
+│  │ Criticality:Hi│  │   │  por chlorinated        ││
+│  │ Current Cost:  │  │   │  components—puede       ││
+│  │ $2.50/gal    │  │   │  cambiar clasificación   ││
+│  └───────────────┘  │   │  RCRA."                  ││
+│                     │   │                          ││
+│  CLIENT PRIORITIES  │   │ 💡 Suggested Questions:  ││
+│  ┌───────────────┐  │   │ □ Water content %?       ││
+│  │ ☐ Brand Prot. │  │   │ □ Flash point?           ││
+│  │ ☑ No Export   │  │   │ □ Current disposal vendor││
+│  │ ☐ Urgency     │  │   └─────────────────────────┘│
+│  └───────────────┘  │                               │
+│                     │   GAP TRACKER                  │
+│                     │   ┌─────────────────────────┐ │
+│                     │   │ ⏳ Waiting on:           │ │
+│                     │   │ • Lab analysis (EHS)     │ │
+│                     │   │ • Process details (Ops)  │ │
+│                     │   │ • Current invoice (Acct) │ │
+│                     │   │                          │ │
+│                     │   │ 📧 Send Reminder ▸       │ │
+│                     │   └─────────────────────────┘ │
+├─────────────────────┴───────────────────────────────┤
+│ 📎 Files   📝 Notes   📊 Timeline                   │
+└─────────────────────────────────────────────────────┘
+```
+
+#### **Las 3 Zonas del Discovery Tab**
+
+| Zona | Propósito | Contenido |
+|---|---|---|
+| **Material Card** (izquierda) | Identidad y datos operativos del material | Nombre/alias, familia, proceso generador, estado legal, packaging, volumen, recurrencia, urgencia, criticality flag, costo actual, prioridades del cliente |
+| **Evidence Panel** (derecha-arriba) | Status de documentos con indicadores de freshness y confianza | Lista de documentos esperados (SDS, Waste Profile, Manifest, BOL, Lab Analysis) con semáforo de edad/confianza, upload rápido, y score general de evidencia |
+| **Discovery Copilot** (derecha-abajo) | IA que guía el discovery | Preguntas sugeridas basadas en el material/familia/proceso, gap tracker (qué falta, quién lo debe dar), botón de reminder |
+
+### 3.3 Cambios en los Tabs del Proyecto
+
+```
+ANTES (4 tabs):
+  [Overview] [Technical] [Files] [Proposals]
+  
+DESPUÉS (4 tabs, renombrados):
+  [Overview] [Discovery] [Files] [Proposals]
+```
+
+- **Overview**: Se mantiene pero con métricas adaptadas (Discovery Completion %, Evidence Freshness, Gaps Pendientes)
+- **Discovery**: Reemplaza "Technical" → Material Discovery Dashboard (descrito arriba)
+- **Files**: Se mantiene, pero los archivos ahora se vinculan como evidencia en el Discovery
+- **Proposals**: Se mantiene
+
+---
+
+## 4. Funciones de IA para el Discovery
+
+### 4.1 Material Discovery Copilot
+
+**Qué hace**: Cuando el field agent ingresa información (por cualquier canal: voz, documento, manual), la IA analiza el contexto y genera:
+
+1. **Preguntas faltantes relevantes** — No genéricas, sino específicas al material/industria
+   - *"Si es un solvente usado en paint stripping, pregunte por chlorinated components — puede cambiar la clasificación RCRA"*
+   - *"Este material suele tener agua. Si >20%, mata el valor de reciclaje. ¿Tiene análisis de water content?"*
+
+2. **Detección de inconsistencias** — Compara datos de voz vs docs vs manual
+   - *"La SDS indica 'non-hazardous' pero el proceso (descartado de producción) podría clasificarlo como waste. Verifique."*
+
+3. **Preguntas sugeridas por etapa** — Script dinámico según lo que ya se sabe
+   - *Si no tiene proceso generador → pregunta por proceso*
+   - *Si tiene proceso pero no packaging → pregunta por packaging*
+   - *Si tiene material + proceso pero no docs → sugiere qué documentos pedir*
+
+### 4.2 Evidence Freshness & Confidence Engine
+
+**Qué hace**: Evalúa cada documento como evidencia:
+
+| Input | Output |
+|---|---|
+| SDS de 2024 | ✅ Fresh — "Less than 2 years old" |
+| Waste Profile de 2021 | ⚠️ Stale — "4 years old, high risk of outdated composition" |
+| Lab Analysis de 2019 | ❌ Expired — "6 years old, buyer likely will reject" |
+| SDS marcada como "virgin product" pero material es "spent" | ⚠️ Mismatch — "SDS is for virgin material, not spent. May not reflect actual composition" |
+
+### 4.3 Gap Detector & Tracker
+
+**Qué hace**: Analiza todos los campos e identifica automáticamente:
+
+- **Qué falta** para tener un material "operativamente definido"
+- **Quién es responsable** de proveer la información (EHS, Operations, Accounting)
+- **Cuánto tiempo lleva pendiente** cada gap
+- **Impacto del gap** (bloquea pricing / bloquea clasificación / bloquea propuesta)
+
+```
+Gap Tracker:
+├── 🔴 Blocking Proposal
+│   ├── Lab Analysis — Responsible: EHS — Pending: 12 days
+│   └── Process Details — Responsible: Operations — Pending: 8 days
+├── 🟡 Blocking Pricing  
+│   └── Current Invoice — Responsible: Accounting — Pending: 5 days
+└── 🟢 Optional (improves proposal)
+    └── Density Measurement — Responsible: EHS — Pending: 3 days
+```
+
+### 4.4 Intelligent Note-to-Field Mapper (ya existe, se refuerza)
+
+El [IntakePanel](file:///Users/ricardoaltamirano/Developer/waste-platform/frontend/components/features/projects/intake-panel/intake-panel-content.tsx#191-200) actual ya mapea sugerencias de AI a campos. Se refuerza para:
+
+- Mapear datos de voz/docs al nuevo modelo de Material (no solo campos técnicos de agua)
+- Detectar "nombres inútiles" y forzar a "ingrediente principal + uso"
+- Extraer de SDS: composición aproximada, flash point, hazard classification
+
+---
+
+## 5. Modelo de Datos: Material Intake
+
+### Campos del Material Discovery (reemplaza secciones de Water Project)
+
+```typescript
+// Nueva estructura de discovery_data en project_data JSONB
+interface DiscoveryData {
+  // === IDENTIDAD DEL MATERIAL ===
+  materialIdentity: {
+    alias: string;               // Nombre interno del cliente ("5850", "B980")
+    commonName: string;          // Nombre real ("Used MEK", "Spent Glycol")
+    family: string;              // Familia/tipo (solvent, acid, metal, etc.)
+    primaryComponent: string;    // Ingrediente principal
+    legalStatus: 'waste' | 'product' | 'unknown';
+  };
+  
+  // === PROCESO GENERADOR ===
+  generatingProcess: {
+    description: string;         // Texto libre del proceso
+    industry: string;            // Industria
+    equipment: string;           // Línea/equipo
+    tags: string[];              // Tags del proceso
+  };
+  
+  // === FORMA Y PACKAGING ===
+  packaging: {
+    form: string;                // liquid, solid, gas, sludge
+    containerType: string;       // drum, tote, tanker, supersack, etc.
+    quantity: number;
+    quantityUnit: string;        // lbs, gallons, tons, etc.
+    density?: number;
+    densityUnit?: string;
+  };
+  
+  // === OPERACIONAL ===
+  operational: {
+    location: string;            // Viene del Location del proyecto
+    recurrence: 'one-off' | 'weekly' | 'monthly' | 'quarterly' | 'annual';
+    estimatedFrequency?: string;
+    deadline?: string;           // ISO date
+    urgencyLevel: 'low' | 'medium' | 'high' | 'critical';
+    productionCritical: boolean; // ¿Limita producción?
+  };
+  
+  // === PRIORIDADES DEL CLIENTE ===
+  clientPriorities: {
+    brandProtection: boolean;
+    noExport: boolean;
+    costPriority: boolean;
+    complianceFocus: boolean;
+    customPriorities: string[];
+  };
+  
+  // === COSTO ACTUAL ===
+  currentCost: {
+    declaredCostPerUnit: number;
+    declaredUnit: string;        // per lb, per gallon, per drum
+    invoiceLineItems: Array<{
+      description: string;
+      amount: number;
+    }>;
+    effectiveCostPerUnit?: number; // Calculado
+    currentVendor?: string;
+  };
+  
+  // === EVIDENCIA / DOCUMENTOS ===
+  evidence: Array<{
+    type: 'sds' | 'waste_profile' | 'manifest' | 'bol' | 'lab_analysis' | 'invoice' | 'photo' | 'other';
+    fileId?: string;             // Link a ProjectFile
+    date?: string;               // Fecha del documento
+    freshness: 'fresh' | 'aging' | 'stale' | 'expired';
+    confidence: 'high' | 'medium' | 'low';
+    notes?: string;
+    isVirginSpec: boolean;       // SDS para virgin vs spent
+  }>;
+  
+  // === GAP TRACKING ===
+  gaps: Array<{
+    field: string;               // Qué campo falta
+    responsible: string;         // Quién debe proveerlo
+    impact: 'blocks_proposal' | 'blocks_pricing' | 'optional';
+    createdAt: string;
+    resolvedAt?: string;
+    reminderSentAt?: string;
+  }>;
+}
+```
+
+> [!IMPORTANT]
+> Este modelo vivirá dentro del JSONB `project_data` existente — **no requiere migraciones de schema SQL**. Se agrega como un nuevo namespace `discovery` dentro del JSON.
+
+---
+
+## 6. Resumen de Cambios por Capa
+
+| Capa | Cambio | Impacto |
+|---|---|---|
+| **Frontend: Tabs** | Renombrar "Technical" → "Discovery" | Bajo |
+| **Frontend: Discovery Tab** | Nuevo layout (Material Card + Evidence Panel + Copilot) | Alto — componente nuevo |
+| **Frontend: Overview** | Adaptar métricas (Evidence Freshness, Gaps, etc.) | Medio |
+| **Frontend: Intake Panel** | Adaptar mapping a campos de Discovery (no water fields) | Medio |
+| **Backend: project_data** | Nuevo schema `discovery` en JSONB (no SQL migration) | Bajo |
+| **Backend: AI Agent** | Nuevo "Discovery Copilot" agent que genera preguntas y detecta gaps | Alto — agente nuevo |
+| **Backend: Evidence Engine** | Freshness calculation + confidence scoring para documentos | Medio |
+
+---
+
+## 7. Priorización Sugerida
+
+### Fase 1 (MVP Discovery) — Lo que resuelve el P0
+1. **Material Identity Card** — Captura familia + alias + estado legal
+2. **Proceso Generador** — Campo estructurado
+3. **Packaging + Volumen** — Forma, container type, cantidad
+4. **Recurrence + Deadline + Urgency** — 3 campos críticos
+5. **Gap Tracker básico** — "¿Qué falta?" con semáforo
+
+### Fase 2 (Evidence Intelligence)
+6. **Evidence Dashboard** — Documentos con freshness/confidence
+7. **Cost Capture** — Invoice line items + effective cost
+8. **Client Priorities** — Checkboxes y flags
+9. **Discovery Copilot v1** — Preguntas sugeridas por material/familia
+
+### Fase 3 (Copilot Avanzado)
+10. **Inconsistency Detection** — Cross-reference voz vs docs
+11. **Lab Decision Hints** — Sugerencias de qué lab pedir
+12. **Historical Pattern Matching** — Comparar con deals anteriores
