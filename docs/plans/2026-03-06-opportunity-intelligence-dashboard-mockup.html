@@ -1,0 +1,1848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecondStream - Opportunity Intelligence Dashboard</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap');
+
+    :root {
+      --bg: #090d12;
+      --bg-deep: #06090d;
+      --sidebar: rgba(12, 17, 24, 0.9);
+      --panel: rgba(17, 24, 34, 0.9);
+      --panel-strong: rgba(20, 29, 40, 0.96);
+      --panel-soft: rgba(15, 22, 31, 0.76);
+      --border: rgba(128, 145, 168, 0.14);
+      --border-strong: rgba(155, 176, 202, 0.22);
+      --text: #edf1f5;
+      --text-secondary: #a7b2bf;
+      --text-muted: #758395;
+      --ready: #27c983;
+      --ready-soft: rgba(39, 201, 131, 0.12);
+      --waiting: #f0aa42;
+      --waiting-soft: rgba(240, 170, 66, 0.12);
+      --risk: #df7152;
+      --risk-soft: rgba(223, 113, 82, 0.12);
+      --active: #66c1d0;
+      --active-soft: rgba(102, 193, 208, 0.12);
+      --ai: #5b8fff;
+      --shadow-lg: 0 24px 80px rgba(0, 0, 0, 0.42);
+      --shadow-md: 0 12px 36px rgba(0, 0, 0, 0.28);
+      --radius-xl: 26px;
+      --radius-lg: 20px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --radius-pill: 999px;
+      --grid-line: rgba(255, 255, 255, 0.03);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top right, rgba(102, 193, 208, 0.08), transparent 20%),
+        radial-gradient(circle at bottom left, rgba(223, 113, 82, 0.06), transparent 20%),
+        linear-gradient(180deg, #090d12 0%, #070a0e 100%);
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: radial-gradient(circle at center, black 35%, transparent 85%);
+      pointer-events: none;
+      opacity: 0.55;
+    }
+
+    .app-shell {
+      position: relative;
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 24px 14px;
+      background: linear-gradient(180deg, rgba(12, 17, 24, 0.94), rgba(9, 14, 20, 0.88));
+      border-right: 1px solid var(--border);
+      backdrop-filter: blur(18px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 18px;
+      border: 1px solid var(--border-strong);
+      background:
+        linear-gradient(135deg, rgba(102, 193, 208, 0.18), rgba(255, 255, 255, 0.02)),
+        rgba(15, 22, 31, 0.88);
+      box-shadow: var(--shadow-md);
+      display: grid;
+      place-items: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 18px;
+      color: var(--active);
+    }
+
+    .nav {
+      width: 100%;
+      display: grid;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .nav-item {
+      width: 100%;
+      border-radius: 18px;
+      border: 1px solid transparent;
+      padding: 12px 8px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      background: transparent;
+      transition: 180ms ease;
+    }
+
+    .nav-item strong {
+      display: block;
+      font-size: 16px;
+      line-height: 1;
+      margin-bottom: 8px;
+      color: var(--text-secondary);
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 0;
+      font-weight: 500;
+    }
+
+    .nav-item.active {
+      background: linear-gradient(180deg, rgba(20, 29, 40, 0.95), rgba(15, 22, 31, 0.92));
+      border-color: var(--border);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+      color: var(--text);
+    }
+
+    .nav-item.active strong {
+      color: var(--active);
+    }
+
+    .sidebar-foot {
+      margin-top: auto;
+      width: 100%;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      padding: 10px 8px;
+      background: rgba(15, 22, 31, 0.74);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .workspace {
+      padding: 28px 28px 36px;
+    }
+
+    .eyebrow {
+      font-size: 11px;
+      line-height: 1;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--active);
+      margin-bottom: 12px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+
+    .heading h1 {
+      margin: 0;
+      font-family: 'Instrument Serif', serif;
+      font-size: 44px;
+      line-height: 0.95;
+      letter-spacing: -0.02em;
+      font-weight: 400;
+    }
+
+    .heading p {
+      max-width: 620px;
+      margin: 10px 0 0;
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .control,
+    .action {
+      height: 44px;
+      border-radius: var(--radius-pill);
+      padding: 0 16px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      background: rgba(15, 22, 31, 0.88);
+      color: var(--text-secondary);
+      font-size: 13px;
+      box-shadow: var(--shadow-md);
+      backdrop-filter: blur(14px);
+    }
+
+    .search {
+      min-width: 280px;
+      justify-content: space-between;
+      color: var(--text-muted);
+    }
+
+    .action {
+      color: var(--text);
+      border-color: var(--border-strong);
+      background:
+        linear-gradient(180deg, rgba(27, 39, 54, 0.98), rgba(17, 24, 34, 0.96));
+    }
+
+    .panel {
+      position: relative;
+      background:
+        linear-gradient(180deg, rgba(18, 25, 35, 0.98), rgba(14, 20, 28, 0.94));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      backdrop-filter: blur(18px);
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent 45%);
+      pointer-events: none;
+    }
+
+    .signal-band {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0;
+      margin-bottom: 22px;
+      padding: 6px;
+    }
+
+    .signal-block {
+      padding: 18px 18px 20px;
+      border-right: 1px solid var(--border);
+      min-width: 0;
+    }
+
+    .signal-block:last-child {
+      border-right: none;
+    }
+
+    .signal-label {
+      font-size: 11px;
+      line-height: 1;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .signal-value {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .signal-value strong {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 30px;
+      line-height: 1;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .signal-tag {
+      padding: 4px 8px;
+      border-radius: var(--radius-pill);
+      font-size: 10px;
+      line-height: 1;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border: 1px solid transparent;
+    }
+
+    .signal-tag.ready {
+      color: var(--ready);
+      background: var(--ready-soft);
+      border-color: rgba(39, 201, 131, 0.18);
+    }
+
+    .signal-tag.neutral {
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border);
+    }
+
+    .signal-tag.waiting {
+      color: var(--waiting);
+      background: var(--waiting-soft);
+      border-color: rgba(240, 170, 66, 0.18);
+    }
+
+    .signal-tag.risk {
+      color: var(--risk);
+      background: var(--risk-soft);
+      border-color: rgba(223, 113, 82, 0.18);
+    }
+
+    .signal-note {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 10px 12px;
+      margin-bottom: 22px;
+    }
+
+    .bucket-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .bucket {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .bucket strong {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .bucket.active {
+      color: var(--text);
+      border-color: rgba(102, 193, 208, 0.24);
+      background: rgba(102, 193, 208, 0.08);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .bucket.active strong {
+      color: var(--active);
+    }
+
+    .focus-strip {
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .focus-copy h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+    }
+
+    .focus-copy p {
+      margin: 8px 0 0;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.55;
+      max-width: 760px;
+    }
+
+    .focus-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 22px;
+      align-items: start;
+      margin-bottom: 22px;
+    }
+
+    .main-stack {
+      display: grid;
+      gap: 22px;
+    }
+
+    .featured {
+      padding: 24px 26px 26px;
+    }
+
+    .section-kicker {
+      color: var(--text-muted);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .featured-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+
+    .featured-copy h2 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.05;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .featured-copy p {
+      margin: 10px 0 0;
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.55;
+      max-width: 620px;
+    }
+
+    .featured-meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .meta-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: var(--radius-pill);
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .featured-scoreboard {
+      display: grid;
+      gap: 10px;
+      min-width: 290px;
+    }
+
+    .score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .score-row:first-child {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .score-label {
+      color: var(--text-muted);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .score-value {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 14px;
+    }
+
+    .score-value strong {
+      font-weight: 500;
+    }
+
+    .track {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .track::before {
+      content: "";
+      position: absolute;
+      left: 48px;
+      right: 48px;
+      top: 20px;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(102, 193, 208, 0.34), rgba(255, 255, 255, 0.08));
+    }
+
+    .stage-card {
+      position: relative;
+      padding-top: 0;
+      min-width: 0;
+    }
+
+    .stage-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px solid var(--border-strong);
+      background: rgba(255, 255, 255, 0.04);
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .stage-card.is-complete .stage-dot,
+    .stage-card.is-current .stage-dot {
+      background: linear-gradient(180deg, rgba(102, 193, 208, 0.95), rgba(60, 137, 151, 0.95));
+      border-color: rgba(102, 193, 208, 0.5);
+      box-shadow: 0 0 0 5px rgba(102, 193, 208, 0.08);
+    }
+
+    .stage-card.is-alert .stage-dot {
+      background: linear-gradient(180deg, rgba(240, 170, 66, 0.95), rgba(181, 112, 33, 0.95));
+      border-color: rgba(240, 170, 66, 0.45);
+      box-shadow: 0 0 0 5px rgba(240, 170, 66, 0.08);
+    }
+
+    .stage-title {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      margin-bottom: 6px;
+    }
+
+    .stage-detail {
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .callout {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+      padding: 16px 18px;
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(240, 170, 66, 0.16);
+      background: linear-gradient(180deg, rgba(240, 170, 66, 0.08), rgba(240, 170, 66, 0.04));
+    }
+
+    .callout h3 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .callout p {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .ghost-button,
+    .solid-button {
+      height: 40px;
+      border-radius: var(--radius-pill);
+      padding: 0 16px;
+      border: 1px solid var(--border-strong);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text);
+      font-size: 13px;
+      min-width: 116px;
+    }
+
+    .solid-button {
+      background: linear-gradient(180deg, rgba(28, 42, 58, 0.98), rgba(17, 24, 34, 0.96));
+    }
+
+    .split-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 22px;
+    }
+
+    .ledger,
+    .rail-panel,
+    .bottom-panel,
+    .mobile-panel,
+    .mobile-card {
+      background:
+        linear-gradient(180deg, rgba(17, 24, 34, 0.98), rgba(14, 20, 28, 0.92));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+
+    .ledger {
+      padding: 20px 24px 12px;
+    }
+
+    .ledger-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-end;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ledger-head h2,
+    .distribution h2,
+    .rail-panel h2,
+    .bottom-panel h2,
+    .mobile-panel h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1.1;
+    }
+
+    .ledger-head p,
+    .distribution p,
+    .rail-panel p,
+    .bottom-panel p,
+    .mobile-panel p {
+      margin: 8px 0 0;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .ledger-count {
+      color: var(--text-muted);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .ledger-rows {
+      display: grid;
+    }
+
+    .ledger-columns {
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.2fr) 0.85fr 1fr 0.9fr;
+      gap: 14px;
+      align-items: center;
+      min-height: 42px;
+      padding: 10px 0 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .ledger-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.2fr) 0.85fr 1fr 0.9fr;
+      gap: 14px;
+      align-items: center;
+      min-height: 102px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ledger-row:last-child {
+      border-bottom: none;
+    }
+
+    .stream-name {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      text-decoration: none;
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+    }
+
+    .stream-name:hover {
+      color: var(--active);
+    }
+
+    .stream-name::after {
+      content: ">";
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      transition: transform 180ms ease, color 180ms ease;
+    }
+
+    .stream-name:hover::after {
+      transform: translateX(2px);
+      color: var(--active);
+    }
+
+    .stream-line,
+    .stream-owner,
+    .info-meta,
+    .blocker-meta {
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-bottom: 4px;
+    }
+
+    .stream-owner,
+    .info-meta,
+    .blocker-meta {
+      color: var(--text-muted);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: fit-content;
+      min-height: 28px;
+      padding: 6px 10px;
+      border-radius: var(--radius-pill);
+      border: 1px solid transparent;
+      font-size: 11px;
+      line-height: 1;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .pill.waiting {
+      color: var(--waiting);
+      background: var(--waiting-soft);
+      border-color: rgba(240, 170, 66, 0.2);
+    }
+
+    .pill.review {
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border);
+    }
+
+    .pill.discovery {
+      color: var(--active);
+      background: var(--active-soft);
+      border-color: rgba(102, 193, 208, 0.2);
+    }
+
+    .pill.ready {
+      color: var(--ready);
+      background: var(--ready-soft);
+      border-color: rgba(39, 201, 131, 0.2);
+    }
+
+    .pill.complete {
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border);
+    }
+
+    .pill.draft {
+      color: var(--waiting);
+      background: var(--waiting-soft);
+      border-color: rgba(240, 170, 66, 0.2);
+    }
+
+    .volume {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .volume-sub {
+      color: var(--text-muted);
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .pill.blocked {
+      color: var(--risk);
+      background: var(--risk-soft);
+      border-color: rgba(223, 113, 82, 0.2);
+    }
+
+    .readiness {
+      display: grid;
+      gap: 8px;
+    }
+
+    .readiness strong {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .meter {
+      width: 84px;
+      height: 7px;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+    }
+
+    .meter > span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, rgba(39, 201, 131, 0.88), rgba(102, 193, 208, 0.92));
+    }
+
+    .distribution-list,
+    .queue-list,
+    .pattern-list,
+    .signal-list {
+      display: grid;
+      gap: 0;
+      margin-top: 18px;
+    }
+
+    .distribution-row,
+    .queue-item,
+    .pattern-row,
+    .signal-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 54px;
+      border-top: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .distribution-row:first-child,
+    .queue-item:first-child,
+    .pattern-row:first-child,
+    .signal-row:first-child {
+      border-top: none;
+    }
+
+    .distribution-row strong,
+    .queue-item strong,
+    .pattern-row strong,
+    .signal-row strong {
+      font-family: 'IBM Plex Mono', monospace;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .queue-item {
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 14px 0;
+      min-height: auto;
+    }
+
+    .queue-main {
+      min-width: 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .queue-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .queue-title:hover {
+      color: var(--active);
+    }
+
+    .queue-title::after {
+      content: ">";
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .queue-meta {
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .queue-sub {
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .queue-side {
+      display: grid;
+      justify-items: end;
+      gap: 8px;
+      text-align: right;
+      margin-left: 16px;
+    }
+
+    .queue-side .ghost-button {
+      min-width: 108px;
+      height: 34px;
+      font-size: 12px;
+    }
+
+    .rail {
+      position: sticky;
+      top: 24px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .rail-panel {
+      padding: 20px;
+    }
+
+    .rail-list {
+      display: grid;
+      gap: 0;
+      margin-top: 18px;
+    }
+
+    .rail-item {
+      padding: 14px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .rail-item:first-child {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .rail-item h3 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .rail-item p {
+      margin: 0 0 4px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .rail-item .severity {
+      color: var(--waiting);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .rail-item .severity.ready {
+      color: var(--ready);
+    }
+
+    .rail-footer {
+      margin-top: 14px;
+    }
+
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.9fr);
+      gap: 22px;
+      margin-bottom: 28px;
+    }
+
+    .bottom-panel {
+      padding: 20px 22px;
+    }
+
+    .pattern-copy,
+    .signal-copy {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .pattern-bar {
+      flex: 1;
+      height: 7px;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+    }
+
+    .pattern-bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, rgba(240, 170, 66, 0.85), rgba(223, 113, 82, 0.88));
+    }
+
+    .mobile-preview {
+      max-width: 430px;
+      margin-left: auto;
+    }
+
+    .mobile-frame {
+      border-radius: 36px;
+      border: 1px solid var(--border-strong);
+      background: linear-gradient(180deg, rgba(9, 13, 18, 0.96), rgba(6, 9, 13, 0.98));
+      padding: 14px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .mobile-screen {
+      border-radius: 26px;
+      border: 1px solid var(--border);
+      padding: 18px;
+      background:
+        radial-gradient(circle at top right, rgba(102, 193, 208, 0.08), transparent 24%),
+        linear-gradient(180deg, rgba(17, 24, 34, 0.98), rgba(10, 15, 22, 0.96));
+    }
+
+    .mobile-notch {
+      width: 120px;
+      height: 28px;
+      margin: 0 auto 16px;
+      border-radius: 0 0 18px 18px;
+      background: rgba(5, 7, 10, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-top: none;
+    }
+
+    .mobile-panel {
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .mobile-panel h2 {
+      margin-bottom: 8px;
+    }
+
+    .mobile-summary {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .mobile-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .toggle {
+      padding: 10px 12px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .toggle.active {
+      color: var(--text);
+      border-color: rgba(102, 193, 208, 0.22);
+      background: rgba(102, 193, 208, 0.08);
+    }
+
+    .mobile-card {
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .mobile-card h3 {
+      margin: 0 0 5px;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.15;
+    }
+
+    .mobile-card h3 a {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .mobile-card h3 a:hover {
+      color: var(--active);
+    }
+
+    .mobile-card .facility,
+    .mobile-card .detail {
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-bottom: 6px;
+    }
+
+    .mobile-card .detail strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .mobile-inline-link {
+      color: var(--active);
+      text-decoration: none;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .mobile-inline-link:hover {
+      color: var(--text);
+    }
+
+    .mobile-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .mini-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 6px 10px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+      font-size: 11px;
+      line-height: 1;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 1350px) {
+      .bottom-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 1180px) {
+      .signal-band {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .signal-block:nth-child(2) {
+        border-right: none;
+      }
+
+      .signal-block:nth-child(1),
+      .signal-block:nth-child(2) {
+        border-bottom: 1px solid var(--border);
+      }
+
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .filter-bar,
+      .focus-strip {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .rail {
+        position: static;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 980px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+        flex-direction: row;
+        justify-content: space-between;
+        padding: 16px 18px;
+      }
+
+      .nav {
+        grid-auto-flow: column;
+        grid-auto-columns: 1fr;
+        overflow-x: auto;
+      }
+
+      .nav-item {
+        min-width: 80px;
+      }
+
+      .sidebar-foot {
+        display: none;
+      }
+
+      .topbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .controls {
+        justify-content: flex-start;
+      }
+
+      .search {
+        min-width: 100%;
+      }
+
+      .featured-head,
+      .callout {
+        grid-template-columns: 1fr;
+        display: grid;
+      }
+
+      .track {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .track::before {
+        display: none;
+      }
+
+      .stage-card {
+        padding: 12px 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .stage-dot {
+        margin-bottom: 10px;
+      }
+
+      .ledger-columns {
+        display: none;
+      }
+
+      .ledger-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 16px;
+      }
+
+      .queue-item {
+        flex-direction: column;
+      }
+
+      .queue-side {
+        width: 100%;
+        margin-left: 0;
+        justify-items: start;
+        text-align: left;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .workspace {
+        padding: 18px 16px 32px;
+      }
+
+      .heading h1 {
+        font-size: 34px;
+      }
+
+      .signal-band,
+      .rail {
+        grid-template-columns: 1fr;
+      }
+
+      .bucket-tabs,
+      .focus-metrics {
+        width: 100%;
+      }
+
+      .signal-block {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .signal-block:last-child {
+        border-bottom: none;
+      }
+
+      .split-grid {
+        gap: 18px;
+      }
+
+      .ledger-row {
+        grid-template-columns: 1fr;
+      }
+
+      .mobile-preview {
+        max-width: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="mark">SS</div>
+      <nav class="nav" aria-label="Dashboard sections">
+        <div class="nav-item active"><strong>01</strong>Dashboard</div>
+        <div class="nav-item"><strong>02</strong>Streams</div>
+        <div class="nav-item"><strong>03</strong>Companies</div>
+        <div class="nav-item"><strong>04</strong>Proposals</div>
+        <div class="nav-item"><strong>05</strong>Search</div>
+      </nav>
+      <div class="sidebar-foot">Active brokerage</div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="heading">
+          <div class="eyebrow">SecondStream / Portfolio command</div>
+          <h1>Opportunity Intelligence Dashboard</h1>
+          <p>
+            A portfolio-level control tower for discovered streams, missing information,
+            deal stage movement, and proposal readiness.
+          </p>
+        </div>
+        <div class="controls">
+          <div class="control search">Search streams, sites, facility contacts...</div>
+          <div class="control">Owner</div>
+          <div class="control">Stage</div>
+          <div class="control">Readiness</div>
+          <div class="action">+ New Stream</div>
+        </div>
+      </header>
+
+      <section class="panel signal-band" aria-label="Signal strip">
+        <div class="signal-block">
+          <div class="signal-label">Discovered streams</div>
+          <div class="signal-value">
+            <strong>128</strong>
+            <span class="signal-tag">active</span>
+          </div>
+          <div class="signal-note">+8 this week across generators, brokers, and direct facility contacts.</div>
+        </div>
+        <div class="signal-block">
+          <div class="signal-label">Blocked by missing info</div>
+          <div class="signal-value">
+            <strong>19</strong>
+            <span class="signal-tag waiting">waiting</span>
+          </div>
+          <div class="signal-note">11 streams need critical inputs before pricing or proposal can move.</div>
+        </div>
+        <div class="signal-block">
+          <div class="signal-label">Proposal-ready</div>
+          <div class="signal-value">
+            <strong>14</strong>
+            <span class="signal-tag ready">ready</span>
+          </div>
+          <div class="signal-note">9 are near-ready with one last blocker remaining.</div>
+        </div>
+        <div class="signal-block">
+          <div class="signal-label">Needs confirmation</div>
+          <div class="signal-value">
+            <strong>12</strong>
+            <span class="signal-tag neutral">draft</span>
+          </div>
+          <div class="signal-note">Unassigned or partially linked streams still waiting for company/location confirmation.</div>
+        </div>
+        <div class="signal-block">
+          <div class="signal-label">Avg. stall time</div>
+          <div class="signal-value">
+            <strong>6.2d</strong>
+            <span class="signal-tag risk">risk</span>
+          </div>
+          <div class="signal-note">3 opportunities have been waiting on information for over 10 days.</div>
+        </div>
+      </section>
+
+      <section class="panel filter-bar" aria-label="Portfolio buckets">
+        <div class="bucket-tabs">
+          <div class="bucket"><strong>46</strong> Clients</div>
+          <div class="bucket active"><strong>128</strong> All confirmed</div>
+          <div class="bucket"><strong>19</strong> Missing info</div>
+          <div class="bucket"><strong>14</strong> Proposal ready</div>
+          <div class="bucket"><strong>12</strong> Drafts</div>
+          <div class="bucket"><strong>87</strong> Complete</div>
+        </div>
+        <div class="controls">
+          <div class="control">Sort: Recent</div>
+          <div class="control">View: Overview</div>
+        </div>
+      </section>
+
+      <section class="panel focus-strip" aria-label="Current focus">
+        <div class="focus-copy">
+          <h2>All Confirmed Waste Streams</h2>
+          <p>
+            The primary queue below only includes streams already confirmed by a user and assigned to a company and location. AI-detected candidates stay isolated in the draft queue until a human confirms them.
+          </p>
+        </div>
+        <div class="focus-metrics">
+          <span class="meta-chip">19 need missing info follow-up</span>
+          <span class="meta-chip">14 ready for proposal</span>
+          <span class="meta-chip">12 draft streams pending review</span>
+        </div>
+      </section>
+
+      <section class="main-grid">
+        <div class="main-stack">
+          <article class="panel featured">
+            <div class="section-kicker">Featured stream / highest leverage today</div>
+            <div class="featured-head">
+              <div class="featured-copy">
+                <h2>Spent Acetone Recovery / Meridian Chemical</h2>
+                <p>
+                  A high-potential solvent stream with sufficient early evidence, one pricing-critical
+                  testing gap, and enough momentum to push into proposal once lab confirmation lands.
+                </p>
+                <div class="featured-meta">
+                  <span class="meta-chip">Solvents</span>
+                  <span class="meta-chip">Monterrey plant</span>
+                  <span class="meta-chip">Owner: Raul</span>
+                  <span class="meta-chip">Critical for line continuity</span>
+                </div>
+              </div>
+              <div class="featured-scoreboard">
+                <div class="score-row">
+                  <span class="score-label">Discovery coverage</span>
+                  <span class="score-value"><strong>78%</strong> complete</span>
+                </div>
+                <div class="score-row">
+                  <span class="score-label">Evidence confidence</span>
+                  <span class="score-value"><strong>64%</strong> aging SDS</span>
+                </div>
+                <div class="score-row">
+                  <span class="score-label">Proposal readiness</span>
+                  <span class="score-value"><strong>1</strong> blocker left</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="track" aria-label="Deal stage track">
+              <div class="stage-card is-complete">
+                <div class="stage-dot"></div>
+                <div class="stage-title">Discovered</div>
+                <div class="stage-detail">Account linked, stream identified, early notes captured.</div>
+              </div>
+              <div class="stage-card is-complete">
+                <div class="stage-dot"></div>
+                <div class="stage-title">Data Intake</div>
+                <div class="stage-detail">Volume, packaging, and process origin partially mapped.</div>
+              </div>
+              <div class="stage-card is-current">
+                <div class="stage-dot"></div>
+                <div class="stage-title">Qualified</div>
+                <div class="stage-detail">Enough evidence to narrow route and clarify buyer needs.</div>
+              </div>
+              <div class="stage-card is-alert">
+                <div class="stage-dot"></div>
+                <div class="stage-title">Pricing</div>
+                <div class="stage-detail">Lab result needed to validate water threshold and value loss.</div>
+              </div>
+              <div class="stage-card">
+                <div class="stage-dot"></div>
+                <div class="stage-title">Proposal Ready</div>
+                <div class="stage-detail">Unlocked after final blocker and no critical evidence gaps.</div>
+              </div>
+            </div>
+
+            <div class="callout">
+              <div>
+                <h3>Primary blocker / water content test still missing</h3>
+                <p>
+                  Buyers will likely reject the stream if water content exceeds threshold. The facility has an old SDS,
+                  but no fresh test that supports pricing or outlet selection.
+                </p>
+              </div>
+              <div class="solid-button">Review stream</div>
+            </div>
+          </article>
+
+          <div class="split-grid">
+            <article class="ledger">
+              <div class="ledger-head">
+                <div>
+                  <h2>Streams in Motion</h2>
+                  <p>Priority queue ordered by discovery momentum, blocker age, and proposal readiness.</p>
+                </div>
+                <div class="ledger-count">4 priority streams visible</div>
+              </div>
+
+              <div class="ledger-rows">
+                <div class="ledger-columns">
+                  <div>Waste stream</div>
+                  <div>Company / Location</div>
+                  <div>Volume</div>
+                  <div>Missing information</div>
+                  <div>Status</div>
+                </div>
+
+                <div class="ledger-row">
+                  <div>
+                    <a class="stream-name" href="#meridian-stream">Spent Acetone Recovery</a>
+                    <div class="stream-line">Solvents</div>
+                    <div class="stream-owner">Owner: Raul</div>
+                  </div>
+                  <div>
+                    <div class="stream-line">Meridian Chemical</div>
+                    <div class="info-meta">Monterrey plant</div>
+                  </div>
+                  <div>
+                    <div class="volume">20 drums/mo</div>
+                    <div class="volume-sub">Estimated</div>
+                  </div>
+                  <div>
+                    <div class="stream-line">Water %, SDS</div>
+                    <div class="info-meta">2 critical inputs</div>
+                  </div>
+                  <div>
+                    <div class="pill waiting">Waiting on client</div>
+                    <div class="blocker-meta">78% ready · Lab pending</div>
+                  </div>
+                </div>
+
+                <div class="ledger-row">
+                  <div>
+                    <a class="stream-name" href="#norchem-stream">Paint Sludge</a>
+                    <div class="stream-line">Metals</div>
+                    <div class="stream-owner">Owner: Ana</div>
+                  </div>
+                  <div>
+                    <div class="stream-line">NorChem Foundry</div>
+                    <div class="info-meta">Ohio facility</div>
+                  </div>
+                  <div>
+                    <div class="volume">8 t/mo</div>
+                    <div class="volume-sub">Confirmed</div>
+                  </div>
+                  <div>
+                    <div class="stream-line">Classification</div>
+                    <div class="info-meta">1 critical input</div>
+                  </div>
+                  <div>
+                    <div class="pill review">Analyst review</div>
+                    <div class="blocker-meta">52% ready · pricing hold</div>
+                  </div>
+                </div>
+
+                <div class="ledger-row">
+                  <div>
+                    <a class="stream-name" href="#apex-stream">Used Glycol</a>
+                    <div class="stream-line">Liquids</div>
+                    <div class="stream-owner">Owner: Luis</div>
+                  </div>
+                  <div>
+                    <div class="stream-line">Apex Auto Parts</div>
+                    <div class="info-meta">Texas facility</div>
+                  </div>
+                  <div>
+                    <div class="volume">4,500 gal/mo</div>
+                    <div class="volume-sub">Estimated</div>
+                  </div>
+                  <div>
+                    <div class="stream-line">Cost, recurrence</div>
+                    <div class="info-meta">2 missing</div>
+                  </div>
+                  <div>
+                    <div class="pill discovery">In discovery</div>
+                    <div class="blocker-meta">46% ready · baseline unknown</div>
+                  </div>
+                </div>
+
+                <div class="ledger-row">
+                  <div>
+                    <a class="stream-name" href="#delta-stream">Solvent Blend</a>
+                    <div class="stream-line">Solvents</div>
+                    <div class="stream-owner">Owner: Sofia</div>
+                  </div>
+                  <div>
+                    <div class="stream-line">Delta Coatings</div>
+                    <div class="info-meta">California site</div>
+                  </div>
+                  <div>
+                    <div class="volume">12 drums/wk</div>
+                    <div class="volume-sub">Unverified</div>
+                  </div>
+                  <div>
+                    <div class="stream-line">SDS, flash point</div>
+                    <div class="info-meta">3 missing</div>
+                  </div>
+                  <div>
+                    <div class="pill blocked">Blocked</div>
+                    <div class="blocker-meta">34% ready · no fresh docs</div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <aside class="rail">
+          <article class="rail-panel">
+            <div class="section-kicker">Exceptions rail</div>
+            <h2>Critical Gaps</h2>
+            <p>What is currently preventing movement toward proposal.</p>
+            <div class="rail-list">
+              <div class="rail-item">
+                <h3>Lab analysis</h3>
+                <p>Waiting on EHS / composition support still missing.</p>
+                <div class="severity">4d stalled · blocks proposal</div>
+              </div>
+              <div class="rail-item">
+                <h3>Process origin</h3>
+                <p>Waiting on Ops / generating process still unclear.</p>
+                <div class="severity">8d stalled · blocks classification</div>
+              </div>
+              <div class="rail-item">
+                <h3>Current cost</h3>
+                <p>Waiting on Accounting / no invoice or fee baseline.</p>
+                <div class="severity">5d stalled · blocks pricing</div>
+              </div>
+            </div>
+            <div class="rail-footer">
+              <div class="ghost-button">View all gaps</div>
+            </div>
+          </article>
+
+          <article class="rail-panel">
+            <div class="section-kicker">AI extracted / awaiting confirmation</div>
+            <h2>Draft Waste Streams</h2>
+            <p>Streams found by AI from interviews or uploaded documents that still need human confirmation before joining the main portfolio.</p>
+            <div class="rail-list">
+              <div class="rail-item">
+                <h3>Mixed metal scrap</h3>
+                <p>Source: interview analysis / approx. 8 t/mo detected.</p>
+                <div class="severity">Missing company and location assignment</div>
+              </div>
+              <div class="rail-item">
+                <h3>Used oil stream</h3>
+                <p>Source: invoice + notes / one likely company match found.</p>
+                <div class="severity">Location still missing before confirmation</div>
+              </div>
+              <div class="rail-item">
+                <h3>Unknown solvent blend</h3>
+                <p>Source: SDS upload / 12 drums per week inferred.</p>
+                <div class="severity">Needs company, location, and owner review</div>
+              </div>
+            </div>
+            <div class="rail-footer">
+              <div class="solid-button">Review draft queue</div>
+            </div>
+          </article>
+        </aside>
+      </section>
+
+      <section class="bottom-grid">
+        <article class="bottom-panel">
+          <div class="section-kicker">Status breakdown</div>
+          <h2>Where Confirmed Streams Are Sitting</h2>
+          <p>A compact status breakdown for the confirmed portfolio only.</p>
+          <div class="distribution-list">
+            <div class="distribution-row"><span>In discovery</span><strong>61</strong></div>
+            <div class="distribution-row"><span>Waiting on client</span><strong>19</strong></div>
+            <div class="distribution-row"><span>Analyst review</span><strong>22</strong></div>
+            <div class="distribution-row"><span>Blocked</span><strong>11</strong></div>
+            <div class="distribution-row"><span>Proposal-ready</span><strong>14</strong></div>
+            <div class="distribution-row"><span>Complete</span><strong>87</strong></div>
+          </div>
+        </article>
+
+        <article class="bottom-panel">
+          <div class="section-kicker">Repeat blockers</div>
+          <h2>Top Missing Info Patterns</h2>
+          <p>The inputs most frequently delaying discovery quality and proposal readiness.</p>
+          <div class="pattern-list">
+            <div class="pattern-row">
+              <div class="pattern-copy"><span>SDS / profile missing</span></div>
+              <div class="pattern-bar"><span style="width: 100%"></span></div>
+              <strong>14</strong>
+            </div>
+            <div class="pattern-row">
+              <div class="pattern-copy"><span>Volume / recurrence unknown</span></div>
+              <div class="pattern-bar"><span style="width: 79%"></span></div>
+              <strong>11</strong>
+            </div>
+            <div class="pattern-row">
+              <div class="pattern-copy"><span>Lab / testing missing</span></div>
+              <div class="pattern-bar"><span style="width: 71%"></span></div>
+              <strong>10</strong>
+            </div>
+            <div class="pattern-row">
+              <div class="pattern-copy"><span>Generating process unclear</span></div>
+              <div class="pattern-bar"><span style="width: 64%"></span></div>
+              <strong>9</strong>
+            </div>
+            <div class="pattern-row">
+              <div class="pattern-copy"><span>Current cost / invoice missing</span></div>
+              <div class="pattern-bar"><span style="width: 57%"></span></div>
+              <strong>8</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="bottom-panel">
+          <div class="section-kicker">Recent movement</div>
+          <h2>Recent Signals</h2>
+          <p>Short operational feed for what changed meaningfully today.</p>
+          <div class="signal-list">
+            <div class="signal-row"><span>New streams discovered</span><strong>+8</strong></div>
+            <div class="signal-row"><span>Critical blockers resolved</span><strong>5</strong></div>
+            <div class="signal-row"><span>Moved to proposal-ready</span><strong>3</strong></div>
+            <div class="signal-row"><span>Stale evidence flags</span><strong>2</strong></div>
+            <div class="signal-row"><span>New follow-up reminders triggered</span><strong>7</strong></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="mobile-preview">
+        <div class="eyebrow">Mobile preview / triage-first</div>
+        <div class="mobile-frame">
+          <div class="mobile-notch"></div>
+          <div class="mobile-screen">
+            <article class="mobile-panel">
+              <div class="section-kicker">Discovery command</div>
+              <h2>Opportunity Intelligence</h2>
+              <p class="mobile-summary">
+                128 active streams<br />
+                19 blocked by missing information<br />
+                14 ready for proposal · 6.2d avg stall
+              </p>
+            </article>
+
+            <div class="mobile-toggles">
+              <span class="toggle">Clients</span>
+              <span class="toggle active">All</span>
+              <span class="toggle">Blocked</span>
+              <span class="toggle">Ready</span>
+              <span class="toggle">My deals</span>
+            </div>
+
+            <article class="mobile-panel">
+              <div class="section-kicker">Draft queue</div>
+              <h2>Needs Confirmation</h2>
+              <p>AI-extracted streams waiting for company/location confirmation before they enter the confirmed portfolio.</p>
+              <div class="distribution-list">
+                <div class="distribution-row"><span>Mixed metal scrap</span><strong>8 t/mo</strong></div>
+                <div class="distribution-row"><span>Used oil stream</span><strong>4 t/mo</strong></div>
+                <div class="distribution-row"><span>Unknown solvent blend</span><strong>12 drums/wk</strong></div>
+              </div>
+            </article>
+
+            <article class="mobile-card">
+              <h3><a href="#meridian-stream">Spent Acetone Recovery</a></h3>
+              <div class="facility">Meridian Chemical</div>
+              <div class="detail">Volume: 20 drums/mo</div>
+              <div class="detail">Missing: Water %, SDS</div>
+              <div class="detail">Status: Waiting on client · 78% ready</div>
+              <div class="mobile-footer">
+                <span class="mini-pill">solvents</span>
+                <a class="mobile-inline-link" href="#meridian-stream">Open stream</a>
+              </div>
+            </article>
+
+            <article class="mobile-card">
+              <h3><a href="#norchem-stream">Paint Sludge</a></h3>
+              <div class="facility">NorChem Foundry</div>
+              <div class="detail">Volume: 8 t/mo</div>
+              <div class="detail">Missing: Classification</div>
+              <div class="detail">Status: Analyst review · 52% ready</div>
+              <div class="mobile-footer">
+                <span class="mini-pill">metals</span>
+                <a class="mobile-inline-link" href="#norchem-stream">Open stream</a>
+              </div>
+            </article>
+
+            <article class="mobile-card">
+              <h3><a href="#apex-stream">Used Glycol</a></h3>
+              <div class="facility">Apex Auto Parts</div>
+              <div class="detail">Volume: 4,500 gal/mo</div>
+              <div class="detail">Missing: Cost, recurrence</div>
+              <div class="detail">Status: In discovery · 46% ready</div>
+              <div class="mobile-footer">
+                <span class="mini-pill">liquids</span>
+                <a class="mobile-inline-link" href="#apex-stream">Open stream</a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecondStream - Waste Deal OS Workspace</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      /* Minimalist Dark Theme */
+      --bg: #000000;
+      --bg-surface: #0A0A0A;
+      --bg-panel: #111111;
+      --bg-hover: #1A1A1A;
+      
+      --border: #222222;
+      --border-focus: #333333;
+      
+      --text-main: #EDEDED;
+      --text-sec: #A1A1A1;
+      --text-muted: #666666;
+      
+      --accent: #E2E2E2;
+      --brand: #3B82F6; /* Tech blue for actions */
+      
+      --ai-glow: rgba(59, 130, 246, 0.15);
+      --ai-border: rgba(59, 130, 246, 0.4);
+      
+      --status-red: #EF4444;
+      --status-red-bg: rgba(239, 68, 68, 0.1);
+      --status-amber: #F59E0B;
+      --status-amber-bg: rgba(245, 158, 11, 0.1);
+      --status-green: #10B981;
+      --status-green-bg: rgba(16, 185, 129, 0.1);
+      
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* --- GLOBAL HEADER --- */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 60px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+      flex-shrink: 0;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    
+    .breadcrumb {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .breadcrumb span { color: var(--text-main); font-weight: 500; }
+    
+    .critical-flag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--status-red-bg);
+      color: var(--status-red);
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    
+    .readiness {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text-sec);
+    }
+    
+    .progress-bar {
+      width: 120px;
+      height: 6px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 72%;
+      background: var(--text-main);
+    }
+
+    .btn {
+      background: var(--bg-hover);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: var(--border); }
+    .btn-primary {
+      background: var(--text-main);
+      color: var(--bg);
+      border-color: var(--text-main);
+    }
+    .btn-primary:hover { background: #FFFFFF; }
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* --- WORKSPACE LAYOUT --- */
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* --- CANVAS (DISCOVERY PACK) --- */
+    .canvas {
+      overflow-y: auto;
+      padding: 32px 48px;
+      border-right: 1px solid var(--border);
+    }
+
+    .canvas-title {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 32px;
+    }
+
+    .section {
+      margin-bottom: 40px;
+    }
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+    .section-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .section-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px 24px;
+    }
+    .col-span-2 { grid-column: span 2; }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+    }
+
+    .field-label {
+      font-size: 12px;
+      color: var(--text-sec);
+      font-weight: 500;
+    }
+
+    /* The "Data Contract" field design */
+    .field-value-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      transition: border 0.2s;
+    }
+    .field-value-wrapper:hover { border-color: var(--border-focus); }
+    
+    .field-value {
+      flex: 1;
+      font-size: 14px;
+      color: var(--text-main);
+      background: none;
+      border: none;
+      outline: none;
+    }
+
+    /* AI Unverified State */
+    .field-group.unverified .field-value-wrapper {
+      background: var(--ai-glow);
+      border-color: var(--ai-border);
+    }
+    
+    .actions-inline {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .field-group.unverified:hover .actions-inline { opacity: 1; }
+    
+    .icon-btn {
+      background: none;
+      border: none;
+      color: var(--text-sec);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 2px 4px;
+    }
+    .icon-btn:hover { color: var(--text-main); }
+
+    /* Evidence Graph Link */
+    .evidence-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-sec);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .evidence-link:hover {
+      background: var(--border);
+      color: var(--text-main);
+    }
+
+    /* Ghost Field */
+    .ghost-field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border: 1px dashed var(--border-focus);
+      border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.02);
+    }
+    .ghost-field .field-label { color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+    .ghost-field .field-label::before { content: "✨"; font-size: 12px; }
+
+    /* Segmented Control */
+    .segmented {
+      display: inline-flex;
+      background: var(--bg-panel);
+      padding: 2px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+    .segment {
+      padding: 6px 16px;
+      font-size: 13px;
+      color: var(--text-sec);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .segment.active {
+      background: var(--bg-hover);
+      color: var(--text-main);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+
+    /* --- COPILOT (RIGHT RAIL) --- */
+    .copilot {
+      background: var(--bg-surface);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .copilot-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .copilot-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Capture Dropzone */
+    .capture-zone {
+      border: 1px dashed var(--border-focus);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      text-align: center;
+      background: var(--bg-panel);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .capture-zone:hover { border-color: var(--text-sec); }
+    .capture-zone p { font-size: 13px; color: var(--text-sec); margin-bottom: 8px; }
+    .capture-actions { display: flex; gap: 8px; justify-content: center; }
+
+    /* Copilot Card */
+    .c-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+    }
+    
+    .c-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .c-card.blocker { border-color: rgba(239, 68, 68, 0.3); }
+    .c-card.blocker .c-card-header { color: var(--status-red); }
+    
+    .c-card.ask-next { border-color: var(--border-focus); }
+    .c-card.ask-next .c-card-header { color: var(--brand); }
+
+    .c-title { font-size: 14px; font-weight: 500; color: var(--text-main); margin-bottom: 4px; }
+    .c-desc { font-size: 13px; color: var(--text-sec); margin-bottom: 12px; }
+    
+    .c-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Evidence Status List */
+    .evidence-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ev-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .ev-status { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .dot.fresh { background: var(--status-green); }
+    .dot.stale { background: var(--status-amber); }
+    .dot.missing { background: var(--status-red); }
+
+  </style>
+</head>
+<body>
+
+  <!-- GLOBAL HEADER -->
+  <header>
+    <div class="header-left">
+      <div class="breadcrumb">
+        Waste Streams / Meridian Chemical / <span>Spent Acetone Blend</span>
+      </div>
+      <div class="critical-flag">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        PRODUCTION CRITICAL
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="readiness">
+        <span>72% Passport Ready</span>
+        <div class="progress-bar"><div class="progress-fill"></div></div>
+      </div>
+      <button class="btn">View Route Graph</button>
+      <button class="btn btn-primary" disabled>Publish Passport</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <!-- CANVAS: DISCOVERY PACK -->
+    <div class="canvas">
+      <h1 class="canvas-title">Spent Acetone Blend</h1>
+
+      <!-- MATERIAL IDENTITY -->
+      <section class="section">
+        <div class="section-header">
+          <h2>1. Material Identity</h2>
+          <span class="section-meta">Defines schema and baseline routing</span>
+        </div>
+        <div class="form-grid">
+          
+          <div class="field-group">
+            <label class="field-label">Material Family</label>
+            <div class="field-value-wrapper">
+              <input type="text" class="field-value" value="Spent Solvents" readonly>
+            </div>
+          </div>
+
+          <div class="field-group unverified">
+            <label class="field-label">Generating Process</label>
+            <div class="field-value-wrapper">
+              <input type="text" class="field-value" value="Degreasing line 3 (Recirculated until efficiency drops)">
+              <a href="#" class="evidence-link">🎤 Voice_Note_Mon</a>
+              <div class="actions-inline">
+                <button class="icon-btn" title="Accept">✓</button>
+                <button class="icon-btn" title="Reject">✕</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Primary Composition</label>
+            <div class="field-value-wrapper">
+              <input type="text" class="field-value" value="Acetone / MEK blend (Approx 90%)">
+              <a href="#" class="evidence-link">📄 SDS_2024 p.4</a>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Physical State</label>
+            <div class="field-value-wrapper">
+              <input type="text" class="field-value" value="Liquid" readonly>
+            </div>
+          </div>
+
+          <div class="col-span-2 ghost-field">
+            <div class="field-label">Chlorinated Content %</div>
+            <div class="actions-inline" style="opacity: 1;">
+              <span style="font-size: 12px; color: var(--text-sec); margin-right: 12px;">Detected in SDS. Changes RCRA F001-F005 listing.</span>
+              <button class="btn">Add Field</button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- COMPLIANCE & LAB -->
+      <section class="section">
+        <div class="section-header">
+          <h2>2. Compliance & Lab Requirements</h2>
+          <span class="section-meta">Legal status and required testing</span>
+        </div>
+        <div class="form-grid">
+          
+          <div class="col-span-2 field-group">
+            <label class="field-label">Regulatory Status (Working Stance)</label>
+            <div class="segmented">
+              <div class="segment active">Hazardous Waste</div>
+              <div class="segment">Product / Byproduct</div>
+              <div class="segment">Unknown</div>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+              Route implies TSDF and Hazardous Manifest. If legitimate reuse is found, switch to Product to evaluate BOL requirements.
+            </p>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Flash Point</label>
+            <div class="field-value-wrapper">
+              <input type="text" class="field-value" value="16°F">
+              <a href="#" class="evidence-link">📄 SDS_2024 p.4</a>
+            </div>
+          </div>
+
+          <div class="field-group" style="border: 1px solid var(--status-red); border-radius: var(--radius-sm); padding: 8px;">
+            <label class="field-label" style="color: var(--status-red);">Water Content</label>
+            <div class="field-value-wrapper" style="border: none; padding: 0;">
+              <input type="text" class="field-value" placeholder="Missing Lab Data">
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- LOGISTICS & ECONOMICS -->
+      <section class="section">
+        <div class="section-header">
+          <h2>3. Logistics & Economics</h2>
+          <span class="section-meta">Volume, packaging, and commercial baseline</span>
+        </div>
+        <div class="form-grid">
+          
+          <div class="field-group unverified">
+            <label class="field-label">Volume / Recurrence</label>
+            <div class="field-value-wrapper">
+              <input type="text" class="field-value" value="~20 Drums / Monthly">
+              <a href="#" class="evidence-link">🎤 Voice_Note_Mon</a>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Current Disposal Cost</label>
+            <div class="field-value-wrapper">
+              <input type="text" class="field-value" placeholder="Missing Invoice">
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+
+    <!-- COPILOT: RIGHT RAIL -->
+    <div class="copilot">
+      <div class="copilot-header">
+        Discovery Copilot
+      </div>
+      
+      <div class="copilot-content">
+        
+        <!-- Multichannel Capture -->
+        <div class="capture-zone">
+          <p>Drop SDS, Waste Profile, or Invoice</p>
+          <div class="capture-actions">
+            <button class="btn">Browse</button>
+            <button class="btn">🎤 Voice Note</button>
+          </div>
+        </div>
+
+        <!-- Active Blocker -->
+        <div class="c-card blocker">
+          <div class="c-card-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            Critical Blocker
+          </div>
+          <div class="c-title">Water Content Lab Required</div>
+          <div class="c-desc">Required to determine pricing. Buyers reject spent solvents with >20% water.</div>
+          <div class="c-meta">
+            <span>Waiting on: EHS (John)</span>
+            <span>Aging: 4 days</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-primary" style="width: 100%;">Draft Reminder</button>
+          </div>
+        </div>
+
+        <!-- AI Ask Next (Rules Engine) -->
+        <div class="c-card ask-next">
+          <div class="c-card-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            Ask Next / Advisory
+          </div>
+          <div class="c-title">Do not order a full panel</div>
+          <div class="c-desc">For spent solvents, order a Karl Fischer test ($150) instead of a full analytical panel ($1500) unless explicitly requested by the buyer.</div>
+        </div>
+
+        <!-- Evidence Status -->
+        <div>
+          <div style="font-size: 12px; font-weight: 600; color: var(--text-sec); margin-bottom: 12px; text-transform: uppercase;">Evidence Status</div>
+          <div class="evidence-list">
+            <div class="ev-item">
+              <span>SDS_Acetone_2024.pdf</span>
+              <div class="ev-status"><span class="dot fresh"></span> Fresh</div>
+            </div>
+            <div class="ev-item">
+              <span>Waste Profile</span>
+              <div class="ev-status"><span class="dot stale"></span> 2022 (Aging)</div>
+            </div>
+            <div class="ev-item">
+              <span>Disposal Invoice</span>
+              <div class="ev-status"><span class="dot missing"></span> Missing</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+</body>
+</html>

@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecondStream - Waste Stream Discovery Workspace</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap');
+
+    :root {
+      --bg: #091017;
+      --bg-soft: #0d141d;
+      --panel: rgba(16, 23, 32, 0.94);
+      --panel-2: rgba(19, 27, 37, 0.96);
+      --panel-muted: rgba(15, 21, 29, 0.82);
+      --border: rgba(145, 162, 183, 0.14);
+      --border-strong: rgba(170, 189, 214, 0.24);
+      --text: #edf1f5;
+      --text-secondary: #a8b3c1;
+      --text-muted: #748496;
+      --active: #69c5d3;
+      --active-soft: rgba(105, 197, 211, 0.12);
+      --ready: #28cb84;
+      --ready-soft: rgba(40, 203, 132, 0.12);
+      --waiting: #f0aa42;
+      --waiting-soft: rgba(240, 170, 66, 0.12);
+      --risk: #de7255;
+      --risk-soft: rgba(222, 114, 85, 0.12);
+      --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.34);
+      --shadow-md: 0 14px 34px rgba(0, 0, 0, 0.22);
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --radius-sm: 12px;
+      --radius-pill: 999px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top right, rgba(105, 197, 211, 0.08), transparent 24%),
+        radial-gradient(circle at bottom left, rgba(222, 114, 85, 0.05), transparent 24%),
+        linear-gradient(180deg, #091017 0%, #070c12 100%);
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: radial-gradient(circle at center, black 36%, transparent 86%);
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    .page {
+      max-width: 1540px;
+      margin: 0 auto;
+      padding: 26px 24px 36px;
+    }
+
+    .panel {
+      position: relative;
+      background: linear-gradient(180deg, rgba(17, 24, 34, 0.97), rgba(13, 19, 27, 0.93));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      backdrop-filter: blur(16px);
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent 45%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      color: var(--active);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .header {
+      padding: 22px 24px;
+      margin-bottom: 16px;
+    }
+
+    .breadcrumbs {
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1;
+      margin-bottom: 18px;
+    }
+
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-family: 'Instrument Serif', serif;
+      font-size: 40px;
+      line-height: 0.95;
+      letter-spacing: -0.02em;
+      font-weight: 400;
+    }
+
+    .subtitle {
+      margin: 12px 0 0;
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.55;
+      max-width: 720px;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .tag,
+    .meta-chip,
+    .tab,
+    .subtab,
+    .source-badge,
+    .status,
+    .doc-chip,
+    .quick-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: var(--radius-pill);
+      border: 1px solid transparent;
+      font-size: 11px;
+      line-height: 1;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .tag.confirmed { background: rgba(255,255,255,0.04); color: var(--text-secondary); border-color: var(--border); }
+    .tag.blocked { background: var(--risk-soft); color: var(--risk); border-color: rgba(222,114,85,0.2); }
+    .tag.ready { background: var(--ready-soft); color: var(--ready); border-color: rgba(40,203,132,0.2); }
+
+    .meta-chip {
+      min-height: 32px;
+      padding: 0 12px;
+      background: rgba(255,255,255,0.03);
+      border-color: var(--border);
+      color: var(--text-secondary);
+      font-size: 12px;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+      min-width: 320px;
+    }
+
+    .button,
+    .ghost-button {
+      min-height: 42px;
+      padding: 0 16px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-strong);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--text);
+      background: rgba(255,255,255,0.03);
+      box-shadow: var(--shadow-md);
+    }
+
+    .button {
+      background: linear-gradient(180deg, rgba(28, 42, 58, 0.98), rgba(17, 24, 34, 0.98));
+    }
+
+    .tabs-panel,
+    .summary-panel {
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tab {
+      min-height: 42px;
+      padding: 0 14px;
+      background: rgba(255,255,255,0.03);
+      border-color: var(--border);
+      color: var(--text-secondary);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+    }
+
+    .tab.active {
+      color: var(--text);
+      border-color: rgba(105,197,211,0.22);
+      background: rgba(105,197,211,0.08);
+    }
+
+    .tab.active strong { color: var(--active); }
+
+    .tab strong {
+      font-family: 'IBM Plex Mono', monospace;
+      margin-left: 8px;
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .summary-panel {
+      padding: 18px 20px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .summary-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .summary-copy {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .kpi-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .kpi-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .kpi-row:first-child {
+      padding-top: 0;
+      border-top: none;
+    }
+
+    .kpi-label {
+      color: var(--text-muted);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .kpi-value {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 336px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .main-stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .section-nav {
+      padding: 12px;
+    }
+
+    .section-nav-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .subtab {
+      min-height: 36px;
+      padding: 0 12px;
+      background: rgba(255,255,255,0.03);
+      border-color: var(--border);
+      color: var(--text-secondary);
+      letter-spacing: 0.04em;
+      text-transform: none;
+      font-size: 12px;
+    }
+
+    .subtab.active {
+      color: var(--text);
+      background: rgba(105,197,211,0.08);
+      border-color: rgba(105,197,211,0.22);
+    }
+
+    .group {
+      padding: 20px 20px 18px;
+    }
+
+    .group-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+
+    .group-head h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.1;
+      font-weight: 600;
+    }
+
+    .group-head p {
+      margin: 8px 0 0;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.5;
+      max-width: 620px;
+    }
+
+    .status { background: rgba(255,255,255,0.04); border-color: var(--border); color: var(--text-secondary); }
+    .status.ready { background: var(--ready-soft); border-color: rgba(40,203,132,0.2); color: var(--ready); }
+    .status.warning { background: var(--waiting-soft); border-color: rgba(240,170,66,0.2); color: var(--waiting); }
+    .status.blocked { background: var(--risk-soft); border-color: rgba(222,114,85,0.2); color: var(--risk); }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: rgba(255,255,255,0.025);
+      padding: 14px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    .label {
+      color: var(--text-muted);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .value {
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.45;
+      min-height: 24px;
+    }
+
+    .helper {
+      margin-top: 8px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .source-badge {
+      min-height: 26px;
+      margin-top: 10px;
+      background: rgba(105,197,211,0.08);
+      border-color: rgba(105,197,211,0.18);
+      color: var(--active);
+      letter-spacing: 0.04em;
+      text-transform: none;
+      font-size: 11px;
+      width: fit-content;
+    }
+
+    .segmented {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .segment {
+      min-height: 36px;
+      padding: 0 12px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text-secondary);
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .segment.active {
+      color: var(--text);
+      border-color: rgba(240,170,66,0.22);
+      background: rgba(240,170,66,0.08);
+    }
+
+    .rail {
+      position: sticky;
+      top: 18px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .rail-card {
+      padding: 18px 18px 16px;
+    }
+
+    .rail-card h3 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.1;
+      font-weight: 600;
+    }
+
+    .rail-card p {
+      margin: 8px 0 0;
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .rail-list {
+      display: grid;
+      gap: 0;
+      margin-top: 16px;
+    }
+
+    .rail-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 14px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .rail-item:first-child { border-top: none; padding-top: 0; }
+
+    .rail-main {
+      min-width: 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .rail-title {
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.35;
+      font-weight: 600;
+    }
+
+    .rail-meta {
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .rail-sub {
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .rail-side {
+      display: grid;
+      gap: 8px;
+      justify-items: end;
+      min-width: 96px;
+    }
+
+    .doc-chip {
+      background: rgba(255,255,255,0.04);
+      border-color: var(--border);
+      color: var(--text-secondary);
+      letter-spacing: 0;
+      text-transform: none;
+      font-size: 12px;
+      min-height: 30px;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .doc-chip.fresh {
+      background: var(--ready-soft);
+      border-color: rgba(40,203,132,0.18);
+      color: var(--ready);
+    }
+
+    .doc-chip.warning {
+      background: var(--waiting-soft);
+      border-color: rgba(240,170,66,0.18);
+      color: var(--waiting);
+    }
+
+    .doc-chip.missing {
+      background: var(--risk-soft);
+      border-color: rgba(222,114,85,0.18);
+      color: var(--risk);
+    }
+
+    .quick-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .quick-chip {
+      min-height: 34px;
+      background: rgba(255,255,255,0.03);
+      border-color: var(--border);
+      color: var(--text-secondary);
+      letter-spacing: 0;
+      text-transform: none;
+      font-size: 12px;
+    }
+
+    .mobile {
+      max-width: 430px;
+      margin: 30px auto 0;
+    }
+
+    .mobile-frame {
+      border-radius: 34px;
+      border: 1px solid var(--border-strong);
+      background: linear-gradient(180deg, rgba(9, 13, 18, 0.96), rgba(7, 10, 15, 0.98));
+      padding: 14px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .mobile-screen {
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(17, 24, 34, 0.98), rgba(10, 15, 22, 0.96));
+      padding: 18px;
+    }
+
+    .mobile-notch {
+      width: 118px;
+      height: 28px;
+      border-radius: 0 0 18px 18px;
+      margin: 0 auto 16px;
+      background: rgba(5, 7, 10, 0.96);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-top: none;
+    }
+
+    .mobile-block,
+    .mobile-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: rgba(255,255,255,0.03);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .mobile-block h2,
+    .mobile-card h2 {
+      margin: 0 0 8px;
+      font-size: 17px;
+      line-height: 1.1;
+      font-weight: 600;
+    }
+
+    .mobile-tabs,
+    .mobile-subtabs,
+    .mobile-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .mobile-tab,
+    .mobile-subtab,
+    .mobile-action {
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text-secondary);
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .mobile-tab.active,
+    .mobile-subtab.active {
+      color: var(--text);
+      border-color: rgba(105,197,211,0.22);
+      background: rgba(105,197,211,0.08);
+    }
+
+    .mobile-line {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.55;
+      margin-bottom: 8px;
+    }
+
+    .mobile-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+      align-items: center;
+    }
+
+    .mobile-link {
+      color: var(--active);
+      text-decoration: none;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    @media (max-width: 1200px) {
+      .summary-grid,
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .rail {
+        position: static;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 960px) {
+      .header-row {
+        flex-direction: column;
+      }
+
+      .header-actions {
+        justify-content: flex-start;
+        min-width: 0;
+      }
+
+      .field-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .rail {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .page {
+        padding: 18px 16px 30px;
+      }
+
+      .title h1 {
+        font-size: 34px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="panel header">
+      <div class="breadcrumbs">Waste Streams / Meridian Chemical / Monterrey plant</div>
+      <div class="header-row">
+        <div class="title">
+          <div class="eyebrow">Confirmed waste stream / discovery workspace</div>
+          <h1>Spent Acetone Blend</h1>
+          <p class="subtitle">
+            Convert this material from ambiguous field data into a defensible, commercially movable stream definition.
+          </p>
+          <div class="meta-row">
+            <span class="tag confirmed">Confirmed</span>
+            <span class="tag blocked">Blocked x2</span>
+            <span class="tag ready">72% ready</span>
+            <span class="meta-chip">Company: Meridian Chemical</span>
+            <span class="meta-chip">Location: Monterrey plant</span>
+            <span class="meta-chip">Owner: Maria</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="ghost-button">Add evidence</div>
+          <div class="ghost-button">Capture note</div>
+          <div class="button">Generate Passport</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel tabs-panel">
+      <div class="tabs">
+        <div class="tab active">Discovery <strong>3</strong></div>
+        <div class="tab">Files / Evidence <strong>8</strong></div>
+        <div class="tab">Material Passport <strong>pending</strong></div>
+      </div>
+    </section>
+
+    <section class="panel summary-panel">
+      <div class="summary-grid">
+        <div>
+          <div class="summary-line">
+            <span class="meta-chip">Solvents</span>
+            <span class="meta-chip">Liquid</span>
+            <span class="meta-chip">Drums + IBCs</span>
+            <span class="meta-chip">20 drums/mo</span>
+            <span class="meta-chip">Likely hazardous waste</span>
+            <span class="meta-chip">Evidence: medium</span>
+          </div>
+          <div class="summary-copy">
+            Current definition: a spent solvent blend from degreasing operations. The stream is commercially interesting, but still lacks fresh compositional support and cost baseline needed to defend route and pricing.
+          </div>
+        </div>
+        <div class="kpi-stack">
+          <div class="kpi-row">
+            <span class="kpi-label">Top blocker</span>
+            <span class="kpi-value">Water content lab</span>
+          </div>
+          <div class="kpi-row">
+            <span class="kpi-label">Missing decisive fields</span>
+            <span class="kpi-value">2</span>
+          </div>
+          <div class="kpi-row">
+            <span class="kpi-label">Last updated</span>
+            <span class="kpi-value">2h ago</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="main-stack">
+        <section class="panel section-nav">
+          <div class="section-nav-list">
+            <div class="subtab active">Material Definition</div>
+            <div class="subtab">Supply &amp; Operations</div>
+            <div class="subtab">Regulatory &amp; Handling</div>
+            <div class="subtab">Commercial Context</div>
+          </div>
+        </section>
+
+        <section class="panel group">
+          <div class="group-head">
+            <div>
+              <h2>Material Definition</h2>
+              <p>Define what the material truly is beyond the client's internal code and turn it into an operationally useful description.</p>
+            </div>
+            <span class="status warning">Needs review</span>
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <div class="label">Client code</div>
+              <div class="value">5850</div>
+              <div class="helper">Captured for traceability only. Not used as primary identity.</div>
+            </div>
+            <div class="field">
+              <div class="label">Material family</div>
+              <div class="value">Solvents</div>
+              <div class="source-badge">AI suggestion / SDS 2024 p.1 / 95%</div>
+            </div>
+            <div class="field full">
+              <div class="label">Current best description</div>
+              <div class="value">Spent acetone / MEK blend from degreasing operations with likely water contamination.</div>
+              <div class="source-badge">Combined from notes + SDS + analyst edits</div>
+            </div>
+            <div class="field full">
+              <div class="label">Generating process</div>
+              <div class="value">Parts cleaning and degreasing on manufacturing line 3. Solvent is recirculated until cleaning efficiency drops below spec.</div>
+              <div class="source-badge">Interview notes / confirmed by owner</div>
+            </div>
+            <div class="field">
+              <div class="label">Physical state</div>
+              <div class="value">Liquid</div>
+            </div>
+            <div class="field">
+              <div class="label">Packaging</div>
+              <div class="value">Drums, IBCs</div>
+            </div>
+            <div class="field">
+              <div class="label">Main composition</div>
+              <div class="value">Acetone / MEK blend</div>
+              <div class="source-badge">SDS 2024 p.4 / 91%</div>
+            </div>
+            <div class="field">
+              <div class="label">Key contamination</div>
+              <div class="value">Water content increasing over time</div>
+              <div class="helper">Still missing fresh lab confirmation.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel group">
+          <div class="group-head">
+            <div>
+              <h2>Supply &amp; Operations</h2>
+              <p>Capture how much material exists, how often it appears, and what operational constraints affect movement.</p>
+            </div>
+            <span class="status ready">Adequate</span>
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <div class="label">Volume</div>
+              <div class="value">20 drums / month</div>
+              <div class="source-badge">Notes analysis / 87%</div>
+            </div>
+            <div class="field">
+              <div class="label">Recurrence</div>
+              <div class="value">Monthly</div>
+            </div>
+            <div class="field full">
+              <div class="label">Storage conditions</div>
+              <div class="value">Stored in hazmat room adjacent to line 3. Indoor, palletized, forklift accessible.</div>
+            </div>
+            <div class="field">
+              <div class="label">Loading capability</div>
+              <div class="value">Forklift, dock access</div>
+            </div>
+            <div class="field">
+              <div class="label">Production criticality</div>
+              <div class="value">High</div>
+              <div class="helper">If movement fails, line throughput is affected.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel group">
+          <div class="group-head">
+            <div>
+              <h2>Regulatory &amp; Handling</h2>
+              <p>Make the current regulatory stance explicit and expose the implications for route, documents, and pricing.</p>
+            </div>
+            <span class="status blocked">1 critical unknown</span>
+          </div>
+          <div class="field-grid">
+            <div class="field full">
+              <div class="label">Current regulatory stance</div>
+              <div class="segmented">
+                <span class="segment active">Waste</span>
+                <span class="segment">Product</span>
+                <span class="segment">By-product</span>
+              </div>
+              <div class="helper">Current working assumption: discarded spent solvent, likely hazardous. Needs confirmation after water content and chlorinated review.</div>
+            </div>
+            <div class="field">
+              <div class="label">RCRA / waste codes</div>
+              <div class="value">D001 candidate, F003 likely</div>
+              <div class="source-badge">Rule-based hint / analyst review pending</div>
+            </div>
+            <div class="field">
+              <div class="label">DOT classification</div>
+              <div class="value">Class 3 / UN1993 candidate</div>
+            </div>
+            <div class="field full">
+              <div class="label">State / handling notes</div>
+              <div class="value">No state-specific override captured yet. Need confirmation if outbound route stays domestic only.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel group">
+          <div class="group-head">
+            <div>
+              <h2>Commercial Context</h2>
+              <p>Define urgency, current route, cost baseline, and what the client actually wants from the solution.</p>
+            </div>
+            <span class="status warning">Cost gap</span>
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <div class="label">Current handler</div>
+              <div class="value">Clean Harbors</div>
+            </div>
+            <div class="field">
+              <div class="label">Stated cost</div>
+              <div class="value">$0.85 / lb</div>
+              <div class="helper">Invoice still missing, not normalized yet.</div>
+            </div>
+            <div class="field">
+              <div class="label">Urgency</div>
+              <div class="value">Urgent</div>
+            </div>
+            <div class="field">
+              <div class="label">Client goal</div>
+              <div class="value">Reduce cost, maintain compliance, avoid production interruption</div>
+            </div>
+            <div class="field full">
+              <div class="label">Commercial notes</div>
+              <div class="value">Potential savings exist, but pricing cannot be defended until latest invoice and water content test are available.</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="rail">
+        <section class="panel rail-card">
+          <h3>Do Next</h3>
+          <p>The shortest path to unblock this stream and move it toward passport readiness.</p>
+          <div class="rail-list">
+            <div class="rail-item">
+              <div class="rail-main">
+                <div class="rail-title">Get water content lab result</div>
+                <div class="rail-meta">Needed for buyer QA, route fit, and pricing defense.</div>
+                <div class="rail-sub">Waiting on EHS / aged 4 days</div>
+              </div>
+              <div class="rail-side">
+                <span class="status blocked">blocks</span>
+                <div class="ghost-button">Send ask</div>
+              </div>
+            </div>
+            <div class="rail-item">
+              <div class="rail-main">
+                <div class="rail-title">Confirm chlorinated content</div>
+                <div class="rail-meta">Changes likely RCRA listing and route economics.</div>
+                <div class="rail-sub">Unresolved classification risk</div>
+              </div>
+              <div class="rail-side">
+                <span class="status warning">review</span>
+                <div class="ghost-button">Review</div>
+              </div>
+            </div>
+            <div class="rail-item">
+              <div class="rail-main">
+                <div class="rail-title">Upload latest disposal invoice</div>
+                <div class="rail-meta">Needed to calculate true current cost and savings range.</div>
+                <div class="rail-sub">Waiting on Accounting</div>
+              </div>
+              <div class="rail-side">
+                <span class="status warning">cost</span>
+                <div class="ghost-button">Remind</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel rail-card">
+          <h3>AI Suggestions</h3>
+          <p>Only the top suggestions that could materially improve definition or unblock a decision.</p>
+          <div class="rail-list">
+            <div class="rail-item">
+              <div class="rail-main">
+                <div class="rail-title">Flash point = 58°C</div>
+                <div class="rail-meta">Source: SDS 2024 p.4 / confidence 91%</div>
+              </div>
+              <div class="rail-side">
+                <div class="ghost-button">Apply</div>
+              </div>
+            </div>
+            <div class="rail-item">
+              <div class="rail-main">
+                <div class="rail-title">Material family = Solvents</div>
+                <div class="rail-meta">Source: SDS 2024 p.1 / confidence 95%</div>
+              </div>
+              <div class="rail-side">
+                <div class="ghost-button">Apply</div>
+              </div>
+            </div>
+            <div class="rail-item">
+              <div class="rail-main">
+                <div class="rail-title">RCRA D001 candidate</div>
+                <div class="rail-meta">Rule-based classification hint / needs analyst review</div>
+              </div>
+              <div class="rail-side">
+                <div class="ghost-button">Review</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel rail-card">
+          <h3>Evidence Health</h3>
+          <p>Supportive evidence should be visible without taking over the form.</p>
+          <div class="rail-list">
+            <div class="doc-chip fresh">SDS <span style="margin-left:auto;">Fresh</span></div>
+            <div class="doc-chip warning">Waste Profile <span style="margin-left:auto;">Aging</span></div>
+            <div class="doc-chip missing">Lab Analysis <span style="margin-left:auto;">Missing</span></div>
+            <div class="doc-chip missing">Invoice <span style="margin-left:auto;">Missing</span></div>
+          </div>
+          <div class="quick-row">
+            <span class="quick-chip">Open Evidence Board</span>
+            <span class="quick-chip">Upload file</span>
+            <span class="quick-chip">Review 3 suggestions</span>
+          </div>
+        </section>
+      </aside>
+    </section>
+
+    <section class="mobile">
+      <div class="eyebrow">Mobile preview / field + follow-up friendly</div>
+      <div class="mobile-frame">
+        <div class="mobile-notch"></div>
+        <div class="mobile-screen">
+          <div class="mobile-block">
+            <h2>Spent Acetone Blend</h2>
+            <div class="mobile-line">Confirmed · Blocked x2 · 72% ready</div>
+            <div class="mobile-line">Meridian Chemical · Monterrey plant</div>
+          </div>
+
+          <div class="mobile-tabs">
+            <span class="mobile-tab active">Discovery</span>
+            <span class="mobile-tab">Evidence</span>
+            <span class="mobile-tab">Passport</span>
+          </div>
+
+          <div class="mobile-block">
+            <div class="mobile-line">Solvents · Liquid · 20 drums/mo</div>
+            <div class="mobile-line">Likely hazardous waste · Evidence medium</div>
+          </div>
+
+          <div class="mobile-subtabs">
+            <span class="mobile-subtab active">Definition</span>
+            <span class="mobile-subtab">Supply</span>
+            <span class="mobile-subtab">Regulatory</span>
+            <span class="mobile-subtab">Commercial</span>
+          </div>
+
+          <div class="mobile-block">
+            <h2>Do Next</h2>
+            <div class="mobile-line">Get water content lab result</div>
+            <div class="mobile-line">Confirm chlorinated content</div>
+            <div class="mobile-line">Upload latest disposal invoice</div>
+          </div>
+
+          <div class="mobile-card">
+            <h2>Material Definition</h2>
+            <div class="mobile-line">Family: Solvents</div>
+            <div class="mobile-line">Process: Degreasing line 3</div>
+            <div class="mobile-line">Composition: Acetone / MEK blend</div>
+            <div class="mobile-line">Packaging: Drums, IBCs</div>
+            <div class="mobile-footer">
+              <span class="tag waiting">Needs review</span>
+              <a class="mobile-link" href="#definition">Open full section</a>
+            </div>
+          </div>
+
+          <div class="mobile-card">
+            <h2>Evidence Health</h2>
+            <div class="mobile-line">SDS: Fresh</div>
+            <div class="mobile-line">Waste Profile: Aging</div>
+            <div class="mobile-line">Lab: Missing</div>
+            <div class="mobile-line">Invoice: Missing</div>
+          </div>
+
+          <div class="mobile-actions">
+            <span class="mobile-action">AI 3</span>
+            <span class="mobile-action">Evidence 8</span>
+            <span class="mobile-action">Add file</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

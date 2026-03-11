@@ -1109,6 +1109,15 @@ async def delete_proposal(
         ) from exc
 
     # Delete from database (SQLAlchemy will handle cascade)
+    remaining_proposals = await db.scalar(
+        select(func.count(Proposal.id)).where(
+            Proposal.project_id == locked_project.id,
+            Proposal.organization_id == locked_project.organization_id,
+            Proposal.id != proposal.id,
+        )
+    )
+    if int(remaining_proposals or 0) == 0:
+        locked_project.proposal_follow_up_state = None
     await db.delete(proposal)
     await db.commit()
 

@@ -16,6 +16,7 @@ EVENT_TYPE_MAP = {
     "project_created": "version",
     "project_updated": "edit",
     "proposal_generated": "proposal",
+    "proposal_follow_up_updated": "proposal",
     "file_uploaded": "upload",
     "file_deleted": "upload",
 }

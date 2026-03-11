@@ -1,0 +1,65 @@
+/**
+ * Dashboard API client — dedicated endpoint for dashboard triage projection.
+ * Backend: GET /projects/dashboard
+ */
+
+import type { ArchivedFilter } from "@/lib/api/companies";
+import type {
+	DashboardBucket,
+	DashboardListResponse,
+	ProposalFollowUpState,
+} from "@/lib/types/dashboard";
+import { apiClient } from "./client";
+
+export interface DashboardParams {
+	bucket?: DashboardBucket | undefined;
+	page?: number | undefined;
+	size?: number | undefined;
+	search?: string | undefined;
+	archived?: ArchivedFilter | undefined;
+	companyId?: string | undefined;
+	proposalFollowUpState?: ProposalFollowUpState | undefined;
+	signal?: AbortSignal | undefined;
+}
+
+export interface ProposalFollowUpStateUpdateResponse {
+	projectId: string;
+	proposalFollowUpState: ProposalFollowUpState;
+	updatedAt: string;
+}
+
+export const dashboardAPI = {
+	async getDashboard(params?: DashboardParams): Promise<DashboardListResponse> {
+		const searchParams = new URLSearchParams();
+
+		if (params?.bucket) searchParams.append("bucket", params.bucket);
+		if (params?.page) searchParams.append("page", params.page.toString());
+		if (params?.size) searchParams.append("size", params.size.toString());
+		if (params?.search) searchParams.append("search", params.search);
+		if (params?.archived) searchParams.append("archived", params.archived);
+		if (params?.companyId) searchParams.append("company_id", params.companyId);
+		if (params?.proposalFollowUpState)
+			searchParams.append(
+				"proposal_follow_up_state",
+				params.proposalFollowUpState,
+			);
+
+		const query = searchParams.toString();
+		const url = query ? `/projects/dashboard?${query}` : "/projects/dashboard";
+
+		return apiClient.request<DashboardListResponse>(url, {
+			method: "GET",
+			...(params?.signal ? { signal: params.signal } : {}),
+		});
+	},
+
+	async updateProposalFollowUpState(
+		projectId: string,
+		state: ProposalFollowUpState,
+	): Promise<ProposalFollowUpStateUpdateResponse> {
+		return apiClient.patch<ProposalFollowUpStateUpdateResponse>(
+			`/projects/${projectId}/proposal-follow-up-state`,
+			{ state },
+		);
+	},
+};

@@ -309,7 +309,7 @@ export function NavBar() {
 							type="button"
 						>
 							<Plus className="mr-2 h-4 w-4" />
-							New Waste Stream
+							Discovery Wizard
 						</button>
 
 						{authedUser && (

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -49,6 +49,7 @@ class BulkImportRunResponse(BaseSchema):
     finalized_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    voice_interview_id: UUID | None = None
 
 
 class BulkImportItemResponse(BaseSchema):
@@ -72,16 +73,47 @@ class BulkImportItemResponse(BaseSchema):
     updated_at: datetime
 
 
+class BulkImportLocationResolutionLocked(BaseSchema):
+    mode: Literal["locked"]
+    name: str = Field(min_length=1, max_length=255)
+
+
+class BulkImportLocationResolutionExisting(BaseSchema):
+    mode: Literal["existing"]
+    location_id: UUID
+
+
+class BulkImportLocationResolutionCreateNew(BaseSchema):
+    mode: Literal["create_new"]
+    name: str = Field(min_length=1, max_length=255)
+    city: str = Field(min_length=1, max_length=100)
+    state: str = Field(min_length=1, max_length=100)
+    address: str | None = Field(default=None, max_length=500)
+
+
+BulkImportLocationResolution = Annotated[
+    BulkImportLocationResolutionLocked
+    | BulkImportLocationResolutionExisting
+    | BulkImportLocationResolutionCreateNew,
+    Field(discriminator="mode"),
+]
+
+
 class BulkImportItemPatchRequest(BaseSchema):
     action: Literal["accept", "amend", "reject", "reset"]
     normalized_data: dict[str, object] | None = None
     review_notes: str | None = Field(default=None, max_length=1000)
+    location_resolution: BulkImportLocationResolution | None = None
     confirm_create_new: bool | None = None
 
     @model_validator(mode="after")
     def validate_amend_payload(self) -> BulkImportItemPatchRequest:
-        if self.action == "amend" and self.normalized_data is None:
-            raise ValueError("normalized_data required for amend")
+        if (
+            self.action == "amend"
+            and self.normalized_data is None
+            and self.location_resolution is None
+        ):
+            raise ValueError("normalized_data or location_resolution required for amend")
         return self
 
 
@@ -117,6 +149,14 @@ class BulkImportFinalizeRequest(BaseSchema):
 
 class BulkImportSummaryResponse(BaseSchema):
     summary: BulkImportFinalizeSummary
+
+
+class BulkImportRunLocationOption(BaseSchema):
+    id: UUID
+    name: str
+    city: str
+    state: str
+    address: str | None = None
 
 
 class AssignOrphansRequest(BaseSchema):

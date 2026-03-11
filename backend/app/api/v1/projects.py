@@ -3,13 +3,14 @@ Projects CRUD endpoints.
 """
 
 from datetime import UTC, datetime
-from typing import Annotated
+from functools import cache
+from typing import Annotated, Any, Literal, cast
 from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
-from sqlalchemy import case, func, select
-from sqlalchemy.orm import raiseload, selectinload
+from sqlalchemy import and_, case, func, select
+from sqlalchemy.orm import aliased, raiseload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.api.dependencies import (
@@ -34,6 +35,7 @@ from app.api.dependencies import (
 from app.authz import permissions
 from app.authz.authz import (
     Ownership,
+    can,
     has_any_scope_access,
     raise_org_access_denied,
     raise_resource_not_found,
@@ -42,6 +44,18 @@ from app.authz.authz import (
 from app.main import limiter
 from app.models.project import Project
 from app.schemas.common import ErrorResponse, PaginatedResponse, SuccessResponse
+from app.schemas.dashboard import (
+    DashboardBucket,
+    DashboardCountsResponse,
+    DashboardDraftPreviewSlice,
+    DashboardListResponse,
+    DraftItemDashboardRow,
+    DraftTargetResponse,
+    PersistedStreamDashboardRow,
+    ProposalFollowUpState,
+    ProposalFollowUpStateResponse,
+    ProposalFollowUpStateUpdateRequest,
+)
 from app.schemas.project import (
     DashboardStatsResponse,
     PipelineStageStats,
@@ -50,16 +64,522 @@ from app.schemas.project import (
     ProjectSummary,
     ProjectUpdate,
 )
+from app.services.project_data_service import ProjectDataService
 from app.services.storage_delete_service import (
     StorageDeleteError,
     delete_storage_keys,
     validate_storage_keys,
 )
+from app.services.timeline_service import create_timeline_event
 from app.utils.purge_utils import collect_project_storage_paths, extract_confirm_name
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
+
+INTELLIGENCE_REPORT_THRESHOLD = 70
+TOTAL_DRAFT_PREVIEW_LIMIT = 5
+PROPOSAL_FOLLOW_UP_TRANSITIONS: dict[str | None, set[str]] = {
+    None: {"uploaded"},
+    "uploaded": {"waiting_to_send"},
+    "waiting_to_send": {"waiting_response", "rejected"},
+    "waiting_response": {"waiting_to_send", "under_negotiation", "accepted", "rejected"},
+    "under_negotiation": {"waiting_response", "accepted", "rejected"},
+    "accepted": set(),
+    "rejected": set(),
+}
+
+
+def _extract_volume_summary(payload: dict[str, Any] | None) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+
+    direct_value = payload.get("estimated_volume") or payload.get("volume_summary")
+    if isinstance(direct_value, str) and direct_value.strip():
+        return direct_value.strip()
+
+    technical_sections = payload.get("technical_sections")
+    if not isinstance(technical_sections, list):
+        return None
+
+    for section in technical_sections:
+        if not isinstance(section, dict):
+            continue
+        fields = section.get("fields")
+        if not isinstance(fields, list):
+            continue
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            if field.get("id") != "volume-per-category":
+                continue
+            value = field.get("value")
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _is_missing_value(value: Any) -> bool:
+    return value is None or value == "" or value == []
+
+
+@cache
+def _dashboard_required_field_labels() -> dict[str, str]:
+    from app.templates.assessment_questionnaire import get_assessment_questionnaire
+
+    labels: dict[str, str] = {}
+    for section in get_assessment_questionnaire():
+        if not isinstance(section, dict):
+            continue
+        section_data = cast(dict[str, Any], section)
+        fields = section_data.get("fields")
+        if not isinstance(fields, list):
+            continue
+        for field in fields:
+            if not isinstance(field, dict) or not field.get("required"):
+                continue
+            field_id = field.get("id")
+            label = field.get("label")
+            if isinstance(field_id, str) and isinstance(label, str):
+                labels[field_id] = label
+    return labels
+
+
+def _missing_required_field_labels(project: Project) -> list[str]:
+    required_fields = _dashboard_required_field_labels()
+    project_data = project.project_data if isinstance(project.project_data, dict) else {}
+    technical_sections = project_data.get("technical_sections")
+    if not isinstance(technical_sections, list):
+        return list(required_fields.values())
+
+    observed_values: dict[str, Any] = {}
+    for section in technical_sections:
+        if not isinstance(section, dict):
+            continue
+        section_data = cast(dict[str, Any], section)
+        fields = section_data.get("fields")
+        if not isinstance(fields, list):
+            continue
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            field_id = field.get("id")
+            if isinstance(field_id, str) and field_id in required_fields:
+                observed_values[field_id] = field.get("value")
+
+    missing_labels: list[str] = []
+    for field_id, label in required_fields.items():
+        if _is_missing_value(observed_values.get(field_id)):
+            missing_labels.append(label)
+    return missing_labels
+
+
+def _humanize_dashboard_token(value: str) -> str:
+    normalized = value.strip().replace("_", " ").replace("-", " ")
+    return normalized.title() if normalized else value
+
+
+def _extract_waste_category_label(project: Project) -> str | None:
+    project_data = project.project_data if isinstance(project.project_data, dict) else {}
+    technical_sections = project_data.get("technical_sections")
+    if isinstance(technical_sections, list):
+        for section in technical_sections:
+            if not isinstance(section, dict):
+                continue
+            section_data = cast(dict[str, Any], section)
+            fields = section_data.get("fields")
+            if not isinstance(fields, list):
+                continue
+            for field in fields:
+                if not isinstance(field, dict) or field.get("id") != "waste-types":
+                    continue
+                value = field.get("value")
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+    raw_category = project_data.get("bulk_import_category")
+    if isinstance(raw_category, str) and raw_category.strip():
+        return _humanize_dashboard_token(raw_category)
+    return None
+
+
+def _owner_display_name(project: Project, *, can_view_owner: bool) -> str | None:
+    if not can_view_owner:
+        return None
+    owner = getattr(project, "user", None)
+    if owner is None:
+        return None
+    full_name = owner.full_name.strip()
+    return full_name or owner.email
+
+
+def _project_completion(project: Project) -> int:
+    project_data = project.project_data if isinstance(project.project_data, dict) else {}
+    technical_sections = project_data.get("technical_sections")
+    if not isinstance(technical_sections, list):
+        return 0
+    normalized_sections = [
+        {str(key): value for key, value in section.items()}
+        for section in technical_sections
+        if isinstance(section, dict)
+    ]
+    return ProjectDataService.calculate_progress(normalized_sections)
+
+
+def _derive_persisted_bucket(
+    *,
+    proposal_follow_up_state: ProposalFollowUpState | None,
+    pending_confirmation: bool,
+    completion: int,
+) -> DashboardBucket:
+    if proposal_follow_up_state is not None:
+        return "proposal"
+    if pending_confirmation:
+        return "needs_confirmation"
+    if completion >= INTELLIGENCE_REPORT_THRESHOLD:
+        return "intelligence_report"
+    return "missing_information"
+
+
+def _matches_search(
+    *,
+    search: str | None,
+    stream_name: str,
+    company_label: str | None,
+    location_label: str | None,
+) -> bool:
+    if not search:
+        return True
+    needle = search.strip().lower()
+    if not needle:
+        return True
+    haystacks = [stream_name, company_label or "", location_label or ""]
+    return any(needle in haystack.lower() for haystack in haystacks)
+
+
+def _effective_proposal_follow_up_state(
+    *,
+    stored_state: str | None,
+    proposal_count: int,
+) -> ProposalFollowUpState | None:
+    if proposal_count == 0:
+        return None
+    if stored_state is not None:
+        return cast(ProposalFollowUpState, stored_state)
+    return "uploaded"
+
+
+async def _build_persisted_dashboard_rows(
+    *,
+    db: AsyncDB,
+    current_user: CurrentUser,
+    org: OrganizationContext,
+    archived: Literal["active", "archived", "all"],
+    company_id: UUID | None,
+    proposal_follow_up_state: ProposalFollowUpState | None,
+    search: str | None,
+) -> list[PersistedStreamDashboardRow]:
+    from app.models.company import Company
+    from app.models.intake_suggestion import IntakeSuggestion
+    from app.models.location import Location
+    from app.models.proposal import Proposal
+    from app.models.user import User
+
+    pending_suggestions = (
+        select(
+            IntakeSuggestion.project_id.label("project_id"),
+            func.count(IntakeSuggestion.id).label("pending_count"),
+        )
+        .where(
+            IntakeSuggestion.organization_id == org.id,
+            IntakeSuggestion.status == "pending",
+        )
+        .group_by(IntakeSuggestion.project_id)
+        .subquery()
+    )
+    proposal_counts = (
+        select(
+            Proposal.project_id.label("project_id"),
+            func.count(Proposal.id).label("proposal_count"),
+        )
+        .where(Proposal.organization_id == org.id)
+        .group_by(Proposal.project_id)
+        .subquery()
+    )
+
+    query = (
+        select(
+            Project,
+            Company.id.label("company_id"),
+            Company.name.label("company_label"),
+            Location.name.label("location_label"),
+            func.coalesce(pending_suggestions.c.pending_count, 0).label("pending_count"),
+            func.coalesce(proposal_counts.c.proposal_count, 0).label("proposal_count"),
+        )
+        .options(selectinload(Project.user))
+        .outerjoin(User, Project.user_id == User.id)
+        .outerjoin(
+            Location,
+            and_(
+                Project.location_id == Location.id,
+                Project.organization_id == Location.organization_id,
+            ),
+        )
+        .outerjoin(
+            Company,
+            and_(
+                Location.company_id == Company.id,
+                Company.organization_id == Project.organization_id,
+            ),
+        )
+        .outerjoin(pending_suggestions, pending_suggestions.c.project_id == Project.id)
+        .outerjoin(proposal_counts, proposal_counts.c.project_id == Project.id)
+        .where(Project.organization_id == org.id)
+    )
+
+    if not has_any_scope_access(current_user, permissions.PROJECT_READ):
+        query = query.where(Project.user_id == current_user.id)
+
+    query = apply_archived_filter(query, Project, archived)
+
+    if company_id is not None:
+        query = query.where(Company.id == company_id)
+
+    result = await db.execute(query.order_by(Project.updated_at.desc()))
+    rows: list[PersistedStreamDashboardRow] = []
+    can_view_owner = has_any_scope_access(current_user, permissions.PROJECT_READ)
+    for (
+        project,
+        resolved_company_id,
+        company_label,
+        location_label,
+        pending_count,
+        proposal_count,
+    ) in result.all():
+        assert isinstance(project, Project)
+        completion = _project_completion(project)
+        pending_confirmation = bool(pending_count)
+        missing_fields = _missing_required_field_labels(project)
+        effective_state = _effective_proposal_follow_up_state(
+            stored_state=project.proposal_follow_up_state,
+            proposal_count=int(proposal_count),
+        )
+        if proposal_follow_up_state is not None and effective_state != proposal_follow_up_state:
+            continue
+        bucket = _derive_persisted_bucket(
+            proposal_follow_up_state=effective_state,
+            pending_confirmation=pending_confirmation,
+            completion=completion,
+        )
+        resolved_company_label = company_label or project.company_name
+        resolved_location_label = location_label or project.location_name
+        if not _matches_search(
+            search=search,
+            stream_name=project.name,
+            company_label=resolved_company_label,
+            location_label=resolved_location_label,
+        ):
+            continue
+        rows.append(
+            PersistedStreamDashboardRow(
+                bucket=bucket,
+                project_id=project.id,
+                stream_name=project.name,
+                can_edit_proposal_follow_up=can(
+                    current_user,
+                    permissions.PROJECT_UPDATE,
+                    ownership=Ownership.OWN,
+                    owner_user_id=project.user_id,
+                ),
+                waste_category_label=_extract_waste_category_label(project),
+                owner_display_name=_owner_display_name(
+                    project,
+                    can_view_owner=can_view_owner,
+                ),
+                company_id=resolved_company_id,
+                company_label=resolved_company_label,
+                location_label=resolved_location_label,
+                archived_at=project.archived_at,
+                volume_summary=_extract_volume_summary(project.project_data),
+                last_activity_at=project.updated_at,
+                pending_confirmation=pending_confirmation,
+                missing_required_info=bool(missing_fields),
+                missing_fields=missing_fields,
+                intelligence_ready=completion >= INTELLIGENCE_REPORT_THRESHOLD
+                and effective_state is None,
+                proposal_follow_up_state=effective_state,
+            )
+        )
+    return rows
+
+
+async def _build_draft_dashboard_rows(
+    *,
+    db: AsyncDB,
+    current_user: CurrentUser,
+    org: OrganizationContext,
+    archived: Literal["active", "archived", "all"],
+    company_id: UUID | None,
+    proposal_follow_up_state: ProposalFollowUpState | None,
+    search: str | None,
+) -> list[DraftItemDashboardRow]:
+    if archived == "archived" or proposal_follow_up_state is not None:
+        return []
+
+    from app.models.bulk_import import ImportItem, ImportRun
+    from app.models.company import Company
+    from app.models.location import Location
+
+    ParentItem = aliased(ImportItem)
+    EntrypointLocation = aliased(Location)
+    EntrypointCompany = aliased(Company)
+    LocationCompany = aliased(Company)
+
+    query = (
+        select(
+            ImportItem,
+            ImportRun,
+            ParentItem,
+            EntrypointCompany.id.label("entrypoint_company_id"),
+            EntrypointCompany.name.label("entrypoint_company_name"),
+            EntrypointLocation.company_id.label("entrypoint_location_company_id"),
+            EntrypointLocation.name.label("entrypoint_location_name"),
+            LocationCompany.name.label("entrypoint_location_company_name"),
+        )
+        .join(
+            ImportRun,
+            and_(
+                ImportItem.run_id == ImportRun.id,
+                ImportItem.organization_id == ImportRun.organization_id,
+            ),
+        )
+        .outerjoin(ParentItem, ParentItem.id == ImportItem.parent_item_id)
+        .outerjoin(
+            EntrypointCompany,
+            and_(
+                ImportRun.entrypoint_type == "company",
+                ImportRun.entrypoint_id == EntrypointCompany.id,
+                EntrypointCompany.organization_id == ImportRun.organization_id,
+            ),
+        )
+        .outerjoin(
+            EntrypointLocation,
+            and_(
+                ImportRun.entrypoint_type == "location",
+                ImportRun.entrypoint_id == EntrypointLocation.id,
+                EntrypointLocation.organization_id == ImportRun.organization_id,
+            ),
+        )
+        .outerjoin(
+            LocationCompany,
+            and_(
+                EntrypointLocation.company_id == LocationCompany.id,
+                LocationCompany.organization_id == ImportRun.organization_id,
+            ),
+        )
+        .where(
+            ImportRun.organization_id == org.id,
+            ImportItem.organization_id == org.id,
+            ImportRun.status == "review_ready",
+            ImportItem.item_type == "project",
+            ImportItem.created_project_id.is_(None),
+            ImportItem.status.in_(("pending_review", "accepted", "amended")),
+        )
+    )
+
+    if not has_any_scope_access(current_user, permissions.PROJECT_READ):
+        query = query.where(ImportRun.created_by_user_id == current_user.id)
+
+    result = await db.execute(query.order_by(ImportItem.updated_at.desc()))
+    rows: list[DraftItemDashboardRow] = []
+    for (
+        item,
+        run,
+        parent_item,
+        entrypoint_company_id,
+        entrypoint_company_name,
+        entrypoint_location_company_id,
+        entrypoint_location_name,
+        entrypoint_location_company_name,
+    ) in result.all():
+        normalized_data = item.normalized_data if isinstance(item.normalized_data, dict) else {}
+        parent_data = (
+            parent_item.normalized_data
+            if parent_item is not None and isinstance(parent_item.normalized_data, dict)
+            else {}
+        )
+        resolved_company_id = entrypoint_company_id or entrypoint_location_company_id
+        resolved_company_label = entrypoint_company_name or entrypoint_location_company_name
+        if company_id is not None and (
+            resolved_company_id is None or resolved_company_id != company_id
+        ):
+            continue
+        location_label = parent_data.get("name")
+        if not isinstance(location_label, str) or not location_label.strip():
+            location_label = entrypoint_location_name
+        stream_name = str(normalized_data.get("name") or "").strip() or "Pending"
+        if not _matches_search(
+            search=search,
+            stream_name=stream_name,
+            company_label=resolved_company_label,
+            location_label=location_label if isinstance(location_label, str) else None,
+        ):
+            continue
+        rows.append(
+            DraftItemDashboardRow(
+                bucket="needs_confirmation",
+                item_id=item.id,
+                run_id=run.id,
+                stream_name=stream_name,
+                company_id=resolved_company_id,
+                company_label=resolved_company_label,
+                location_label=location_label if isinstance(location_label, str) else None,
+                volume_summary=_extract_volume_summary(normalized_data),
+                last_activity_at=item.updated_at,
+                source_type=run.source_type,
+                draft_status=item.status,
+                confidence=item.confidence,
+                target=DraftTargetResponse(
+                    target_kind="confirmation_flow",
+                    run_id=run.id,
+                    item_id=item.id,
+                    source_type=run.source_type,
+                    entrypoint_type=run.entrypoint_type,
+                    entrypoint_id=run.entrypoint_id,
+                ),
+            )
+        )
+    return rows
+
+
+def _paginate_dashboard_rows(
+    *,
+    rows: list[PersistedStreamDashboardRow | DraftItemDashboardRow],
+    page: int,
+    size: int,
+) -> tuple[list[PersistedStreamDashboardRow | DraftItemDashboardRow], int, int]:
+    total = len(rows)
+    pages = (total + size - 1) // size if total > 0 else 1
+    start = (page - 1) * size
+    end = start + size
+    return rows[start:end], total, pages
+
+
+def _count_dashboard_rows(
+    rows: list[PersistedStreamDashboardRow | DraftItemDashboardRow],
+) -> DashboardCountsResponse:
+    counts: dict[str, int] = {
+        "total": len(rows),
+        "needs_confirmation": 0,
+        "missing_information": 0,
+        "intelligence_report": 0,
+        "proposal": 0,
+    }
+    for row in rows:
+        if row.kind == "draft_item":
+            counts["needs_confirmation"] += 1
+            continue
+        counts[row.bucket] += 1
+    return DashboardCountsResponse(**counts)
 
 
 async def _lock_project_for_update(
@@ -308,6 +828,79 @@ async def get_dashboard_stats(
         total_budget=stats.total_budget or 0.0,
         last_updated=stats.last_updated,
         pipeline_stages=pipeline_stages,
+    )
+
+
+@router.get(
+    "/dashboard",
+    summary="Get dashboard triage projection",
+    description="Dedicated dashboard counts and rows without changing legacy project contracts.",
+)
+async def get_dashboard_projection(
+    current_user: CurrentUser,
+    db: AsyncDB,
+    org: OrganizationContext,
+    _rate_limit: RateLimitUser300,
+    bucket: Annotated[DashboardBucket, Query()] = "total",
+    page: PageNumber = 1,
+    size: PageSize = 10,
+    search: SearchQuery = None,
+    archived: ArchivedFilter = "active",
+    company_id: Annotated[UUID | None, Query(description="Filter by company ID")] = None,
+    proposal_follow_up_state: Annotated[
+        ProposalFollowUpState | None,
+        Query(description="Filter by stream-level proposal follow-up state"),
+    ] = None,
+) -> DashboardListResponse:
+    require_permission(current_user, permissions.PROJECT_READ)
+
+    persisted_rows = await _build_persisted_dashboard_rows(
+        db=db,
+        current_user=current_user,
+        org=org,
+        archived=archived,
+        company_id=company_id,
+        proposal_follow_up_state=proposal_follow_up_state,
+        search=search,
+    )
+    draft_rows = await _build_draft_dashboard_rows(
+        db=db,
+        current_user=current_user,
+        org=org,
+        archived=archived,
+        company_id=company_id,
+        proposal_follow_up_state=proposal_follow_up_state,
+        search=search,
+    )
+
+    all_rows = sorted(
+        [*persisted_rows, *draft_rows],
+        key=lambda row: row.last_activity_at,
+        reverse=True,
+    )
+    counts = _count_dashboard_rows(all_rows)
+    draft_preview: DashboardDraftPreviewSlice | None = None
+    bucket_rows: list[PersistedStreamDashboardRow | DraftItemDashboardRow]
+    if bucket == "total":
+        bucket_rows = list(persisted_rows)
+        preview_rows = sorted(draft_rows, key=lambda row: row.last_activity_at, reverse=True)
+        draft_preview = DashboardDraftPreviewSlice(
+            items=preview_rows[:TOTAL_DRAFT_PREVIEW_LIMIT],
+            total=len(preview_rows),
+        )
+    else:
+        bucket_rows = [row for row in all_rows if row.bucket == bucket]
+    paged_rows, total, pages = _paginate_dashboard_rows(rows=bucket_rows, page=page, size=size)
+
+    return DashboardListResponse(
+        bucket=bucket,
+        counts=counts,
+        items=paged_rows,
+        total=total,
+        page=page,
+        size=size,
+        pages=pages,
+        draft_preview=draft_preview,
     )
 
 
@@ -580,6 +1173,107 @@ async def update_project(
 
     logger.info("Project updated: %s", project.id)
     return ProjectDetail.model_validate(project)
+
+
+@router.patch(
+    "/{project_id}/proposal-follow-up-state",
+    response_model=ProposalFollowUpStateResponse,
+    summary="Update stream-level proposal commercial follow-up state",
+)
+@limiter.limit("20/minute")
+async def update_project_proposal_follow_up_state(
+    request: Request,
+    project_id: UUID,
+    payload: ProposalFollowUpStateUpdateRequest,
+    current_user: CurrentUser,
+    org: OrganizationContext,
+    db: AsyncDB,
+):
+    from app.models.proposal import Proposal
+
+    result = await db.execute(
+        select(Project)
+        .where(
+            Project.id == project_id,
+            Project.organization_id == org.id,
+        )
+        .with_for_update()
+    )
+    project = result.scalar_one_or_none()
+
+    if project is None:
+        cross_tenant_probe = await db.get(Project, project_id)
+        if cross_tenant_probe is not None:
+            raise_org_access_denied(org_id=str(org.id))
+        raise_resource_not_found("Project not found", details={"project_id": str(project_id)})
+    assert project is not None
+
+    require_permission(
+        current_user,
+        permissions.PROJECT_UPDATE,
+        ownership=Ownership.OWN,
+        owner_user_id=project.user_id,
+    )
+    require_not_archived(project)
+
+    proposal_count = int(
+        await db.scalar(
+            select(func.count(Proposal.id)).where(
+                Proposal.project_id == project.id,
+                Proposal.organization_id == project.organization_id,
+            )
+        )
+        or 0
+    )
+    current_state = _effective_proposal_follow_up_state(
+        stored_state=project.proposal_follow_up_state,
+        proposal_count=proposal_count,
+    )
+    next_state = payload.state
+
+    if current_state == next_state:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Proposal follow-up state already set",
+        )
+
+    allowed_next = PROPOSAL_FOLLOW_UP_TRANSITIONS.get(current_state, set())
+    if next_state not in allowed_next:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Invalid proposal follow-up transition",
+        )
+
+    if proposal_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot start proposal follow-up without a proposal",
+        )
+
+    project.proposal_follow_up_state = next_state
+    await create_timeline_event(
+        db=db,
+        project_id=project.id,
+        organization_id=project.organization_id,
+        event_type="proposal_follow_up_updated",
+        title="Proposal follow-up updated",
+        actor=current_user.email,
+        description=f"Proposal follow-up moved from {current_state or 'none'} to {next_state}",
+        metadata={
+            "old_state": current_state,
+            "new_state": next_state,
+            "actor_user_id": str(current_user.id),
+            "actor_email": current_user.email,
+        },
+    )
+
+    await db.commit()
+    await db.refresh(project, attribute_names=["updated_at", "proposal_follow_up_state"])
+    return ProposalFollowUpStateResponse(
+        project_id=project.id,
+        proposal_follow_up_state=cast(ProposalFollowUpState, project.proposal_follow_up_state),
+        updated_at=project.updated_at,
+    )
 
 
 @router.post("/{project_id}/archive", response_model=SuccessResponse)

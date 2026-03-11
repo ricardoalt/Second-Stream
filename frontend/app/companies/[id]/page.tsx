@@ -123,6 +123,9 @@ export default function CompanyDetailPage() {
 		filename?: string;
 	} | null>(null);
 	const dismissedRunsKey = `dismissed_import_runs_${companyId}`;
+	// Tracks whether a dashboard deep-link has already loaded a run,
+	// so the auto-resume effect does not overwrite it.
+	const deepLinkHandledRef = useRef(false);
 	// Global drag & drop
 	const [_dragActive, setDragActive] = useState(false);
 	const dragCounterRef = useRef(0);
@@ -271,9 +274,39 @@ export default function CompanyDetailPage() {
 			});
 	}, [canCreateClientData, searchParams, companyId, router]);
 
+	// Deep-link from dashboard draft navigation (run_id + source_type params)
+	useEffect(() => {
+		if (!canCreateClientData || isArchived) return;
+		const runId = searchParams.get("run_id");
+		const sourceType = searchParams.get("source_type");
+		if (!runId || !sourceType) return;
+
+		// Mark deep-link handled so auto-resume skips
+		deepLinkHandledRef.current = true;
+
+		// Clean URL immediately to prevent re-triggering
+		router.replace(`/companies/${companyId}`);
+
+		void bulkImportAPI
+			.getRun(runId)
+			.then((run) => {
+				setActiveImportRun(run);
+				// Voice drafts: open VoiceReviewWorkspace if voiceInterviewId available
+				if (sourceType === "voice_interview" && run.voiceInterviewId) {
+					setActiveVoiceInterviewId(run.voiceInterviewId);
+				}
+				setShowReviewSection(true);
+			})
+			.catch(() => {
+				toast.error("Could not load the review run");
+			});
+	}, [canCreateClientData, isArchived, searchParams, companyId, router]);
+
 	// Auto-resume pending import on page load
 	useEffect(() => {
 		if (!companyId || !canCreateClientData || isArchived) return;
+		// Skip if a dashboard deep-link already loaded a specific run
+		if (deepLinkHandledRef.current) return;
 		let cancelled = false;
 		bulkImportAPI
 			.getPendingRun("company", companyId)

@@ -55,6 +55,7 @@ export interface BulkImportRun {
 	finalizedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
+	voiceInterviewId: string | null;
 }
 
 export interface DuplicateCandidate {
@@ -63,6 +64,31 @@ export interface DuplicateCandidate {
 	reason: string;
 	[key: string]: unknown;
 }
+
+export interface BulkImportRunLocationOption {
+	id: string;
+	name: string;
+	city: string;
+	state: string;
+	address: string | null;
+}
+
+export type BulkImportLocationResolution =
+	| {
+			mode: "locked";
+			name: string;
+	  }
+	| {
+			mode: "existing";
+			locationId: string;
+	  }
+	| {
+			mode: "create_new";
+			name: string;
+			city: string;
+			state: string;
+			address?: string;
+	  };
 
 export interface BulkImportItem {
 	id: string;
@@ -189,6 +215,30 @@ export const bulkImportAPI = {
 	},
 
 	/**
+	 * List all items for a run (auto-paginates).
+	 */
+	async listAllItems(runId: string): Promise<BulkImportItem[]> {
+		const firstPage = await bulkImportAPI.listItems(runId, 1);
+		let items = firstPage.items;
+
+		if (firstPage.pages <= 1) {
+			return items;
+		}
+
+		const remainingPages = await Promise.all(
+			Array.from({ length: firstPage.pages - 1 }, (_, index) =>
+				bulkImportAPI.listItems(runId, index + 2),
+			),
+		);
+
+		for (const page of remainingPages) {
+			items = items.concat(page.items);
+		}
+
+		return items;
+	},
+
+	/**
 	 * Update an item's decision (accept, amend, reject, reset).
 	 */
 	async patchItem(
@@ -197,15 +247,59 @@ export const bulkImportAPI = {
 		options?: {
 			normalizedData?: Record<string, unknown>;
 			reviewNotes?: string;
+			locationResolution?: BulkImportLocationResolution;
 			confirmCreateNew?: boolean;
 		},
 	): Promise<BulkImportItem> {
+		const locationResolution = options?.locationResolution;
+		const serializedLocationResolution =
+			locationResolution?.mode === "existing"
+				? {
+						mode: "existing" as const,
+						location_id: locationResolution.locationId,
+					}
+				: locationResolution?.mode === "create_new"
+					? {
+							mode: "create_new" as const,
+							name: locationResolution.name,
+							city: locationResolution.city,
+							state: locationResolution.state,
+							address: locationResolution.address,
+						}
+					: locationResolution?.mode === "locked"
+						? {
+								mode: "locked" as const,
+								name: locationResolution.name,
+							}
+						: undefined;
+
 		return apiClient.patch<BulkImportItem>(`${BASE}/items/${itemId}`, {
 			action,
 			normalized_data: options?.normalizedData,
 			review_notes: options?.reviewNotes,
+			location_resolution: serializedLocationResolution,
 			confirm_create_new: options?.confirmCreateNew,
 		});
+	},
+
+	async searchRunLocations(
+		runId: string,
+		options?: {
+			query?: string;
+			limit?: number;
+		},
+	): Promise<BulkImportRunLocationOption[]> {
+		const params = new URLSearchParams();
+		if (options?.query !== undefined) {
+			params.set("query", options.query);
+		}
+		if (options?.limit !== undefined) {
+			params.set("limit", String(options.limit));
+		}
+		const suffix = params.size > 0 ? `?${params.toString()}` : "";
+		return apiClient.get<BulkImportRunLocationOption[]>(
+			`${BASE}/runs/${runId}/locations${suffix}`,
+		);
 	},
 
 	/**

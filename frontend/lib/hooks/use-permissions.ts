@@ -62,6 +62,9 @@ export function usePermissions() {
 		return hasProjectAdminBypass || project.userId === user?.id;
 	};
 
+	const canUpdateProjects = (): boolean =>
+		hasPermission(PERMISSIONS.PROJECT_UPDATE);
+
 	const canDeleteProject = (project: ProjectSummary): boolean => {
 		if (!hasPermission(PERMISSIONS.PROJECT_DELETE)) return false;
 		return hasProjectAdminBypass || project.userId === user?.id;
@@ -110,6 +113,7 @@ export function usePermissions() {
 		canPurgeLocation,
 		// Project
 		canEditProject,
+		canUpdateProjects,
 		canDeleteProject,
 		canArchiveProject,
 		canRestoreProject,

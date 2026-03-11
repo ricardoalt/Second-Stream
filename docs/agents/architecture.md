@@ -10,6 +10,7 @@
 ### Data model pattern
 - Core tables: User, Project (metadata), Proposal (versions), ProjectFile, TimelineEvent.
 - Dynamic data: `project.project_data` JSONB for flexible technical sections/fields.
+- Dashboard triage is a dedicated projection layered on top of `Project` plus staging drafts from `ImportRun`/`ImportItem`; stream-level commercial follow-up lives on `Project.proposal_follow_up_state`, while `Proposal.status` remains version lifecycle only.
 
 #### Database relationships
 ```

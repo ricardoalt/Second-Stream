@@ -2,43 +2,66 @@
 
 AI waste-opportunity platform: opportunities -> AI proposals -> compliance gates -> CRM/Marketplace sync.
 
+## Purpose
+
+- `AGENTS.md` is the top-level entrypoint and policy summary.
+- Canonical operational guidance lives in `docs/agents/`.
+- Repo markdown is system of record. Prefer repo docs over chat memory.
+
 ## Stack
 
 - Monorepo: `backend/` (FastAPI), `frontend/` (Next.js), `infrastructure/` (Terraform)
 - Package managers: `bun` (frontend), `uv` (backend)
 - Early development, no users. Do things right: zero tech debt, no compatibility shims.
 
-## Commands
+## Core Commands
 
 - Backend: `cd backend && make check`
 - Frontend: `cd frontend && bun run check:ci`
 
-## Plan mode
+## Doc Precedence
+
+- Source of truth order:
+  1. `AGENTS.md`
+  2. `docs/agents/*.md`
+  3. active task plan in `docs/plans/`
+  4. inline code comments
+
+## Read By Task
+
+- Start here if unsure: `docs/agents/README.md`
+- Commands and setup: `docs/agents/development-commands.md`
+- Feature workflow: `docs/agents/workflows.md`
+- Architecture and key files: `docs/agents/architecture.md`
+- Code style: `docs/agents/code-style.md`
+- Debugging: `docs/agents/debugging.md`
+- Environment: `docs/agents/environment-setup.md`
+- Deployment: `docs/agents/deployment.md`
+- Performance: `docs/agents/performance.md`
+- Archive rules: `docs/archive/README.md`
+
+## Working Rules
+
+- Repo docs first. Use Context7 for unfamiliar, new, or changing external framework/library behavior.
+- One fact, one home. Keep canonical guidance in one doc.
+- If code changes commands, workflows, architecture, or setup, update the matching canonical doc in the same change.
+
+## Plan Mode
 
 - Keep plans extremely concise. Sacrifice grammar for concision.
 - End each plan with unresolved questions, if any.
-- after you finalize the plan, spin up a subagent and ask it to review the plan for feedback and refinement, and then update the plan accordingly if it provides useful feedback
+- After you finalize a plan, spin up a subagent to review it, then refine if useful.
 
 ## Subagents
+
 - ALWAYS wait for all subagents to complete before yielding.
-- Spawn subagents automatically when:
-- Parallelizable work (e.g., install + verify, bun test + typecheck, multiple tasks from plan)
-- Long-running or blocking tasks where a worker can run independently.
-Isolation for risky changes or checks
+- Use subagents for isolated, parallelizable, or risky checks.
+- Give each subagent minimal context and one explicit deliverable.
+- Final synthesis stays in primary agent.
 
-ALWAYS check the Context7 API/skills when working with any framework or library.
+## TDD (Critical backend only)
 
-### TDD (Critical backend only)
-Always test first, before writing any code, you must always check the tests. Before writing any code, you must always check the tests. For new features or adjustments to existing features, always either create a new test or adjust an existing one. Following existing testing patterns. Confirm the test with the user before implementing it.
-
-## Before starting
-
-Read the relevant doc in `docs/agents/`:
-
-
-- [development-commands.md](docs/agents/development-commands.md) - all commands
-- [workflows.md](docs/agents/workflows.md) - adding endpoints, features, migrations
-- [architecture.md](docs/agents/architecture.md) - data model, flows, key files
-- [code-style.md](docs/agents/code-style.md) - coding principles
-- [debugging.md](docs/agents/debugging.md) - troubleshooting
-- [environment-setup.md](docs/agents/environment-setup.md) - env vars
+- Read existing tests first.
+- For new features or changes, add or adjust a test before implementation.
+- Follow existing testing patterns.
+- Ask user only when test strategy is genuinely ambiguous.

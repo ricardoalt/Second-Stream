@@ -7,6 +7,8 @@
  * router.push(routes.project.technical(projectId))
  */
 
+import type { DraftTarget } from "@/lib/types/dashboard";
+
 // ==============================================
 // ROUTE BUILDER TYPES
 // ==============================================
@@ -107,6 +109,37 @@ export const routes = {
 		},
 	},
 } as const;
+
+// ==============================================
+// CONFIRMATION FLOW NAVIGATION
+// ==============================================
+
+/**
+ * Build URL for draft item confirmation flow.
+ *
+ * The review UI always lives on `/companies/:companyId`. For location-backed
+ * drafts, `target.entrypointId` is a location UUID — so we need the
+ * row-level `companyId` passed separately.
+ *
+ * Returns `null` for orphan/unassigned drafts (no companyId) — callers
+ * should render a disabled state instead of navigating.
+ */
+export function buildConfirmationFlowUrl(
+	target: DraftTarget,
+	/** Row-level companyId (null for orphan drafts). */
+	companyId: string | null,
+): string | null {
+	if (!companyId) return null;
+
+	const base = `/companies/${companyId}`;
+
+	const params = new URLSearchParams({
+		run_id: target.runId,
+		source_type: target.sourceType,
+	});
+
+	return `${base}?${params.toString()}`;
+}
 
 // ==============================================
 // TYPE EXPORTS

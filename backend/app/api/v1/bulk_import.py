@@ -13,6 +13,7 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
+from sqlalchemy import select
 
 from app.api.dependencies import (
     AsyncDB,
@@ -26,7 +27,7 @@ from app.core.config import settings
 from app.models.bulk_import import ImportItem, ImportRun
 from app.models.company import Company
 from app.models.location import Location
-from app.models.voice_interview import ImportRunIdempotencyKey
+from app.models.voice_interview import ImportRunIdempotencyKey, VoiceInterview
 from app.schemas.bulk_import import (
     AssignOrphansRequest,
     AssignOrphansResponse,
@@ -35,6 +36,7 @@ from app.schemas.bulk_import import (
     BulkImportFinalizeSummary,
     BulkImportItemPatchRequest,
     BulkImportItemResponse,
+    BulkImportRunLocationOption,
     BulkImportRunResponse,
     BulkImportSummaryResponse,
     BulkImportUploadResponse,
@@ -157,7 +159,7 @@ async def get_pending_run(
     )
     if not run:
         return None
-    return BulkImportRunResponse.model_validate(run)
+    return await _with_voice_interview_id(db, run)
 
 
 @router.get("/runs/{run_id}", response_model=BulkImportRunResponse)
@@ -170,7 +172,7 @@ async def get_bulk_import_run(
     run = await service.get_run(db, organization_id=org.id, run_id=run_id)
     if not run:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
-    return BulkImportRunResponse.model_validate(run)
+    return await _with_voice_interview_id(db, run)
 
 
 @router.get("/runs/{run_id}/items", response_model=PaginatedResponse[BulkImportItemResponse])
@@ -208,6 +210,56 @@ async def list_bulk_import_items(
     )
 
 
+@router.get("/runs/{run_id}/locations", response_model=list[BulkImportRunLocationOption])
+async def list_bulk_import_run_locations(
+    run_id: UUID,
+    current_user: CurrentBulkImportUser,
+    org: OrganizationContext,
+    db: AsyncDB,
+    query: Annotated[str, Query(description="Location search query")] = "",
+    limit: Annotated[int, Query(ge=1, le=50, description="Max results")] = 20,
+) -> list[BulkImportRunLocationOption]:
+    run = await service.get_run(db, organization_id=org.id, run_id=run_id)
+    if not run:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+
+    company_id = await service.get_effective_company_id_for_run(db, run=run)
+    search_term = query.strip()
+
+    stmt = (
+        select(Location)
+        .where(
+            Location.organization_id == org.id,
+            Location.company_id == company_id,
+            Location.archived_at.is_(None),
+        )
+        .order_by(Location.name, Location.city, Location.state)
+        .limit(limit)
+    )
+
+    if search_term:
+        like = f"%{search_term}%"
+        stmt = stmt.where(
+            Location.name.ilike(like)
+            | Location.city.ilike(like)
+            | Location.state.ilike(like)
+            | Location.address.ilike(like)
+        )
+
+    result = await db.execute(stmt)
+    locations = result.scalars().all()
+    return [
+        BulkImportRunLocationOption(
+            id=location.id,
+            name=location.name,
+            city=location.city,
+            state=location.state,
+            address=location.address,
+        )
+        for location in locations
+    ]
+
+
 @router.patch("/items/{item_id}", response_model=BulkImportItemResponse)
 async def patch_bulk_import_item(
     item_id: UUID,
@@ -231,6 +283,7 @@ async def patch_bulk_import_item(
             action=payload.action,
             normalized_data=payload.normalized_data,
             review_notes=payload.review_notes,
+            location_resolution=payload.location_resolution,
             confirm_create_new=payload.confirm_create_new,
         )
 
@@ -389,6 +442,19 @@ async def _validate_entrypoint(
             raise_org_access_denied(org_id=str(org_id))
         return
     raise_bad_request("Invalid entrypoint_type")
+
+
+async def _with_voice_interview_id(db: AsyncDB, run: ImportRun) -> BulkImportRunResponse:
+    """Build BulkImportRunResponse, enriching with voice_interview_id if applicable."""
+    from sqlalchemy import select
+
+    response = BulkImportRunResponse.model_validate(run)
+    if run.source_type == "voice_interview":
+        vi_id = await db.scalar(
+            select(VoiceInterview.id).where(VoiceInterview.bulk_import_run_id == run.id)
+        )
+        response.voice_interview_id = vi_id
+    return response
 
 
 def _sanitize_filename(filename: str) -> str:

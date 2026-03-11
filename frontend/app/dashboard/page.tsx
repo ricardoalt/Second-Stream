@@ -1,19 +1,27 @@
 "use client";
 
-import {
-	Building2,
-	Filter,
-	FolderKanban,
-	Loader2,
-	Search,
-	X,
-} from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertCircle, AlertTriangle, RefreshCw } from "lucide-react";
 import dynamic from "next/dynamic";
-import React, { memo, useCallback, useEffect, useMemo } from "react";
-import { DashboardHero } from "@/components/features/dashboard";
-import { ProjectCard } from "@/components/features/dashboard/components/project-card";
+import React, { memo, useCallback, useEffect } from "react";
+import { BucketTabs } from "@/components/features/dashboard/components/bucket-tabs";
+import { DashboardHeader } from "@/components/features/dashboard/components/dashboard-header";
+import { DraftConfirmationSheet } from "@/components/features/dashboard/components/draft-confirmation-sheet";
+import { DraftPreviewRail } from "@/components/features/dashboard/components/draft-preview-rail";
+import { DraftQueueTable } from "@/components/features/dashboard/components/draft-queue-table";
+import { PersistedStreamTable } from "@/components/features/dashboard/components/persisted-stream-table";
+import { ProposalSubfilters } from "@/components/features/dashboard/components/proposal-subfilters";
 import { SectionErrorBoundary } from "@/components/features/proposals/overview/section-error-boundary";
 import ClientOnly from "@/components/shared/common/client-only";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+	useDashboardActions,
+	useDashboardBucket,
+	useDashboardDraftPreview,
+	useDashboardError,
+	useDashboardInitialized,
+} from "@/lib/stores/dashboard-store";
 
 const PremiumProjectWizard = dynamic(
 	() =>
@@ -23,511 +31,221 @@ const PremiumProjectWizard = dynamic(
 	{ ssr: false, loading: () => null },
 );
 
-const OnboardingChecklist = dynamic(
-	() =>
-		import("@/components/shared/onboarding-checklist").then(
-			(mod) => mod.OnboardingChecklist,
-		),
-	{ loading: () => null },
-);
-
-const ProjectPipeline = dynamic(
-	() =>
-		import("@/components/features/dashboard/components/project-pipeline").then(
-			(mod) => mod.ProjectPipeline,
-		),
-	{
-		loading: () => (
-			<div className="h-24 w-full animate-pulse rounded-lg bg-muted/50" />
-		),
-	},
-);
-
-const SimplifiedStats = dynamic(
-	() =>
-		import("@/components/features/dashboard/components/simplified-stats").then(
-			(mod) => mod.SimplifiedStats,
-		),
-	{
-		loading: () => (
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-				{[1, 2, 3].map((i) => (
-					<div
-						key={i}
-						className="h-32 w-full animate-pulse rounded-lg bg-muted/50"
-					/>
-				))}
-			</div>
-		),
-	},
-);
-
-import { ArchivedFilterSelect } from "@/components/ui/archived-filter-select";
-import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { ArchivedFilter } from "@/lib/api/companies";
-import { PROJECT_STATUS_GROUPS } from "@/lib/project-status";
-import type { ProjectSummary } from "@/lib/project-types";
-import { useCompanyStore } from "@/lib/stores/company-store";
-import {
-	usePagination,
-	useProjectActions,
-	useProjectInitialized,
-	useProjectLoading,
-	useProjects,
-} from "@/lib/stores/project-store";
-
 /**
- * Memoized Waste Stream List Component
- * Displays waste streams in a responsive grid layout with context badges
- */
-const WasteStreamList = memo(function WasteStreamList({
-	projects,
-	loading,
-	isInitialized,
-}: {
-	projects: ProjectSummary[];
-	loading: boolean;
-	isInitialized: boolean;
-}) {
-	// Only show skeleton on first load (not yet initialized)
-	if (loading && !isInitialized) {
-		return <WasteStreamGridSkeleton />;
-	}
-
-	if (projects.length === 0) {
-		return (
-			<EmptyState
-				icon={FolderKanban}
-				title="No waste streams yet"
-				description="Create your first waste stream to get started."
-			/>
-		);
-	}
-
-	return (
-		<div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3 animate-stagger">
-			{projects.map((project) => (
-				<ProjectCard
-					key={project.id}
-					id={project.id}
-					name={project.name}
-					client={project.client}
-					sector={project.sector}
-					location={project.location}
-					status={project.status}
-					updatedAt={project.updatedAt}
-					createdAt={project.createdAt}
-					proposalsCount={project.proposalsCount}
-					{...(project.archivedAt !== undefined
-						? { archivedAt: project.archivedAt }
-						: {})}
-				/>
-			))}
-		</div>
-	);
-});
-
-/**
- * Skeleton loader for assessment grid
- * Shows placeholder cards while data is loading
- */
-function WasteStreamGridSkeleton() {
-	const skeletonKeys = ["a", "b", "c", "d", "e", "f"] as const;
-
-	return (
-		<div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-			{skeletonKeys.map((key) => (
-				<Card key={key} className="h-48">
-					<CardHeader>
-						<Skeleton className="h-6 w-3/4 mb-2" />
-						<Skeleton className="h-4 w-1/2" />
-					</CardHeader>
-					<CardContent className="space-y-2">
-						<Skeleton className="h-4 w-full" />
-						<Skeleton className="h-4 w-2/3" />
-					</CardContent>
-				</Card>
-			))}
-		</div>
-	);
-}
-
-/**
- * Main Dashboard Content Component
- * Assessment-first view with company/location context
+ * Main Dashboard Content — triage-first layout.
+ *
+ * Bucket routing:
+ * - total:               PersistedStreamTable (main) + DraftPreviewRail (aside)
+ * - needs_confirmation:  DraftQueueTable (full-width)
+ * - proposal:            ProposalSubfilters + PersistedStreamTable
+ * - missing_information: PersistedStreamTable
+ * - intelligence_report: PersistedStreamTable
  */
 const DashboardContent = memo(function DashboardContent() {
-	const { setFilter, setFilters, reloadProjects } = useProjectActions();
-	const { companies, loadCompanies } = useCompanyStore();
+	const bucket = useDashboardBucket();
+	const error = useDashboardError();
+	const initialized = useDashboardInitialized();
+	const { loadDashboard } = useDashboardActions();
 	const [createModalOpen, setCreateModalOpen] = React.useState(false);
-	const [searchTerm, setSearchTerm] = React.useState("");
-	const [companyFilter, setCompanyFilter] = React.useState<string>("all");
-	const [statusFilter, setStatusFilter] = React.useState<string>("active");
-	const [archivedFilter, setArchivedFilter] =
-		React.useState<ArchivedFilter>("active");
 
-	// Load data on mount
 	useEffect(() => {
-		const activeStatuses = PROJECT_STATUS_GROUPS.active.join(",");
-		setFilters({ status: activeStatuses, archived: "active" });
-		void reloadProjects();
-		loadCompanies();
-	}, [setFilters, reloadProjects, loadCompanies]);
-
-	// Handle status filter change with server-side filtering
-	const handleStatusFilterChange = useCallback(
-		(value: string) => {
-			setStatusFilter(value);
-
-			// Map filter values to backend statuses
-			if (value === "all") {
-				setFilter("status", undefined);
-			} else if (value === "active") {
-				// Send comma-separated list of active statuses
-				const activeStatuses = PROJECT_STATUS_GROUPS.active.join(",");
-				setFilter("status", activeStatuses);
-			} else {
-				// Single status filter
-				setFilter("status", value);
-			}
-			void reloadProjects();
-		},
-		[setFilter, reloadProjects],
-	);
-
-	// Handle company filter (server-side via companyId)
-	const handleCompanyFilterChange = useCallback(
-		(value: string) => {
-			setCompanyFilter(value);
-			setFilter("companyId", value === "all" ? undefined : value);
-			void reloadProjects();
-		},
-		[setFilter, reloadProjects],
-	);
-
-	// Handle archived filter (server-side)
-	const handleArchivedFilterChange = useCallback(
-		(value: ArchivedFilter) => {
-			setArchivedFilter(value);
-			setFilter("archived", value);
-			void reloadProjects();
-		},
-		[setFilter, reloadProjects],
-	);
+		void loadDashboard();
+	}, [loadDashboard]);
 
 	const handleOpenCreateModal = useCallback(() => {
 		setCreateModalOpen(true);
 	}, []);
 
-	// Onboarding state derived from projects data
-	const projects = useProjects();
-	const hasProposals = projects.some((p) => p.proposalsCount > 0);
-	const hasHighProgress = projects.some((p) => p.progress >= 80);
-	const showOnboarding = projects.length < 3; // Show for new users
-
-	// Onboarding steps with dynamic completion
-	const onboardingSteps = useMemo(
-		() => [
-			{
-				id: "create-company",
-				label: "Create your first company",
-				description: "Set up a company to associate with waste streams",
-				action: { label: "Add", onClick: () => {} }, // Companies created in wizard
-			},
-			{
-				id: "start-assessment",
-				label: "Start a waste stream",
-				description: "Create your first waste stream",
-				action: { label: "Start", onClick: handleOpenCreateModal },
-			},
-			{
-				id: "complete-data",
-				label: "Complete technical data (80%+)",
-				description: "Fill out the questionnaire for accurate proposals",
-			},
-			{
-				id: "generate-proposal",
-				label: "Generate your first AI proposal",
-				description: "Let AI analyze and create a deal report",
-			},
-		],
-		[handleOpenCreateModal],
-	);
-
-	// Calculate completed steps
-	const completedSteps = useMemo(() => {
-		const completed: string[] = [];
-		if (companies.length > 0) completed.push("create-company");
-		if (projects.length > 0) completed.push("start-assessment");
-		if (hasHighProgress) completed.push("complete-data");
-		if (hasProposals) completed.push("generate-proposal");
-		return completed;
-	}, [companies.length, projects.length, hasHighProgress, hasProposals]);
-
 	return (
-		<div className="space-y-8">
-			{/* Hero Section */}
-			<div className="animate-fade-in-up">
-				<DashboardHero onCreateProject={handleOpenCreateModal} />
-			</div>
-
-			{/* Onboarding Checklist - Only for new users */}
-			{showOnboarding && (
-				<div className="animate-fade-in-up" style={{ animationDelay: "100ms" }}>
-					<OnboardingChecklist
-						steps={onboardingSteps}
-						completedSteps={completedSteps}
-						onStepAction={(stepId) => {
-							if (stepId === "start-assessment") {
-								handleOpenCreateModal();
-							}
-						}}
-					/>
+		<div className="space-y-6">
+			{/* Bucket tabs + scoped search */}
+			<div>
+				<BucketTabs />
+				<div className="mb-4">
+					<DashboardHeader key={bucket} />
 				</div>
-			)}
-
-			{/* Pipeline Overview */}
-			<div className="animate-fade-in-up" style={{ animationDelay: "200ms" }}>
-				<ProjectPipeline />
+				{/* Error state (Fix #4) */}
+				{error && initialized ? (
+					<DashboardError message={error} onRetry={loadDashboard} />
+				) : (
+					<div
+						role="tabpanel"
+						id={`bucket-panel-${bucket}`}
+						aria-labelledby={`bucket-tab-${bucket}`}
+						className="rounded-lg border border-border/40 bg-card/30 p-4"
+					>
+						<AnimatePresence mode="wait">
+							<motion.div
+								key={initialized ? bucket : "skeleton"}
+								initial={{ opacity: 0, y: 6 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: -6 }}
+								transition={{ duration: 0.15 }}
+							>
+								<BucketContent
+									bucket={bucket}
+									onCreateProject={handleOpenCreateModal}
+								/>
+							</motion.div>
+						</AnimatePresence>
+					</div>
+				)}
 			</div>
 
-			{/* Stats Section */}
-			<div className="animate-fade-in-up" style={{ animationDelay: "300ms" }}>
-				<SimplifiedStats />
-			</div>
-
-			{/* Assessments Section */}
-			<section className="space-y-4">
-				<Card>
-					<CardHeader className="pb-4">
-						<div className="flex items-center justify-between">
-							<div>
-								<CardTitle className="text-lg font-semibold flex items-center gap-2">
-									<FolderKanban className="h-5 w-5" />
-									Your Waste Streams
-								</CardTitle>
-								<CardDescription>
-									All waste streams across companies and locations
-								</CardDescription>
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						{/* Search Bar */}
-						<div className="relative">
-							<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-							<Input
-								placeholder="Search waste streams… (Cmd+K)"
-								aria-label="Search waste streams"
-								value={searchTerm}
-								onChange={(e) => setSearchTerm(e.target.value)}
-								className="pl-9 pr-9"
-								autoComplete="off"
-							/>
-							{searchTerm && (
-								<button
-									type="button"
-									onClick={() => setSearchTerm("")}
-									className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
-									aria-label="Clear search"
-								>
-									<X className="h-4 w-4" />
-								</button>
-							)}
-						</div>
-
-						{/* Filter Bar */}
-						<div className="flex flex-wrap gap-3">
-							<Select
-								value={companyFilter}
-								onValueChange={handleCompanyFilterChange}
-							>
-								<SelectTrigger className="w-[180px]">
-									<Building2 className="h-4 w-4 mr-2" />
-									<SelectValue placeholder="All Companies" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All Companies</SelectItem>
-									{companies.map((company) => (
-										<SelectItem key={company.id} value={company.id}>
-											{company.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-
-							<Select
-								value={statusFilter}
-								onValueChange={handleStatusFilterChange}
-							>
-								<SelectTrigger className="w-[180px]">
-									<Filter className="h-4 w-4 mr-2" />
-									<SelectValue placeholder="All Status" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All Status</SelectItem>
-									<SelectItem value="active">Active</SelectItem>
-									<SelectItem value="Completed">Completed</SelectItem>
-									<SelectItem value="On Hold">On Hold</SelectItem>
-								</SelectContent>
-							</Select>
-
-							<ArchivedFilterSelect
-								value={archivedFilter}
-								onChange={handleArchivedFilterChange}
-							/>
-						</div>
-					</CardContent>
-				</Card>
-
-				<WasteStreamListContainer searchTerm={searchTerm} />
-			</section>
-
+			{/* Create wizard modal */}
 			<PremiumProjectWizard
 				open={createModalOpen}
 				onOpenChange={setCreateModalOpen}
 			/>
+			<DraftConfirmationSheet />
 		</div>
 	);
 });
 
 /**
- * Assessment List Container with Filtering
- * Connects to project store and applies search filter client-side
+ * Renders the correct view for each bucket.
  */
-const WasteStreamListContainer = memo(function WasteStreamListContainer({
-	searchTerm,
+function BucketContent({
+	bucket,
+	onCreateProject,
 }: {
-	searchTerm: string;
+	bucket: string;
+	onCreateProject: () => void;
 }) {
-	const projects = useProjects();
-	const loading = useProjectLoading();
-	const isInitialized = useProjectInitialized();
-	const { hasMore, totalProjects, pageSize } = usePagination();
-	const { loadMore } = useProjectActions();
-
-	// Apply client-side filters (search only; company/status are applied server-side)
-	const filtered = useMemo(() => {
-		let result = projects;
-
-		// Search filter (client-side)
-		if (searchTerm.trim()) {
-			const search = searchTerm.toLowerCase();
-			result = result.filter(
-				(p) =>
-					p.name.toLowerCase().includes(search) ||
-					(p.companyName || p.client).toLowerCase().includes(search) ||
-					(p.locationName || p.location).toLowerCase().includes(search),
-			);
-		}
-
-		return result;
-	}, [projects, searchTerm]);
-
-	const remainingProjects = totalProjects - projects.length;
-
-	// Show search-specific empty state
-	const showSearchEmpty =
-		searchTerm.trim() && filtered.length === 0 && !loading;
-
-	return (
-		<div className="space-y-4">
-			{/* Results Counter */}
-			{searchTerm.trim() && filtered.length > 0 && (
-				<p className="text-sm text-muted-foreground">
-					Found {filtered.length} waste stream{filtered.length !== 1 ? "s" : ""}{" "}
-					matching "{searchTerm}"
-				</p>
-			)}
-
-			{/* Search Empty State */}
-			{showSearchEmpty ? (
-				<EmptyState
-					icon={Search}
-					title={`No waste streams match "${searchTerm}"`}
-					description="Try a different search term or clear the filter to see all waste streams."
-				/>
-			) : (
-				<WasteStreamList
-					projects={filtered}
-					loading={loading}
-					isInitialized={isInitialized}
-				/>
-			)}
-
-			{/* Load More Button */}
-			{hasMore && filtered.length > 0 && !searchTerm.trim() && (
-				<div className="flex flex-col items-center gap-2 pt-4">
-					<p className="text-sm text-muted-foreground">
-						Showing {projects.length} of {totalProjects} waste streams
-						{remainingProjects > 0 && ` (${remainingProjects} more)`}
-					</p>
-					<Button
-						onClick={loadMore}
-						disabled={loading}
-						variant="outline"
-						size="lg"
-						className="w-full max-w-md"
-					>
-						{loading ? (
-							<>
-								<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-								Loading…
-							</>
-						) : (
-							`Load More (${Math.min(pageSize, remainingProjects)})`
-						)}
-					</Button>
+	switch (bucket) {
+		case "total":
+			return (
+				<div className="flex flex-col lg:flex-row gap-6">
+					<div className="flex-1 min-w-0">
+						<PersistedStreamTable onCreateProject={onCreateProject} />
+						{/* Mobile-only draft awareness (rail is hidden below lg) */}
+						<MobileDraftBanner />
+					</div>
+					<aside className="hidden lg:block w-80 shrink-0">
+						<DraftPreviewRail />
+					</aside>
 				</div>
-			)}
-		</div>
-	);
-});
+			);
+
+		case "needs_confirmation":
+			return <DraftQueueTable />;
+
+		case "proposal":
+			return (
+				<div className="space-y-4">
+					<ProposalSubfilters />
+					<PersistedStreamTable />
+				</div>
+			);
+
+		case "missing_information":
+		case "intelligence_report":
+			return <PersistedStreamTable />;
+
+		default:
+			return <PersistedStreamTable />;
+	}
+}
 
 /**
- * Dashboard Skeleton Component
- * Displays loading state while data is being fetched
+ * Mobile-only banner shown when the draft preview rail is hidden (below lg).
+ * Surfaces draft awareness on small screens.
  */
-function DashboardSkeleton() {
+function MobileDraftBanner() {
+	const draftPreview = useDashboardDraftPreview();
+	const { openFullDraftQueue } = useDashboardActions();
+
+	if (!draftPreview || draftPreview.total === 0) return null;
+
 	return (
-		<div className="space-y-8">
-			{/* Hero Skeleton */}
-			<div className="space-y-4">
-				<Skeleton className="h-32 w-full" />
+		<button
+			type="button"
+			onClick={openFullDraftQueue}
+			className="mt-4 flex w-full items-center gap-3 rounded-lg border border-dashed border-amber-500/30 bg-amber-500/5 px-4 py-3 text-left transition-colors hover:bg-amber-500/10 lg:hidden"
+		>
+			<AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+			<span className="flex-1 text-sm text-foreground">
+				<strong>{draftPreview.total}</strong>{" "}
+				{draftPreview.total === 1 ? "draft" : "drafts"} awaiting review
+			</span>
+			<span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+				Review →
+			</span>
+		</button>
+	);
+}
+
+/**
+ * Fix #4 — Visible, retryable error state.
+ */
+function DashboardError({
+	message,
+	onRetry,
+}: {
+	message: string;
+	onRetry: () => void;
+}) {
+	return (
+		<div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-12 text-center">
+			<AlertCircle className="h-8 w-8 text-destructive" />
+			<div className="space-y-1">
+				<h3 className="text-sm font-medium text-foreground">
+					Failed to load dashboard
+				</h3>
+				<p className="text-sm text-muted-foreground max-w-md">{message}</p>
 			</div>
-
-			{/* Pipeline Skeleton */}
-			<div className="space-y-4">
-				<Skeleton className="h-24 w-full" />
-			</div>
-
-			{/* Stats Skeleton */}
-			<Skeleton className="h-48 w-full" />
-
-			{/* Assessments Grid Skeleton */}
-			<WasteStreamGridSkeleton />
+			<Button variant="outline" size="sm" onClick={onRetry} className="gap-2">
+				<RefreshCw className="h-3.5 w-3.5" />
+				Try Again
+			</Button>
 		</div>
 	);
 }
 
-// Main Dashboard Page Component
+/**
+ * Dashboard skeleton for initial page load.
+ */
+function DashboardSkeleton() {
+	return (
+		<div className="space-y-6">
+			{/* Header skeleton */}
+			<div className="flex items-center gap-3">
+				<Skeleton className="h-9 flex-1 max-w-sm" />
+				<Skeleton className="h-9 w-36" />
+			</div>
+
+			{/* Stat cards skeleton */}
+			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+				{[1, 2, 3, 4, 5].map((i) => (
+					<div
+						key={i}
+						className="rounded-lg border border-border/30 bg-card/40 px-4 py-3.5 space-y-2"
+					>
+						<Skeleton className="h-3 w-24" />
+						<Skeleton className="h-7 w-12" />
+						<Skeleton className="h-3 w-full" />
+					</div>
+				))}
+			</div>
+
+			{/* Table skeleton */}
+			<div className="space-y-2">
+				{[1, 2, 3, 4, 5, 6].map((i) => (
+					<div key={i} className="flex items-center gap-4 px-4 py-3">
+						<div className="flex-1 space-y-2">
+							<Skeleton className="h-4 w-2/3" />
+							<Skeleton className="h-3 w-1/3" />
+						</div>
+						<Skeleton className="h-3 w-20" />
+						<Skeleton className="h-3 w-20" />
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
+// Main Dashboard Page
 export default function DashboardPage() {
 	return (
 		<SectionErrorBoundary sectionName="Dashboard">

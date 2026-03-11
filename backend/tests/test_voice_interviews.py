@@ -548,6 +548,106 @@ async def test_voice_finalize_creates_pending_intake_suggestions(
 
 
 @pytest.mark.asyncio
+async def test_dashboard_returns_voice_review_draft_rows(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(db_session, "Voice Dashboard Org", "voice-dashboard-org")
+    user = await create_user(
+        db_session,
+        email=f"voice-dashboard-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Voice Dashboard Co")
+    set_current_user(user)
+
+    run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="voice-interviews/dashboard/audio.wav",
+        source_filename="audio.wav",
+        source_type="voice_interview",
+        status="review_ready",
+        processing_attempts=0,
+        created_by_user_id=user.id,
+    )
+    db_session.add(run)
+    await db_session.flush()
+    interview = VoiceInterview(
+        organization_id=org.id,
+        company_id=company.id,
+        location_id=None,
+        bulk_import_run_id=run.id,
+        audio_object_key="voice-interviews/dashboard/audio.wav",
+        transcript_object_key="voice-interviews/dashboard/transcript.txt",
+        status="review_ready",
+        error_code=None,
+        failed_stage=None,
+        processing_attempts=1,
+        consent_at=datetime.now(UTC),
+        consent_by_user_id=user.id,
+        consent_copy_version="v1",
+        audio_retention_expires_at=datetime.now(UTC) + timedelta(days=180),
+        transcript_retention_expires_at=datetime.now(UTC) + timedelta(days=730),
+        created_by_user_id=user.id,
+    )
+    db_session.add(interview)
+    await db_session.flush()
+    location_item = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="location",
+        status="accepted",
+        needs_review=False,
+        confidence=95,
+        extracted_data={},
+        normalized_data={"name": "Voice Plant", "city": "MTY", "state": "NL", "address": "A"},
+        confirm_create_new=False,
+        group_id="voice_dashboard_grp",
+    )
+    db_session.add(location_item)
+    await db_session.flush()
+    db_session.add(
+        ImportItem(
+            organization_id=org.id,
+            run_id=run.id,
+            item_type="project",
+            status="pending_review",
+            needs_review=True,
+            confidence=72,
+            extracted_data={},
+            normalized_data={
+                "name": "Voice Draft Stream",
+                "estimated_volume": "12 tons/month",
+                "project_type": "Assessment",
+            },
+            parent_item_id=location_item.id,
+            confirm_create_new=False,
+            group_id="voice_dashboard_grp",
+        )
+    )
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/projects/dashboard?bucket=needs_confirmation&search=Voice Draft"
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["counts"]["total"] == 1
+    assert payload["counts"]["needsConfirmation"] == 1
+    assert payload["total"] == 1
+    item = payload["items"][0]
+    assert item["kind"] == "draft_item"
+    assert item["sourceType"] == "voice_interview"
+    assert item["streamName"] == "Voice Draft Stream"
+    assert item["companyId"] == str(company.id)
+    assert item["target"]["runId"] == str(run.id)
+    assert item["target"]["itemId"] == item["itemId"]
+
+
+@pytest.mark.asyncio
 async def test_voice_retention_jobs_purge_audio_and_transcript(db_session, monkeypatch) -> None:
     org = await create_org(db_session, "Voice Retention Org", "voice-retention-org")
     user = await create_user(

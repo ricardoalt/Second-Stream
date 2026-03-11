@@ -1,6 +1,9 @@
 // Dashboard feature exports
-export { DashboardHero } from "./components/dashboard-hero";
+export { BucketTabs } from "./components/bucket-tabs";
+export { DashboardHeader } from "./components/dashboard-header";
+export { DraftPreviewRail } from "./components/draft-preview-rail";
+export { DraftQueueTable } from "./components/draft-queue-table";
+export { PersistedStreamTable } from "./components/persisted-stream-table";
 export { PremiumProjectWizard } from "./components/premium-project-wizard";
-export { ProjectCard } from "./components/project-card";
-export { ProjectPipeline } from "./components/project-pipeline";
-export { SimplifiedStats } from "./components/simplified-stats";
+export { ProposalSubfilters } from "./components/proposal-subfilters";
+export { StreamRow } from "./components/stream-row";

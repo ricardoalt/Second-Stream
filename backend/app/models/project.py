@@ -7,6 +7,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -54,6 +55,12 @@ class Project(BaseModel):
 
     __table_args__ = (
         Index("ix_project_data_gin", "project_data", postgresql_using="gin"),
+        CheckConstraint(
+            "proposal_follow_up_state IS NULL OR proposal_follow_up_state IN "
+            "('uploaded', 'waiting_to_send', 'waiting_response', "
+            "'under_negotiation', 'accepted', 'rejected')",
+            name="ck_projects_proposal_follow_up_state",
+        ),
         UniqueConstraint("id", "organization_id", name="uq_projects_id_org"),
         ForeignKeyConstraint(
             ["location_id", "organization_id"],
@@ -158,6 +165,12 @@ class Project(BaseModel):
     archived_by_parent_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("locations.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    proposal_follow_up_state: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+        index=True,
+        comment="Stream-level proposal commercial follow-up state",
     )
 
     # ═══════════════════════════════════════════════════════════

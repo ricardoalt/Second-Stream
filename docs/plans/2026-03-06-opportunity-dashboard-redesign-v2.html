@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecondStream - Main Dashboard Redesign v2</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap');
+
+    :root {
+      --bg: #0a0e13;
+      --bg-soft: #0e1319;
+      --panel: rgba(17, 23, 31, 0.92);
+      --panel-2: rgba(20, 27, 36, 0.94);
+      --panel-muted: rgba(15, 20, 28, 0.78);
+      --border: rgba(145, 162, 183, 0.14);
+      --border-strong: rgba(166, 186, 210, 0.22);
+      --text: #edf1f5;
+      --text-secondary: #a7b2bf;
+      --text-muted: #758395;
+      --active: #67c2d0;
+      --active-soft: rgba(103, 194, 208, 0.12);
+      --ready: #27c983;
+      --ready-soft: rgba(39, 201, 131, 0.12);
+      --waiting: #f0aa42;
+      --waiting-soft: rgba(240, 170, 66, 0.12);
+      --risk: #df7152;
+      --risk-soft: rgba(223, 113, 82, 0.12);
+      --complete: rgba(255, 255, 255, 0.07);
+      --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.34);
+      --shadow-md: 0 12px 30px rgba(0, 0, 0, 0.2);
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --radius-sm: 12px;
+      --radius-pill: 999px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top right, rgba(103, 194, 208, 0.08), transparent 24%),
+        radial-gradient(circle at bottom left, rgba(223, 113, 82, 0.04), transparent 24%),
+        linear-gradient(180deg, #0a0e13 0%, #080b10 100%);
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: radial-gradient(circle at center, black 35%, transparent 85%);
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    .app {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 26px 24px 36px;
+    }
+
+    .eyebrow {
+      color: var(--active);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-family: 'Instrument Serif', serif;
+      font-size: 42px;
+      line-height: 0.95;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+    }
+
+    .title p {
+      margin: 10px 0 0;
+      color: var(--text-secondary);
+      max-width: 720px;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .control,
+    .button {
+      min-height: 44px;
+      border-radius: var(--radius-pill);
+      padding: 0 16px;
+      border: 1px solid var(--border);
+      background: rgba(16, 21, 29, 0.86);
+      color: var(--text-secondary);
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      box-shadow: var(--shadow-md);
+      backdrop-filter: blur(12px);
+    }
+
+    .search { min-width: 300px; }
+
+    .button {
+      color: var(--text);
+      border-color: var(--border-strong);
+      background: linear-gradient(180deg, rgba(27, 39, 54, 0.98), rgba(18, 24, 32, 0.98));
+    }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(18, 24, 33, 0.97), rgba(14, 19, 27, 0.93));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      position: relative;
+      backdrop-filter: blur(16px);
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent 45%);
+      pointer-events: none;
+    }
+
+    .pulse {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0;
+      margin-bottom: 18px;
+      padding: 6px;
+    }
+
+    .pulse-item {
+      padding: 18px 18px 20px;
+      border-right: 1px solid var(--border);
+    }
+
+    .pulse-item:last-child { border-right: none; }
+
+    .pulse-label {
+      color: var(--text-muted);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .pulse-value {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+
+    .pulse-value strong {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 30px;
+      line-height: 1;
+      font-weight: 500;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 4px 8px;
+      border-radius: var(--radius-pill);
+      border: 1px solid transparent;
+      font-size: 10px;
+      line-height: 1;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .tag.active { background: var(--active-soft); color: var(--active); border-color: rgba(103,194,208,0.18); }
+    .tag.waiting { background: var(--waiting-soft); color: var(--waiting); border-color: rgba(240,170,66,0.18); }
+    .tag.ready { background: var(--ready-soft); color: var(--ready); border-color: rgba(39,201,131,0.18); }
+    .tag.draft { background: rgba(255,255,255,0.04); color: var(--text-secondary); border-color: var(--border); }
+    .tag.risk { background: var(--risk-soft); color: var(--risk); border-color: rgba(223,113,82,0.18); }
+
+    .pulse-note {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .bucket-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 12px;
+      margin-bottom: 18px;
+    }
+
+    .bucket-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .bucket {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .bucket strong {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .bucket.active {
+      background: rgba(103,194,208,0.08);
+      border-color: rgba(103,194,208,0.22);
+      color: var(--text);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+
+    .bucket.active strong { color: var(--active); }
+
+    .focus {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: center;
+      padding: 18px 22px;
+      margin-bottom: 20px;
+    }
+
+    .focus h2 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.05;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .focus p {
+      margin: 8px 0 0;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.55;
+      max-width: 760px;
+    }
+
+    .focus-tags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 20px;
+      margin-bottom: 20px;
+      align-items: start;
+    }
+
+    .left-stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .panel-head {
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.1;
+      font-weight: 600;
+    }
+
+    .panel-head p {
+      margin: 8px 0 0;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .ledger {
+      padding: 0 22px 8px;
+    }
+
+    .ledger-columns {
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.2fr) 0.85fr 1fr 0.95fr;
+      gap: 14px;
+      min-height: 42px;
+      align-items: center;
+      color: var(--text-muted);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 10px 0 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ledger-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.2fr) 0.85fr 1fr 0.95fr;
+      gap: 14px;
+      align-items: center;
+      min-height: 102px;
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+    }
+
+    .ledger-row:last-child { border-bottom: none; }
+
+    .stream-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 16px;
+      line-height: 1.15;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+
+    .stream-link:hover { color: var(--active); }
+
+    .stream-link::after {
+      content: ">";
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .meta,
+    .sub {
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-bottom: 4px;
+    }
+
+    .sub { color: var(--text-muted); margin-bottom: 0; }
+
+    .volume {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      width: fit-content;
+      padding: 6px 10px;
+      border-radius: var(--radius-pill);
+      border: 1px solid transparent;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .status.waiting { background: var(--waiting-soft); color: var(--waiting); border-color: rgba(240,170,66,0.2); }
+    .status.review { background: rgba(255,255,255,0.04); color: var(--text-secondary); border-color: var(--border); }
+    .status.discovery { background: var(--active-soft); color: var(--active); border-color: rgba(103,194,208,0.2); }
+    .status.blocked { background: var(--risk-soft); color: var(--risk); border-color: rgba(223,113,82,0.2); }
+
+    .ledger-footer {
+      display: flex;
+      justify-content: flex-end;
+      padding: 14px 0 10px;
+    }
+
+    .link-button,
+    .solid-button,
+    .ghost-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-strong);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .solid-button {
+      background: linear-gradient(180deg, rgba(27, 39, 54, 0.98), rgba(17, 24, 34, 0.98));
+    }
+
+    .rail {
+      display: grid;
+      gap: 18px;
+      position: sticky;
+      top: 20px;
+    }
+
+    .draft-list,
+    .ready-list,
+    .signal-list,
+    .breakdown-list,
+    .client-list,
+    .pattern-list {
+      display: grid;
+      gap: 0;
+      padding: 0 20px 16px;
+    }
+
+    .draft-item,
+    .ready-item,
+    .signal-item,
+    .breakdown-item,
+    .client-item,
+    .pattern-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      border-top: 1px solid var(--border);
+      padding: 14px 0;
+    }
+
+    .draft-item:first-child,
+    .ready-item:first-child,
+    .signal-item:first-child,
+    .breakdown-item:first-child,
+    .client-item:first-child,
+    .pattern-item:first-child {
+      border-top: none;
+    }
+
+    .draft-main,
+    .ready-main,
+    .client-main,
+    .pattern-main {
+      min-width: 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .draft-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .draft-link:hover { color: var(--active); }
+
+    .draft-link::after {
+      content: ">";
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .draft-side {
+      display: grid;
+      justify-items: end;
+      gap: 8px;
+      text-align: right;
+      min-width: 108px;
+    }
+
+    .ready-side,
+    .client-side {
+      display: grid;
+      justify-items: end;
+      gap: 8px;
+      text-align: right;
+      min-width: 132px;
+    }
+
+    .ready-side .tag,
+    .client-side .tag {
+      justify-self: end;
+    }
+
+    .mini-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    .mini-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text-secondary);
+      font-size: 11px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr);
+      gap: 18px;
+    }
+
+    .bottom-body {
+      padding: 0 20px 16px;
+    }
+
+    .breakdown-item,
+    .signal-item {
+      min-height: 52px;
+      align-items: center;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .breakdown-item strong,
+    .signal-item strong,
+    .pattern-item strong {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .pattern-item {
+      align-items: center;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .pattern-bar {
+      width: 120px;
+      height: 7px;
+      border-radius: var(--radius-pill);
+      background: rgba(255,255,255,0.05);
+      overflow: hidden;
+      margin: 0 10px;
+      flex-shrink: 0;
+    }
+
+    .pattern-bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, rgba(240,170,66,0.88), rgba(223,113,82,0.9));
+    }
+
+    .mobile {
+      max-width: 420px;
+      margin: 28px auto 0;
+    }
+
+    .mobile-frame {
+      border-radius: 34px;
+      border: 1px solid var(--border-strong);
+      background: linear-gradient(180deg, rgba(9, 13, 18, 0.96), rgba(7, 10, 15, 0.98));
+      padding: 14px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .mobile-screen {
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(17, 24, 34, 0.98), rgba(10, 15, 22, 0.96));
+      padding: 18px;
+    }
+
+    .mobile-notch {
+      width: 118px;
+      height: 28px;
+      border-radius: 0 0 18px 18px;
+      margin: 0 auto 16px;
+      background: rgba(5, 7, 10, 0.96);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-top: none;
+    }
+
+    .mobile-block {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: rgba(255,255,255,0.02);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .mobile-block h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.1;
+      font-weight: 600;
+    }
+
+    .mobile-block p,
+    .mobile-line {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.55;
+      margin: 0 0 8px;
+    }
+
+    .mobile-buckets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .mobile-bucket {
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text-secondary);
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .mobile-bucket.active {
+      color: var(--text);
+      border-color: rgba(103,194,208,0.22);
+      background: rgba(103,194,208,0.08);
+    }
+
+    .mobile-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: rgba(255,255,255,0.025);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .mobile-card h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      line-height: 1.15;
+      font-weight: 600;
+    }
+
+    .mobile-card h3 a {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .mobile-card h3 a:hover { color: var(--active); }
+
+    .mobile-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .inline-link {
+      color: var(--active);
+      text-decoration: none;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    @media (max-width: 1280px) {
+      .pulse { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .pulse-item:nth-child(3) { border-right: none; }
+      .pulse-item:nth-child(-n+3) { border-bottom: 1px solid var(--border); }
+      .bottom-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 1120px) {
+      .main-grid { grid-template-columns: 1fr; }
+      .rail { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .focus { grid-template-columns: 1fr; }
+      .bucket-bar { flex-direction: column; align-items: stretch; }
+      .toolbar { justify-content: flex-start; }
+    }
+
+    @media (max-width: 880px) {
+      .topbar { flex-direction: column; align-items: stretch; }
+      .search { min-width: 100%; }
+      .ledger-columns { display: none; }
+      .ledger-row { grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+      .rail { grid-template-columns: 1fr; }
+      .ready-item,
+      .client-item { flex-direction: column; }
+      .ready-side,
+      .client-side { justify-items: start; text-align: left; min-width: 0; }
+      .mini-tags { justify-content: flex-start; }
+    }
+
+    @media (max-width: 680px) {
+      .app { padding: 18px 16px 30px; }
+      .title h1 { font-size: 34px; }
+      .pulse { grid-template-columns: 1fr; }
+      .pulse-item { border-right: none; border-bottom: 1px solid var(--border); }
+      .pulse-item:last-child { border-bottom: none; }
+      .ledger-row { grid-template-columns: 1fr; }
+      .draft-item, .pattern-item { flex-direction: column; }
+      .draft-side { justify-items: start; text-align: left; min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="title">
+        <div class="eyebrow">SecondStream / portfolio pulse</div>
+        <h1>Main Dashboard</h1>
+        <p>
+          A cleaner portfolio-first view that separates confirmed waste streams from AI-detected drafts,
+          highlights missing information, and makes proposal readiness easy to scan.
+        </p>
+      </div>
+      <div class="toolbar">
+        <div class="control search">Search streams, companies, locations...</div>
+        <div class="control">Filters</div>
+        <div class="button">+ Add stream</div>
+      </div>
+    </header>
+
+    <section class="panel pulse" aria-label="Portfolio pulse">
+      <div class="pulse-item">
+        <div class="pulse-label">Streams discovered</div>
+        <div class="pulse-value"><strong>184</strong><span class="tag active">all</span></div>
+        <div class="pulse-note">Raw opportunity universe across confirmed streams and AI-detected candidates.</div>
+      </div>
+      <div class="pulse-item">
+        <div class="pulse-label">Confirmed streams</div>
+        <div class="pulse-value"><strong>126</strong><span class="tag active">live</span></div>
+        <div class="pulse-note">Streams already validated by a human and assigned to a company and location.</div>
+      </div>
+      <div class="pulse-item">
+        <div class="pulse-label">Missing information</div>
+        <div class="pulse-value"><strong>31</strong><span class="tag waiting">follow-up</span></div>
+        <div class="pulse-note">Confirmed streams still blocked by critical missing fields or stale evidence.</div>
+      </div>
+      <div class="pulse-item">
+        <div class="pulse-label">Proposal-ready</div>
+        <div class="pulse-value"><strong>18</strong><span class="tag ready">ready</span></div>
+        <div class="pulse-note">Streams with enough confirmed information to move directly toward proposal generation.</div>
+      </div>
+      <div class="pulse-item">
+        <div class="pulse-label">Drafts pending review</div>
+        <div class="pulse-value"><strong>58</strong><span class="tag draft">AI</span></div>
+        <div class="pulse-note">Candidate waste streams inferred from interviews, files, or notes and still awaiting human confirmation.</div>
+      </div>
+    </section>
+
+    <section class="panel bucket-bar" aria-label="Buckets">
+      <div class="bucket-list">
+        <div class="bucket"><strong>46</strong> Clients</div>
+        <div class="bucket active"><strong>126</strong> All confirmed</div>
+        <div class="bucket"><strong>31</strong> Missing info</div>
+        <div class="bucket"><strong>18</strong> Proposal ready</div>
+        <div class="bucket"><strong>58</strong> Drafts</div>
+        <div class="bucket"><strong>87</strong> Complete</div>
+      </div>
+      <div class="toolbar">
+        <div class="control">Sort: Recent</div>
+        <div class="control">Owner</div>
+      </div>
+    </section>
+
+    <section class="panel focus" aria-label="Current scope">
+      <div>
+        <h2>All Confirmed Waste Streams</h2>
+        <p>
+          The main queue only includes streams already confirmed by a user. AI-detected candidates stay isolated in the draft queue until someone assigns company, location, and confirms the stream.
+        </p>
+      </div>
+      <div class="focus-tags">
+        <span class="chip">31 need follow-up</span>
+        <span class="chip">18 ready for proposal</span>
+        <span class="chip">58 drafts outside portfolio</span>
+      </div>
+    </section>
+
+    <section class="main-grid">
+      <div class="left-stack">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Needs Attention Today</h2>
+            <p>Confirmed streams that should move first because they are blocked by missing information, stale evidence, or unresolved review.</p>
+          </div>
+          <div class="ledger">
+            <div class="ledger-columns">
+              <div>Waste stream</div>
+              <div>Company / Location</div>
+              <div>Volume</div>
+              <div>Missing information</div>
+              <div>Status</div>
+            </div>
+
+            <div class="ledger-row">
+              <div>
+                <a class="stream-link" href="#spent-acetone">Spent Acetone Recovery</a>
+                <div class="meta">Solvents</div>
+                <div class="sub">Owner: Raul</div>
+              </div>
+              <div>
+                <div class="meta">Meridian Chemical</div>
+                <div class="sub">Monterrey plant</div>
+              </div>
+              <div>
+                <div class="volume">20 drums/mo</div>
+                <div class="sub">Estimated</div>
+              </div>
+              <div>
+                <div class="meta">Water %, SDS</div>
+                <div class="sub">2 critical inputs</div>
+              </div>
+              <div>
+                <div class="status waiting">Waiting on client</div>
+                <div class="sub">Aging 4d · 78% ready</div>
+              </div>
+            </div>
+
+            <div class="ledger-row">
+              <div>
+                <a class="stream-link" href="#paint-sludge">Paint Sludge</a>
+                <div class="meta">Metals</div>
+                <div class="sub">Owner: Ana</div>
+              </div>
+              <div>
+                <div class="meta">NorChem Foundry</div>
+                <div class="sub">Ohio facility</div>
+              </div>
+              <div>
+                <div class="volume">8 t/mo</div>
+                <div class="sub">Confirmed</div>
+              </div>
+              <div>
+                <div class="meta">Classification</div>
+                <div class="sub">1 critical input</div>
+              </div>
+              <div>
+                <div class="status review">Analyst review</div>
+                <div class="sub">Pricing hold · 52% ready</div>
+              </div>
+            </div>
+
+            <div class="ledger-row">
+              <div>
+                <a class="stream-link" href="#solvent-blend">Solvent Blend</a>
+                <div class="meta">Solvents</div>
+                <div class="sub">Owner: Sofia</div>
+              </div>
+              <div>
+                <div class="meta">Delta Coatings</div>
+                <div class="sub">California site</div>
+              </div>
+              <div>
+                <div class="volume">12 drums/wk</div>
+                <div class="sub">Unverified</div>
+              </div>
+              <div>
+                <div class="meta">SDS, flash point</div>
+                <div class="sub">3 missing fields</div>
+              </div>
+              <div>
+                <div class="status blocked">Blocked</div>
+                <div class="sub">No fresh docs · 34% ready</div>
+              </div>
+            </div>
+
+            <div class="ledger-footer">
+              <div class="link-button">View all attention-needed streams</div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Proposal-Ready Queue</h2>
+            <p>Confirmed streams with enough information to move directly into proposal creation or final review.</p>
+          </div>
+          <div class="ready-list">
+            <div class="ready-item">
+              <div class="ready-main">
+                <a class="draft-link" href="#pet-regrind">PET Regrind</a>
+                <div class="meta">Beta Manufacturing · Queretaro</div>
+                <div class="sub">6.4 t/mo · no critical missing fields</div>
+              </div>
+              <div class="ready-side">
+                <span class="tag ready">proposal-ready</span>
+                <div class="ghost-button">Prepare proposal</div>
+              </div>
+            </div>
+            <div class="ready-item">
+              <div class="ready-main">
+                <a class="draft-link" href="#used-oil">Used Oil Stream</a>
+                <div class="meta">Delta South · Saltillo</div>
+                <div class="sub">4 t/mo · cost baseline confirmed</div>
+              </div>
+              <div class="ready-side">
+                <span class="tag ready">proposal-ready</span>
+                <div class="ghost-button">Review proposal</div>
+              </div>
+            </div>
+            <div class="ready-item">
+              <div class="ready-main">
+                <a class="draft-link" href="#cardboard-mix">Cardboard Mix</a>
+                <div class="meta">Gamma Packaging · Puebla</div>
+                <div class="sub">15 t/mo · pricing path already validated</div>
+              </div>
+              <div class="ready-side">
+                <span class="tag ready">ready</span>
+                <div class="ghost-button">Open proposal</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Portfolio by Client</h2>
+            <p>Compact client-level summary so the broker keeps portfolio context without losing focus on daily work.</p>
+          </div>
+          <div class="client-list">
+            <div class="client-item">
+              <div class="client-main">
+                <div class="meta" style="color: var(--text); font-weight: 600; font-size: 14px;">Meridian Chemical</div>
+                <div class="sub">Monterrey plant + 2 related streams</div>
+              </div>
+              <div class="client-side">
+                <div class="mini-tags">
+                  <span class="mini-tag">3 confirmed</span>
+                  <span class="mini-tag">1 missing info</span>
+                  <span class="mini-tag">1 ready</span>
+                </div>
+              </div>
+            </div>
+            <div class="client-item">
+              <div class="client-main">
+                <div class="meta" style="color: var(--text); font-weight: 600; font-size: 14px;">NorChem Foundry</div>
+                <div class="sub">Ohio facility + active metals portfolio</div>
+              </div>
+              <div class="client-side">
+                <div class="mini-tags">
+                  <span class="mini-tag">2 confirmed</span>
+                  <span class="mini-tag">1 under review</span>
+                  <span class="mini-tag">0 drafts</span>
+                </div>
+              </div>
+            </div>
+            <div class="client-item">
+              <div class="client-main">
+                <div class="meta" style="color: var(--text); font-weight: 600; font-size: 14px;">Delta Coatings</div>
+                <div class="sub">California site + solvent-related backlog</div>
+              </div>
+              <div class="client-side">
+                <div class="mini-tags">
+                  <span class="mini-tag">1 confirmed</span>
+                  <span class="mini-tag">1 blocked</span>
+                  <span class="mini-tag">2 drafts</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <aside class="rail">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Draft Waste Streams</h2>
+            <p>AI-detected candidates that are still outside the confirmed portfolio until a user validates and assigns them.</p>
+          </div>
+          <div class="draft-list">
+            <div class="draft-item">
+              <div class="draft-main">
+                <a class="draft-link" href="#draft-metal">Mixed metal scrap</a>
+                <div class="meta">~8 t/mo · source: interview analysis</div>
+                <div class="sub">Missing company and location assignment</div>
+              </div>
+              <div class="draft-side">
+                <span class="tag draft">not confirmed</span>
+                <div class="ghost-button">Review draft</div>
+              </div>
+            </div>
+            <div class="draft-item">
+              <div class="draft-main">
+                <a class="draft-link" href="#draft-oil">Used oil stream</a>
+                <div class="meta">4 t/mo · source: invoice + notes</div>
+                <div class="sub">Likely company match found, location still missing</div>
+              </div>
+              <div class="draft-side">
+                <span class="tag draft">not confirmed</span>
+                <div class="ghost-button">Confirm</div>
+              </div>
+            </div>
+            <div class="draft-item">
+              <div class="draft-main">
+                <a class="draft-link" href="#draft-solvent">Unknown solvent blend</a>
+                <div class="meta">12 drums/wk · source: SDS upload</div>
+                <div class="sub">Needs company, location, and owner review</div>
+              </div>
+              <div class="draft-side">
+                <span class="tag draft">needs review</span>
+                <div class="ghost-button">Assign</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Critical Signals</h2>
+            <p>Quick portfolio alerts that should not compete with the main queue but still need visibility.</p>
+          </div>
+          <div class="signal-list">
+            <div class="signal-item"><span>Clients with 3+ blockers</span><strong>4</strong></div>
+            <div class="signal-item"><span>Locations without owner</span><strong>2</strong></div>
+            <div class="signal-item"><span>Streams stalled &gt; 10 days</span><strong>3</strong></div>
+          </div>
+        </article>
+      </aside>
+    </section>
+
+    <section class="bottom-grid">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Where Confirmed Streams Are Sitting</h2>
+          <p>A compact status breakdown for the confirmed portfolio only.</p>
+        </div>
+        <div class="breakdown-list">
+          <div class="breakdown-item"><span>In discovery</span><strong>61</strong></div>
+          <div class="breakdown-item"><span>Waiting on client</span><strong>19</strong></div>
+          <div class="breakdown-item"><span>Analyst review</span><strong>22</strong></div>
+          <div class="breakdown-item"><span>Blocked</span><strong>11</strong></div>
+          <div class="breakdown-item"><span>Proposal-ready</span><strong>18</strong></div>
+          <div class="breakdown-item"><span>Complete</span><strong>87</strong></div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Top Missing Info Patterns</h2>
+          <p>The repeat blockers most often slowing discovery quality and proposal readiness.</p>
+        </div>
+        <div class="pattern-list">
+          <div class="pattern-item">
+            <div class="pattern-main"><span>SDS / profile missing</span></div>
+            <div class="pattern-bar"><span style="width:100%"></span></div>
+            <strong>14</strong>
+          </div>
+          <div class="pattern-item">
+            <div class="pattern-main"><span>Volume / recurrence unknown</span></div>
+            <div class="pattern-bar"><span style="width:79%"></span></div>
+            <strong>11</strong>
+          </div>
+          <div class="pattern-item">
+            <div class="pattern-main"><span>Lab / testing missing</span></div>
+            <div class="pattern-bar"><span style="width:71%"></span></div>
+            <strong>10</strong>
+          </div>
+          <div class="pattern-item">
+            <div class="pattern-main"><span>Generating process unclear</span></div>
+            <div class="pattern-bar"><span style="width:64%"></span></div>
+            <strong>9</strong>
+          </div>
+          <div class="pattern-item">
+            <div class="pattern-main"><span>Current cost / invoice missing</span></div>
+            <div class="pattern-bar"><span style="width:57%"></span></div>
+            <strong>8</strong>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Recent Signals</h2>
+          <p>Short operational feed showing meaningful portfolio movement today.</p>
+        </div>
+        <div class="signal-list">
+          <div class="signal-item"><span>New streams discovered</span><strong>+8</strong></div>
+          <div class="signal-item"><span>Drafts confirmed</span><strong>5</strong></div>
+          <div class="signal-item"><span>Moved to proposal-ready</span><strong>3</strong></div>
+          <div class="signal-item"><span>Fresh evidence uploaded</span><strong>7</strong></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="mobile">
+      <div class="eyebrow">Mobile preview / clean priority stack</div>
+      <div class="mobile-frame">
+        <div class="mobile-notch"></div>
+        <div class="mobile-screen">
+          <div class="mobile-block">
+            <h2>Main Dashboard</h2>
+            <p>Streams 184 · Confirmed 126 · Missing info 31 · Ready 18 · Drafts 58</p>
+          </div>
+
+      <div class="mobile-buckets">
+        <span class="mobile-bucket">Clients</span>
+        <span class="mobile-bucket active">Confirmed</span>
+        <span class="mobile-bucket">Missing info</span>
+        <span class="mobile-bucket">Ready</span>
+        <span class="mobile-bucket">Drafts</span>
+      </div>
+
+          <div class="mobile-block">
+            <h2>Needs Attention Today</h2>
+            <p>Confirmed streams blocked by missing information or unresolved review.</p>
+          </div>
+
+          <div class="mobile-block">
+            <h2>Draft Waste Streams</h2>
+            <p>AI-detected candidates still waiting for human confirmation.</p>
+            <div class="mobile-line">Mixed metal scrap · ~8 t/mo · missing company + location</div>
+            <div class="mobile-line">Used oil stream · 4 t/mo · location still missing</div>
+          </div>
+
+          <div class="mobile-card">
+            <h3><a href="#spent-acetone">Spent Acetone Recovery</a></h3>
+            <div class="mobile-line">Meridian Chemical · Monterrey plant</div>
+            <div class="mobile-line">Volume: 20 drums/mo</div>
+            <div class="mobile-line">Missing: Water %, SDS</div>
+            <div class="mobile-line">Status: Waiting on client</div>
+            <div class="mobile-footer">
+              <span class="tag waiting">78% ready</span>
+              <a class="inline-link" href="#spent-acetone">Open stream</a>
+            </div>
+          </div>
+
+          <div class="mobile-card">
+            <h3><a href="#paint-sludge">Paint Sludge</a></h3>
+            <div class="mobile-line">NorChem Foundry · Ohio facility</div>
+            <div class="mobile-line">Volume: 8 t/mo</div>
+            <div class="mobile-line">Missing: Classification</div>
+            <div class="mobile-line">Status: Analyst review</div>
+            <div class="mobile-footer">
+              <span class="tag ready">52% ready</span>
+              <a class="inline-link" href="#paint-sludge">Open stream</a>
+            </div>
+          </div>
+
+          <div class="mobile-block">
+            <h2>Proposal-Ready Queue</h2>
+            <div class="mobile-line">PET Regrind · Beta Manufacturing · 6.4 t/mo</div>
+            <div class="mobile-line">Used Oil Stream · Delta South · 4 t/mo</div>
+          </div>
+
+          <div class="mobile-block">
+            <h2>Portfolio by Client</h2>
+            <div class="mobile-line">Meridian Chemical · 3 confirmed · 1 ready</div>
+            <div class="mobile-line">NorChem Foundry · 2 confirmed · 1 under review</div>
+            <div class="mobile-line">Delta Coatings · 1 blocked · 2 drafts</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -20,6 +20,9 @@ interface CompanyState {
 	loading: boolean;
 	error: string | null;
 	archivedFilter: ArchivedFilter;
+	companiesLoadedScope: ArchivedFilter | null;
+	companiesLoadSucceeded: boolean;
+	_companiesRequestId: number;
 
 	// Actions
 	loadCompanies: (archived?: ArchivedFilter) => Promise<void>;
@@ -45,26 +48,42 @@ export const useCompanyStore = create<CompanyState>()(
 			loading: false,
 			error: null,
 			archivedFilter: "active",
+			companiesLoadedScope: null,
+			companiesLoadSucceeded: false,
+			_companiesRequestId: 0,
 
 			// Load all companies
 			loadCompanies: async (archived?: ArchivedFilter) => {
+				const filter = archived ?? get().archivedFilter;
+				const requestId = get()._companiesRequestId + 1;
 				set((state) => {
+					const isScopeChange = state.archivedFilter !== filter;
+					state._companiesRequestId = requestId;
 					state.loading = true;
 					state.error = null;
+					state.archivedFilter = filter;
+					state.companiesLoadSucceeded = false;
+					if (isScopeChange) {
+						state.companies = [];
+					}
 				});
 
 				try {
-					const filter = archived ?? get().archivedFilter;
 					const companies = await companiesAPI.list(filter);
+					if (get()._companiesRequestId !== requestId) return;
 					set((state) => {
 						state.companies = companies;
+						state.companiesLoadedScope = filter;
+						state.companiesLoadSucceeded = true;
 						state.loading = false;
 					});
 				} catch (error) {
+					if (get()._companiesRequestId !== requestId) return;
 					const message = getErrorMessage(error, "Failed to load companies");
 					logger.error("Failed to load companies", error, "CompanyStore");
 					set((state) => {
 						state.error = message;
+						state.companiesLoadSucceeded = false;
 						state.loading = false;
 					});
 					throw error;
@@ -279,6 +298,9 @@ export const useCompanyStore = create<CompanyState>()(
 					state.loading = false;
 					state.error = null;
 					state.archivedFilter = "active";
+					state.companiesLoadedScope = null;
+					state.companiesLoadSucceeded = false;
+					state._companiesRequestId = 0;
 				});
 				if (typeof window !== "undefined") {
 					localStorage.removeItem("waste-company-store");
