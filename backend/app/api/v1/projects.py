@@ -42,6 +42,7 @@ from app.authz.authz import (
     require_permission,
 )
 from app.main import limiter
+from app.models.discovery_session import DiscoverySource
 from app.models.project import Project
 from app.schemas.common import ErrorResponse, PaginatedResponse, SuccessResponse
 from app.schemas.dashboard import (
@@ -64,6 +65,7 @@ from app.schemas.project import (
     ProjectSummary,
     ProjectUpdate,
 )
+from app.services.bulk_import_service import BulkImportService
 from app.services.project_data_service import ProjectDataService
 from app.services.storage_delete_service import (
     StorageDeleteError,
@@ -79,6 +81,11 @@ router = APIRouter()
 
 INTELLIGENCE_REPORT_THRESHOLD = 70
 TOTAL_DRAFT_PREVIEW_LIMIT = 5
+
+
+bulk_import_service = BulkImportService()
+
+
 PROPOSAL_FOLLOW_UP_TRANSITIONS: dict[str | None, set[str]] = {
     None: {"uploaded"},
     "uploaded": {"waiting_to_send"},
@@ -228,13 +235,10 @@ def _project_completion(project: Project) -> int:
 def _derive_persisted_bucket(
     *,
     proposal_follow_up_state: ProposalFollowUpState | None,
-    pending_confirmation: bool,
     completion: int,
 ) -> DashboardBucket:
     if proposal_follow_up_state is not None:
         return "proposal"
-    if pending_confirmation:
-        return "needs_confirmation"
     if completion >= INTELLIGENCE_REPORT_THRESHOLD:
         return "intelligence_report"
     return "missing_information"
@@ -367,7 +371,6 @@ async def _build_persisted_dashboard_rows(
             continue
         bucket = _derive_persisted_bucket(
             proposal_follow_up_state=effective_state,
-            pending_confirmation=pending_confirmation,
             completion=completion,
         )
         resolved_company_label = company_label or project.company_name
@@ -483,6 +486,12 @@ async def _build_draft_dashboard_rows(
             ImportItem.item_type == "project",
             ImportItem.created_project_id.is_(None),
             ImportItem.status.in_(("pending_review", "accepted", "amended")),
+            select(DiscoverySource.id)
+            .where(
+                DiscoverySource.import_run_id == ImportRun.id,
+                DiscoverySource.source_type.in_(("file", "text", "audio")),
+            )
+            .exists(),
         )
     )
 
@@ -513,39 +522,241 @@ async def _build_draft_dashboard_rows(
             resolved_company_id is None or resolved_company_id != company_id
         ):
             continue
-        location_label = parent_data.get("name")
-        if not isinstance(location_label, str) or not location_label.strip():
-            location_label = entrypoint_location_name
+
+        location_label: str | None = None
+        if isinstance(parent_data.get("name"), str):
+            parent_name = parent_data.get("name")
+            assert isinstance(parent_name, str)
+            normalized_parent_name = parent_name.strip()
+            if normalized_parent_name:
+                location_label = normalized_parent_name
+
+        if (
+            location_label is None
+            and run.entrypoint_type == "location"
+            and isinstance(entrypoint_location_name, str)
+            and entrypoint_location_name.strip()
+        ):
+            location_label = entrypoint_location_name.strip()
+
         stream_name = str(normalized_data.get("name") or "").strip() or "Pending"
+
+        draft_kind: Literal["linked", "orphan_stream", "location_only"]
+        if parent_item is not None or run.entrypoint_type == "location":
+            draft_kind = "linked"
+        else:
+            draft_kind = "orphan_stream"
+
+        group_id = bulk_import_service._effective_group_id(item)
+
+        confirmable = group_id is not None
         if not _matches_search(
             search=search,
             stream_name=stream_name,
             company_label=resolved_company_label,
-            location_label=location_label if isinstance(location_label, str) else None,
+            location_label=location_label,
         ):
             continue
+
         rows.append(
             DraftItemDashboardRow(
                 bucket="needs_confirmation",
                 item_id=item.id,
                 run_id=run.id,
+                group_id=group_id,
                 stream_name=stream_name,
                 company_id=resolved_company_id,
                 company_label=resolved_company_label,
-                location_label=location_label if isinstance(location_label, str) else None,
+                location_label=location_label,
                 volume_summary=_extract_volume_summary(normalized_data),
                 last_activity_at=item.updated_at,
                 source_type=run.source_type,
                 draft_status=item.status,
                 confidence=item.confidence,
-                target=DraftTargetResponse(
-                    target_kind="confirmation_flow",
-                    run_id=run.id,
-                    item_id=item.id,
-                    source_type=run.source_type,
-                    entrypoint_type=run.entrypoint_type,
-                    entrypoint_id=run.entrypoint_id,
+                draft_kind=draft_kind,
+                confirmable=confirmable,
+                target=(
+                    DraftTargetResponse(
+                        target_kind="confirmation_flow",
+                        run_id=run.id,
+                        item_id=item.id,
+                        source_type=run.source_type,
+                        entrypoint_type=run.entrypoint_type,
+                        entrypoint_id=run.entrypoint_id,
+                    )
+                    if confirmable
+                    else None
                 ),
+            )
+        )
+    return rows
+
+
+async def _build_location_only_draft_rows(
+    *,
+    db: AsyncDB,
+    current_user: CurrentUser,
+    org: OrganizationContext,
+    archived: Literal["active", "archived", "all"],
+    company_id: UUID | None,
+    proposal_follow_up_state: ProposalFollowUpState | None,
+    search: str | None,
+) -> list[DraftItemDashboardRow]:
+    if archived == "archived" or proposal_follow_up_state is not None:
+        return []
+
+    from app.models.bulk_import import ImportItem, ImportRun
+    from app.models.company import Company
+    from app.models.location import Location
+
+    EntrypointLocation = aliased(Location)
+    EntrypointCompany = aliased(Company)
+    LocationCompany = aliased(Company)
+
+    query = (
+        select(
+            ImportItem,
+            ImportRun,
+            EntrypointCompany.id.label("entrypoint_company_id"),
+            EntrypointCompany.name.label("entrypoint_company_name"),
+            EntrypointLocation.company_id.label("entrypoint_location_company_id"),
+            EntrypointLocation.name.label("entrypoint_location_name"),
+            LocationCompany.name.label("entrypoint_location_company_name"),
+        )
+        .join(
+            ImportRun,
+            and_(
+                ImportItem.run_id == ImportRun.id,
+                ImportItem.organization_id == ImportRun.organization_id,
+            ),
+        )
+        .outerjoin(
+            EntrypointCompany,
+            and_(
+                ImportRun.entrypoint_type == "company",
+                ImportRun.entrypoint_id == EntrypointCompany.id,
+                EntrypointCompany.organization_id == ImportRun.organization_id,
+            ),
+        )
+        .outerjoin(
+            EntrypointLocation,
+            and_(
+                ImportRun.entrypoint_type == "location",
+                ImportRun.entrypoint_id == EntrypointLocation.id,
+                EntrypointLocation.organization_id == ImportRun.organization_id,
+            ),
+        )
+        .outerjoin(
+            LocationCompany,
+            and_(
+                EntrypointLocation.company_id == LocationCompany.id,
+                LocationCompany.organization_id == ImportRun.organization_id,
+            ),
+        )
+        .where(
+            ImportRun.organization_id == org.id,
+            ImportItem.organization_id == org.id,
+            ImportRun.status == "review_ready",
+            ImportItem.item_type == "location",
+            ImportItem.created_location_id.is_(None),
+            ImportItem.status.in_(("pending_review", "accepted", "amended")),
+            select(DiscoverySource.id)
+            .where(
+                DiscoverySource.import_run_id == ImportRun.id,
+                DiscoverySource.source_type.in_(("file", "text", "audio")),
+            )
+            .exists(),
+        )
+    )
+
+    if not has_any_scope_access(current_user, permissions.PROJECT_READ):
+        query = query.where(ImportRun.created_by_user_id == current_user.id)
+
+    candidates_result = await db.execute(query.order_by(ImportItem.updated_at.desc()))
+    candidates = candidates_result.all()
+    if not candidates:
+        return []
+
+    candidate_item_ids = [row[0].id for row in candidates]
+    active_child_result = await db.execute(
+        select(ImportItem.parent_item_id)
+        .where(
+            ImportItem.organization_id == org.id,
+            ImportItem.item_type == "project",
+            ImportItem.parent_item_id.in_(candidate_item_ids),
+            ImportItem.created_project_id.is_(None),
+            ImportItem.status.in_(("pending_review", "accepted", "amended")),
+        )
+        .group_by(ImportItem.parent_item_id)
+    )
+    location_ids_with_active_projects = {
+        parent_item_id
+        for parent_item_id in active_child_result.scalars().all()
+        if parent_item_id is not None
+    }
+
+    rows: list[DraftItemDashboardRow] = []
+    for (
+        item,
+        run,
+        entrypoint_company_id,
+        entrypoint_company_name,
+        entrypoint_location_company_id,
+        entrypoint_location_name,
+        entrypoint_location_company_name,
+    ) in candidates:
+        if item.id in location_ids_with_active_projects:
+            continue
+
+        normalized_data = item.normalized_data if isinstance(item.normalized_data, dict) else {}
+        resolved_company_id = entrypoint_company_id or entrypoint_location_company_id
+        resolved_company_label = entrypoint_company_name or entrypoint_location_company_name
+        if company_id is not None and (
+            resolved_company_id is None or resolved_company_id != company_id
+        ):
+            continue
+
+        detected_location_name_raw = normalized_data.get("name")
+        detected_location_name = (
+            detected_location_name_raw.strip()
+            if isinstance(detected_location_name_raw, str)
+            else ""
+        )
+        if not detected_location_name:
+            detected_location_name = "Detected location"
+
+        location_label: str | None = detected_location_name
+        if not location_label and isinstance(entrypoint_location_name, str):
+            normalized_entrypoint_name = entrypoint_location_name.strip()
+            if normalized_entrypoint_name:
+                location_label = normalized_entrypoint_name
+
+        if not _matches_search(
+            search=search,
+            stream_name=detected_location_name,
+            company_label=resolved_company_label,
+            location_label=location_label,
+        ):
+            continue
+
+        rows.append(
+            DraftItemDashboardRow(
+                bucket="needs_confirmation",
+                item_id=item.id,
+                run_id=run.id,
+                group_id=item.group_id,
+                stream_name=detected_location_name,
+                company_id=resolved_company_id,
+                company_label=resolved_company_label,
+                location_label=location_label,
+                volume_summary=None,
+                last_activity_at=item.updated_at,
+                source_type=run.source_type,
+                draft_status=item.status,
+                confidence=item.confidence,
+                draft_kind="location_only",
+                confirmable=False,
+                target=None,
             )
         )
     return rows
@@ -872,6 +1083,7 @@ async def get_dashboard_projection(
         proposal_follow_up_state=proposal_follow_up_state,
         search=search,
     )
+    secondary_draft_rows: list[DraftItemDashboardRow] = []
 
     all_rows = sorted(
         [*persisted_rows, *draft_rows],
@@ -901,6 +1113,7 @@ async def get_dashboard_projection(
         size=size,
         pages=pages,
         draft_preview=draft_preview,
+        secondary_draft_rows=secondary_draft_rows,
     )
 
 

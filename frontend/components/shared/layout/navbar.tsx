@@ -7,7 +7,6 @@ import {
 	LogOut,
 	Menu,
 	Plus,
-	Recycle,
 	Search,
 	Settings,
 	Shield,
@@ -20,11 +19,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const PremiumProjectWizard = dynamic(
+const DiscoveryWizard = dynamic(
 	() =>
-		import(
-			"@/components/features/dashboard/components/premium-project-wizard"
-		).then((mod) => mod.PremiumProjectWizard),
+		import("@/components/features/discovery-wizard/discovery-wizard").then(
+			(mod) => mod.DiscoveryWizard,
+		),
 	{ ssr: false, loading: () => null },
 );
 
@@ -124,9 +123,9 @@ export function NavBar() {
 	const [mounted, setMounted] = useState(false);
 	const quickActions: QuickAction[] = [
 		{
-			name: "New Waste Stream",
+			name: "Discovery Wizard",
 			icon: Zap,
-			description: "Start new waste stream",
+			description: "Discover waste streams from files, audio, or text",
 			onSelect: () => setCreateModalOpen(true),
 		},
 		{
@@ -211,8 +210,11 @@ export function NavBar() {
 			<nav className="glass-nav sticky top-0 z-50 w-full">
 				<div className="mx-auto flex h-[4.25rem] w-full max-w-6xl items-center justify-between gap-6 px-4 md:px-6">
 					<div className="flex items-center gap-4 md:gap-6">
-						<Link href="/dashboard" className="flex items-center -ml-2">
-							<DSRLogo width={85} height={42} showText={false} />
+						<Link
+							href="/dashboard"
+							className="flex shrink-0 items-center justify-center md:w-[250px]"
+						>
+							<DSRLogo width={244} height={100} />
 						</Link>
 
 						<div className="hidden items-center gap-2 rounded-full border border-border/40 bg-card/60 px-2 py-1 backdrop-blur-xl shadow-md md:flex">
@@ -404,12 +406,11 @@ export function NavBar() {
 							<SheetContent side="left" className="glass-card pr-0">
 								<SheetHeader>
 									<SheetTitle className="flex items-center">
-										<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/90 text-primary-foreground shadow-md">
-											<Recycle className="h-4 w-4" />
-										</div>
-										<span className="ml-2 text-lg font-bold">DSR Inc.</span>
+										<DSRLogo width={220} height={90} />
 									</SheetTitle>
-									<SheetDescription>Waste Resource Management</SheetDescription>
+									<SheetDescription>
+										AI waste opportunity platform
+									</SheetDescription>
 								</SheetHeader>
 								<div className="my-6 flex flex-col space-y-4 pl-1">
 									{PRIMARY_NAV_LINKS.map((link) => {
@@ -439,7 +440,7 @@ export function NavBar() {
 											setMobileMenuOpen(false);
 										}}
 									>
-										<Plus className="mr-2 h-4 w-4" /> New Waste Stream
+										<Plus className="mr-2 h-4 w-4" /> Discovery Wizard
 									</Button>
 								</div>
 							</SheetContent>
@@ -557,13 +558,10 @@ export function NavBar() {
 				</CommandList>
 			</CommandDialog>
 
-			{/* Premium Project Wizard */}
-			<PremiumProjectWizard
+			{/* Discovery Wizard */}
+			<DiscoveryWizard
 				open={createModalOpen}
 				onOpenChange={setCreateModalOpen}
-				onProjectCreated={() => {
-					// Project creation handled by wizard
-				}}
 			/>
 
 			{/* Organization Selection Modal for super admins */}

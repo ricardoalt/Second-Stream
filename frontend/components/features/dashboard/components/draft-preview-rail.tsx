@@ -50,8 +50,8 @@ export const DraftPreviewRail = memo(function DraftPreviewRail() {
 					</Badge>
 				</CardTitle>
 				<p className="text-xs text-muted-foreground">
-					Detected streams waiting for a quick human review before they join the
-					active pipeline.
+					Detected streams and locations waiting for human review before
+					entering the active pipeline.
 				</p>
 			</CardHeader>
 			<CardContent className="space-y-2 pt-0">
@@ -59,7 +59,8 @@ export const DraftPreviewRail = memo(function DraftPreviewRail() {
 					<DraftPreviewCard
 						key={item.itemId}
 						item={item}
-						onOpen={openDraftConfirmation}
+						onOpenDraft={openDraftConfirmation}
+						onOpenQueue={openFullDraftQueue}
 					/>
 				))}
 				{remaining > 0 && (
@@ -85,14 +86,20 @@ export const DraftPreviewRail = memo(function DraftPreviewRail() {
 
 function DraftPreviewCard({
 	item,
-	onOpen,
+	onOpenDraft,
+	onOpenQueue,
 }: {
 	item: DraftItemRow;
-	onOpen: (draft: DraftItemRow) => void;
+	onOpenDraft: (draft: DraftItemRow) => void;
+	onOpenQueue: () => void;
 }) {
 	const handleClick = useCallback(() => {
-		onOpen(item);
-	}, [item, onOpen]);
+		if (item.confirmable) {
+			onOpenDraft(item);
+			return;
+		}
+		onOpenQueue();
+	}, [item, onOpenDraft, onOpenQueue]);
 
 	const className = cn(
 		"group w-full text-left rounded-md border border-border/40 bg-card/80 p-3",
@@ -118,7 +125,14 @@ function DraftPreviewCard({
 				<Badge variant="outline" className="text-xs border-border/40">
 					{item.sourceType === "bulk_import" ? "Import source" : "Voice source"}
 				</Badge>
-				<span>Awaiting confirmation</span>
+				<Badge variant="outline" className="text-xs border-border/40">
+					{item.draftKind === "location_only"
+						? "Location only"
+						: "Stream draft"}
+				</Badge>
+				<span>
+					{item.confirmable ? "Awaiting confirmation" : "Needs queue review"}
+				</span>
 			</div>
 			<div className="space-y-1 text-xs text-muted-foreground">
 				<div className="flex items-center gap-1.5">
@@ -153,7 +167,7 @@ function DraftPreviewCard({
 						: "Detected from voice review"}
 				</span>
 				<span className="font-medium text-amber-700 dark:text-amber-300">
-					Review draft
+					{item.confirmable ? "Review draft" : "Open queue"}
 				</span>
 			</div>
 		</div>

@@ -41,6 +41,7 @@ export interface BulkImportRun {
 	entrypointId: string;
 	sourceFilename: string;
 	sourceType: RunSourceType;
+	discoverySourceType?: "file" | "audio" | "text" | null;
 	status: RunStatus;
 	progressStep: string | null;
 	processingError: string | null;
@@ -137,6 +138,12 @@ export interface BulkImportFinalizeSummary {
 export interface BulkImportFinalizeResponse {
 	status: RunStatus;
 	summary: BulkImportFinalizeSummary;
+}
+
+export interface BulkImportDiscoveryDraftDecisionResponse {
+	status: RunStatus;
+	summary: BulkImportFinalizeSummary;
+	item: BulkImportItem;
 }
 
 export interface BulkImportSummaryResponse {
@@ -280,6 +287,50 @@ export const bulkImportAPI = {
 			location_resolution: serializedLocationResolution,
 			confirm_create_new: options?.confirmCreateNew,
 		});
+	},
+
+	async decideDiscoveryDraft(
+		itemId: string,
+		payload: {
+			action: "confirm" | "reject";
+			normalizedData?: Record<string, unknown>;
+			reviewNotes?: string;
+			locationResolution?: BulkImportLocationResolution;
+			confirmCreateNew?: boolean;
+		},
+	): Promise<BulkImportDiscoveryDraftDecisionResponse> {
+		const locationResolution = payload.locationResolution;
+		const serializedLocationResolution =
+			locationResolution?.mode === "existing"
+				? {
+						mode: "existing" as const,
+						location_id: locationResolution.locationId,
+					}
+				: locationResolution?.mode === "create_new"
+					? {
+							mode: "create_new" as const,
+							name: locationResolution.name,
+							city: locationResolution.city,
+							state: locationResolution.state,
+							address: locationResolution.address,
+						}
+					: locationResolution?.mode === "locked"
+						? {
+								mode: "locked" as const,
+								name: locationResolution.name,
+							}
+						: undefined;
+
+		return apiClient.post<BulkImportDiscoveryDraftDecisionResponse>(
+			`${BASE}/items/${itemId}/discovery-decision`,
+			{
+				action: payload.action,
+				normalized_data: payload.normalizedData,
+				review_notes: payload.reviewNotes,
+				location_resolution: serializedLocationResolution,
+				confirm_create_new: payload.confirmCreateNew,
+			},
+		);
 	},
 
 	async searchRunLocations(

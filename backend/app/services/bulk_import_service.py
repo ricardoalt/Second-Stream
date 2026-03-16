@@ -29,6 +29,7 @@ from app.core.config import settings
 from app.models.bulk_import import ImportItem, ImportRun
 from app.models.bulk_import_output import NormalizedLocationDataV1, NormalizedProjectDataV1
 from app.models.company import Company
+from app.models.discovery_session import DiscoverySource
 from app.models.intake_suggestion import IntakeSuggestion
 from app.models.location import Location
 from app.models.project import Project
@@ -77,6 +78,7 @@ VOICE_CHUNK_OVERLAP_TOKENS = 200
 VOICE_MAX_CHUNKS = 20
 
 RETENTION_DAYS_UNFINALIZED = 90
+MISSING_LOCATION_REVIEW_NOTE = "Project row missing location context"
 
 ALLOWED_BULK_IMPORT_EXTENSIONS = {
     (ext if ext.startswith(".") else f".{ext}").casefold()
@@ -251,6 +253,10 @@ class BulkImportService:
         result = await db.execute(
             select(ImportRun)
             .where(ImportRun.status == "uploaded")
+            .where(
+                (ImportRun.progress_step.is_(None))
+                | (ImportRun.progress_step != "discovery_text_pending")
+            )
             .where(ImportRun.processing_attempts < MAX_PROCESSING_ATTEMPTS)
             .where(
                 (ImportRun.processing_available_at.is_(None))
@@ -283,6 +289,10 @@ class BulkImportService:
         result = await db.execute(
             select(ImportRun)
             .where(ImportRun.status == "processing")
+            .where(
+                (ImportRun.progress_step.is_(None))
+                | (ImportRun.progress_step != "discovery_text_extracting")
+            )
             .where(ImportRun.processing_available_at < func.now())
             .where(ImportRun.processing_attempts < MAX_PROCESSING_ATTEMPTS)
             .order_by(ImportRun.processing_available_at)
@@ -307,6 +317,14 @@ class BulkImportService:
         result = await db.execute(
             select(ImportRun)
             .where(ImportRun.status.in_(["uploaded", "processing"]))
+            .where(
+                (ImportRun.progress_step.is_(None))
+                | (
+                    ~ImportRun.progress_step.in_(
+                        ["discovery_text_pending", "discovery_text_extracting"]
+                    )
+                )
+            )
             .where(ImportRun.processing_attempts >= MAX_PROCESSING_ATTEMPTS)
             .order_by(ImportRun.updated_at)
             .limit(limit)
@@ -727,13 +745,19 @@ class BulkImportService:
 
         for item in project_items:
             normalized = self._validated_project_data(item)
-            target_location = await self._resolve_project_location_for_finalize(
+            (
+                target_location,
+                created_location_from_project_resolution,
+            ) = await self._resolve_project_location_for_finalize(
                 db=db,
                 run=run,
                 item=item,
                 location_by_parent_item_id=location_by_parent_item_id,
                 fallback_location=entrypoint_location,
+                current_user=current_user,
             )
+            if created_location_from_project_resolution:
+                created_locations_count += 1
             company_for_project = company_cache.get(target_location.company_id)
             if company_for_project is None:
                 company_for_project = await db.get(Company, target_location.company_id)
@@ -850,8 +874,16 @@ class BulkImportService:
             select(ImportItem).where(ImportItem.run_id == run.id).with_for_update()
         )
         all_items = list(all_items_result.scalars().all())
+        item_index = {entry.id: entry for entry in all_items}
         run_group_ids = sorted(
-            {group_id for group_id in (item.group_id for item in all_items) if group_id}
+            {
+                group_id
+                for group_id in (
+                    self._effective_group_id_with_index(item, by_id=item_index)
+                    for item in all_items
+                )
+                if group_id
+            }
         )
 
         unknown_group_ids = [
@@ -865,9 +897,14 @@ class BulkImportService:
 
         unresolved_in_request = sorted(
             {
-                item.group_id
+                effective_group_id
                 for item in all_items
-                if item.group_id in sorted_group_ids and item.status == "pending_review"
+                for effective_group_id in [
+                    self._effective_group_id_with_index(item, by_id=item_index)
+                ]
+                if effective_group_id is not None
+                and effective_group_id in sorted_group_ids
+                and item.status == "pending_review"
             }
         )
         if unresolved_in_request:
@@ -879,7 +916,11 @@ class BulkImportService:
                 },
             )
 
-        target_items = [item for item in all_items if item.group_id in sorted_group_ids]
+        target_items = [
+            item
+            for item in all_items
+            if self._effective_group_id_with_index(item, by_id=item_index) in sorted_group_ids
+        ]
         active_items = [item for item in target_items if item.status in {"accepted", "amended"}]
         location_items = [item for item in active_items if item.item_type == "location"]
         project_items = [item for item in active_items if item.item_type == "project"]
@@ -951,13 +992,19 @@ class BulkImportService:
                 continue
 
             normalized = self._validated_project_data(item)
-            target_location = await self._resolve_project_location_for_finalize(
+            (
+                target_location,
+                created_location_from_project_resolution,
+            ) = await self._resolve_project_location_for_finalize(
                 db=db,
                 run=run,
                 item=item,
                 location_by_parent_item_id=location_by_parent_item_id,
                 fallback_location=entrypoint_location,
+                current_user=current_user,
             )
+            if created_location_from_project_resolution:
+                created_locations_count += 1
             company_for_project = company_cache.get(target_location.company_id)
             if company_for_project is None:
                 company_for_project = await db.get(Company, target_location.company_id)
@@ -998,17 +1045,28 @@ class BulkImportService:
             item.created_project_id = project.id
             created_projects_count += 1
 
-        rejected_count = sum(1 for item in target_items if item.status == "rejected")
-        invalid_count = sum(1 for item in target_items if item.status == "invalid")
+        previously_counted_groups = self._counted_summary_groups(run)
+        new_group_ids = set(sorted_group_ids) - previously_counted_groups
+        newly_counted_target_items = [
+            item
+            for item in target_items
+            if self._effective_group_id_with_index(item, by_id=item_index) in new_group_ids
+        ]
+        newly_counted_active_items = [
+            item for item in active_items if item in newly_counted_target_items
+        ]
+
+        rejected_count = sum(1 for item in newly_counted_target_items if item.status == "rejected")
+        invalid_count = sum(1 for item in newly_counted_target_items if item.status == "invalid")
         duplicates_resolved = sum(
             1
-            for item in active_items
+            for item in newly_counted_active_items
             if item.duplicate_candidates
             and len(item.duplicate_candidates) > 0
             and item.confirm_create_new
         )
 
-        summary = BulkImportFinalizeSummary(
+        delta_summary = BulkImportFinalizeSummary(
             run_id=run.id,
             locations_created=created_locations_count,
             projects_created=created_projects_count,
@@ -1016,13 +1074,19 @@ class BulkImportService:
             invalid=invalid_count,
             duplicates_resolved=duplicates_resolved,
         )
-        response_summary = summary
+        response_summary = self._accumulate_run_summary(
+            run=run,
+            delta=delta_summary,
+        )
 
         unresolved_group_count = len(
             {
-                item.group_id
+                effective_group_id
                 for item in all_items
-                if item.group_id
+                for effective_group_id in [
+                    self._effective_group_id_with_index(item, by_id=item_index)
+                ]
+                if effective_group_id is not None
                 and (
                     item.status == "pending_review"
                     or (
@@ -1042,10 +1106,8 @@ class BulkImportService:
         run.finalized_by_user_id = current_user.id
         run.progress_step = None
         if unresolved_group_count == 0:
-            response_summary = self._build_bulk_run_cumulative_summary(run=run, items=all_items)
             run.status = "completed"
             run.finalized_at = datetime.now(UTC)
-            run.summary_data = response_summary.model_dump(mode="json")
             try:
                 await delete_storage_keys([run.source_file_path])
                 run.artifacts_purged_at = datetime.now(UTC)
@@ -1058,41 +1120,50 @@ class BulkImportService:
         else:
             run.status = "review_ready"
 
+        summary_payload = response_summary.model_dump(mode="json")
+        summary_payload["countedGroupIds"] = sorted(
+            self._counted_summary_groups(run).union(sorted_group_ids)
+        )
+        run.summary_data = summary_payload
+
         await self.refresh_run_counters(db, run)
         await db.flush()
         if response_summary is None:
             raise RuntimeError("subset_finalize_summary_missing")
         return response_summary
 
-    def _build_bulk_run_cumulative_summary(
+    def _accumulate_run_summary(
         self,
         *,
         run: ImportRun,
-        items: Sequence[ImportItem],
+        delta: BulkImportFinalizeSummary,
     ) -> BulkImportFinalizeSummary:
-        active_items = [item for item in items if item.status in {"accepted", "amended"}]
+        previous = self._summary_from_run(run) if run.summary_data else None
+        if previous is None:
+            return BulkImportFinalizeSummary(
+                run_id=run.id,
+                locations_created=delta.locations_created,
+                projects_created=delta.projects_created,
+                rejected=delta.rejected,
+                invalid=delta.invalid,
+                duplicates_resolved=delta.duplicates_resolved,
+            )
         return BulkImportFinalizeSummary(
             run_id=run.id,
-            locations_created=sum(
-                1
-                for item in items
-                if item.item_type == "location" and item.created_location_id is not None
-            ),
-            projects_created=sum(
-                1
-                for item in items
-                if item.item_type == "project" and item.created_project_id is not None
-            ),
-            rejected=sum(1 for item in items if item.status == "rejected"),
-            invalid=sum(1 for item in items if item.status == "invalid"),
-            duplicates_resolved=sum(
-                1
-                for item in active_items
-                if item.duplicate_candidates
-                and len(item.duplicate_candidates) > 0
-                and item.confirm_create_new
-            ),
+            locations_created=previous.locations_created + delta.locations_created,
+            projects_created=previous.projects_created + delta.projects_created,
+            rejected=previous.rejected + delta.rejected,
+            invalid=previous.invalid + delta.invalid,
+            duplicates_resolved=previous.duplicates_resolved + delta.duplicates_resolved,
         )
+
+    def _counted_summary_groups(self, run: ImportRun) -> set[str]:
+        if not isinstance(run.summary_data, dict):
+            return set()
+        raw = run.summary_data.get("countedGroupIds")
+        if not isinstance(raw, list):
+            return set()
+        return {group_id for group_id in raw if isinstance(group_id, str) and group_id}
 
     async def _assert_finalize_no_new_live_duplicates(
         self,
@@ -1246,8 +1317,16 @@ class BulkImportService:
             select(ImportItem).where(ImportItem.run_id == run.id).with_for_update()
         )
         all_items = list(items_result.scalars().all())
+        item_index = {entry.id: entry for entry in all_items}
         run_group_ids = sorted(
-            {group_id for group_id in (item.group_id for item in all_items) if group_id}
+            {
+                group_id
+                for group_id in (
+                    self._effective_group_id_with_index(item, by_id=item_index)
+                    for item in all_items
+                )
+                if group_id
+            }
         )
 
         if close_reason == "empty_extraction":
@@ -1308,9 +1387,14 @@ class BulkImportService:
 
         unresolved_in_request = sorted(
             {
-                item.group_id
+                effective_group_id
                 for item in all_items
-                if item.group_id in sorted_group_ids and item.status == "pending_review"
+                for effective_group_id in [
+                    self._effective_group_id_with_index(item, by_id=item_index)
+                ]
+                if effective_group_id is not None
+                and effective_group_id in sorted_group_ids
+                and item.status == "pending_review"
             }
         )
         if unresolved_in_request:
@@ -1322,7 +1406,11 @@ class BulkImportService:
                 },
             )
 
-        target_items = [item for item in all_items if item.group_id in sorted_group_ids]
+        target_items = [
+            item
+            for item in all_items
+            if self._effective_group_id_with_index(item, by_id=item_index) in sorted_group_ids
+        ]
         active_items = [item for item in target_items if item.status in {"accepted", "amended"}]
         location_items = [item for item in active_items if item.item_type == "location"]
         project_items = [item for item in active_items if item.item_type == "project"]
@@ -1401,13 +1489,19 @@ class BulkImportService:
             if item.created_project_id is not None:
                 continue
             normalized = self._validated_project_data(item)
-            target_location = await self._resolve_project_location_for_finalize(
+            (
+                target_location,
+                created_location_from_project_resolution,
+            ) = await self._resolve_project_location_for_finalize(
                 db=db,
                 run=run,
                 item=item,
                 location_by_parent_item_id=location_by_parent_item_id,
                 fallback_location=entrypoint_location,
+                current_user=current_user,
             )
+            if created_location_from_project_resolution:
+                created_locations_count += 1
             mapped_project = await self._resolve_existing_project_for_finalize(
                 db=db,
                 run=run,
@@ -1473,9 +1567,12 @@ class BulkImportService:
 
         unresolved_group_count = len(
             {
-                item.group_id
+                effective_group_id
                 for item in all_items
-                if item.group_id
+                for effective_group_id in [
+                    self._effective_group_id_with_index(item, by_id=item_index)
+                ]
+                if effective_group_id is not None
                 and (
                     item.status == "pending_review"
                     or (
@@ -1816,6 +1913,22 @@ class BulkImportService:
             if parent_item is not None:
                 return None
 
+        selected_existing_location_id = self._selected_existing_location_id(item)
+        if selected_existing_location_id is not None:
+            return selected_existing_location_id
+
+        if company is not None:
+            create_new_location_data = self._orphan_project_create_new_location_data(item)
+            if create_new_location_data is not None:
+                existing_location = await self._find_location_by_identity(
+                    db=db,
+                    organization_id=run.organization_id,
+                    company_id=company.id,
+                    location_data=create_new_location_data,
+                )
+                if existing_location is not None:
+                    return existing_location.id
+
         location_name = _sanitize_text(str(item.normalized_data.get("location_name") or ""))
         city = _sanitize_text(str(item.normalized_data.get("location_city") or ""))
         state_value = _sanitize_text(str(item.normalized_data.get("location_state") or ""))
@@ -1870,6 +1983,316 @@ class BulkImportService:
         run.amended_count = int(counts[3] or 0)
         run.invalid_count = int(counts[4] or 0)
         run.duplicate_count = int(counts[5] or 0)
+
+    async def decide_discovery_project_draft(
+        self,
+        db: AsyncSession,
+        *,
+        organization_id: UUID,
+        item_id: UUID,
+        current_user: User,
+        action: str,
+        normalized_data: dict[str, object] | None,
+        review_notes: str | None,
+        location_resolution: BulkImportLocationResolution | None,
+        confirm_create_new: bool | None,
+    ) -> tuple[ImportItem, BulkImportFinalizeSummary, ImportRun]:
+        run_result = await db.execute(
+            select(ImportRun)
+            .join(ImportItem, ImportItem.run_id == ImportRun.id)
+            .where(ImportItem.id == item_id, ImportItem.organization_id == organization_id)
+            .where(ImportRun.organization_id == organization_id)
+            .with_for_update()
+        )
+        run = run_result.scalar_one_or_none()
+        if run is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        discovery_source_type_result = await db.execute(
+            select(DiscoverySource.source_type)
+            .where(DiscoverySource.import_run_id == run.id)
+            .limit(1)
+        )
+        discovery_source_type = discovery_source_type_result.scalar_one_or_none()
+        if discovery_source_type not in {"file", "text", "audio"}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Discovery decision endpoint is only available for discovery runs",
+            )
+
+        result = await db.execute(
+            select(ImportItem)
+            .where(ImportItem.id == item_id, ImportItem.organization_id == organization_id)
+            .where(ImportItem.run_id == run.id)
+            .with_for_update()
+        )
+        item = result.scalar_one_or_none()
+        if item is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        if item.item_type != "project":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Discovery decision endpoint only supports project drafts",
+            )
+        if run.status != "review_ready":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Run is not editable",
+            )
+        if item.created_project_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Draft already resolved",
+            )
+        if item.status in {"rejected", "invalid"}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Draft already terminal",
+            )
+
+        summary = BulkImportFinalizeSummary(
+            run_id=run.id,
+            locations_created=0,
+            projects_created=0,
+            rejected=0,
+            invalid=0,
+            duplicates_resolved=0,
+        )
+
+        if action == "reject":
+            item.status = "rejected"
+            item.needs_review = False
+            summary = BulkImportFinalizeSummary(
+                run_id=run.id,
+                locations_created=0,
+                projects_created=0,
+                rejected=1,
+                invalid=0,
+                duplicates_resolved=0,
+            )
+        elif action == "confirm":
+            if normalized_data is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="normalized_data required for confirm",
+                )
+            if review_notes is not None:
+                sanitized_review_notes = _sanitize_text(review_notes, max_len=1000)
+                item.review_notes = sanitized_review_notes or None
+            sanitized_patch = _sanitize_payload(normalized_data)
+            merged = dict(item.normalized_data)
+            merged.update(sanitized_patch)
+            item.normalized_data = merged
+            existing_user_amendments = (
+                item.user_amendments if isinstance(item.user_amendments, dict) else {}
+            )
+            merged_user_amendments = dict(existing_user_amendments)
+            merged_user_amendments.update(sanitized_patch)
+            item.user_amendments = merged_user_amendments
+            if location_resolution is not None:
+                await self._apply_location_resolution(
+                    db=db,
+                    run=run,
+                    item=item,
+                    location_resolution=location_resolution,
+                )
+            if confirm_create_new is not None:
+                item.confirm_create_new = confirm_create_new
+            item.status = "amended"
+            item.needs_review = self._needs_review(item.item_type, item.normalized_data)
+            self._ensure_duplicate_confirmation(item, target_status="amended")
+            normalized = self._validated_project_data(item)
+            company = await self._load_entrypoint_company(db, run)
+            if company is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Company entrypoint required",
+                )
+            location_by_parent_item_id: dict[UUID, Location] = {}
+            treat_as_orphan = item.parent_item_id is None
+            if item.parent_item_id is not None:
+                parent_item = await db.get(ImportItem, item.parent_item_id)
+                if parent_item is None:
+                    treat_as_orphan = True
+                else:
+                    if parent_item.created_location_id is not None:
+                        created_parent_location = await db.get(
+                            Location, parent_item.created_location_id
+                        )
+                        if created_parent_location is None:
+                            raise HTTPException(
+                                status_code=status.HTTP_409_CONFLICT,
+                                detail="Parent location mapping missing",
+                            )
+                        location_by_parent_item_id[parent_item.id] = created_parent_location
+                    if location_resolution is not None:
+                        await self._apply_location_resolution(
+                            db=db,
+                            run=run,
+                            item=parent_item,
+                            location_resolution=location_resolution,
+                        )
+                    if parent_item.id not in location_by_parent_item_id:
+                        selected_existing = await self._location_from_selected_existing_resolution(
+                            db=db,
+                            run=run,
+                            item=parent_item,
+                            company_id=company.id,
+                        )
+                        if selected_existing is not None:
+                            parent_item.created_location_id = selected_existing.id
+                            location_by_parent_item_id[parent_item.id] = selected_existing
+                        else:
+                            mapped_location = await self._resolve_existing_location_for_finalize(
+                                db=db,
+                                run=run,
+                                item=parent_item,
+                                company=company,
+                            )
+                            if mapped_location is not None:
+                                parent_item.created_location_id = mapped_location.id
+                                location_by_parent_item_id[parent_item.id] = mapped_location
+                            else:
+                                (
+                                    location,
+                                    created_new,
+                                ) = await self._get_or_create_location_for_finalize(
+                                    db=db,
+                                    run=run,
+                                    company_id=company.id,
+                                    current_user=current_user,
+                                    item=parent_item,
+                                )
+                                location_by_parent_item_id[parent_item.id] = location
+                                if created_new:
+                                    summary = BulkImportFinalizeSummary(
+                                        run_id=run.id,
+                                        locations_created=1,
+                                        projects_created=0,
+                                        rejected=0,
+                                        invalid=0,
+                                        duplicates_resolved=0,
+                                    )
+            if (
+                treat_as_orphan
+                and run.entrypoint_type == "company"
+                and location_resolution is None
+                and self._selected_existing_location_id(item) is None
+                and self._orphan_project_create_new_location_data(item) is None
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="location_resolution required for orphan stream confirm",
+                )
+            (
+                target_location,
+                created_location_from_project_resolution,
+            ) = await self._resolve_project_location_for_finalize(
+                db=db,
+                run=run,
+                item=item,
+                location_by_parent_item_id=location_by_parent_item_id,
+                fallback_location=None,
+                current_user=current_user,
+                treat_as_orphan=treat_as_orphan,
+            )
+            locations_created = summary.locations_created + (
+                1 if created_location_from_project_resolution else 0
+            )
+            project_data: dict[str, object] = {
+                "technical_sections": copy.deepcopy(get_assessment_questionnaire())
+            }
+            if normalized.category and normalized.category.strip():
+                project_data["bulk_import_category"] = normalized.category.strip()
+            project = Project(
+                organization_id=run.organization_id,
+                user_id=current_user.id,
+                location_id=target_location.id,
+                name=normalized.name,
+                client=company.name,
+                sector=normalized.sector or company.sector,
+                subsector=normalized.subsector or company.subsector,
+                location=f"{target_location.name}, {target_location.city}",
+                project_type=normalized.project_type,
+                description=normalized.description,
+                budget=0.0,
+                schedule_summary="To be defined",
+                tags=[],
+                status="In Preparation",
+                progress=0,
+                project_data=project_data,
+            )
+            db.add(project)
+            await db.flush()
+            item.created_project_id = project.id
+            registry = build_questionnaire_registry()
+            self._create_pending_intake_suggestions_from_project_item(
+                db=db,
+                project=project,
+                source_item=item,
+                registry=registry,
+                user_id=current_user.id,
+            )
+            summary = BulkImportFinalizeSummary(
+                run_id=run.id,
+                locations_created=locations_created,
+                projects_created=1,
+                rejected=0,
+                invalid=0,
+                duplicates_resolved=(
+                    1 if item.duplicate_candidates and item.confirm_create_new else 0
+                ),
+            )
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action")
+
+        pending_project_count_result = await db.execute(
+            select(func.count(ImportItem.id)).where(
+                ImportItem.run_id == run.id,
+                ImportItem.organization_id == organization_id,
+                ImportItem.item_type == "project",
+                ImportItem.created_project_id.is_(None),
+                ImportItem.status.in_(("pending_review", "accepted", "amended")),
+            )
+        )
+        pending_project_count = int(pending_project_count_result.scalar_one() or 0)
+
+        if run.source_type == "voice_interview":
+            voice = await self._lock_voice_for_run(db, run_id=run.id)
+            voice.status = "finalized" if pending_project_count == 0 else "partial_finalized"
+            sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+            run.finalized_by_user_id = current_user.id
+            if voice.status == "finalized":
+                run.finalized_at = datetime.now(UTC)
+        else:
+            run.status = "completed" if pending_project_count == 0 else "review_ready"
+            run.finalized_by_user_id = current_user.id
+            if pending_project_count == 0:
+                run.finalized_at = datetime.now(UTC)
+
+        previous = self._summary_from_run(run) if run.summary_data else None
+        accumulated = (
+            BulkImportFinalizeSummary(
+                run_id=run.id,
+                locations_created=summary.locations_created,
+                projects_created=summary.projects_created,
+                rejected=summary.rejected,
+                invalid=summary.invalid,
+                duplicates_resolved=summary.duplicates_resolved,
+            )
+            if previous is None
+            else BulkImportFinalizeSummary(
+                run_id=run.id,
+                locations_created=previous.locations_created + summary.locations_created,
+                projects_created=previous.projects_created + summary.projects_created,
+                rejected=previous.rejected + summary.rejected,
+                invalid=previous.invalid + summary.invalid,
+                duplicates_resolved=previous.duplicates_resolved + summary.duplicates_resolved,
+            )
+        )
+        run.summary_data = accumulated.model_dump(mode="json")
+        await self.refresh_run_counters(db, run)
+        await db.flush()
+        return item, accumulated, run
 
     async def update_item_decision(
         self,
@@ -2020,10 +2443,18 @@ class BulkImportService:
         item: ImportItem,
         location_resolution: BulkImportLocationResolution,
     ) -> None:
+        if item.item_type == "project":
+            await self._apply_project_location_resolution(
+                db=db,
+                run=run,
+                item=item,
+                location_resolution=location_resolution,
+            )
+            return
         if item.item_type != "location":
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="location_resolution only allowed for location items",
+                detail="location_resolution only allowed for location/project items",
             )
 
         effective_company_id = await self.get_effective_company_id_for_run(db, run=run)
@@ -2117,6 +2548,76 @@ class BulkImportService:
             detail="Unsupported location_resolution mode",
         )
 
+    async def _apply_project_location_resolution(
+        self,
+        *,
+        db: AsyncSession,
+        run: ImportRun,
+        item: ImportItem,
+        location_resolution: BulkImportLocationResolution,
+    ) -> None:
+        if run.entrypoint_type != "company":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="project location_resolution requires company entrypoint",
+            )
+        if item.parent_item_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="project location_resolution only allowed for orphan stream drafts",
+            )
+
+        effective_company_id = await self.get_effective_company_id_for_run(db, run=run)
+        existing_user_amendments = (
+            item.user_amendments if isinstance(item.user_amendments, dict) else {}
+        )
+        merged_user_amendments = dict(existing_user_amendments)
+
+        if isinstance(location_resolution, BulkImportLocationResolutionExisting):
+            selected_location = await db.get(Location, location_resolution.location_id)
+            if (
+                selected_location is None
+                or selected_location.organization_id != run.organization_id
+                or selected_location.company_id != effective_company_id
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Selected location is invalid for this run",
+                )
+
+            merged_user_amendments["location_resolution"] = {
+                "mode": "existing",
+                "location_id": str(selected_location.id),
+                "name": selected_location.name,
+                "city": selected_location.city,
+                "state": selected_location.state,
+                "address": selected_location.address,
+            }
+            item.user_amendments = merged_user_amendments
+            return
+
+        if isinstance(location_resolution, BulkImportLocationResolutionCreateNew):
+            normalized_location = NormalizedLocationDataV1(
+                name=location_resolution.name,
+                city=location_resolution.city,
+                state=location_resolution.state,
+                address=location_resolution.address,
+            )
+            merged_user_amendments["location_resolution"] = {
+                "mode": "create_new",
+                "name": normalized_location.name,
+                "city": normalized_location.city,
+                "state": normalized_location.state,
+                "address": normalized_location.address,
+            }
+            item.user_amendments = merged_user_amendments
+            return
+
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Orphan stream location resolution must be existing or create_new",
+        )
+
     async def import_orphan_projects(
         self,
         db: AsyncSession,
@@ -2153,20 +2654,11 @@ class BulkImportService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Only company-entrypoint runs can have orphan projects",
             )
-
-        voice: VoiceInterview | None = None
         if run.source_type == "voice_interview":
-            voice_result = await db.execute(
-                select(VoiceInterview)
-                .where(VoiceInterview.bulk_import_run_id == run.id)
-                .with_for_update()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Voice orphan import is disabled. Resolve from Needs Confirmation.",
             )
-            voice = voice_result.scalar_one_or_none()
-            if voice is None:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Voice interview not found",
-                )
 
         # Validate location
         location = await db.get(Location, location_id)
@@ -2206,13 +2698,14 @@ class BulkImportService:
         # Process each item
         created_project_ids: dict[str, str] = {}
         skipped = 0
+        orphan_eligible_statuses = {"invalid", "pending_review", "accepted", "amended"}
         for item in items:
             if item.item_type != "project":
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"Item {item.id} is not a project",
                 )
-            if item.status != "invalid":
+            if item.status not in orphan_eligible_statuses or item.parent_item_id is not None:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"Item {item.id} is not an orphan (status={item.status})",
@@ -2268,25 +2761,20 @@ class BulkImportService:
 
         await self.refresh_run_counters(db, run)
 
-        # If all invalid project items now have created_project_id, mark run completed
+        # If all orphan project items now have created_project_id, mark run completed
         unresolved = await db.execute(
             select(func.count()).where(
                 ImportItem.run_id == run.id,
                 ImportItem.item_type == "project",
-                ImportItem.status == "invalid",
+                ImportItem.parent_item_id.is_(None),
+                ImportItem.status.in_(tuple(orphan_eligible_statuses)),
                 ImportItem.created_project_id.is_(None),
             )
         )
         if unresolved.scalar_one() == 0:
-            if voice is not None:
-                voice.status = "finalized"
-                sync_import_run_status_for_voice(run=run, voice_status=voice.status)
-            else:
-                run.status = "completed"
+            run.status = "completed"
             run.finalized_at = datetime.now(UTC)
             await db.flush()
-        elif voice is not None:
-            sync_import_run_status_for_voice(run=run, voice_status=voice.status)
 
         return {
             "projects_created": len(created_project_ids),
@@ -2352,6 +2840,12 @@ class BulkImportService:
     def get_run_summary(self, run: ImportRun) -> BulkImportFinalizeSummary:
         return self._summary_from_run(run)
 
+    def _legacy_orphan_group_id(self, *, run_id: UUID, item_id: UUID) -> str:
+        return f"legacy_orphan:{run_id}:{item_id}"
+
+    def _legacy_linked_group_id(self, *, run_id: UUID, anchor_item_id: UUID) -> str:
+        return f"legacy_linked:{run_id}:{anchor_item_id}"
+
     async def _assert_finalize_ready(self, db: AsyncSession, run: ImportRun) -> None:
         pending_count_result = await db.execute(
             select(func.count(ImportItem.id)).where(
@@ -2401,6 +2895,43 @@ class BulkImportService:
                             detail="Project item parent is not accepted",
                         )
 
+    def _effective_group_id(self, item: ImportItem) -> str | None:
+        if item.group_id is not None:
+            return item.group_id
+        if item.item_type == "project" and item.parent_item_id is not None:
+            return self._legacy_linked_group_id(
+                run_id=item.run_id,
+                anchor_item_id=item.parent_item_id,
+            )
+        if item.item_type == "project" and item.parent_item_id is None:
+            return self._legacy_orphan_group_id(run_id=item.run_id, item_id=item.id)
+        return None
+
+    def _effective_group_id_with_index(
+        self,
+        item: ImportItem,
+        *,
+        by_id: dict[UUID, ImportItem],
+    ) -> str | None:
+        effective_group_id = self._effective_group_id(item)
+        if effective_group_id is not None:
+            return effective_group_id
+        if item.item_type == "location":
+            legacy_child = next(
+                (
+                    child
+                    for child in by_id.values()
+                    if child.parent_item_id == item.id and child.item_type == "project"
+                ),
+                None,
+            )
+            if legacy_child is not None:
+                return self._legacy_linked_group_id(
+                    run_id=item.run_id,
+                    anchor_item_id=item.id,
+                )
+        return None
+
     async def _resolve_project_location_for_finalize(
         self,
         *,
@@ -2409,17 +2940,36 @@ class BulkImportService:
         item: ImportItem,
         location_by_parent_item_id: dict[UUID, Location],
         fallback_location: Location | None,
-    ) -> Location:
+        current_user: User,
+        treat_as_orphan: bool = False,
+    ) -> tuple[Location, bool]:
         if run.entrypoint_type == "location":
             if fallback_location is None:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Entrypoint location missing",
                 )
-            return fallback_location
+            return fallback_location, False
 
-        if item.parent_item_id and item.parent_item_id in location_by_parent_item_id:
-            return location_by_parent_item_id[item.parent_item_id]
+        if (
+            not treat_as_orphan
+            and item.parent_item_id
+            and item.parent_item_id in location_by_parent_item_id
+        ):
+            return location_by_parent_item_id[item.parent_item_id], False
+
+        (
+            project_resolution_location,
+            created_new_from_project_resolution,
+        ) = await self._resolve_orphan_project_location_for_finalize(
+            db=db,
+            run=run,
+            item=item,
+            current_user=current_user,
+            treat_as_orphan=treat_as_orphan,
+        )
+        if project_resolution_location is not None:
+            return project_resolution_location, created_new_from_project_resolution
 
         location_name = _sanitize_text(str(item.normalized_data.get("location_name") or ""))
         city = _sanitize_text(str(item.normalized_data.get("location_city") or ""))
@@ -2452,7 +3002,117 @@ class BulkImportService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Project item location not found",
             )
-        return location
+        return location, False
+
+    async def _resolve_orphan_project_location_for_finalize(
+        self,
+        *,
+        db: AsyncSession,
+        run: ImportRun,
+        item: ImportItem,
+        current_user: User,
+        treat_as_orphan: bool = False,
+    ) -> tuple[Location | None, bool]:
+        if run.entrypoint_type != "company":
+            return None, False
+        if item.parent_item_id is not None and not treat_as_orphan:
+            return None, False
+
+        company = await self._load_entrypoint_company(db, run)
+        if company is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Company entrypoint required",
+            )
+
+        selected_existing_location_id = self._selected_existing_location_id(item)
+        if selected_existing_location_id is not None:
+            selected_location = await db.get(Location, selected_existing_location_id)
+            if (
+                selected_location is None
+                or selected_location.organization_id != run.organization_id
+                or selected_location.company_id != company.id
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Selected location invalid for item {item.id}",
+                )
+            return selected_location, False
+
+        create_new_location_data = self._orphan_project_create_new_location_data(item)
+        if create_new_location_data is None:
+            return None, False
+
+        existing_location = await self._find_location_by_identity(
+            db=db,
+            organization_id=run.organization_id,
+            company_id=company.id,
+            location_data=create_new_location_data,
+        )
+        if existing_location is not None:
+            return existing_location, False
+
+        location = Location(
+            organization_id=run.organization_id,
+            company_id=company.id,
+            name=create_new_location_data.name,
+            city=create_new_location_data.city,
+            state=create_new_location_data.state,
+            address=create_new_location_data.address,
+            created_by_user_id=current_user.id,
+        )
+        db.add(location)
+        await db.flush()
+        return location, True
+
+    def _orphan_project_create_new_location_data(
+        self,
+        item: ImportItem,
+    ) -> NormalizedLocationDataV1 | None:
+        amendments = item.user_amendments
+        if not isinstance(amendments, dict):
+            return None
+        resolution = amendments.get("location_resolution")
+        if not isinstance(resolution, dict):
+            return None
+
+        mode_raw: object | None = None
+        name_raw: object | None = None
+        city_raw: object | None = None
+        state_raw: object | None = None
+        address_raw: object | None = None
+
+        for key, value in resolution.items():
+            if key == "mode":
+                mode_raw = value
+            elif key == "name":
+                name_raw = value
+            elif key == "city":
+                city_raw = value
+            elif key == "state":
+                state_raw = value
+            elif key == "address":
+                address_raw = value
+
+        if mode_raw != "create_new":
+            return None
+        if (
+            not isinstance(name_raw, str)
+            or not isinstance(city_raw, str)
+            or not isinstance(state_raw, str)
+        ):
+            return None
+        address_value = address_raw if isinstance(address_raw, str) else None
+
+        try:
+            return NormalizedLocationDataV1(
+                name=name_raw,
+                city=city_raw,
+                state=state_raw,
+                address=address_value,
+            )
+        except Exception:
+            return None
 
     def _ensure_duplicate_confirmation(
         self, item: ImportItem, target_status: str | None = None
@@ -2905,6 +3565,17 @@ class BulkImportService:
             return await self._build_company_entrypoint_items(db, run, parsed_rows)
         return await self._build_location_entrypoint_items(db, run, parsed_rows)
 
+    async def build_items_for_parsed_rows(
+        self,
+        db: AsyncSession,
+        *,
+        run: ImportRun,
+        parsed_rows: list[ParsedRow],
+    ) -> list[ImportItem]:
+        """Public wrapper for building staged items from parsed rows."""
+
+        return await self._build_import_items(db, run, parsed_rows)
+
     async def _build_company_entrypoint_items(
         self,
         db: AsyncSession,
@@ -3028,7 +3699,7 @@ class BulkImportService:
             if loc_name and loc_name not in _location_by_name:
                 _location_by_name[loc_name] = loc_item
 
-        for payload in project_defs:
+        for project_index, payload in enumerate(project_defs):
             normalized = payload["normalized_data"]
             location_key = payload["location_key"]
             parent_item = location_items_by_key.get(location_key) if location_key else None
@@ -3053,16 +3724,16 @@ class BulkImportService:
                     organization_id=run.organization_id,
                     run_id=run.id,
                     item_type="project",
-                    status="invalid",
-                    needs_review=False,
+                    status="pending_review",
+                    needs_review=True,
                     confidence=confidence,
                     extracted_data=payload["raw"],
                     normalized_data=normalized,
-                    review_notes="Project row missing location context",
+                    review_notes=MISSING_LOCATION_REVIEW_NOTE,
                     confirm_create_new=False,
                     group_id=self._group_id_for_unresolved_project(
                         run=run,
-                        normalized_project=normalized,
+                        project_index=project_index,
                     ),
                 )
                 items.append(item)
@@ -3228,9 +3899,7 @@ class BulkImportService:
         state_value = _normalize_token(str(normalized_location.get("state") or ""))
         return f"{name}|{city}|{state_value}"
 
-    def _group_id_for_location_key(self, *, run: ImportRun, location_key: str) -> str | None:
-        if run.source_type != "voice_interview":
-            return None
+    def _group_id_for_location_key(self, *, run: ImportRun, location_key: str) -> str:
         digest = hashlib.sha256(f"{run.id}:{location_key}".encode()).hexdigest()
         return f"grp_{digest[:16]}"
 
@@ -3238,17 +3907,12 @@ class BulkImportService:
         self,
         *,
         run: ImportRun,
-        normalized_project: dict[str, object],
-    ) -> str | None:
-        if run.source_type != "voice_interview":
-            return None
-        concept = _normalize_token(str(normalized_project.get("name") or "unresolved"))
-        digest = hashlib.sha256(f"{run.id}:unresolved:{concept}".encode()).hexdigest()
+        project_index: int,
+    ) -> str:
+        digest = hashlib.sha256(f"{run.id}:unresolved:{project_index}".encode()).hexdigest()
         return f"grp_{digest[:16]}"
 
-    def _group_id_for_location_entrypoint(self, run: ImportRun) -> str | None:
-        if run.source_type != "voice_interview":
-            return None
+    def _group_id_for_location_entrypoint(self, run: ImportRun) -> str:
         digest = hashlib.sha256(f"{run.id}:entrypoint:{run.entrypoint_id}".encode()).hexdigest()
         return f"grp_{digest[:16]}"
 

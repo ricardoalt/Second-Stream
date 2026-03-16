@@ -84,11 +84,12 @@ export const StreamRow = memo(function StreamRow({
 
 	const handleClick = useCallback(() => {
 		if (isPersistedStream(row)) {
-			// In the Proposal bucket, jump directly to the proposals tab
 			const url =
 				bucket === "proposal"
-					? routes.project.proposals(row.projectId)
-					: routes.project.detail(row.projectId);
+					? routes.project.proposalDetail(row.projectId)
+					: bucket === "intelligence_report"
+						? routes.project.intelligenceReport(row.projectId)
+						: routes.project.detail(row.projectId);
 			router.push(url);
 		} else if (isDraftItem(row)) {
 			openDraftConfirmation(row);
@@ -108,7 +109,13 @@ export const StreamRow = memo(function StreamRow({
 		);
 	}
 
-	return <DraftRow row={row} onClick={handleClick} />;
+	return (
+		<DraftRow
+			row={row}
+			onClick={row.confirmable ? handleClick : undefined}
+			disabled={!row.confirmable}
+		/>
+	);
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -353,11 +360,39 @@ const DRAFT_STATUS_BADGE: Record<string, { label: string; className: string }> =
 		},
 	};
 
+const DRAFT_KIND_BADGE: Record<string, { label: string; className: string }> = {
+	linked: {
+		label: "Linked",
+		className: "border-success/30 bg-success/10 text-success",
+	},
+	orphan_stream: {
+		label: "No location",
+		className:
+			"border-warning/30 bg-warning/10 text-warning-foreground dark:text-warning",
+	},
+	location_only: {
+		label: "Location only",
+		className: "border-muted-foreground/30 bg-muted/20 text-muted-foreground",
+	},
+};
+
 function DraftRow({ row, onClick, disabled }: DraftRowProps) {
 	const statusConfig = DRAFT_STATUS_BADGE[row.draftStatus] ?? {
 		label: row.draftStatus,
 		className: "",
 	};
+	const kindConfig = DRAFT_KIND_BADGE[row.draftKind] ?? {
+		label: row.draftKind,
+		className: "",
+	};
+	const locationFallbackLabel =
+		row.draftKind === "orphan_stream"
+			? "No location linked yet"
+			: row.draftKind === "location_only"
+				? "Detected location"
+				: "Pending";
+	const disabledHint =
+		row.draftKind === "location_only" ? "Informational only" : "Unavailable";
 
 	const sharedClassName = cn(
 		"group flex items-center gap-4 px-4 py-3 rounded-lg w-full text-left",
@@ -388,6 +423,12 @@ function DraftRow({ row, onClick, disabled }: DraftRowProps) {
 					>
 						{SOURCE_LABELS[row.sourceType] ?? row.sourceType}
 					</Badge>
+					<Badge
+						variant="outline"
+						className={cn("text-xs shrink-0", kindConfig.className)}
+					>
+						{kindConfig.label}
+					</Badge>
 				</div>
 				<div className="flex items-center gap-3 text-xs text-muted-foreground">
 					{row.companyLabel ? (
@@ -411,7 +452,7 @@ function DraftRow({ row, onClick, disabled }: DraftRowProps) {
 						</TruncatedTooltip>
 					) : (
 						<span className="text-xs italic text-muted-foreground/60">
-							Pending
+							{locationFallbackLabel}
 						</span>
 					)}
 				</div>
@@ -440,7 +481,7 @@ function DraftRow({ row, onClick, disabled }: DraftRowProps) {
 					</TruncatedTooltip>
 				) : (
 					<span className="text-[11px] italic text-muted-foreground/50">
-						Pending
+						{locationFallbackLabel}
 					</span>
 				)}
 			</div>
@@ -455,7 +496,7 @@ function DraftRow({ row, onClick, disabled }: DraftRowProps) {
 			{/* CTA or disabled hint */}
 			{disabled ? (
 				<span className="text-xs text-muted-foreground/60 shrink-0 italic">
-					Assign company to review
+					{disabledHint}
 				</span>
 			) : (
 				<span className="text-xs font-medium text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">

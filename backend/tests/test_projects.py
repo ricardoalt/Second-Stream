@@ -13,6 +13,8 @@ from conftest import (
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from app.models.bulk_import import ImportItem, ImportRun
+from app.models.discovery_session import DiscoverySource
 from app.models.intake_suggestion import IntakeSuggestion
 from app.models.project import Project
 from app.models.proposal import Proposal
@@ -46,6 +48,19 @@ def _set_project_completion(project: Project, completed_fields: int) -> None:
     sections = _questionnaire_with_completion(completed_fields)
     project.project_data = {"technical_sections": sections}
     project.progress = ProjectDataService.calculate_progress(sections)
+
+
+async def _attach_discovery_source(db_session, *, run: ImportRun, source_type: str = "file"):
+    source = DiscoverySource(
+        organization_id=run.organization_id,
+        session_id=uuid.uuid4(),
+        source_type=source_type,
+        status="review_ready",
+        import_run_id=run.id,
+    )
+    db_session.add(source)
+    await db_session.flush()
+    return source
 
 
 def _questionnaire_with_field_values(
@@ -439,20 +454,345 @@ async def test_dashboard_counts_and_rows_are_consistent(
     payload = response.json()
 
     assert payload["counts"]["total"] == 4
-    assert payload["counts"]["needsConfirmation"] == 1
-    assert payload["counts"]["missingInformation"] == 1
+    assert payload["counts"]["needsConfirmation"] == 0
+    assert payload["counts"]["missingInformation"] == 2
     assert payload["counts"]["intelligenceReport"] == 1
     assert payload["counts"]["proposal"] == 1
-    assert payload["total"] == 1
-    assert payload["items"][0]["kind"] == "persisted_stream"
-    assert payload["items"][0]["bucket"] == "missing_information"
-    assert payload["items"][0]["streamName"] == "Missing Info Stream"
-    assert payload["items"][0]["canEditProposalFollowUp"] is True
-    assert payload["items"][0]["missingRequiredInfo"] is True
-    assert payload["items"][0]["missingFields"] == [
+    assert payload["total"] == 2
+    assert [item["streamName"] for item in payload["items"]] == [
+        "Needs Confirmation Stream",
+        "Missing Info Stream",
+    ]
+    items_by_name = {item["streamName"]: item for item in payload["items"]}
+    needs_confirmation_row = items_by_name["Needs Confirmation Stream"]
+    assert needs_confirmation_row["kind"] == "persisted_stream"
+    assert needs_confirmation_row["bucket"] == "missing_information"
+    assert needs_confirmation_row["canEditProposalFollowUp"] is True
+    assert needs_confirmation_row["pendingConfirmation"] is True
+    assert needs_confirmation_row["missingRequiredInfo"] is True
+    assert needs_confirmation_row["missingFields"] == [
         "Existing Waste Handling Practices (select all that apply)",
         "What are your primary objectives? (select all that apply)",
         "Timeframe for implementation",
+    ]
+    missing_info_row = items_by_name["Missing Info Stream"]
+    assert missing_info_row["kind"] == "persisted_stream"
+    assert missing_info_row["bucket"] == "missing_information"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_needs_confirmation_classifies_draft_kinds(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Draft Kinds", "org-draft-kinds")
+    user = await create_user(
+        db_session,
+        email=f"draft-kinds-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Draft Kinds Co")
+
+    run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/drafts.csv",
+        source_filename="drafts.csv",
+        source_type="bulk_import",
+        status="review_ready",
+        created_by_user_id=user.id,
+    )
+    db_session.add(run)
+    await db_session.flush()
+    await _attach_discovery_source(db_session, run=run, source_type="file")
+
+    linked_location = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="location",
+        status="pending_review",
+        group_id="grp-linked",
+        normalized_data={
+            "name": "North Plant",
+            "city": "Monterrey",
+            "state": "Nuevo Leon",
+            "address": "",
+        },
+    )
+    db_session.add(linked_location)
+    await db_session.flush()
+
+    linked_project = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="project",
+        status="pending_review",
+        parent_item_id=linked_location.id,
+        group_id="grp-linked",
+        normalized_data={
+            "name": "PET Flakes",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "",
+            "sector": "industrial",
+            "subsector": "other",
+            "estimated_volume": "1 ton/month",
+        },
+    )
+    orphan_project = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="project",
+        status="pending_review",
+        group_id="grp-orphan",
+        review_notes="Project row missing location context",
+        normalized_data={
+            "name": "Loose Cardboard",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "",
+            "sector": "industrial",
+            "subsector": "other",
+            "estimated_volume": "",
+        },
+    )
+    location_only = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="location",
+        status="pending_review",
+        group_id="grp-location-only",
+        normalized_data={
+            "name": "South Plant",
+            "city": "Guadalajara",
+            "state": "Jalisco",
+            "address": "",
+        },
+    )
+    db_session.add_all([linked_project, orphan_project, location_only])
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.get("/api/v1/projects/dashboard?bucket=needs_confirmation")
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["total"] == 2
+    assert payload["counts"]["needsConfirmation"] == 2
+    assert payload["counts"]["total"] == 2
+    assert len(payload["items"]) == 2
+    assert payload["secondaryDraftRows"] == []
+
+    rows_by_name = {row["streamName"]: row for row in payload["items"]}
+
+    linked_row = rows_by_name["PET Flakes"]
+    assert linked_row["draftKind"] == "linked"
+    assert linked_row["confirmable"] is True
+    assert linked_row["target"] is not None
+    assert linked_row["groupId"] == "grp-linked"
+    assert linked_row["locationLabel"] == "North Plant"
+
+    orphan_row = rows_by_name["Loose Cardboard"]
+    assert orphan_row["draftKind"] == "orphan_stream"
+    assert orphan_row["confirmable"] is True
+    assert orphan_row["target"] is not None
+    assert orphan_row["groupId"] == "grp-orphan"
+    assert orphan_row["locationLabel"] is None
+
+    total_bucket_response = await client.get("/api/v1/projects/dashboard?bucket=total")
+    assert total_bucket_response.status_code == 200
+    total_payload = total_bucket_response.json()
+    assert total_payload["counts"]["needsConfirmation"] == 2
+    assert total_payload["counts"]["total"] == 2
+    assert total_payload["draftPreview"]["total"] == 2
+    preview_names = [item["streamName"] for item in total_payload["draftPreview"]["items"]]
+    assert "South Plant" not in preview_names
+
+
+@pytest.mark.asyncio
+async def test_dashboard_hides_legacy_review_ready_runs_without_discovery_source(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Legacy Hidden", "org-legacy-hidden")
+    user = await create_user(
+        db_session,
+        email=f"legacy-hidden-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Legacy Hidden Co")
+
+    discovery_run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/discovery.csv",
+        source_filename="discovery.csv",
+        source_type="bulk_import",
+        status="review_ready",
+        created_by_user_id=user.id,
+    )
+    legacy_run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/legacy.csv",
+        source_filename="legacy.csv",
+        source_type="bulk_import",
+        status="review_ready",
+        created_by_user_id=user.id,
+    )
+    db_session.add_all([discovery_run, legacy_run])
+    await db_session.flush()
+    await _attach_discovery_source(db_session, run=discovery_run, source_type="file")
+
+    discovery_location = ImportItem(
+        organization_id=org.id,
+        run_id=discovery_run.id,
+        item_type="location",
+        status="pending_review",
+        group_id="grp-discovery",
+        normalized_data={
+            "name": "Discovery Plant",
+            "city": "Monterrey",
+            "state": "Nuevo Leon",
+            "address": "",
+        },
+    )
+    legacy_location = ImportItem(
+        organization_id=org.id,
+        run_id=legacy_run.id,
+        item_type="location",
+        status="pending_review",
+        group_id="grp-legacy",
+        normalized_data={
+            "name": "Legacy Plant",
+            "city": "Monterrey",
+            "state": "Nuevo Leon",
+            "address": "",
+        },
+    )
+    db_session.add_all([discovery_location, legacy_location])
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            ImportItem(
+                organization_id=org.id,
+                run_id=discovery_run.id,
+                item_type="project",
+                status="pending_review",
+                parent_item_id=discovery_location.id,
+                group_id="grp-discovery",
+                normalized_data={
+                    "name": "Discovery PET",
+                    "category": "plastics",
+                    "project_type": "Assessment",
+                    "description": "",
+                    "sector": "industrial",
+                    "subsector": "other",
+                    "estimated_volume": "",
+                },
+            ),
+            ImportItem(
+                organization_id=org.id,
+                run_id=legacy_run.id,
+                item_type="project",
+                status="pending_review",
+                parent_item_id=legacy_location.id,
+                group_id="grp-legacy",
+                normalized_data={
+                    "name": "Legacy PET",
+                    "category": "plastics",
+                    "project_type": "Assessment",
+                    "description": "",
+                    "sector": "industrial",
+                    "subsector": "other",
+                    "estimated_volume": "",
+                },
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.get("/api/v1/projects/dashboard?bucket=needs_confirmation")
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["counts"]["needsConfirmation"] == 1
+    assert payload["counts"]["total"] == 1
+    assert payload["total"] == 1
+    assert [row["streamName"] for row in payload["items"]] == ["Discovery PET"]
+
+    total_response = await client.get("/api/v1/projects/dashboard?bucket=total")
+    assert total_response.status_code == 200
+    total_payload = total_response.json()
+    assert total_payload["counts"]["needsConfirmation"] == 1
+    assert total_payload["counts"]["total"] == 1
+    assert total_payload["draftPreview"]["total"] == 1
+    assert [row["streamName"] for row in total_payload["draftPreview"]["items"]] == [
+        "Discovery PET"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_dashboard_persisted_pending_confirmation_no_longer_counts_as_needs_confirmation(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Persisted Pending", "org-persisted-pending")
+    user = await create_user(
+        db_session,
+        email=f"persisted-pending-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Persisted Pending Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Persisted Pending Loc"
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Persisted Pending Stream",
+    )
+    await _create_pending_suggestion(
+        db_session,
+        org_id=org.id,
+        project_id=project.id,
+        user_id=user.id,
+    )
+    await db_session.commit()
+
+    set_current_user(user)
+
+    needs_confirmation_response = await client.get(
+        "/api/v1/projects/dashboard?bucket=needs_confirmation"
+    )
+    assert needs_confirmation_response.status_code == 200
+    needs_confirmation_payload = needs_confirmation_response.json()
+    assert needs_confirmation_payload["counts"]["needsConfirmation"] == 0
+    assert needs_confirmation_payload["total"] == 0
+    assert needs_confirmation_payload["items"] == []
+
+    missing_information_response = await client.get(
+        "/api/v1/projects/dashboard?bucket=missing_information"
+    )
+    assert missing_information_response.status_code == 200
+    missing_information_payload = missing_information_response.json()
+    assert missing_information_payload["counts"]["needsConfirmation"] == 0
+    assert missing_information_payload["counts"]["missingInformation"] == 1
+    assert [item["streamName"] for item in missing_information_payload["items"]] == [
+        "Persisted Pending Stream"
     ]
 
 

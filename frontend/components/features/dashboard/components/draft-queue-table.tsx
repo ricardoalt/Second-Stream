@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Building, Loader2, MapPin } from "lucide-react";
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -13,6 +13,7 @@ import {
 	useDashboardItems,
 	useDashboardLoading,
 	useDashboardPagination,
+	useDashboardSecondaryDraftRows,
 } from "@/lib/stores/dashboard-store";
 import type { DraftItemRow } from "@/lib/types/dashboard";
 import { isDraftItem } from "@/lib/types/dashboard";
@@ -28,15 +29,26 @@ export const DraftQueueTable = memo(function DraftQueueTable() {
 	const loading = useDashboardLoading();
 	const initialized = useDashboardInitialized();
 	const { listTotal, page, pages } = useDashboardPagination();
+	const secondaryDraftRows = useDashboardSecondaryDraftRows();
 	const { setPage } = useDashboardActions();
 
 	const draftItems = items.filter(isDraftItem) as DraftItemRow[];
+	const mainQueueRows = draftItems.filter(
+		(row) => row.draftKind === "linked" || row.draftKind === "orphan_stream",
+	);
+	const locationOnlyRows = secondaryDraftRows.filter(
+		(row) => row.draftKind === "location_only",
+	);
 
 	if (loading && !initialized) {
 		return <QueueSkeleton />;
 	}
 
-	if (draftItems.length === 0 && !loading) {
+	if (loading && mainQueueRows.length === 0 && locationOnlyRows.length === 0) {
+		return <QueueSkeleton />;
+	}
+
+	if (mainQueueRows.length === 0 && locationOnlyRows.length === 0 && !loading) {
 		return (
 			<EmptyState
 				icon={AlertTriangle}
@@ -47,40 +59,44 @@ export const DraftQueueTable = memo(function DraftQueueTable() {
 	}
 
 	return (
-		<div className="space-y-2">
+		<div className="space-y-5">
 			{/* Column headers */}
-			<div className="hidden md:flex items-center gap-4 px-4 py-1.5 text-xs font-medium text-muted-foreground">
-				<span className="flex-1">Draft stream</span>
-				<span className="hidden lg:block w-36">Client / Location</span>
-				<span className="w-28 text-right">Volume</span>
-				<span className="w-16" />
-			</div>
+			{mainQueueRows.length > 0 && (
+				<>
+					<div className="hidden md:flex items-center gap-4 px-4 py-1.5 text-xs font-medium text-muted-foreground">
+						<span className="flex-1">Draft stream</span>
+						<span className="hidden lg:block w-36">Client / Location</span>
+						<span className="w-28 text-right">Volume</span>
+						<span className="w-16" />
+					</div>
 
-			{/* Rows — staggered reveal */}
-			<motion.div
-				className="space-y-1.5"
-				initial="hidden"
-				animate="visible"
-				variants={{
-					hidden: {},
-					visible: { transition: { staggerChildren: 0.04 } },
-				}}
-			>
-				{draftItems.map((row) => (
+					{/* Rows — staggered reveal */}
 					<motion.div
-						key={row.itemId}
+						className="space-y-1.5"
+						initial="hidden"
+						animate="visible"
 						variants={{
-							hidden: { opacity: 0, y: 8 },
-							visible: { opacity: 1, y: 0 },
+							hidden: {},
+							visible: { transition: { staggerChildren: 0.04 } },
 						}}
 					>
-						<StreamRow row={row} bucket={bucket} />
+						{mainQueueRows.map((row) => (
+							<motion.div
+								key={row.itemId}
+								variants={{
+									hidden: { opacity: 0, y: 8 },
+									visible: { opacity: 1, y: 0 },
+								}}
+							>
+								<StreamRow row={row} bucket={bucket} />
+							</motion.div>
+						))}
 					</motion.div>
-				))}
-			</motion.div>
+				</>
+			)}
 
 			{/* Pagination */}
-			{pages > 1 && (
+			{mainQueueRows.length > 0 && pages > 1 && (
 				<div className="flex items-center justify-between pt-3 px-1">
 					<p className="text-xs text-muted-foreground">
 						Page {page} of {pages} · {listTotal} drafts
@@ -105,9 +121,45 @@ export const DraftQueueTable = memo(function DraftQueueTable() {
 					</div>
 				</div>
 			)}
+
+			{locationOnlyRows.length > 0 && (
+				<div className="space-y-2 pt-1">
+					<div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
+						<p className="text-xs font-medium text-muted-foreground">
+							Detected locations without linked streams
+						</p>
+					</div>
+					<div className="space-y-1.5">
+						{locationOnlyRows.map((row) => (
+							<LocationOnlyRow key={row.itemId} row={row} />
+						))}
+					</div>
+				</div>
+			)}
 		</div>
 	);
 });
+
+function LocationOnlyRow({ row }: { row: DraftItemRow }) {
+	const locationLabel =
+		row.locationLabel || row.streamName || "Detected location";
+
+	return (
+		<div className="rounded-lg border border-dashed border-border/50 bg-muted/10 px-4 py-3">
+			<div className="flex items-center gap-2 text-sm font-medium text-foreground">
+				<MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+				<span className="truncate">{locationLabel}</span>
+			</div>
+			<div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+				<span className="inline-flex items-center gap-1">
+					<Building className="h-3 w-3" />
+					{row.companyLabel ?? "Pending company"}
+				</span>
+				<span>Not confirmable yet</span>
+			</div>
+		</div>
+	);
+}
 
 function QueueSkeleton() {
 	return (

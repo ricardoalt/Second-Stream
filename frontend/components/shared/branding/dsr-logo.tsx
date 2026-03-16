@@ -9,15 +9,15 @@ interface DSRLogoProps {
 
 export function DSRLogo({
 	className = "",
-	width = 120,
-	height = 80,
-	showText = true,
+	width = 160,
+	height = 66,
+	showText = false,
 }: DSRLogoProps) {
 	return (
 		<div className={`flex items-center gap-3 ${className}`}>
 			<Image
-				src="/logo-dsr.svg"
-				alt="DSR Inc. Logo"
+				src="/secondstream_logo.svg"
+				alt="SecondStream logo"
 				width={width}
 				height={height}
 				className="object-contain"
@@ -25,9 +25,9 @@ export function DSRLogo({
 			/>
 			{showText && (
 				<div className="flex flex-col">
-					<span className="text-xl font-bold tracking-tight">DSR Inc.</span>
+					<span className="text-xl font-bold tracking-tight">SecondStream</span>
 					<span className="text-[10px] text-muted-foreground tracking-wide">
-						WASTE RESOURCE MANAGEMENT
+						AI WASTE OPPORTUNITY PLATFORM
 					</span>
 				</div>
 			)}

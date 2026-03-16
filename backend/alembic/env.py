@@ -25,6 +25,8 @@ from app.models import (  # noqa: F401
     ImportRun,
     ImportItem,
     Company,
+    DiscoverySession,
+    DiscoverySource,
     Feedback,
     IntakeNote,
     IntakeSuggestion,

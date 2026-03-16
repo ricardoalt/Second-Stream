@@ -2,12 +2,8 @@ import type { BulkImportLocationResolution } from "@/lib/api/bulk-import";
 import type { DraftConfirmationLocationState } from "@/lib/types/dashboard";
 
 export function isLocationFieldResolved(
-	decision: "confirm" | "reject",
 	locationState: DraftConfirmationLocationState,
 ): boolean {
-	if (decision === "reject") {
-		return false;
-	}
 	if (locationState.mode === "existing") {
 		return locationState.locationId.trim().length > 0;
 	}
@@ -18,14 +14,21 @@ export function isLocationFieldResolved(
 	);
 }
 
+export function hasExplicitLocationResolution(
+	locationState: DraftConfirmationLocationState,
+): boolean {
+	if (locationState.mode === "existing") {
+		return locationState.locationId.trim().length > 0;
+	}
+	if (locationState.mode === "create_new") {
+		return isLocationFieldResolved(locationState);
+	}
+	return false;
+}
+
 export function getLocationResolutionErrorMessage(
-	decision: "confirm" | "reject",
 	locationState: DraftConfirmationLocationState,
 ): string {
-	if (decision === "reject") {
-		return "Location is required";
-	}
-
 	if (locationState.mode === "existing") {
 		return "Select an existing location";
 	}
@@ -44,10 +47,9 @@ export function getLocationResolutionErrorMessage(
 }
 
 export function buildLocationResolutionPayload(
-	decision: "confirm" | "reject",
 	locationState: DraftConfirmationLocationState,
 ): BulkImportLocationResolution | null {
-	if (!isLocationFieldResolved(decision, locationState)) {
+	if (!hasExplicitLocationResolution(locationState)) {
 		return null;
 	}
 
@@ -69,10 +71,7 @@ export function buildLocationResolutionPayload(
 		};
 	}
 
-	return {
-		mode: "locked",
-		name: locationState.name.trim(),
-	};
+	return null;
 }
 
 export function formatLocationStateLabel(

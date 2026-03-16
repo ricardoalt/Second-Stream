@@ -2108,6 +2108,79 @@ body {
 	}
 }
 
+/* ── Discovery Wizard: Orbital animation ── */
+@keyframes orbital-ring-1 {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes orbital-ring-2 {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(-360deg);
+	}
+}
+
+@keyframes orbital-ring-3 {
+	from {
+		transform: rotate(45deg);
+	}
+	to {
+		transform: rotate(405deg);
+	}
+}
+
+@keyframes orbital-breathe {
+	0%,
+	100% {
+		transform: scale(1);
+		opacity: 0.9;
+	}
+	50% {
+		transform: scale(1.08);
+		opacity: 1;
+	}
+}
+
+.animate-orbital-1 {
+	animation: orbital-ring-1 8s linear infinite;
+}
+
+.animate-orbital-2 {
+	animation: orbital-ring-2 6s linear infinite;
+}
+
+.animate-orbital-3 {
+	animation: orbital-ring-3 4s linear infinite;
+}
+
+.animate-orbital-breathe {
+	animation: orbital-breathe 3s ease-in-out infinite;
+}
+
+/* Discovery Wizard: Softer overlay */
+[data-slot="dialog-overlay"]:has(
+		~ [data-slot="dialog-content"].discovery-wizard-dialog
+	) {
+	background: rgba(0, 0, 0, 0.4);
+	backdrop-filter: blur(4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.animate-orbital-1,
+	.animate-orbital-2,
+	.animate-orbital-3,
+	.animate-orbital-breathe {
+		animation: none;
+	}
+}
+
 /* Touch device: always show suggestion row actions */
 @media (hover: none) {
 	.suggestion-row-actions {

@@ -50,6 +50,7 @@ class BulkImportRunResponse(BaseSchema):
     created_at: datetime
     updated_at: datetime
     voice_interview_id: UUID | None = None
+    discovery_source_type: Literal["file", "audio", "text"] | None = None
 
 
 class BulkImportItemResponse(BaseSchema):
@@ -145,6 +146,20 @@ class BulkImportFinalizeRequest(BaseSchema):
         if not self.idempotency_key:
             raise ValueError("idempotency_key required unless close_reason=empty_extraction")
         return self
+
+
+class BulkImportDiscoveryDraftDecisionRequest(BaseSchema):
+    action: Literal["confirm", "reject"]
+    normalized_data: dict[str, object] | None = None
+    review_notes: str | None = Field(default=None, max_length=1000)
+    location_resolution: BulkImportLocationResolution | None = None
+    confirm_create_new: bool | None = None
+
+
+class BulkImportDiscoveryDraftDecisionResponse(BaseSchema):
+    status: RunStatus
+    summary: BulkImportFinalizeSummary
+    item: BulkImportItemResponse
 
 
 class BulkImportSummaryResponse(BaseSchema):

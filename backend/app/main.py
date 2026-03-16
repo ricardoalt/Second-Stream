@@ -505,6 +505,7 @@ from app.api.v1 import (
     auth,
     bulk_import,
     companies,
+    discovery_sessions,
     feedback,
     files,
     health,
@@ -598,6 +599,12 @@ app.include_router(
     bulk_import.router,
     prefix=f"{settings.API_V1_PREFIX}/bulk-import",
     tags=["Bulk Import"],
+)
+
+app.include_router(
+    discovery_sessions.router,
+    prefix=f"{settings.API_V1_PREFIX}/discovery-sessions",
+    tags=["Discovery Sessions"],
 )
 
 app.include_router(

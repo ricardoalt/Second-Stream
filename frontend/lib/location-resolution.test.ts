@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	buildLocationResolutionPayload,
 	getLocationResolutionErrorMessage,
+	hasExplicitLocationResolution,
 	isLocationFieldResolved,
 	resolveNonCreateLocationState,
 } from "@/lib/location-resolution";
@@ -17,7 +18,9 @@ describe("location resolution state", () => {
 	};
 
 	it("treats reject as unresolved", () => {
-		expect(isLocationFieldResolved("reject", lockedBase)).toBe(false);
+		expect(isLocationFieldResolved(lockedBase)).toBe(true);
+		expect(hasExplicitLocationResolution(lockedBase)).toBe(false);
+		expect(buildLocationResolutionPayload(lockedBase)).toBeNull();
 	});
 
 	it("requires city/state for locked mode", () => {
@@ -25,8 +28,8 @@ describe("location resolution state", () => {
 			...lockedBase,
 			city: "",
 		};
-		expect(isLocationFieldResolved("confirm", unresolved)).toBe(false);
-		expect(getLocationResolutionErrorMessage("confirm", unresolved)).toBe(
+		expect(isLocationFieldResolved(unresolved)).toBe(false);
+		expect(getLocationResolutionErrorMessage(unresolved)).toBe(
 			"Location city is required",
 		);
 	});
@@ -40,19 +43,18 @@ describe("location resolution state", () => {
 			state: "NL",
 			address: "",
 		};
-		expect(isLocationFieldResolved("confirm", unresolvedExisting)).toBe(false);
+		expect(isLocationFieldResolved(unresolvedExisting)).toBe(false);
 
 		const resolvedExisting: DraftConfirmationLocationState = {
 			...unresolvedExisting,
 			locationId: "loc-123",
 		};
-		expect(isLocationFieldResolved("confirm", resolvedExisting)).toBe(true);
-		expect(buildLocationResolutionPayload("confirm", resolvedExisting)).toEqual(
-			{
-				mode: "existing",
-				locationId: "loc-123",
-			},
-		);
+		expect(isLocationFieldResolved(resolvedExisting)).toBe(true);
+		expect(hasExplicitLocationResolution(resolvedExisting)).toBe(true);
+		expect(buildLocationResolutionPayload(resolvedExisting)).toEqual({
+			mode: "existing",
+			locationId: "loc-123",
+		});
 	});
 
 	it("builds create-new payload only when required fields exist", () => {
@@ -64,7 +66,8 @@ describe("location resolution state", () => {
 			address: "  ",
 		};
 
-		expect(buildLocationResolutionPayload("confirm", createNewState)).toEqual({
+		expect(hasExplicitLocationResolution(createNewState)).toBe(true);
+		expect(buildLocationResolutionPayload(createNewState)).toEqual({
 			mode: "create_new",
 			name: "New Plant",
 			city: "Queretaro",
@@ -107,6 +110,6 @@ describe("location resolution state", () => {
 		const resolved = resolveNonCreateLocationState(null, reopenedCreateNew);
 		expect(resolved.mode).toBe("locked");
 		expect(resolved.name).toBe("Reopened Plant");
-		expect(isLocationFieldResolved("confirm", resolved)).toBe(true);
+		expect(isLocationFieldResolved(resolved)).toBe(true);
 	});
 });

@@ -2,20 +2,17 @@
 
 import {
 	AlertCircle,
-	Building2,
 	Check,
 	ChevronRight,
 	ChevronsUpDown,
-	FlaskConical,
 	Lock,
 	Plus,
 	Sparkles,
-	Truck,
 	User,
 	X,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,21 +24,19 @@ import {
 	CommandItem,
 	CommandList,
 } from "@/components/ui/command";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -59,7 +54,7 @@ import {
 	buildLocationResolutionPayload,
 	formatLocationStateLabel,
 	getLocationResolutionErrorMessage,
-	isLocationFieldResolved,
+	hasExplicitLocationResolution,
 	resolveNonCreateLocationState,
 } from "@/lib/location-resolution";
 import {
@@ -68,7 +63,6 @@ import {
 } from "@/lib/stores/dashboard-store";
 import type {
 	DraftConfirmationContract,
-	DraftConfirmationFieldDecision,
 	DraftConfirmationFieldKey,
 	DraftConfirmationFieldMap,
 	DraftConfirmationFieldSource,
@@ -87,22 +81,17 @@ interface DraftConfirmationContext {
 	parentLocationItem: BulkImportItem | null;
 }
 
+interface AutoFocusDraftArgs {
+	loading: boolean;
+	draftItemId: string | null;
+	lastFocusedDraftId: string | null;
+}
+
 type FieldErrorMap = Partial<Record<DraftConfirmationFieldKey, string>>;
 
 /* ──────────────────────────────────────────────────────────── */
 /*  Constants                                                  */
 /* ──────────────────────────────────────────────────────────── */
-
-const FIELD_ORDER: DraftConfirmationFieldKey[] = [
-	"company",
-	"location",
-	"materialType",
-	"materialName",
-	"composition",
-	"volume",
-	"frequency",
-	"primaryContact",
-];
 
 const FIELD_LABELS: Record<DraftConfirmationFieldKey, string> = {
 	company: "Company",
@@ -138,28 +127,16 @@ const INPUT_PLACEHOLDER = "Pending";
 /*  Field grouping                                             */
 /* ──────────────────────────────────────────────────────────── */
 
-interface FieldGroup {
-	title: string;
-	icon: ComponentType<{ className?: string }>;
-	fields: DraftConfirmationFieldKey[];
-}
+const MATERIAL_FIELDS: DraftConfirmationFieldKey[] = [
+	"materialType",
+	"materialName",
+	"composition",
+];
 
-const FIELD_GROUPS: FieldGroup[] = [
-	{
-		title: "Identity",
-		icon: Building2,
-		fields: ["company", "location"],
-	},
-	{
-		title: "Material",
-		icon: FlaskConical,
-		fields: ["materialType", "materialName", "composition"],
-	},
-	{
-		title: "Operations",
-		icon: Truck,
-		fields: ["volume", "frequency", "primaryContact"],
-	},
+const OPERATIONS_FIELDS: DraftConfirmationFieldKey[] = [
+	"volume",
+	"frequency",
+	"primaryContact",
 ];
 
 /* ──────────────────────────────────────────────────────────── */
@@ -187,6 +164,7 @@ export function DraftConfirmationSheet() {
 	);
 	const [lastNonCreateLocationState, setLastNonCreateLocationState] =
 		useState<DraftConfirmationLocationState | null>(null);
+	const focusedDraftIdRef = useRef<string | null>(null);
 
 	useEffect(() => {
 		if (!activeDraft) {
@@ -198,11 +176,17 @@ export function DraftConfirmationSheet() {
 			setLocationLookupLoading(false);
 			setLocationLookupError(null);
 			setLastNonCreateLocationState(null);
+			focusedDraftIdRef.current = null;
 			setLoading(false);
 			return;
 		}
 
 		const selectedDraft = activeDraft;
+		if (!selectedDraft.confirmable || selectedDraft.target === null) {
+			toast.error("This draft cannot be confirmed yet.");
+			closeDraftConfirmation();
+			return;
+		}
 		setLocationLookupQuery("");
 		setLocationOptions([]);
 		setLocationLookupError(null);
@@ -331,10 +315,10 @@ export function DraftConfirmationSheet() {
 		for (const key of REQUIRED_FIELDS) {
 			if (
 				key === "location" &&
-				!isLocationFieldResolved(
-					contract.fields.location.decision,
-					contract.locationState,
-				)
+				!isLocationResolvedForConfirm({
+					contract,
+					context,
+				})
 			) {
 				missing.push(FIELD_LABELS[key]);
 				continue;
@@ -355,32 +339,13 @@ export function DraftConfirmationSheet() {
 		}
 
 		return missing;
-	}, [contract]);
-
-	const fieldReadiness = useMemo(() => {
-		if (!contract) {
-			return { resolved: 0, total: FIELD_ORDER.length };
-		}
-		let resolved = 0;
-		for (const key of FIELD_ORDER) {
-			const field = contract.fields[key];
-			const isResolved =
-				key === "location"
-					? isLocationFieldResolved(field.decision, contract.locationState)
-					: Boolean(getPersistedFieldValue(field));
-			if (isResolved) {
-				resolved++;
-			}
-		}
-		return { resolved, total: FIELD_ORDER.length };
-	}, [contract]);
+	}, [contract, context]);
 
 	const updateField = useCallback(
 		(
 			key: DraftConfirmationFieldKey,
 			updates: Partial<{
 				value: string;
-				decision: DraftConfirmationFieldDecision;
 			}>,
 		) => {
 			setContract((current) => {
@@ -403,9 +368,6 @@ export function DraftConfirmationSheet() {
 						[key]: {
 							...field,
 							...(updates.value !== undefined ? { value: updates.value } : {}),
-							...(updates.decision !== undefined
-								? { decision: updates.decision }
-								: {}),
 						},
 					},
 				};
@@ -440,7 +402,6 @@ export function DraftConfirmationSheet() {
 						location: {
 							...current.fields.location,
 							value: nextLocationState.name,
-							decision: "confirm",
 						},
 					},
 				};
@@ -512,13 +473,53 @@ export function DraftConfirmationSheet() {
 		[contract, updateLocationState],
 	);
 
+	const submitDraftDecision = useCallback(
+		async (action: "confirm" | "reject") => {
+			if (!contract || !context) {
+				return null;
+			}
+
+			const locationResolution = buildLocationResolutionPayload(
+				contract.locationState,
+			);
+			const explicitLocationResolution = getExplicitLocationResolutionForSubmit(
+				{
+					contract,
+					context,
+					locationResolution,
+				},
+			);
+			if (
+				action === "confirm" &&
+				!isLocationResolvedForConfirm({ contract, context })
+			) {
+				throw new Error(getLocationValidationMessage({ contract, context }));
+			}
+
+			const projectNormalizedData = buildProjectNormalizedData(
+				contract.fields,
+				context.projectItem,
+			);
+			const reviewNotes = buildReviewNotes(contract.fields);
+
+			return bulkImportAPI.decideDiscoveryDraft(context.projectItem.id, {
+				action,
+				...(action === "confirm"
+					? {
+							normalizedData: projectNormalizedData,
+							reviewNotes,
+							...(explicitLocationResolution
+								? { locationResolution: explicitLocationResolution }
+								: {}),
+						}
+					: {}),
+			});
+		},
+		[contract, context],
+	);
+
 	const handleConfirmDraft = useCallback(async () => {
 		if (!contract || !context) {
-			return;
-		}
-
-		if (!context.projectItem.groupId) {
-			toast.error("Draft group is missing. Reopen and try again.");
 			return;
 		}
 
@@ -527,15 +528,15 @@ export function DraftConfirmationSheet() {
 		for (const key of REQUIRED_FIELDS) {
 			if (
 				key === "location" &&
-				!isLocationFieldResolved(
-					contract.fields.location.decision,
-					contract.locationState,
-				)
+				!isLocationResolvedForConfirm({
+					contract,
+					context,
+				})
 			) {
-				validationErrors.location = getLocationResolutionErrorMessage(
-					contract.fields.location.decision,
-					contract.locationState,
-				);
+				validationErrors.location = getLocationValidationMessage({
+					contract,
+					context,
+				});
 				continue;
 			}
 
@@ -571,40 +572,7 @@ export function DraftConfirmationSheet() {
 		setSubmitting(true);
 
 		try {
-			const projectNormalizedData = buildProjectNormalizedData(
-				contract.fields,
-				context.projectItem,
-			);
-			const reviewNotes = buildReviewNotes(contract.fields);
-
-			await bulkImportAPI.patchItem(context.projectItem.id, "amend", {
-				normalizedData: projectNormalizedData,
-				reviewNotes,
-			});
-
-			if (context.parentLocationItem) {
-				const locationResolution = buildLocationResolutionPayload(
-					contract.fields.location.decision,
-					contract.locationState,
-				);
-				if (!locationResolution) {
-					throw new Error(
-						getLocationResolutionErrorMessage(
-							contract.fields.location.decision,
-							contract.locationState,
-						),
-					);
-				}
-
-				await bulkImportAPI.patchItem(context.parentLocationItem.id, "amend", {
-					locationResolution,
-				});
-			}
-
-			await bulkImportAPI.finalize(context.run.id, {
-				resolvedGroupIds: [context.projectItem.groupId],
-				idempotencyKey: crypto.randomUUID(),
-			});
+			await submitDraftDecision("confirm");
 
 			await loadDashboard();
 			closeDraftConfirmation();
@@ -618,12 +586,97 @@ export function DraftConfirmationSheet() {
 		} finally {
 			setSubmitting(false);
 		}
-	}, [contract, context, closeDraftConfirmation, loadDashboard]);
+	}, [
+		contract,
+		context,
+		closeDraftConfirmation,
+		loadDashboard,
+		submitDraftDecision,
+	]);
+
+	const handleRejectDraft = useCallback(async () => {
+		if (!contract || !context) {
+			return;
+		}
+
+		setSubmitting(true);
+
+		try {
+			await submitDraftDecision("reject");
+			await loadDashboard();
+			closeDraftConfirmation();
+			toast.success("Draft rejected", {
+				description:
+					"Stream draft dismissed and removed from Needs Confirmation.",
+			});
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to reject draft",
+			);
+		} finally {
+			setSubmitting(false);
+		}
+	}, [
+		contract,
+		context,
+		closeDraftConfirmation,
+		loadDashboard,
+		submitDraftDecision,
+	]);
 
 	const isReady = missingBaseFields.length === 0;
 
+	const bodyRef = useRef<HTMLDivElement>(null);
+
+	// Auto-focus first empty required field on sheet open
+	useEffect(() => {
+		if (
+			shouldAutoFocusDraft({
+				loading,
+				draftItemId: contract?.draftItemId ?? null,
+				lastFocusedDraftId: focusedDraftIdRef.current,
+			}) &&
+			contract &&
+			bodyRef.current
+		) {
+			focusedDraftIdRef.current = contract.draftItemId;
+			const firstEmpty = bodyRef.current.querySelector<HTMLInputElement>(
+				"input:not([readonly]):placeholder-shown, textarea:placeholder-shown",
+			);
+			if (firstEmpty) {
+				firstEmpty.focus();
+			}
+		}
+	}, [loading, contract]);
+
+	// Keyboard submit: Cmd+Enter / Ctrl+Enter
+	useEffect(() => {
+		if (!activeDraft) {
+			return;
+		}
+		function handleKeyDown(event: KeyboardEvent) {
+			if (
+				(event.metaKey || event.ctrlKey) &&
+				event.key === "Enter" &&
+				isReady &&
+				!submitting &&
+				!loading &&
+				contract
+			) {
+				event.preventDefault();
+				void handleConfirmDraft();
+			}
+		}
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [activeDraft, isReady, submitting, loading, contract, handleConfirmDraft]);
+
+	const isDiscoveryStreamFirstFlow =
+		context?.run.discoverySourceType === "file" ||
+		context?.run.discoverySourceType === "text";
+
 	return (
-		<Dialog
+		<Sheet
 			open={activeDraft !== null}
 			onOpenChange={(open) => {
 				if (!open && !submitting) {
@@ -631,39 +684,33 @@ export function DraftConfirmationSheet() {
 				}
 			}}
 		>
-			<DialogContent
-				className="sm:max-w-2xl p-0 gap-0 overflow-hidden"
-				showCloseButton={!submitting}
+			<SheetContent
+				side="right"
+				className="w-full sm:max-w-lg p-0 gap-0 overflow-hidden"
+				onInteractOutside={(e) => {
+					const target = e.target as Element;
+					if (target.closest("[data-radix-popper-content-wrapper]")) {
+						e.preventDefault();
+					}
+				}}
 			>
 				{/* ── Header ─────────────────────────────────── */}
 				<div className="border-b border-border/60 bg-muted/30">
-					<DialogHeader className="px-6 pt-5 pb-4">
+					<SheetHeader className="px-6 pt-5 pb-4">
 						<div className="flex items-center gap-3">
 							<div className="flex items-center justify-center size-9 rounded-lg bg-warning/15 text-warning">
 								<Sparkles className="size-4" />
 							</div>
 							<div className="flex flex-col gap-0.5">
-								<DialogTitle className="text-base leading-snug">
+								<SheetTitle className="text-base leading-snug">
 									Needs Confirmation
-								</DialogTitle>
-								<DialogDescription className="text-xs">
+								</SheetTitle>
+								<SheetDescription className="text-xs">
 									Review AI-detected fields before creating a persisted stream
-								</DialogDescription>
+								</SheetDescription>
 							</div>
 						</div>
-					</DialogHeader>
-
-					{/* ── Readiness bar ───────────────────────── */}
-					{!loading && contract && (
-						<div className="px-6 pb-4">
-							<ReadinessSummary
-								resolved={fieldReadiness.resolved}
-								total={fieldReadiness.total}
-								isReady={isReady}
-								missingFields={missingBaseFields}
-							/>
-						</div>
-					)}
+					</SheetHeader>
 				</div>
 
 				{/* ── Body ───────────────────────────────────── */}
@@ -679,30 +726,77 @@ export function DraftConfirmationSheet() {
 				)}
 
 				{!loading && contract && (
-					<ScrollArea className="max-h-[min(60vh,calc(100dvh-220px))]">
-						<div className="flex flex-col gap-5 px-6 py-5">
-							{FIELD_GROUPS.map((group, groupIndex) => (
-								<FieldGroupSection
-									key={group.title}
-									group={group}
-									contract={contract}
-									fieldErrors={fieldErrors}
-									updateField={updateField}
-									locationLookupQuery={locationLookupQuery}
-									onLocationLookupQueryChange={setLocationLookupQuery}
-									locationOptions={locationOptions}
-									locationLookupLoading={locationLookupLoading}
-									locationLookupError={locationLookupError}
-									onSelectExistingLocation={selectExistingLocation}
-									onStartCreateNewLocation={startCreateNewLocation}
-									onCancelCreateNewLocation={switchLocationBackToLocked}
-									onUpdateCreateNewLocationField={updateCreateNewLocationField}
-									submitting={submitting}
-									showSeparator={groupIndex < FIELD_GROUPS.length - 1}
-								/>
-							))}
+					<div ref={bodyRef} className="flex-1 overflow-y-auto">
+						<div className="flex flex-col gap-4 px-6 py-5">
+							{/* ── Context card ─────────────────── */}
+							<ContextCard
+								contract={contract}
+								fieldErrors={fieldErrors}
+								locationLookupQuery={locationLookupQuery}
+								onLocationLookupQueryChange={setLocationLookupQuery}
+								locationOptions={locationOptions}
+								locationLookupLoading={locationLookupLoading}
+								locationLookupError={locationLookupError}
+								onSelectExistingLocation={selectExistingLocation}
+								onStartCreateNewLocation={startCreateNewLocation}
+								onCancelCreateNewLocation={switchLocationBackToLocked}
+								onUpdateCreateNewLocationField={updateCreateNewLocationField}
+								submitting={submitting}
+							/>
+
+							{/* ── Material fields ──────────────── */}
+							<div>
+								<span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+									Material
+								</span>
+								<div className="mt-2 flex flex-col gap-2">
+									{MATERIAL_FIELDS.map((fieldKey) => (
+										<ConfirmationFieldRow
+											key={fieldKey}
+											field={contract.fields[fieldKey]}
+											isResolved={Boolean(
+												getPersistedFieldValue(contract.fields[fieldKey]),
+											)}
+											error={fieldErrors[fieldKey]}
+											onValueChange={(value) =>
+												updateField(fieldKey, { value })
+											}
+											submitting={submitting}
+										/>
+									))}
+								</div>
+							</div>
+
+							{/* ── Operations fields ────────────── */}
+							<div className="mt-4">
+								<span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+									Operations
+								</span>
+								<div className="mt-2 flex flex-col gap-2">
+									{OPERATIONS_FIELDS.map((fieldKey) => (
+										<ConfirmationFieldRow
+											key={fieldKey}
+											field={contract.fields[fieldKey]}
+											isResolved={Boolean(
+												getPersistedFieldValue(contract.fields[fieldKey]),
+											)}
+											error={fieldErrors[fieldKey]}
+											onValueChange={(value) =>
+												updateField(fieldKey, { value })
+											}
+											submitting={submitting}
+										/>
+									))}
+								</div>
+							</div>
 						</div>
-					</ScrollArea>
+
+						{/* ── Validation banner ─────────────── */}
+						<ValidationBanner
+							isReady={isReady}
+							missingFields={missingBaseFields}
+						/>
+					</div>
 				)}
 
 				{/* ── Footer ─────────────────────────────────── */}
@@ -721,14 +815,28 @@ export function DraftConfirmationSheet() {
 								: `${missingBaseFields.length} field${missingBaseFields.length !== 1 ? "s" : ""} still pending`}
 						</p>
 						<div className="flex items-center gap-2">
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => closeDraftConfirmation()}
-								disabled={submitting}
-							>
-								Cancel
-							</Button>
+							{isDiscoveryStreamFirstFlow ? (
+								<Button
+									variant="outline"
+									size="default"
+									onClick={() => {
+										void handleRejectDraft();
+									}}
+									disabled={submitting || loading || !contract}
+								>
+									<X data-icon="inline-start" />
+									Reject Draft
+								</Button>
+							) : (
+								<Button
+									variant="outline"
+									size="default"
+									onClick={() => closeDraftConfirmation()}
+									disabled={submitting}
+								>
+									Cancel
+								</Button>
+							)}
 							<Button
 								size="default"
 								onClick={() => {
@@ -756,32 +864,26 @@ export function DraftConfirmationSheet() {
 						</div>
 					</div>
 				</div>
-			</DialogContent>
-		</Dialog>
+			</SheetContent>
+		</Sheet>
 	);
 }
 
 /* ──────────────────────────────────────────────────────────── */
-/*  Readiness summary                                          */
+/*  Validation banner                                          */
 /* ──────────────────────────────────────────────────────────── */
 
-function ReadinessSummary({
-	resolved,
-	total,
+function ValidationBanner({
 	isReady,
 	missingFields,
 }: {
-	resolved: number;
-	total: number;
 	isReady: boolean;
 	missingFields: string[];
 }) {
-	const pct = Math.round((resolved / total) * 100);
-
 	return (
 		<div
 			className={cn(
-				"rounded-lg border px-3.5 py-2.5",
+				"mx-6 mb-4 rounded-lg border px-3.5 py-2.5",
 				isReady
 					? "border-success/30 bg-success/5"
 					: "border-warning/30 bg-warning/5",
@@ -789,65 +891,33 @@ function ReadinessSummary({
 			aria-live="polite"
 			aria-atomic="true"
 		>
-			<div className="flex items-center justify-between gap-4">
-				<div className="flex items-center gap-2.5 min-w-0">
-					{isReady ? (
-						<div className="flex items-center justify-center size-5 rounded-full bg-success/20 text-success shrink-0">
-							<Check className="size-3" />
-						</div>
-					) : (
-						<div className="flex items-center justify-center size-5 rounded-full bg-warning/20 text-warning shrink-0">
-							<AlertCircle className="size-3" />
-						</div>
-					)}
-					{isReady ? (
-						<span className="text-xs font-medium">Ready to confirm</span>
-					) : (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span className="text-xs font-medium truncate max-w-[260px] cursor-default">
-									Missing: {missingFields.join(", ")}
-								</span>
-							</TooltipTrigger>
-							<TooltipContent side="bottom">
-								<p>Missing: {missingFields.join(", ")}</p>
-							</TooltipContent>
-						</Tooltip>
-					)}
-				</div>
-				<span
-					className={cn(
-						"text-[11px] font-mono tabular-nums shrink-0",
-						isReady ? "text-success" : "text-warning",
-					)}
-				>
-					{resolved}/{total} ({pct}%)
+			<div className="flex items-center gap-2.5">
+				{isReady ? (
+					<div className="flex items-center justify-center size-5 rounded-full bg-success/20 text-success shrink-0">
+						<Check className="size-3" />
+					</div>
+				) : (
+					<div className="flex items-center justify-center size-5 rounded-full bg-warning/20 text-warning shrink-0">
+						<AlertCircle className="size-3" />
+					</div>
+				)}
+				<span className="text-xs font-medium">
+					{isReady
+						? "Ready to confirm"
+						: `Still needed: ${missingFields.join(", ")}`}
 				</span>
-			</div>
-
-			{/* Progress track */}
-			<div className="mt-2 h-1 w-full rounded-full bg-border/40 overflow-hidden">
-				<div
-					className={cn(
-						"h-full rounded-full transition-all duration-500 ease-out",
-						isReady ? "bg-success" : "bg-warning",
-					)}
-					style={{ width: `${pct}%` }}
-				/>
 			</div>
 		</div>
 	);
 }
 
 /* ──────────────────────────────────────────────────────────── */
-/*  Field group section                                        */
+/*  Context card (Company + Location)                          */
 /* ──────────────────────────────────────────────────────────── */
 
-function FieldGroupSection({
-	group,
+function ContextCard({
 	contract,
 	fieldErrors,
-	updateField,
 	locationLookupQuery,
 	onLocationLookupQueryChange,
 	locationOptions,
@@ -858,18 +928,9 @@ function FieldGroupSection({
 	onCancelCreateNewLocation,
 	onUpdateCreateNewLocationField,
 	submitting,
-	showSeparator,
 }: {
-	group: FieldGroup;
 	contract: DraftConfirmationContract;
 	fieldErrors: FieldErrorMap;
-	updateField: (
-		key: DraftConfirmationFieldKey,
-		updates: Partial<{
-			value: string;
-			decision: DraftConfirmationFieldDecision;
-		}>,
-	) => void;
 	locationLookupQuery: string;
 	onLocationLookupQueryChange: (value: string) => void;
 	locationOptions: BulkImportRunLocationOption[];
@@ -883,60 +944,86 @@ function FieldGroupSection({
 		value: string,
 	) => void;
 	submitting: boolean;
-	showSeparator: boolean;
 }) {
-	const GroupIcon = group.icon;
+	const companyField = contract.fields.company;
+	const locationField = contract.fields.location;
 
 	return (
-		<>
-			{/* Group header */}
-			<div className="flex items-center gap-2 mb-1">
-				<GroupIcon className="size-3.5 text-muted-foreground" />
-				<span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-					{group.title}
-				</span>
-				<div className="flex-1 h-px bg-border/40" />
+		<div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-4">
+			{/* Company display */}
+			<div className="space-y-1">
+				<div className="flex items-center gap-2">
+					<span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+						Company
+					</span>
+					<SourceBadge source={companyField.source} />
+					{companyField.editabilityReason ? (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Lock className="size-3 text-muted-foreground/70 cursor-help" />
+							</TooltipTrigger>
+							<TooltipContent side="top">
+								<p>{companyField.editabilityReason}</p>
+							</TooltipContent>
+						</Tooltip>
+					) : (
+						<Lock className="size-3 text-muted-foreground/70" />
+					)}
+				</div>
+				<p className="text-sm font-medium">
+					{companyField.value || (
+						<span className="text-muted-foreground italic">No company</span>
+					)}
+				</p>
 			</div>
 
-			{/* Fields */}
-			<div className="flex flex-col gap-2.5">
-				{group.fields.map((fieldKey) => {
-					const field = contract.fields[fieldKey];
-					const error = fieldErrors[fieldKey];
-					const persistedValue = getPersistedFieldValue(field);
-					const isResolved =
-						field.key === "location"
-							? isLocationFieldResolved(field.decision, contract.locationState)
-							: Boolean(persistedValue);
+			{/* Location */}
+			<div className="space-y-1.5 rounded-md bg-muted/40 p-3">
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-2">
+						<span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+							Location
+						</span>
+						<SourceBadge source={locationField.source} />
+						{!locationField.editable && (
+							<Lock className="size-3 text-muted-foreground/70" />
+						)}
+					</div>
+				</div>
 
-					return (
-						<ConfirmationFieldRow
-							key={field.key}
-							field={field}
-							locationState={
-								field.key === "location" ? contract.locationState : null
-							}
-							locationLookupQuery={locationLookupQuery}
-							onLocationLookupQueryChange={onLocationLookupQueryChange}
-							locationOptions={locationOptions}
-							locationLookupLoading={locationLookupLoading}
-							locationLookupError={locationLookupError}
-							onSelectExistingLocation={onSelectExistingLocation}
-							onStartCreateNewLocation={onStartCreateNewLocation}
-							onCancelCreateNewLocation={onCancelCreateNewLocation}
-							onUpdateCreateNewLocationField={onUpdateCreateNewLocationField}
-							isResolved={isResolved}
-							error={error}
-							onDecision={(decision) => updateField(field.key, { decision })}
-							onValueChange={(value) => updateField(field.key, { value })}
-							submitting={submitting}
-						/>
-					);
-				})}
+				{/* Resolved indicator */}
+				{!locationField.editable && (
+					<p className="text-sm">
+						{formatLocationStateLabel(contract.locationState) || (
+							<span className="text-muted-foreground italic">No location</span>
+						)}
+					</p>
+				)}
+
+				{locationField.editable && (
+					<LocationFieldInput
+						locationState={contract.locationState}
+						searchQuery={locationLookupQuery}
+						onSearchQueryChange={onLocationLookupQueryChange}
+						options={locationOptions}
+						loading={locationLookupLoading}
+						error={locationLookupError}
+						onSelectExisting={onSelectExistingLocation}
+						onStartCreateNew={onStartCreateNewLocation}
+						onCancelCreateNew={onCancelCreateNewLocation}
+						onUpdateCreateNewField={onUpdateCreateNewLocationField}
+						disabled={submitting || !locationField.editable}
+					/>
+				)}
+
+				{fieldErrors.location && (
+					<p className="text-[11px] text-destructive flex items-center gap-1">
+						<AlertCircle className="size-2.5 shrink-0" />
+						{fieldErrors.location}
+					</p>
+				)}
 			</div>
-
-			{showSeparator && <Separator className="my-1.5" />}
-		</>
+		</div>
 	);
 }
 
@@ -944,48 +1031,23 @@ function FieldGroupSection({
 /*  Individual field row                                       */
 /* ──────────────────────────────────────────────────────────── */
 
-function ConfirmationFieldRow({
+export function ConfirmationFieldRow({
 	field,
-	locationState,
-	locationLookupQuery,
-	onLocationLookupQueryChange,
-	locationOptions,
-	locationLookupLoading,
-	locationLookupError,
-	onSelectExistingLocation,
-	onStartCreateNewLocation,
-	onCancelCreateNewLocation,
-	onUpdateCreateNewLocationField,
 	isResolved,
 	error,
-	onDecision,
 	onValueChange,
 	submitting,
 }: {
 	field: DraftConfirmationFieldMap[DraftConfirmationFieldKey];
-	locationState: DraftConfirmationLocationState | null;
-	locationLookupQuery: string;
-	onLocationLookupQueryChange: (value: string) => void;
-	locationOptions: BulkImportRunLocationOption[];
-	locationLookupLoading: boolean;
-	locationLookupError: string | null;
-	onSelectExistingLocation: (option: BulkImportRunLocationOption) => void;
-	onStartCreateNewLocation: () => void;
-	onCancelCreateNewLocation: () => void;
-	onUpdateCreateNewLocationField: (
-		field: "name" | "city" | "state" | "address",
-		value: string,
-	) => void;
 	isResolved: boolean;
 	error: string | undefined;
-	onDecision: (decision: DraftConfirmationFieldDecision) => void;
 	onValueChange: (value: string) => void;
 	submitting: boolean;
 }) {
 	return (
 		<div
 			className={cn(
-				"group rounded-lg border border-l-2 px-3.5 py-3 transition-colors",
+				"group rounded-lg border border-l px-3 py-2.5 transition-colors",
 				error
 					? "border-destructive/40 border-l-destructive/50 bg-destructive/5"
 					: isResolved
@@ -995,22 +1057,22 @@ function ConfirmationFieldRow({
 			)}
 		>
 			{/* Row header: label + source + actions */}
-			<div className="flex items-center justify-between gap-2 mb-2">
+			<div className="flex items-center justify-between gap-2 mb-1.5">
 				<div className="flex items-center gap-2 min-w-0">
 					{/* Resolved indicator */}
 					<div
 						aria-hidden="true"
 						className={cn(
-							"flex items-center justify-center size-4 rounded-full shrink-0 transition-colors",
+							"flex items-center justify-center size-3.5 rounded-full shrink-0 transition-colors",
 							isResolved
 								? "bg-success/20 text-success"
 								: "bg-muted text-muted-foreground",
 						)}
 					>
 						{isResolved ? (
-							<Check className="size-2.5" />
+							<Check className="size-2" />
 						) : (
-							<ChevronRight className="size-2.5" />
+							<ChevronRight className="size-2" />
 						)}
 					</div>
 
@@ -1020,67 +1082,18 @@ function ConfirmationFieldRow({
 					)}
 
 					<SourceBadge source={field.source} />
-
-					{!field.editable && field.editabilityReason && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Lock className="size-3.5 text-muted-foreground/70 shrink-0 cursor-help" />
-							</TooltipTrigger>
-							<TooltipContent side="top">
-								<p>{field.editabilityReason}</p>
-							</TooltipContent>
-						</Tooltip>
-					)}
-					{!field.editable && !field.editabilityReason && (
-						<Lock className="size-3.5 text-muted-foreground/70 shrink-0" />
-					)}
 				</div>
-
-				{/* Confirm / Reject mini-buttons */}
-				{field.editable && (
-					<div className="flex items-center gap-1 shrink-0">
-						<FieldDecisionButton
-							active={field.decision === "confirm"}
-							onClick={() => onDecision("confirm")}
-							icon={Check}
-							label="Confirm"
-							disabled={submitting}
-						/>
-						<FieldDecisionButton
-							active={field.decision === "reject"}
-							onClick={() => onDecision("reject")}
-							icon={X}
-							label="Reject"
-							disabled={submitting}
-						/>
-					</div>
-				)}
 			</div>
 
 			{/* Input */}
-			{field.key === "location" && locationState && field.editable ? (
-				<LocationFieldInput
-					locationState={locationState}
-					searchQuery={locationLookupQuery}
-					onSearchQueryChange={onLocationLookupQueryChange}
-					options={locationOptions}
-					loading={locationLookupLoading}
-					error={locationLookupError}
-					onSelectExisting={onSelectExistingLocation}
-					onStartCreateNew={onStartCreateNewLocation}
-					onCancelCreateNew={onCancelCreateNewLocation}
-					onUpdateCreateNewField={onUpdateCreateNewLocationField}
-					disabled={submitting || !field.editable}
-				/>
-			) : (
-				<FieldInput
-					fieldKey={field.key}
-					value={field.value}
-					onChange={onValueChange}
-					placeholder={field.placeholder ?? INPUT_PLACEHOLDER}
-					disabled={submitting || !field.editable}
-				/>
-			)}
+			<FieldInput
+				fieldKey={field.key}
+				value={field.value}
+				onChange={onValueChange}
+				placeholder={field.placeholder ?? INPUT_PLACEHOLDER}
+				disabled={submitting || !field.editable}
+				readOnly={!field.editable}
+			/>
 
 			{/* Error */}
 			{error && (
@@ -1093,22 +1106,106 @@ function ConfirmationFieldRow({
 	);
 }
 
+export function shouldAutoFocusDraft({
+	loading,
+	draftItemId,
+	lastFocusedDraftId,
+}: AutoFocusDraftArgs): boolean {
+	if (loading || draftItemId === null) {
+		return false;
+	}
+	return draftItemId !== lastFocusedDraftId;
+}
+
+export function requiresExplicitLocationResolution(params: {
+	contract: DraftConfirmationContract;
+	context: DraftConfirmationContext | null;
+}): boolean {
+	const { context } = params;
+	if (context === null) {
+		return false;
+	}
+	if (context.run.entrypointType !== "company") {
+		return false;
+	}
+	return context.parentLocationItem === null;
+}
+
+export function canSubmitLocationResolution(params: {
+	contract: DraftConfirmationContract;
+	context: DraftConfirmationContext | null;
+}): boolean {
+	const { contract, context } = params;
+	if (context === null) {
+		return false;
+	}
+	return (
+		context.run.entrypointType === "company" &&
+		contract.fields.location.editable
+	);
+}
+
+function isLocationResolvedForConfirm(params: {
+	contract: DraftConfirmationContract;
+	context: DraftConfirmationContext | null;
+}): boolean {
+	const { contract, context } = params;
+	if (!requiresExplicitLocationResolution({ contract, context })) {
+		return true;
+	}
+	return hasExplicitLocationResolution(contract.locationState);
+}
+
+function getLocationValidationMessage(params: {
+	contract: DraftConfirmationContract;
+	context: DraftConfirmationContext | null;
+}): string {
+	const { contract, context } = params;
+	if (!requiresExplicitLocationResolution({ contract, context })) {
+		return "Location is required";
+	}
+	if (!hasExplicitLocationResolution(contract.locationState)) {
+		return "Select existing location or create a new one";
+	}
+	return getLocationResolutionErrorMessage(contract.locationState);
+}
+
+export function getExplicitLocationResolutionForSubmit(params: {
+	contract: DraftConfirmationContract;
+	context: DraftConfirmationContext | null;
+	locationResolution: ReturnType<typeof buildLocationResolutionPayload>;
+}) {
+	const { contract, context, locationResolution } = params;
+	if (!hasExplicitLocationResolution(contract.locationState)) {
+		return undefined;
+	}
+	if (!canSubmitLocationResolution({ contract, context })) {
+		return undefined;
+	}
+	return locationResolution ?? undefined;
+}
+
 /* ──────────────────────────────────────────────────────────── */
 /*  Source badge                                                */
 /* ──────────────────────────────────────────────────────────── */
 
 function SourceBadge({ source }: { source: DraftConfirmationFieldSource }) {
+	if (source === "ai_detected") {
+		return (
+			<Sparkles
+				className="size-2.5 text-muted-foreground/50 shrink-0"
+				aria-label="AI detected"
+			/>
+		);
+	}
+
 	const variants: Record<
-		DraftConfirmationFieldSource,
+		"manual_override" | "pending",
 		{
 			className: string;
 			icon: ComponentType<{ className?: string }>;
 		}
 	> = {
-		ai_detected: {
-			className: "border-info/30 bg-info/8 text-info-foreground dark:text-info",
-			icon: Sparkles,
-		},
 		manual_override: {
 			className:
 				"border-success/30 bg-success/8 text-success-foreground dark:text-success",
@@ -1135,48 +1232,6 @@ function SourceBadge({ source }: { source: DraftConfirmationFieldSource }) {
 			<SourceIcon className="size-2.5" />
 			{SOURCE_LABELS[source]}
 		</Badge>
-	);
-}
-
-/* ──────────────────────────────────────────────────────────── */
-/*  Field decision button                                      */
-/* ──────────────────────────────────────────────────────────── */
-
-function FieldDecisionButton({
-	active,
-	onClick,
-	icon: Icon,
-	label,
-	disabled,
-}: {
-	active: boolean;
-	onClick: () => void;
-	icon: ComponentType<{ className?: string }>;
-	label: string;
-	disabled: boolean;
-}) {
-	const isConfirm = label === "Confirm";
-
-	return (
-		<Button
-			type="button"
-			variant="outline"
-			size="sm"
-			onClick={onClick}
-			disabled={disabled}
-			className={cn(
-				"h-7 px-2 text-xs gap-1 rounded-md",
-				active && isConfirm && "border-success/50 bg-success/10 text-success",
-				active &&
-					!isConfirm &&
-					"border-destructive/50 bg-destructive/10 text-destructive",
-				!active &&
-					"border-border/50 text-muted-foreground hover:border-border hover:text-foreground",
-			)}
-		>
-			<Icon className="size-3" />
-			{label}
-		</Button>
 	);
 }
 
@@ -1216,7 +1271,7 @@ function LocationFieldInput({
 
 	if (locationState.mode === "create_new") {
 		return (
-			<div className="space-y-2">
+			<div className="rounded-md border border-dashed border-warning/30 p-3 space-y-2">
 				<div className="grid gap-2 sm:grid-cols-2">
 					<Input
 						value={locationState.name}
@@ -1370,12 +1425,14 @@ function FieldInput({
 	onChange,
 	placeholder,
 	disabled,
+	readOnly = false,
 }: {
 	fieldKey: DraftConfirmationFieldKey;
 	value: string;
 	onChange: (value: string) => void;
 	placeholder: string;
 	disabled: boolean;
+	readOnly?: boolean;
 }) {
 	if (fieldKey === "composition") {
 		return (
@@ -1385,6 +1442,7 @@ function FieldInput({
 				placeholder={placeholder}
 				rows={2}
 				disabled={disabled}
+				readOnly={readOnly}
 				className="text-sm resize-none"
 			/>
 		);
@@ -1396,6 +1454,7 @@ function FieldInput({
 			onChange={(event) => onChange(event.target.value)}
 			placeholder={placeholder}
 			disabled={disabled}
+			readOnly={readOnly}
 			className="text-sm h-8"
 		/>
 	);
@@ -1427,27 +1486,35 @@ function buildDraftConfirmationContract(params: {
 	const locationValue =
 		pickFirstString(parentManual, ["name"]) ||
 		pickFirstString(parentNormalized, ["name"]) ||
+		pickFirstString(projectManual, ["location_name"]) ||
+		pickFirstString(projectNormalized, ["location_name"]) ||
 		normalizeText(draft.locationLabel);
 	const locationCity =
 		pickFirstString(parentManual, ["city", "location_city"]) ||
-		pickFirstString(parentNormalized, ["city", "location_city"]);
+		pickFirstString(parentNormalized, ["city", "location_city"]) ||
+		pickFirstString(projectManual, ["location_city"]) ||
+		pickFirstString(projectNormalized, ["location_city"]);
 	const locationStateValue =
 		pickFirstString(parentManual, ["state", "location_state"]) ||
-		pickFirstString(parentNormalized, ["state", "location_state"]);
+		pickFirstString(parentNormalized, ["state", "location_state"]) ||
+		pickFirstString(projectManual, ["location_state"]) ||
+		pickFirstString(projectNormalized, ["location_state"]);
 	const locationAddress =
 		pickFirstString(parentManual, ["address"]) ||
-		pickFirstString(parentNormalized, ["address"]);
+		pickFirstString(parentNormalized, ["address"]) ||
+		pickFirstString(projectManual, ["location_address"]) ||
+		pickFirstString(projectNormalized, ["location_address"]);
 	const locationState = buildInitialLocationState({
 		run,
 		parentLocationItem,
 		parentManual,
+		projectManual,
 		name: locationValue,
 		city: locationCity,
 		state: locationStateValue,
 		address: locationAddress,
 	});
-	const locationEditable =
-		run.entrypointType === "company" && parentLocationItem !== null;
+	const locationEditable = run.entrypointType === "company";
 
 	const materialTypeValue = firstDetectedValue(
 		projectManual,
@@ -1504,8 +1571,8 @@ function buildDraftConfirmationContract(params: {
 			key: "location",
 			value: locationState.name,
 			source: resolveLocationSource(
-				parentManual,
-				parentNormalized,
+				parentManual ?? projectManual,
+				parentNormalized ?? projectNormalized,
 				locationValue,
 			),
 			editable: locationEditable,
@@ -1572,7 +1639,7 @@ function buildDraftConfirmationContract(params: {
 		draftItemId: draft.itemId,
 		runId: run.id,
 		sourceType: draft.sourceType,
-		groupId: projectItem.groupId,
+		groupId: draft.groupId ?? projectItem.groupId,
 		companyId:
 			run.entrypointType === "company" ? run.entrypointId : draft.companyId,
 		locationId: run.entrypointType === "location" ? run.entrypointId : null,
@@ -1601,7 +1668,6 @@ function buildFieldState(params: {
 		label: FIELD_LABELS[key],
 		initialValue: value,
 		value,
-		decision: value ? "confirm" : "reject",
 		source,
 		required: REQUIRED_FIELDS.has(key),
 		editable,
@@ -1720,23 +1786,10 @@ function normalizeText(value: string | null): string {
 function getPersistedFieldValue(
 	field: Pick<
 		DraftConfirmationFieldMap[DraftConfirmationFieldKey],
-		"value" | "decision" | "initialValue"
+		"value" | "initialValue"
 	>,
 ): string {
 	const currentValue = field.value.trim();
-	if (field.decision === "confirm") {
-		return currentValue;
-	}
-
-	const initialValue = field.initialValue.trim();
-	if (!currentValue) {
-		return "";
-	}
-
-	if (currentValue === initialValue) {
-		return "";
-	}
-
 	return currentValue;
 }
 
@@ -1744,33 +1797,44 @@ function buildInitialLocationState(params: {
 	run: BulkImportRun;
 	parentLocationItem: BulkImportItem | null;
 	parentManual: Record<string, unknown> | null;
+	projectManual: Record<string, unknown> | null;
 	name: string;
 	city: string;
 	state: string;
 	address: string;
 }): DraftConfirmationLocationState {
-	const { run, parentLocationItem, parentManual, name, city, state, address } =
-		params;
+	const {
+		run,
+		parentLocationItem,
+		parentManual,
+		projectManual,
+		name,
+		city,
+		state,
+		address,
+	} = params;
 
-	if (run.entrypointType !== "company" || !parentLocationItem) {
+	if (run.entrypointType !== "company") {
 		return {
 			mode: "locked",
 			name,
-			city,
-			state,
+			city: city || "",
+			state: state || "",
 			address,
 		};
 	}
 
-	const resolution = parseStoredLocationResolution(parentManual);
+	const resolution = parseStoredLocationResolution(
+		parentLocationItem ? parentManual : projectManual,
+	);
 	if (resolution?.mode === "existing") {
 		return {
 			mode: "existing",
 			locationId: resolution.locationId,
-			name,
-			city,
-			state,
-			address,
+			name: resolution.name || name,
+			city: resolution.city || city,
+			state: resolution.state || state,
+			address: resolution.address || address,
 		};
 	}
 
@@ -1787,18 +1851,22 @@ function buildInitialLocationState(params: {
 	return {
 		mode: "locked",
 		name,
-		city,
-		state,
+		city: city || "",
+		state: state || "",
 		address,
 	};
 }
 
 function parseStoredLocationResolution(
-	parentManual: Record<string, unknown> | null,
+	resolutionSource: Record<string, unknown> | null,
 ):
 	| {
 			mode: "existing";
 			locationId: string;
+			name: string;
+			city: string;
+			state: string;
+			address: string;
 	  }
 	| {
 			mode: "create_new";
@@ -1808,11 +1876,11 @@ function parseStoredLocationResolution(
 			address: string;
 	  }
 	| null {
-	if (!parentManual) {
+	if (!resolutionSource) {
 		return null;
 	}
 
-	const resolutionRaw = parentManual.location_resolution;
+	const resolutionRaw = resolutionSource.location_resolution;
 	if (!isRecordValue(resolutionRaw)) {
 		return null;
 	}
@@ -1822,9 +1890,23 @@ function parseStoredLocationResolution(
 		typeof resolutionRaw.location_id === "string" &&
 		resolutionRaw.location_id.trim().length > 0
 	) {
+		const name =
+			typeof resolutionRaw.name === "string" ? resolutionRaw.name.trim() : "";
+		const city =
+			typeof resolutionRaw.city === "string" ? resolutionRaw.city.trim() : "";
+		const state =
+			typeof resolutionRaw.state === "string" ? resolutionRaw.state.trim() : "";
+		const address =
+			typeof resolutionRaw.address === "string"
+				? resolutionRaw.address.trim()
+				: "";
 		return {
 			mode: "existing",
 			locationId: resolutionRaw.location_id,
+			name,
+			city,
+			state,
+			address,
 		};
 	}
 

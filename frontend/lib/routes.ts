@@ -85,6 +85,17 @@ export const routes = {
 		 */
 		files: (id: string) => `/project/${id}?tab=${ProjectTab.Files}` as const,
 
+		/**
+		 * Intelligence Report standalone page
+		 */
+		intelligenceReport: (id: string) =>
+			`/project/${id}/intelligence-report` as const,
+
+		/**
+		 * Proposal detail standalone page
+		 */
+		proposalDetail: (id: string) => `/project/${id}/proposal` as const,
+
 		// Nested: Proposals
 		proposal: {
 			/**

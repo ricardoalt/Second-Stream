@@ -18,6 +18,7 @@ DashboardBucket = Literal[
     "proposal",
 ]
 DashboardRowKind = Literal["persisted_stream", "draft_item"]
+DraftKind = Literal["linked", "orphan_stream", "location_only"]
 ProposalFollowUpState = Literal[
     "uploaded",
     "waiting_to_send",
@@ -29,6 +30,8 @@ ProposalFollowUpState = Literal[
 
 
 class DashboardCountsResponse(BaseSchema):
+    # Global cross-bucket totals for the current filter set.
+    # Includes secondary drafts (location_only) as pending confirmation work.
     total: int
     needs_confirmation: int
     missing_information: int
@@ -75,6 +78,7 @@ class DraftItemDashboardRow(BaseSchema):
     bucket: Literal["total", "needs_confirmation"]
     item_id: UUID
     run_id: UUID
+    group_id: str | None = None
     stream_name: str
     company_id: UUID | None = None
     company_label: str | None = None
@@ -84,7 +88,9 @@ class DraftItemDashboardRow(BaseSchema):
     source_type: Literal["bulk_import", "voice_interview"]
     draft_status: Literal["pending_review", "accepted", "amended"]
     confidence: int | None = None
-    target: DraftTargetResponse
+    draft_kind: DraftKind
+    confirmable: bool
+    target: DraftTargetResponse | None = None
 
     @field_serializer("last_activity_at")
     def serialize_last_activity(self, value: datetime, _info) -> str:
@@ -106,11 +112,14 @@ class DashboardListResponse(BaseSchema):
     bucket: DashboardBucket
     counts: DashboardCountsResponse
     items: list[DashboardRow]
+    # Paginated main-list total for active bucket (excludes secondary rows).
     total: int
     page: int
     size: int
     pages: int
     draft_preview: DashboardDraftPreviewSlice | None = None
+    # Secondary rows (currently location_only drafts) shown outside main list.
+    secondary_draft_rows: list[DraftItemDashboardRow] = Field(default_factory=list)
 
 
 class ProposalFollowUpStateUpdateRequest(BaseSchema):

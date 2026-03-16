@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import create_company, create_location, create_org, create_project, create_user
+from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy import select
 
@@ -635,16 +636,10 @@ async def test_dashboard_returns_voice_review_draft_rows(
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["counts"]["total"] == 1
-    assert payload["counts"]["needsConfirmation"] == 1
-    assert payload["total"] == 1
-    item = payload["items"][0]
-    assert item["kind"] == "draft_item"
-    assert item["sourceType"] == "voice_interview"
-    assert item["streamName"] == "Voice Draft Stream"
-    assert item["companyId"] == str(company.id)
-    assert item["target"]["runId"] == str(run.id)
-    assert item["target"]["itemId"] == item["itemId"]
+    assert payload["counts"]["total"] == 0
+    assert payload["counts"]["needsConfirmation"] == 0
+    assert payload["total"] == 0
+    assert payload["items"] == []
 
 
 @pytest.mark.asyncio
@@ -1946,9 +1941,7 @@ async def test_voice_no_data_path_uses_status_sync_and_not_no_data(db_session, m
 
 
 @pytest.mark.asyncio
-async def test_voice_import_orphan_projects_syncs_voice_and_run_status(
-    db_session, set_current_user
-) -> None:
+async def test_voice_import_orphan_projects_is_blocked(db_session, set_current_user) -> None:
     org = await create_org(db_session, "Voice Orphan Sync Org", "voice-orphan-sync-org")
     user = await create_user(
         db_session,
@@ -2023,20 +2016,23 @@ async def test_voice_import_orphan_projects_syncs_voice_and_run_status(
     await db_session.commit()
 
     service = BulkImportService()
-    result = await service.import_orphan_projects(
-        db_session,
-        organization_id=org.id,
-        run_id=run.id,
-        location_id=location.id,
-        item_ids=[item.id],
-        user_id=user.id,
-    )
-    await db_session.commit()
+    with pytest.raises(HTTPException) as exc_info:
+        await service.import_orphan_projects(
+            db_session,
+            organization_id=org.id,
+            run_id=run.id,
+            location_id=location.id,
+            item_ids=[item.id],
+            user_id=user.id,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert "Resolve from Needs Confirmation" in str(exc_info.value.detail)
+
     await db_session.refresh(run)
     await db_session.refresh(interview)
     await db_session.refresh(item)
 
-    assert result["projects_created"] == 1
-    assert item.created_project_id is not None
-    assert interview.status == "finalized"
-    assert run.status == "completed"
+    assert item.created_project_id is None
+    assert interview.status == "partial_finalized"
+    assert run.status == "review_ready"

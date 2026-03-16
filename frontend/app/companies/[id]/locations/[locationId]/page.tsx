@@ -14,11 +14,11 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-const PremiumProjectWizard = dynamic(
+const DiscoveryWizard = dynamic(
 	() =>
-		import(
-			"@/components/features/dashboard/components/premium-project-wizard"
-		).then((mod) => mod.PremiumProjectWizard),
+		import("@/components/features/discovery-wizard/discovery-wizard").then(
+			(mod) => mod.DiscoveryWizard,
+		),
 	{ ssr: false, loading: () => null },
 );
 
@@ -494,19 +494,10 @@ export default function LocationDetailPage() {
 
 			{/* Contextual Wizard */}
 			{!isArchived && (
-				<PremiumProjectWizard
+				<DiscoveryWizard
 					open={wizardOpen}
 					onOpenChange={setWizardOpen}
 					defaultCompanyId={companyId}
-					defaultLocationId={locationId}
-					onProjectCreated={async (projectId) => {
-						try {
-							await loadLocation(locationId, projectsFilter);
-						} catch {
-							// Location store already captures error state for the UI
-						}
-						router.push(`/project/${projectId}`);
-					}}
 				/>
 			)}
 		</div>

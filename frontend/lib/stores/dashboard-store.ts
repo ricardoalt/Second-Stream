@@ -52,6 +52,7 @@ interface DashboardState {
 
 	// Draft preview (only for bucket=total)
 	draftPreview: { items: DraftItemRow[]; total: number } | null;
+	secondaryDraftRows: DraftItemRow[];
 	activeDraft: DraftItemRow | null;
 
 	// UI state
@@ -104,6 +105,15 @@ function resetVisibleDashboardList(draft: DashboardState) {
 	draft.page = 1;
 	draft.pages = 0;
 	draft.draftPreview = null;
+	draft.secondaryDraftRows = [];
+}
+
+function resetVisibleDashboardPage(draft: DashboardState) {
+	draft.items = [];
+	draft.listTotal = 0;
+	draft.pages = 0;
+	draft.draftPreview = null;
+	draft.secondaryDraftRows = [];
 }
 
 function updatePersistedRow(
@@ -133,6 +143,7 @@ export const useDashboardStore = create<DashboardState>()(
 		page: 1,
 		pages: 0,
 		draftPreview: null,
+		secondaryDraftRows: [],
 		activeDraft: null,
 		loading: false,
 		isInitialized: false,
@@ -183,6 +194,7 @@ export const useDashboardStore = create<DashboardState>()(
 					draft.page = response.page;
 					draft.pages = response.pages;
 					draft.draftPreview = response.draftPreview;
+					draft.secondaryDraftRows = response.secondaryDraftRows;
 					draft.loading = false;
 					draft.isInitialized = true;
 				});
@@ -218,6 +230,7 @@ export const useDashboardStore = create<DashboardState>()(
 				}
 				draft.bucket = bucket;
 				resetVisibleDashboardList(draft);
+				draft.loading = true;
 				draft.filters.search = undefined;
 				draft.searchResetVersion += 1;
 			});
@@ -229,6 +242,7 @@ export const useDashboardStore = create<DashboardState>()(
 			set((draft) => {
 				draft.bucket = "needs_confirmation";
 				resetVisibleDashboardList(draft);
+				draft.loading = true;
 				draft.filters.search = undefined;
 				draft.filters.proposalFollowUpState = undefined;
 				draft.searchResetVersion += 1;
@@ -253,6 +267,7 @@ export const useDashboardStore = create<DashboardState>()(
 			set((draft) => {
 				draft.filters.search = search || undefined;
 				resetVisibleDashboardList(draft);
+				draft.loading = true;
 			});
 			void get().loadDashboard();
 		},
@@ -261,6 +276,7 @@ export const useDashboardStore = create<DashboardState>()(
 			set((draft) => {
 				draft.filters.proposalFollowUpState = state;
 				resetVisibleDashboardList(draft);
+				draft.loading = true;
 			});
 			void get().loadDashboard();
 		},
@@ -268,10 +284,8 @@ export const useDashboardStore = create<DashboardState>()(
 		setPage: (page: number) => {
 			set((draft) => {
 				draft.page = page;
-				draft.items = [];
-				draft.listTotal = 0;
-				draft.pages = 0;
-				draft.draftPreview = null;
+				resetVisibleDashboardPage(draft);
+				draft.loading = true;
 			});
 			void get().loadDashboard();
 		},
@@ -379,6 +393,7 @@ export const useDashboardStore = create<DashboardState>()(
 				draft.page = 1;
 				draft.pages = 0;
 				draft.draftPreview = null;
+				draft.secondaryDraftRows = [];
 				draft.activeDraft = null;
 				draft.loading = false;
 				draft.isInitialized = false;
@@ -405,6 +420,9 @@ export const useDashboardItems = () => useDashboardStore((s) => s.items);
 
 export const useDashboardDraftPreview = () =>
 	useDashboardStore((s) => s.draftPreview);
+
+export const useDashboardSecondaryDraftRows = () =>
+	useDashboardStore((s) => s.secondaryDraftRows);
 
 export const useDashboardActiveDraft = () =>
 	useDashboardStore((s) => s.activeDraft);

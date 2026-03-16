@@ -12,6 +12,7 @@ import structlog
 
 from app.core.database import AsyncSessionLocal
 from app.services.bulk_import_service import BulkImportService
+from app.services.discovery_session_service import DiscoverySessionService
 from app.services.voice_retention_service import voice_retention_service
 
 logger = structlog.get_logger(__name__)
@@ -52,6 +53,7 @@ async def run_worker() -> None:
         logger.warning("signal_handlers_unavailable")
 
     service = BulkImportService()
+    discovery_service = DiscoverySessionService()
     idle_backoff = POLL_BASE_SECONDS
     loop_error_backoff = LOOP_ERROR_BACKOFF_BASE_SECONDS
     last_reaper = 0.0
@@ -64,11 +66,42 @@ async def run_worker() -> None:
                     await service.requeue_stale_runs(db)
                     await service.fail_exhausted_runs(db)
                     await service.purge_expired_artifacts(db)
+                    await discovery_service.requeue_stale_text_sources(db)
                     await voice_retention_service.purge_expired_audio(db)
                     await voice_retention_service.purge_expired_transcripts(db)
                     await voice_retention_service.purge_expired_audit_events(db)
                     await db.commit()
                     last_reaper = now
+
+                discovery_text_source = await discovery_service.claim_next_text_source(db)
+                if discovery_text_source is not None:
+                    source_id = str(discovery_text_source.id)
+                    run_id = (
+                        str(discovery_text_source.import_run_id)
+                        if discovery_text_source.import_run_id is not None
+                        else None
+                    )
+                    await db.commit()
+                    logger.info(
+                        "discovery_text_start",
+                        source_id=source_id,
+                        run_id=run_id,
+                    )
+                    processing_started = time.perf_counter()
+                    await discovery_service.process_text_source(
+                        db, source_id=discovery_text_source.id
+                    )
+                    duration_ms = round((time.perf_counter() - processing_started) * 1000, 2)
+                    logger.info(
+                        "discovery_text_end",
+                        source_id=source_id,
+                        run_id=run_id,
+                        duration_ms=duration_ms,
+                    )
+                    idle_backoff = POLL_BASE_SECONDS
+                    continue
+                if db.new or db.dirty or db.deleted:
+                    await db.commit()
 
                 run = await service.claim_next_run(db)
                 if run is None:

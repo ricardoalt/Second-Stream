@@ -44,6 +44,7 @@ export type ProposalFollowUpState =
 
 export type DraftSourceType = "bulk_import" | "voice_interview";
 export type DraftStatus = "pending_review" | "accepted" | "amended";
+export type DraftKind = "linked" | "orphan_stream" | "location_only";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ROW SCHEMAS (camelCase — matches backend JSON output)
@@ -84,6 +85,7 @@ export interface DraftItemRow {
 	bucket: "total" | "needs_confirmation";
 	itemId: string;
 	runId: string;
+	groupId: string | null;
 	streamName: string;
 	companyId: string | null;
 	companyLabel: string | null;
@@ -93,7 +95,9 @@ export interface DraftItemRow {
 	sourceType: DraftSourceType;
 	draftStatus: DraftStatus;
 	confidence: number | null;
-	target: DraftTarget;
+	draftKind: DraftKind;
+	confirmable: boolean;
+	target: DraftTarget | null;
 }
 
 export type DraftConfirmationFieldKey =
@@ -106,8 +110,6 @@ export type DraftConfirmationFieldKey =
 	| "frequency"
 	| "primaryContact";
 
-export type DraftConfirmationFieldDecision = "confirm" | "reject";
-
 export type DraftConfirmationFieldSource =
 	| "ai_detected"
 	| "manual_override"
@@ -118,7 +120,6 @@ export interface DraftConfirmationFieldState {
 	label: string;
 	initialValue: string;
 	value: string;
-	decision: DraftConfirmationFieldDecision;
 	source: DraftConfirmationFieldSource;
 	required: boolean;
 	editable: boolean;
@@ -174,7 +175,9 @@ export type DashboardRow = PersistedStreamRow | DraftItemRow;
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export interface DashboardCounts {
+	/** Global filtered total; includes secondary drafts like `location_only`. */
 	total: number;
+	/** Pending confirmation workload; includes `linked`, `orphan_stream`, `location_only`. */
 	needsConfirmation: number;
 	missingInformation: number;
 	intelligenceReport: number;
@@ -190,6 +193,8 @@ export interface DashboardListResponse {
 	bucket: DashboardBucket;
 	counts: DashboardCounts;
 	items: DashboardRow[];
+	/** Secondary list rows (non-main queue), e.g. `location_only`. */
+	secondaryDraftRows: DraftItemRow[];
 	/** Total items in the main list for the active bucket (pagination). */
 	total: number;
 	page: number;
@@ -229,7 +234,7 @@ export const BUCKET_TABS: BucketTabConfig[] = [
 		label: "Needs Confirmation",
 		icon: AlertTriangle,
 		countKey: "needsConfirmation",
-		description: "Drafts from imports or voice interviews awaiting review",
+		description: "Discovery drafts awaiting review and confirmation",
 		statusLabel: "draft",
 	},
 	{

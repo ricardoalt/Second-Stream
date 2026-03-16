@@ -23,8 +23,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Recycle } from "lucide-react";
 import type * as React from "react";
+import { DSRLogo } from "@/components/shared/branding/dsr-logo";
 import {
 	Card,
 	CardContent,
@@ -86,26 +86,15 @@ export function AuthLayout({
 							initial={{ opacity: 0, y: 10 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ delay: 0.1, duration: 0.5 }}
-							className="inline-flex items-center gap-3"
+							className="inline-flex"
 						>
-							{/* Logo with simple hover scale */}
 							<motion.div
 								whileHover={{ scale: 1.05 }}
 								whileTap={{ scale: 0.95 }}
 								className="flex-shrink-0"
 							>
-								<div className="flex h-16 w-16 items-center justify-center rounded-2xl glass-liquid-subtle border-2 border-primary/30">
-									<Recycle className="h-8 w-8 text-primary" />
-								</div>
+								<DSRLogo width={220} height={90} />
 							</motion.div>
-
-							{/* Brand text */}
-							<div>
-								<h1 className="text-3xl font-bold text-foreground">DSR Inc.</h1>
-								<p className="text-muted-foreground text-sm">
-									Waste Resource Management
-								</p>
-							</div>
 						</motion.div>
 
 						{/* Value Proposition */}
@@ -186,9 +175,9 @@ export function AuthLayout({
 										initial={{ scale: 0 }}
 										animate={{ scale: 1 }}
 										transition={{ type: "spring", stiffness: 200 }}
-										className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 ring-2 ring-primary/20"
+										className="mx-auto"
 									>
-										<Recycle className="h-8 w-8 text-primary" />
+										<DSRLogo width={176} height={72} />
 									</motion.div>
 								)}
 

@@ -26,11 +26,14 @@ from app.authz.authz import raise_bad_request, raise_org_access_denied, raise_re
 from app.core.config import settings
 from app.models.bulk_import import ImportItem, ImportRun
 from app.models.company import Company
+from app.models.discovery_session import DiscoverySource
 from app.models.location import Location
 from app.models.voice_interview import ImportRunIdempotencyKey, VoiceInterview
 from app.schemas.bulk_import import (
     AssignOrphansRequest,
     AssignOrphansResponse,
+    BulkImportDiscoveryDraftDecisionRequest,
+    BulkImportDiscoveryDraftDecisionResponse,
     BulkImportFinalizeRequest,
     BulkImportFinalizeResponse,
     BulkImportFinalizeSummary,
@@ -292,6 +295,46 @@ async def patch_bulk_import_item(
     return BulkImportItemResponse.model_validate(item)
 
 
+@router.post(
+    "/items/{item_id}/discovery-decision",
+    response_model=BulkImportDiscoveryDraftDecisionResponse,
+)
+async def decide_discovery_draft_item(
+    item_id: UUID,
+    payload: BulkImportDiscoveryDraftDecisionRequest,
+    current_user: CurrentBulkImportUser,
+    org: OrganizationContext,
+    db: AsyncDB,
+) -> BulkImportDiscoveryDraftDecisionResponse:
+    item_probe = await db.get(ImportItem, item_id)
+    if item_probe is None:
+        raise_resource_not_found("Item not found", details={"item_id": str(item_id)})
+    assert item_probe is not None
+    if item_probe.organization_id != org.id:
+        raise_org_access_denied(org_id=str(org.id))
+
+    async def _operation() -> tuple[ImportItem, BulkImportFinalizeSummary, ImportRun]:
+        return await service.decide_discovery_project_draft(
+            db,
+            organization_id=org.id,
+            item_id=item_id,
+            current_user=current_user,
+            action=payload.action,
+            normalized_data=payload.normalized_data,
+            review_notes=payload.review_notes,
+            location_resolution=payload.location_resolution,
+            confirm_create_new=payload.confirm_create_new,
+        )
+
+    item, summary, run = await _execute_in_transaction(db, _operation)
+    await db.refresh(item, attribute_names=["updated_at"])
+    return BulkImportDiscoveryDraftDecisionResponse(
+        status=_run_status_literal(run.status),
+        summary=summary,
+        item=BulkImportItemResponse.model_validate(item),
+    )
+
+
 @router.post("/runs/{run_id}/finalize", response_model=BulkImportFinalizeResponse)
 async def finalize_bulk_import_run(
     run_id: UUID,
@@ -376,6 +419,11 @@ async def import_orphan_projects(
     assert run_probe is not None
     if run_probe.organization_id != org.id:
         raise_org_access_denied(org_id=str(org.id))
+    if run_probe.source_type == "voice_interview":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Voice orphan import is disabled. Resolve from Needs Confirmation.",
+        )
 
     result = await service.import_orphan_projects(
         db,
@@ -449,6 +497,13 @@ async def _with_voice_interview_id(db: AsyncDB, run: ImportRun) -> BulkImportRun
     from sqlalchemy import select
 
     response = BulkImportRunResponse.model_validate(run)
+    discovery_source_type = await db.scalar(
+        select(DiscoverySource.source_type).where(DiscoverySource.import_run_id == run.id).limit(1)
+    )
+    if discovery_source_type in {"file", "audio", "text"}:
+        response.discovery_source_type = cast(
+            Literal["file", "audio", "text"], discovery_source_type
+        )
     if run.source_type == "voice_interview":
         vi_id = await db.scalar(
             select(VoiceInterview.id).where(VoiceInterview.bulk_import_run_id == run.id)

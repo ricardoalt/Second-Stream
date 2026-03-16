@@ -137,7 +137,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 
 			<div className="border-t border-border/50 p-4">
 				<p className="text-xs text-muted-foreground/60 text-center">
-					DSR Platform v1.0
+					SecondStream Platform v1.0
 				</p>
 			</div>
 		</div>

@@ -23,9 +23,11 @@ from app.models.bulk_import_ai_output import (
     BulkImportAIOutput,
     BulkImportAIWasteStreamOutput,
 )
+from app.models.discovery_session import DiscoverySource
 from app.models.location import Location
 from app.models.project import Project
 from app.models.user import UserRole
+from app.models.voice_interview import VoiceInterview
 from app.services.bulk_import_ai_extractor import (
     BulkImportAIExtractor,
     BulkImportAIExtractorError,
@@ -80,6 +82,7 @@ async def _create_item(
     parent_item_id=None,
     group_id: str | None = None,
     duplicate_candidates: list[dict[str, object]] | None = None,
+    review_notes: str | None = None,
 ) -> ImportItem:
     item = ImportItem(
         organization_id=run.organization_id,
@@ -90,6 +93,7 @@ async def _create_item(
         confidence=90,
         extracted_data=normalized_data,
         normalized_data=normalized_data,
+        review_notes=review_notes,
         parent_item_id=parent_item_id,
         group_id=group_id,
         duplicate_candidates=duplicate_candidates,
@@ -99,6 +103,68 @@ async def _create_item(
     await db_session.commit()
     await db_session.refresh(item)
     return item
+
+
+async def _attach_discovery_source(
+    db_session,
+    *,
+    run: ImportRun,
+    source_type: str = "file",
+) -> DiscoverySource:
+    source = DiscoverySource(
+        organization_id=run.organization_id,
+        session_id=uuid.uuid4(),
+        source_type=source_type,
+        status="review_ready",
+        import_run_id=run.id,
+    )
+    db_session.add(source)
+    await db_session.commit()
+    await db_session.refresh(source)
+    return source
+
+
+async def _attach_discovery_audio_source(
+    db_session,
+    *,
+    run: ImportRun,
+    company_id,
+    user_id,
+) -> tuple[DiscoverySource, VoiceInterview]:
+    interview = VoiceInterview(
+        organization_id=run.organization_id,
+        company_id=company_id,
+        location_id=None,
+        bulk_import_run_id=run.id,
+        audio_object_key="voice-interviews/discovery/test.wav",
+        transcript_object_key=None,
+        status="review_ready",
+        error_code=None,
+        failed_stage=None,
+        processing_attempts=0,
+        consent_at=datetime.now(UTC),
+        consent_by_user_id=user_id,
+        consent_copy_version="v1",
+        audio_retention_expires_at=datetime.now(UTC) + timedelta(days=180),
+        transcript_retention_expires_at=datetime.now(UTC) + timedelta(days=730),
+        created_by_user_id=user_id,
+    )
+    db_session.add(interview)
+    await db_session.flush()
+
+    source = DiscoverySource(
+        organization_id=run.organization_id,
+        session_id=uuid.uuid4(),
+        source_type="audio",
+        status="review_ready",
+        import_run_id=run.id,
+        voice_interview_id=interview.id,
+    )
+    db_session.add(source)
+    await db_session.commit()
+    await db_session.refresh(source)
+    await db_session.refresh(interview)
+    return source, interview
 
 
 @pytest.mark.asyncio
@@ -923,6 +989,511 @@ async def test_location_resolution_amend_merges_normalized_data_and_resolution_m
 
 
 @pytest.mark.asyncio
+async def test_orphan_project_location_resolution_finalize_creates_project(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Import Orphan Confirm", "org-import-orphan-confirm")
+    user = await create_user(
+        db_session,
+        email=f"import-orphan-confirm-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Import Orphan Confirm Co")
+    existing_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Recovered Plant",
+    )
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+
+    orphan_project = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        group_id="group-orphan-confirm",
+        review_notes="Project row missing location context",
+        normalized_data={
+            "name": "Recovered PET",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "3 tons/week",
+        },
+    )
+
+    set_current_user(user)
+    amend_project = await client.patch(
+        f"/api/v1/bulk-import/items/{orphan_project.id}",
+        json={
+            "action": "amend",
+            "locationResolution": {
+                "mode": "existing",
+                "locationId": str(existing_location.id),
+            },
+        },
+    )
+    assert amend_project.status_code == 200
+
+    finalize_response = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={
+            "resolved_group_ids": ["group-orphan-confirm"],
+            "idempotency_key": f"idem-{uuid.uuid4().hex}",
+        },
+    )
+    assert finalize_response.status_code == 200
+    payload = finalize_response.json()
+    assert payload["status"] == "completed"
+    assert payload["summary"]["projectsCreated"] == 1
+
+    await db_session.refresh(orphan_project)
+    assert orphan_project.created_project_id is not None
+    created_project = await db_session.get(Project, orphan_project.created_project_id)
+    assert created_project is not None
+    assert created_project.location_id == existing_location.id
+
+
+@pytest.mark.asyncio
+async def test_legacy_orphan_project_flow_create_new_exits_needs_confirmation(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Import Legacy Orphan", "org-import-legacy-orphan")
+    user = await create_user(
+        db_session,
+        email=f"import-legacy-orphan-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Import Legacy Orphan Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+
+    orphan_project = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        group_id=None,
+        review_notes="Project row missing location context",
+        normalized_data={
+            "name": "Legacy Recovered PET",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "5 tons/week",
+        },
+    )
+
+    set_current_user(user)
+    dashboard_before = await client.get("/api/v1/projects/dashboard?bucket=needs_confirmation")
+    assert dashboard_before.status_code == 200
+    before_payload = dashboard_before.json()
+    assert before_payload["counts"]["needsConfirmation"] == 1
+    orphan_row = before_payload["items"][0]
+    assert orphan_row["draftKind"] == "orphan_stream"
+    assert orphan_row["confirmable"] is True
+    assert orphan_row["groupId"] == f"legacy_orphan:{run.id}:{orphan_project.id}"
+
+    amend_project = await client.patch(
+        f"/api/v1/bulk-import/items/{orphan_project.id}",
+        json={
+            "action": "amend",
+            "locationResolution": {
+                "mode": "create_new",
+                "name": "Legacy Recovery Plant",
+                "city": "Queretaro",
+                "state": "QRO",
+                "address": "Avenida 14",
+            },
+        },
+    )
+    assert amend_project.status_code == 200
+
+    finalize_response = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={
+            "resolved_group_ids": [orphan_row["groupId"]],
+            "idempotency_key": f"idem-{uuid.uuid4().hex}",
+        },
+    )
+    assert finalize_response.status_code == 200
+    payload = finalize_response.json()
+    assert payload["status"] == "completed"
+    assert payload["summary"]["locationsCreated"] == 1
+    assert payload["summary"]["projectsCreated"] == 1
+
+    await db_session.refresh(run)
+    assert run.summary_data is not None
+    assert run.summary_data["locationsCreated"] == 1
+    assert run.summary_data["projectsCreated"] == 1
+
+    await db_session.refresh(orphan_project)
+    assert orphan_project.created_project_id is not None
+
+    created_project = await db_session.get(Project, orphan_project.created_project_id)
+    assert created_project is not None
+
+    created_location_result = await db_session.execute(
+        select(Location)
+        .where(Location.organization_id == org.id)
+        .where(Location.company_id == company.id)
+        .where(Location.name == "Legacy Recovery Plant")
+        .where(Location.city == "Queretaro")
+        .where(Location.state == "QRO")
+    )
+    created_location = created_location_result.scalars().one_or_none()
+    assert created_location is not None
+    assert created_project.location_id == created_location.id
+
+    dashboard_after = await client.get("/api/v1/projects/dashboard?bucket=needs_confirmation")
+    assert dashboard_after.status_code == 200
+    after_payload = dashboard_after.json()
+    assert after_payload["counts"]["needsConfirmation"] == 0
+    assert after_payload["total"] == 0
+    assert after_payload["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_orphan_create_new_reuses_existing_location_counts_zero_new_locations(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Import Orphan Reuse", "org-import-orphan-reuse")
+    user = await create_user(
+        db_session,
+        email=f"import-orphan-reuse-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Import Orphan Reuse Co")
+    existing_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Reuse Plant",
+    )
+    existing_location.city = "Queretaro"
+    existing_location.state = "QRO"
+    existing_location.address = "Avenida 14"
+    await db_session.commit()
+    await db_session.refresh(existing_location)
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+
+    orphan_project = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        group_id=None,
+        review_notes="Project row missing location context",
+        normalized_data={
+            "name": "Reused PET",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "5 tons/week",
+        },
+    )
+
+    set_current_user(user)
+    response = await client.get("/api/v1/projects/dashboard?bucket=needs_confirmation")
+    assert response.status_code == 200
+    group_id = response.json()["items"][0]["groupId"]
+
+    amend_project = await client.patch(
+        f"/api/v1/bulk-import/items/{orphan_project.id}",
+        json={
+            "action": "amend",
+            "locationResolution": {
+                "mode": "create_new",
+                "name": "Reuse Plant",
+                "city": "Queretaro",
+                "state": "QRO",
+                "address": "Avenida 14",
+            },
+        },
+    )
+    assert amend_project.status_code == 200
+
+    finalize_response = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={
+            "resolved_group_ids": [group_id],
+            "idempotency_key": f"idem-{uuid.uuid4().hex}",
+        },
+    )
+    assert finalize_response.status_code == 200
+    payload = finalize_response.json()
+    assert payload["status"] == "completed"
+    assert payload["summary"]["locationsCreated"] == 0
+    assert payload["summary"]["projectsCreated"] == 1
+
+    await db_session.refresh(run)
+    await db_session.refresh(orphan_project)
+    assert run.summary_data is not None
+    assert run.summary_data["locationsCreated"] == 0
+    assert run.summary_data["projectsCreated"] == 1
+    assert orphan_project.created_project_id is not None
+    created_project = await db_session.get(Project, orphan_project.created_project_id)
+    assert created_project is not None
+    assert created_project.location_id == existing_location.id
+
+
+@pytest.mark.asyncio
+async def test_subset_finalize_accumulates_real_summary_without_duplicate_locations(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Import Subset Summary", "org-import-subset-summary")
+    user = await create_user(
+        db_session,
+        email=f"import-subset-summary-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Import Subset Summary Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+
+    orphan_one = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        group_id=None,
+        review_notes="Project row missing location context",
+        normalized_data={
+            "name": "Subset PET One",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "2 tons/week",
+        },
+    )
+    orphan_two = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        group_id=None,
+        review_notes="Project row missing location context",
+        normalized_data={
+            "name": "Subset PET Two",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "3 tons/week",
+        },
+    )
+
+    set_current_user(user)
+    dashboard_before = await client.get("/api/v1/projects/dashboard?bucket=needs_confirmation")
+    assert dashboard_before.status_code == 200
+    rows = {item["itemId"]: item for item in dashboard_before.json()["items"]}
+    group_one = rows[str(orphan_one.id)]["groupId"]
+    group_two = rows[str(orphan_two.id)]["groupId"]
+
+    amend_one = await client.patch(
+        f"/api/v1/bulk-import/items/{orphan_one.id}",
+        json={
+            "action": "amend",
+            "locationResolution": {
+                "mode": "create_new",
+                "name": "Subset Plant",
+                "city": "Monterrey",
+                "state": "NL",
+                "address": "Street 1",
+            },
+        },
+    )
+    assert amend_one.status_code == 200
+
+    first_finalize = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={
+            "resolved_group_ids": [group_one],
+            "idempotency_key": f"idem-{uuid.uuid4().hex}",
+        },
+    )
+    assert first_finalize.status_code == 200
+    first_payload = first_finalize.json()
+    assert first_payload["status"] == "review_ready"
+    assert first_payload["summary"]["locationsCreated"] == 1
+    assert first_payload["summary"]["projectsCreated"] == 1
+
+    await db_session.refresh(run)
+    assert run.summary_data is not None
+    assert run.summary_data["locationsCreated"] == 1
+    assert run.summary_data["projectsCreated"] == 1
+
+    amend_two = await client.patch(
+        f"/api/v1/bulk-import/items/{orphan_two.id}",
+        json={
+            "action": "amend",
+            "locationResolution": {
+                "mode": "create_new",
+                "name": "Subset Plant",
+                "city": "Monterrey",
+                "state": "NL",
+                "address": "Street 1",
+            },
+        },
+    )
+    assert amend_two.status_code == 200
+
+    second_finalize = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={
+            "resolved_group_ids": [group_two],
+            "idempotency_key": f"idem-{uuid.uuid4().hex}",
+        },
+    )
+    assert second_finalize.status_code == 200
+    second_payload = second_finalize.json()
+    assert second_payload["status"] == "completed"
+    assert second_payload["summary"]["locationsCreated"] == 1
+    assert second_payload["summary"]["projectsCreated"] == 2
+
+    await db_session.refresh(run)
+    assert run.summary_data is not None
+    assert run.summary_data["locationsCreated"] == 1
+    assert run.summary_data["projectsCreated"] == 2
+
+
+@pytest.mark.asyncio
+async def test_legacy_linked_group_finalize_uses_effective_group_id(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Import Legacy Linked", "org-import-legacy-linked")
+    user = await create_user(
+        db_session,
+        email=f"import-legacy-linked-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Import Legacy Linked Co")
+    existing_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Legacy Linked Existing Plant",
+    )
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+
+    linked_location = await _create_item(
+        db_session,
+        run=run,
+        item_type="location",
+        status="accepted",
+        group_id=None,
+        normalized_data={
+            "name": "Legacy Linked Draft Plant",
+            "city": "Monterrey",
+            "state": "NL",
+        },
+    )
+    linked_project = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="accepted",
+        parent_item_id=linked_location.id,
+        group_id=None,
+        normalized_data={
+            "name": "Legacy Linked Stream",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "4 tons/week",
+        },
+    )
+
+    set_current_user(user)
+    amend_location = await client.patch(
+        f"/api/v1/bulk-import/items/{linked_location.id}",
+        json={
+            "action": "amend",
+            "locationResolution": {
+                "mode": "existing",
+                "locationId": str(existing_location.id),
+            },
+        },
+    )
+    assert amend_location.status_code == 200
+
+    finalize_response = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={
+            "resolved_group_ids": [f"legacy_linked:{run.id}:{linked_location.id}"],
+            "idempotency_key": f"idem-{uuid.uuid4().hex}",
+        },
+    )
+    assert finalize_response.status_code == 200
+    payload = finalize_response.json()
+    assert payload["status"] == "completed"
+    assert payload["summary"]["projectsCreated"] == 1
+
+    await db_session.refresh(linked_location)
+    await db_session.refresh(linked_project)
+    assert linked_location.created_location_id == existing_location.id
+    assert linked_project.created_project_id is not None
+    created_project = await db_session.get(Project, linked_project.created_project_id)
+    assert created_project is not None
+    assert created_project.location_id == existing_location.id
+
+
+@pytest.mark.asyncio
 async def test_subset_finalize_retry_does_not_duplicate_created_location(
     client: AsyncClient, db_session, set_current_user
 ):
@@ -1027,6 +1598,759 @@ async def test_subset_finalize_retry_does_not_duplicate_created_location(
 
 
 @pytest.mark.asyncio
+async def test_subset_finalize_retry_does_not_duplicate_non_creation_counters(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Import Retry Counters", "org-import-retry-counters")
+    user = await create_user(
+        db_session,
+        email=f"import-retry-counters-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Retry Counters Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+
+    location_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="location",
+        status="rejected",
+        group_id="group-a",
+        normalized_data={"name": "Rejected Plant", "city": "Monterrey", "state": "NL"},
+    )
+    duplicate_project = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="accepted",
+        parent_item_id=location_item.id,
+        group_id="group-a",
+        duplicate_candidates=[{"project_id": str(uuid.uuid4())}],
+        normalized_data={
+            "name": "Duplicate Stream",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "3 tons/week",
+        },
+    )
+    pending_location = await _create_item(
+        db_session,
+        run=run,
+        item_type="location",
+        status="pending_review",
+        group_id="group-b",
+        normalized_data={"name": "Pending Plant", "city": "Monterrey", "state": "NL"},
+    )
+    await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        parent_item_id=pending_location.id,
+        group_id="group-b",
+        normalized_data={
+            "name": "Pending Stream",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "2 tons/week",
+        },
+    )
+
+    set_current_user(user)
+    accept_duplicate_project = await client.patch(
+        f"/api/v1/bulk-import/items/{duplicate_project.id}",
+        json={"action": "accept", "confirmCreateNew": True},
+    )
+    assert accept_duplicate_project.status_code == 200
+
+    first_finalize = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={
+            "resolved_group_ids": ["group-a"],
+            "idempotency_key": f"idem-{uuid.uuid4().hex}",
+        },
+    )
+    assert first_finalize.status_code == 200
+    first_payload = first_finalize.json()
+    assert first_payload["status"] == "review_ready"
+    assert first_payload["summary"]["rejected"] == 1
+    assert first_payload["summary"]["invalid"] == 0
+    assert first_payload["summary"]["duplicatesResolved"] == 1
+
+    retry_finalize = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={
+            "resolved_group_ids": ["group-a"],
+            "idempotency_key": f"idem-{uuid.uuid4().hex}",
+        },
+    )
+    assert retry_finalize.status_code == 200
+    retry_payload = retry_finalize.json()
+    assert retry_payload["summary"]["rejected"] == 1
+    assert retry_payload["summary"]["invalid"] == 0
+    assert retry_payload["summary"]["duplicatesResolved"] == 1
+
+    await db_session.refresh(run)
+    assert run.summary_data is not None
+    assert run.summary_data["rejected"] == 1
+    assert run.summary_data["invalid"] == 0
+    assert run.summary_data["duplicatesResolved"] == 1
+
+
+@pytest.mark.asyncio
+async def test_subset_finalize_superset_request_does_not_duplicate_prior_group_counters(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Import Superset Retry", "org-import-superset-retry")
+    user = await create_user(
+        db_session,
+        email=f"import-superset-retry-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Superset Retry Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+
+    location_a = await _create_item(
+        db_session,
+        run=run,
+        item_type="location",
+        status="rejected",
+        group_id="group-a",
+        normalized_data={"name": "Rejected Plant", "city": "Monterrey", "state": "NL"},
+    )
+    project_a = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="accepted",
+        parent_item_id=location_a.id,
+        group_id="group-a",
+        duplicate_candidates=[{"project_id": str(uuid.uuid4())}],
+        normalized_data={
+            "name": "Duplicate Stream A",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "3 tons/week",
+        },
+    )
+    await _create_item(
+        db_session,
+        run=run,
+        item_type="location",
+        status="invalid",
+        group_id="group-b",
+        normalized_data={"name": "Invalid Plant", "city": "Guadalajara", "state": "Jalisco"},
+    )
+    await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="accepted",
+        group_id="group-b",
+        normalized_data={
+            "name": "Standalone Stream B",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "1 ton/week",
+            "location_name": "Existing Plant",
+            "location_city": "Monterrey",
+            "location_state": "NL",
+        },
+    )
+
+    existing_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Existing Plant",
+    )
+
+    set_current_user(user)
+    accept_project_a = await client.patch(
+        f"/api/v1/bulk-import/items/{project_a.id}",
+        json={"action": "accept", "confirmCreateNew": True},
+    )
+    assert accept_project_a.status_code == 200
+
+    first_finalize = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={
+            "resolved_group_ids": ["group-a"],
+            "idempotency_key": f"idem-{uuid.uuid4().hex}",
+        },
+    )
+    assert first_finalize.status_code == 200
+    first_payload = first_finalize.json()
+    assert first_payload["summary"]["rejected"] == 1
+    assert first_payload["summary"]["invalid"] == 0
+    assert first_payload["summary"]["duplicatesResolved"] == 1
+
+    second_finalize = await client.post(
+        f"/api/v1/bulk-import/runs/{run.id}/finalize",
+        json={
+            "resolved_group_ids": ["group-a", "group-b"],
+            "idempotency_key": f"idem-{uuid.uuid4().hex}",
+        },
+    )
+    assert second_finalize.status_code == 200
+    second_payload = second_finalize.json()
+    assert second_payload["summary"]["rejected"] == 1
+    assert second_payload["summary"]["invalid"] == 1
+    assert second_payload["summary"]["duplicatesResolved"] == 1
+
+    await db_session.refresh(run)
+    assert run.summary_data is not None
+    assert run.summary_data["rejected"] == 1
+    assert run.summary_data["invalid"] == 1
+    assert run.summary_data["duplicatesResolved"] == 1
+    assert run.summary_data["countedGroupIds"] == ["group-a", "group-b"]
+    await db_session.refresh(existing_location)
+
+
+@pytest.mark.asyncio
+async def test_discovery_decision_confirm_linked_stream_independent_of_sibling(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Discovery Confirm Org", "discovery-confirm-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-confirm-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Confirm Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    await _attach_discovery_source(db_session, run=run, source_type="file")
+
+    location_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="location",
+        status="pending_review",
+        group_id="group-shared",
+        normalized_data={"name": "Plant One", "city": "Monterrey", "state": "NL"},
+    )
+    project_a = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        parent_item_id=location_item.id,
+        group_id="group-shared",
+        normalized_data={
+            "name": "PET Stream A",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "4 tons/week",
+        },
+    )
+    project_b = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        parent_item_id=location_item.id,
+        group_id="group-shared",
+        normalized_data={
+            "name": "PET Stream B",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "2 tons/week",
+        },
+    )
+
+    set_current_user(user)
+    response = await client.post(
+        f"/api/v1/bulk-import/items/{project_a.id}/discovery-decision",
+        json={
+            "action": "confirm",
+            "normalizedData": {
+                "name": "PET Stream A Confirmed",
+                "category": "plastics",
+                "project_type": "Assessment",
+                "description": "desc",
+                "sector": "industrial",
+                "subsector": "manufacturing",
+                "estimated_volume": "4 tons/week",
+            },
+            "reviewNotes": "frequency: weekly",
+            "locationResolution": {
+                "mode": "create_new",
+                "name": "Plant One",
+                "city": "Monterrey",
+                "state": "NL",
+            },
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "review_ready"
+    assert payload["summary"]["projectsCreated"] == 1
+    assert payload["summary"]["locationsCreated"] == 1
+
+    await db_session.refresh(run)
+    await db_session.refresh(location_item)
+    await db_session.refresh(project_a)
+    await db_session.refresh(project_b)
+
+    assert run.status == "review_ready"
+    assert location_item.created_location_id is not None
+    assert project_a.created_project_id is not None
+    assert project_b.created_project_id is None
+    assert project_b.status == "pending_review"
+
+
+@pytest.mark.asyncio
+async def test_discovery_decision_reject_resolves_without_creating_project(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Discovery Reject Org", "discovery-reject-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-reject-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Reject Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    await _attach_discovery_source(db_session, run=run, source_type="text")
+
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        normalized_data={
+            "name": "Reject Me",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "1 ton/week",
+        },
+        review_notes="Project row missing location context",
+    )
+
+    set_current_user(user)
+    response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={"action": "reject"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["summary"]["rejected"] == 1
+    assert payload["summary"]["projectsCreated"] == 0
+
+    await db_session.refresh(run)
+    await db_session.refresh(project_item)
+    assert project_item.status == "rejected"
+    assert project_item.created_project_id is None
+    assert run.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_discovery_decision_orphan_confirm_requires_location_resolution(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Discovery Orphan Org", "discovery-orphan-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-orphan-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Orphan Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    await _attach_discovery_source(db_session, run=run, source_type="file")
+
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        normalized_data={
+            "name": "Need Location",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "1 ton/week",
+        },
+        review_notes="Project row missing location context",
+    )
+
+    set_current_user(user)
+    response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={
+            "action": "confirm",
+            "normalizedData": {
+                "name": "Need Location",
+                "category": "paper",
+                "project_type": "Assessment",
+                "description": "desc",
+                "sector": "industrial",
+                "subsector": "manufacturing",
+                "estimated_volume": "1 ton/week",
+            },
+        },
+    )
+    assert response.status_code == 422
+    assert "location_resolution required" in response.json()["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_discovery_decision_run_completes_when_no_pending_project_drafts_remain(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Discovery Complete Org", "discovery-complete-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-complete-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Complete Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    await _attach_discovery_source(db_session, run=run, source_type="file")
+
+    location_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="location",
+        status="pending_review",
+        group_id="group-done",
+        normalized_data={"name": "Plant Done", "city": "Monterrey", "state": "NL"},
+    )
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        parent_item_id=location_item.id,
+        group_id="group-done",
+        normalized_data={
+            "name": "Final Stream",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "5 tons/week",
+        },
+    )
+
+    set_current_user(user)
+    response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={
+            "action": "confirm",
+            "normalizedData": {
+                "name": "Final Stream",
+                "category": "plastics",
+                "project_type": "Assessment",
+                "description": "desc",
+                "sector": "industrial",
+                "subsector": "manufacturing",
+                "estimated_volume": "5 tons/week",
+            },
+            "locationResolution": {
+                "mode": "create_new",
+                "name": "Plant Done",
+                "city": "Monterrey",
+                "state": "NL",
+            },
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["summary"]["projectsCreated"] == 1
+
+    await db_session.refresh(run)
+    assert run.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_discovery_audio_decision_confirm_works_for_voice_run(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Discovery Audio Confirm Org", "discovery-audio-confirm")
+    user = await create_user(
+        db_session,
+        email=f"discovery-audio-confirm-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Audio Confirm Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    run.source_type = "voice_interview"
+    await db_session.commit()
+    await db_session.refresh(run)
+    await _attach_discovery_audio_source(
+        db_session,
+        run=run,
+        company_id=company.id,
+        user_id=user.id,
+    )
+
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        normalized_data={
+            "name": "Audio Orphan Stream",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "2 tons/week",
+        },
+        review_notes="Project row missing location context",
+    )
+
+    set_current_user(user)
+    response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={
+            "action": "confirm",
+            "normalizedData": {
+                "name": "Audio Orphan Stream",
+                "category": "paper",
+                "project_type": "Assessment",
+                "description": "desc",
+                "sector": "industrial",
+                "subsector": "manufacturing",
+                "estimated_volume": "2 tons/week",
+            },
+            "locationResolution": {
+                "mode": "create_new",
+                "name": "Audio Plant",
+                "city": "Monterrey",
+                "state": "NL",
+            },
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["summary"]["projectsCreated"] == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_audio_decision_reject_works_for_voice_run(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Discovery Audio Reject Org", "discovery-audio-reject")
+    user = await create_user(
+        db_session,
+        email=f"discovery-audio-reject-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Audio Reject Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    run.source_type = "voice_interview"
+    await db_session.commit()
+    await db_session.refresh(run)
+    await _attach_discovery_audio_source(
+        db_session,
+        run=run,
+        company_id=company.id,
+        user_id=user.id,
+    )
+
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        normalized_data={
+            "name": "Audio Reject Stream",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "2 tons/week",
+        },
+        review_notes="Project row missing location context",
+    )
+
+    set_current_user(user)
+    response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={"action": "reject"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["summary"]["rejected"] == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_decision_stale_parent_falls_back_to_orphan_resolution(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Discovery Stale Parent Org", "discovery-stale-parent")
+    user = await create_user(
+        db_session,
+        email=f"discovery-stale-parent-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Stale Parent Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    await _attach_discovery_source(db_session, run=run, source_type="file")
+
+    stale_parent_id = uuid.uuid4()
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        parent_item_id=stale_parent_id,
+        normalized_data={
+            "name": "Stale Parent Stream",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "1 ton/week",
+        },
+    )
+    fallback_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Fallback Plant",
+    )
+
+    set_current_user(user)
+    response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={
+            "action": "confirm",
+            "normalizedData": {
+                "name": "Stale Parent Stream",
+                "category": "paper",
+                "project_type": "Assessment",
+                "description": "desc",
+                "sector": "industrial",
+                "subsector": "manufacturing",
+                "estimated_volume": "1 ton/week",
+            },
+            "locationResolution": {
+                "mode": "existing",
+                "locationId": str(fallback_location.id),
+            },
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["projectsCreated"] == 1
+    assert payload["status"] == "completed"
+
+
+@pytest.mark.asyncio
 async def test_project_without_category_can_accept_and_finalize(
     client: AsyncClient, db_session, set_current_user
 ):
@@ -1109,7 +2433,7 @@ async def test_project_without_category_can_accept_and_finalize(
 
 
 @pytest.mark.asyncio
-async def test_dashboard_returns_bulk_import_drafts_and_hides_unassigned_company_on_filter(
+async def test_dashboard_returns_discovery_drafts_only_and_hides_legacy_runs(
     client: AsyncClient, db_session, set_current_user
 ):
     uid = uuid.uuid4().hex[:8]
@@ -1129,6 +2453,7 @@ async def test_dashboard_returns_bulk_import_drafts_and_hides_unassigned_company
         entrypoint_type="company",
         entrypoint_id=company.id,
     )
+    await _attach_discovery_source(db_session, run=assigned_run, source_type="file")
     assigned_location = await _create_item(
         db_session,
         run=assigned_run,
@@ -1181,26 +2506,26 @@ async def test_dashboard_returns_bulk_import_drafts_and_hides_unassigned_company
     global_response = await client.get("/api/v1/projects/dashboard?bucket=needs_confirmation")
     assert global_response.status_code == 200
     global_payload = global_response.json()
-    assert global_payload["counts"]["total"] == 2
-    assert global_payload["counts"]["needsConfirmation"] == 2
-    assert global_payload["total"] == 2
+    assert global_payload["counts"]["total"] == 1
+    assert global_payload["counts"]["needsConfirmation"] == 1
+    assert global_payload["total"] == 1
     assert {item["kind"] for item in global_payload["items"]} == {"draft_item"}
     assert {item["sourceType"] for item in global_payload["items"]} == {"bulk_import"}
-    assert any(item["companyId"] is None for item in global_payload["items"])
+    assert all(item["companyId"] == str(company.id) for item in global_payload["items"])
     assert all(
         item["target"]["targetKind"] == "confirmation_flow" for item in global_payload["items"]
     )
+    assert [item["streamName"] for item in global_payload["items"]] == ["Assigned Draft Stream"]
 
     total_response = await client.get("/api/v1/projects/dashboard?bucket=total")
     assert total_response.status_code == 200
     total_payload = total_response.json()
-    assert total_payload["counts"]["total"] == 2
+    assert total_payload["counts"]["total"] == 1
     assert total_payload["total"] == 0
     assert total_payload["items"] == []
-    assert total_payload["draftPreview"]["total"] == 2
+    assert total_payload["draftPreview"]["total"] == 1
     assert {item["streamName"] for item in total_payload["draftPreview"]["items"]} == {
-        "Assigned Draft Stream",
-        "Orphan Draft Stream",
+        "Assigned Draft Stream"
     }
 
     filtered_by_proposal_state = await client.get(

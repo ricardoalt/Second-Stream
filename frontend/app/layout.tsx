@@ -26,9 +26,9 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-	title: "DSR Inc. - Waste Resource Management Platform",
+	title: "SecondStream - AI Waste Opportunity Platform",
 	description:
-		"AI-powered waste resource management and circularity solutions for industrial clients. Identify opportunities, assess profitability, and close deals.",
+		"AI-powered waste opportunity platform for industrial teams. Discover opportunities, assess viability, and move streams from intake to proposal.",
 	generator: "v0.app",
 };
 

@@ -1,142 +1,127 @@
-# Draft Confirmation Sheet — UX/UI Redesign
+# Draft Confirmation Sheet — UX/UI Redesign (Revised)
 
 ## Context
 
-The draft confirmation modal (`draft-confirmation-sheet.tsx`, 1908 lines) is the critical step where users review AI-detected waste stream data before persisting it. The current design exposes backend implementation details (per-field confirm/reject toggles, source badges) as primary UI affordances, creating cognitive overload. The user's actual task is simple: scan AI values, fix wrong ones, submit. The redesign eliminates unnecessary micro-decisions and cleans up the visual hierarchy.
+Redesign the draft confirmation modal to be cleaner, more intuitive, and easier to scan — while preserving the explicit per-field Confirm/Reject interaction, all business logic, and the existing state machine.
 
-## Core Changes
+## Changes
 
-### 1. Remove per-field Confirm/Reject buttons
+### 1. Dialog → Sheet (right panel)
 
-**Why**: 14 buttons (2 × 7 editable fields) that map to no real user intent. The `getPersistedFieldValue()` function already handles the semantics: if value is present → used; if value cleared → treated as empty.
+Replace `Dialog` with `Sheet side="right"` (`w-full sm:max-w-lg`). Dashboard stays visible. Full viewport height eliminates scrolling for 8 fields. Add `onInteractOutside={(e) => e.preventDefault()}` to prevent accidental closure.
 
-**How**: Auto-derive `decision` from value state:
-- User types non-empty value → `decision = "confirm"`
-- User clears field → `decision = "reject"`
-- Value differs from `initialValue` → `source = "manual_override"`
+Imports: swap `Dialog`/`DialogContent`/`DialogHeader`/`DialogTitle`/`DialogDescription` → `Sheet`/`SheetContent`/`SheetHeader`/`SheetTitle`/`SheetDescription`.
 
-Update `updateField` callback (~10 lines). Delete `FieldDecisionButton` component. All downstream business logic (validation, API calls, contract building) unchanged — it already reads `decision` + `value` from contract.
+### 2. Context card (Company + Location)
 
-### 2. Dialog → Sheet (right panel)
+Top visual block separating "what are we reviewing?" from "what are the values?":
 
-**Why**: Dialog at `max-w-2xl` with `max-h-60vh` scroll forces scrolling to see fields 5-8. Sheet uses full viewport height — all 8 fields fit without scrolling. Keeps dashboard visible on the left, giving context about which row is being reviewed.
+- **Company**: Read-only text display (no `<Input>`), Lock icon, `editabilityReason` tooltip. Visually distinct — rounded card with `bg-muted/30` border.
+- **Location**: Own visual prominence inside the context card. All 3 modes preserved:
+  - `locked`: read-only text + Lock icon
+  - `existing`: combobox trigger (existing Popover/Command pattern)
+  - `create_new`: expandable sub-form (4 fields: name, city, state, address)
+- Location gets more vertical space and a subtle background treatment to signal "this is the complex interaction here."
 
-**How**: Replace `Dialog`/`DialogContent` with `Sheet`/`SheetContent side="right"`. Override default width: `className="w-full sm:max-w-lg"`. Add `onInteractOutside={(e) => e.preventDefault()}` to prevent accidental closure with unsaved edits.
+### 3. Subtler field groups
 
-Note: Sheet uses same `@radix-ui/react-dialog` as Dialog — API is nearly identical. The Location field's Popover/Command nests inside Sheet without focus trap conflicts (both are Radix primitives with portal-based rendering).
+Keep Identity/Material/Operations grouping but reduce chrome:
+- Remove group icons (`Building2`, `FlaskConical`, `Truck`)
+- Replace with text-only group label: `text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60`
+- Remove the `<Separator>` between groups — use `mt-4` spacing instead
+- Remove the `flex-1 h-px bg-border/40` horizontal rule next to labels
+- Net: ~60px saved, grouping preserved for scanability
 
-### 3. New layout structure
+### 4. Actionable readiness feedback (replace progress bar)
 
-```
-SheetContent (right panel, ~480px)
-├── SheetHeader
-│   ├── "Review Draft" title
-│   └── "{Company} — {Location}" + source badge
-├── ContextCard (Company locked + Location interaction)
-│   ├── Company: read-only text + Lock icon (no Input)
-│   └── Location: mode-dependent (locked | combobox | create-new form)
-├── StreamDetailsForm (6 fields, compact grid)
-│   ├── [Material type]  [Material name]
-│   ├── [Volume]         [Frequency]
-│   ├── [Composition ─────────────────]
-│   └── [Primary contact ─────────────]
-├── ValidationBanner (conditional, amber, lists missing field names)
-└── SheetFooter
-    ├── Status text ("Still needed: Volume" or "Ready to confirm")
-    └── [Cancel] [Confirm Draft]
-```
+Delete `ReadinessSummary` component (progress bar + percentage).
 
-### 4. Remove source badges from field rows
+Replace with a **validation banner** positioned between body and footer:
+- **Not ready**: Amber banner: `"Still needed: Volume, Frequency"` (specific field names)
+- **Ready**: Green banner: `"Ready to confirm"` with Check icon
+- Uses existing `missingBaseFields` computation, no logic changes
+- `aria-live="polite"` for accessibility
 
-**Why**: Most fields are `ai_detected` — the badge communicates the same thing on every row (= noise). Only `pending` (no value) and `manual_override` (user edited) are informative.
+Footer status text mirrors this (replaces the current dual readiness display).
 
-**How**:
-- `ai_detected` + unedited → subtle `Sparkles` icon (size-3) after the label
-- `pending` → no badge, the empty input placeholder itself communicates "nothing found"
-- `manual_override` → small `Pencil` icon after the label
-- Single source badge in header: "AI Import" or "Voice Interview"
+### 5. Reduce source badge noise
 
-### 5. Remove ReadinessSummary progress bar
+Keep `SourceBadge` component but change rendering strategy:
+- `ai_detected`: **Demote** — smaller, more muted styling. Change from a colored badge to a subtle inline `Sparkles` icon (`size-2.5 text-muted-foreground/50`) next to the label. No text label, just icon. This is the default expected state and shouldn't dominate.
+- `manual_override`: **Keep prominent** — current badge styling with `User` icon, success colors. This is useful signal.
+- `pending`: **Keep prominent** — current badge styling with `AlertCircle` icon, warning colors. This is useful signal.
 
-**Why**: "5/8 (63%)" weights all fields equally. An optional empty `composition` counts the same as required `volume`. The percentage doesn't answer "Can I confirm now?"
+### 6. Location field improvements
 
-**How**: Replace with a conditional `ValidationBanner`:
-- Shows only when required fields are missing
-- Lists specific field names: "Still needed: Volume, Frequency"
-- When all required fields filled → banner hidden, confirm button turns green
+Inside the context card, Location gets dedicated treatment:
+- **Combobox** (existing mode): full-width trigger, shows selected location name + city/state subtitle
+- **Create-new form**: visually contained in a sub-card with dashed border (`border-dashed border-warning/30`), 2-column grid for city/state, "Use existing location instead" link at bottom
+- **Mode transition**: smooth — keep existing `updateLocationState`/`startCreateNewLocation`/`switchLocationBackToLocked` callbacks unchanged
 
-### 6. Remove field group sections
+### 7. Minor UX polish
 
-**Why**: 3 groups for 8 fields = over-structured. Group headers + separators consume ~120px vertical space.
+- **Auto-focus**: Focus first empty required field on sheet open
+- **Keyboard submit**: `Cmd+Enter`/`Ctrl+Enter` submits when `isReady`
+- **Locked fields**: Use `readOnly` instead of `disabled` where applicable (screen reader accessible, copyable text)
+- **Button sizing**: Both Cancel and Confirm use consistent sizing
+- **Field row cleanup**: Tighten padding, reduce border-l-2 weight to border-l, slightly smaller resolved indicators
 
-**How**: Company + Location become a `ContextCard` (visually distinct card). Remaining 6 fields become a flat 2-column form grid. No group headers, no separators, no section icons.
+## What stays unchanged
 
-### 7. Elevate Location field
+- Per-field Confirm/Reject buttons — preserved exactly
+- `DraftConfirmationFieldDecision` ("confirm" | "reject") — no changes
+- All contract-building functions (lines 1408-1907)
+- `handleConfirmDraft` submission flow
+- `missingBaseFields` and `fieldReadiness` memos
+- Validation logic and required field rules
+- Location state machine (locked/existing/create_new)
+- Store integration (`useDashboardActiveDraft`, `useDashboardActions`)
+- All API calls (patchItem, finalize, searchRunLocations)
+- Backend — zero changes
 
-**Why**: Location in `create_new` mode renders a 4-field sub-form (~180px) inside the same row pattern as single text inputs — jarring visual inconsistency.
-
-**How**: Location gets its own visual zone inside `ContextCard`:
-- **Locked**: Read-only display (name + city/state) with Lock icon, `readOnly` (not `disabled`)
-- **Existing**: Combobox trigger, same Popover/Command pattern (preserved)
-- **Create new**: Expandable sub-card with 4-field grid, "Use existing instead" link
-
-## Component tree (after)
+## Component structure (after)
 
 ```
 DraftConfirmationSheet (orchestrator — all hooks/state/callbacks preserved)
-├── ContextCard (new)
-│   ├── CompanyDisplay (text + Lock icon)
-│   └── LocationControl (refactored from LocationFieldInput)
-│       └── LocationCreateForm (mode=create_new)
-├── StreamDetailsForm (new)
-│   └── FormField × 6 (label above input, 2-col grid)
-├── ValidationBanner (new, conditional)
-└── Footer (simplified)
+├── SheetHeader (title + company/location context subtitle + source badge)
+├── ContextCard (new wrapper)
+│   ├── CompanyDisplay (read-only text + Lock + tooltip)
+│   └── LocationControl (combobox | create-new form | locked display)
+├── Field groups (subtler headers, no icons/separators)
+│   ├── Material group label
+│   │   └── ConfirmationFieldRow × 3 (materialType, materialName, composition)
+│   ├── Operations group label
+│   │   └── ConfirmationFieldRow × 3 (volume, frequency, primaryContact)
+├── ValidationBanner (replaces ReadinessSummary)
+└── SheetFooter (status text + Cancel + Confirm)
 ```
 
-**Deleted**: `ReadinessSummary`, `FieldGroupSection`, `ConfirmationFieldRow`, `SourceBadge`, `FieldDecisionButton`, `SOURCE_LABELS`, `FIELD_GROUPS`, `FieldGroup` interface, `fieldReadiness` memo
+**Deleted**: `ReadinessSummary`, `FIELD_GROUPS` array (replaced with inline rendering), `FieldGroup` interface, `fieldReadiness` memo
 
-**Preserved (unchanged)**: All contract-building functions (lines 1408-1907), all state hooks, `handleConfirmDraft`, `missingBaseFields` memo, validation logic, location search effect, store integration
+**Preserved**: `ConfirmationFieldRow`, `FieldDecisionButton`, `FieldInput`, `LocationFieldInput`, all helper functions
 
 ## Implementation steps
 
-1. **Update `updateField`** — auto-derive `decision` from value. ~10 lines changed.
-2. **Build `ContextCard`** — Company display + Location control (refactor from existing LocationFieldInput). Keep all location state callbacks.
-3. **Build `StreamDetailsForm`** — 2-column CSS grid, 6 `FormField` components (label + input). Composition = textarea, rest = input.
-4. **Build `ValidationBanner`** — conditional amber banner using existing `missingBaseFields` computation.
-5. **Replace container** — Dialog → Sheet, update header/footer.
-6. **Delete dead components** — ReadinessSummary, FieldGroupSection, ConfirmationFieldRow, SourceBadge, FieldDecisionButton + related constants.
-
-## UX improvements
-
-- **Auto-focus**: Focus first empty required field on mount. If all filled, focus first editable field.
-- **Tab order**: `tabIndex={-1}` on locked fields. Tab only through editable fields.
-- **Keyboard submit**: `Cmd+Enter` / `Ctrl+Enter` submits when `isReady`.
-- **Locked fields**: Use `readOnly` (not `disabled`) — screen readers can still access the value, users can copy text.
-
-## Accessibility
-
-- `aria-required="true"` on required inputs
-- `aria-describedby` linking inputs to error elements
-- `aria-live="polite"` on validation banner
-- `readOnly` for locked fields (keeps them in accessibility tree)
-- Focus return to trigger element on sheet close
+1. **Container swap**: Dialog → Sheet. Update imports, wrapper JSX, header/footer structure.
+2. **Context card**: Extract Company + Location from field groups into a dedicated `ContextCard` section above the fields. Company becomes text display. Location keeps all existing interaction but in elevated visual treatment.
+3. **Subtler groups**: Remove Identity group (company/location now in context card). Keep Material and Operations as text-only labels with spacing, no icons/rules/separators.
+4. **Validation banner**: Delete ReadinessSummary. Add conditional banner using `missingBaseFields`.
+5. **Source badge rework**: Make `ai_detected` a subtle icon-only indicator. Keep `manual_override` and `pending` badges prominent.
+6. **Polish**: Auto-focus, keyboard submit, consistent button sizing, tighter row spacing.
+7. **Run checks**: `cd frontend && bun run check:ci`
 
 ## Files to modify
 
-- `frontend/components/features/dashboard/components/draft-confirmation-sheet.tsx` — full UI rewrite, business logic preserved
-- `frontend/components/features/dashboard/index.ts` — update export if component name changes (likely stays same)
+- `frontend/components/features/dashboard/components/draft-confirmation-sheet.tsx` — main changes
+- `frontend/components/features/dashboard/index.ts` — only if export name changes (unlikely)
 
 ## Verification
 
 1. `cd frontend && bun run check:ci` — type check + lint
-2. Manual test: open draft from dashboard → verify all 3 location modes work
-3. Manual test: clear a required field → verify validation banner appears
-4. Manual test: fill all required fields → verify confirm button turns green
-5. Manual test: confirm a draft → verify API calls succeed (patchItem + finalize)
-6. Test keyboard: Tab through fields, Cmd+Enter to submit
-
-## Unresolved questions
-
-1. **Popover inside Sheet**: Radix Popover inside Sheet should work (both portal-based), but needs manual testing. If focus trap conflict → fallback to Dialog with same redesign applied.
-2. **Reset to AI values**: Should there be an undo/reset per field or globally? Current plan: no reset button (users can retype). Could add later if needed.
+2. Manual: open draft → verify Sheet slides in from right, dashboard visible
+3. Manual: verify Company locked display, Location combobox + create-new modes
+4. Manual: verify Confirm/Reject buttons work per field
+5. Manual: verify `manual_override` and `pending` badges visible, `ai_detected` demoted
+6. Manual: clear required field → verify validation banner shows specific names
+7. Manual: fill all required → verify banner shows "Ready to confirm"
+8. Manual: confirm draft → verify API calls succeed (no regressions)

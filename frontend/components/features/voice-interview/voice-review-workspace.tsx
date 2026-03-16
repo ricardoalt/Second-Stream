@@ -1,6 +1,7 @@
 "use client";
 
 import { AudioLines, Check, Info, Loader2, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -36,8 +37,8 @@ import {
 import { intakeAPI } from "@/lib/api/intake";
 import type { VoiceInterviewTranscriptSegment } from "@/lib/api/voice-interviews";
 import { voiceInterviewsApi } from "@/lib/api/voice-interviews";
+import { routes } from "@/lib/routes";
 import { EditItemDrawer } from "../bulk-import/edit-item-drawer";
-import { OrphanStreamPicker } from "../shared/orphan-stream-picker";
 import { ConfirmImportDialog } from "./confirm-import-dialog";
 import { type LocationAction, LocationGroupCard } from "./location-group-card";
 import { StreamCard } from "./stream-card";
@@ -78,7 +79,9 @@ export function getActiveOrphanItems(
 ): BulkImportItem[] {
 	return items.filter(
 		(i) =>
-			i.status === "invalid" &&
+			i.itemType === "project" &&
+			i.parentItemId == null &&
+			i.status !== "rejected" &&
 			i.createdProjectId == null &&
 			i.reviewNotes?.startsWith(REVIEW_NOTE_MISSING_LOCATION),
 	);
@@ -171,9 +174,10 @@ const REVIEW_NOTE_INVALID_LOCATION =
 
 /** User-friendly status label mapping (3 primary states) */
 function _statusLabel(status: string, reviewNotes?: string | null): string {
+	if (reviewNotes?.startsWith(REVIEW_NOTE_MISSING_LOCATION)) {
+		return "Needs location";
+	}
 	if (status === "invalid") {
-		if (reviewNotes?.startsWith(REVIEW_NOTE_MISSING_LOCATION))
-			return "Needs location";
 		if (reviewNotes?.startsWith(REVIEW_NOTE_EXTERNAL_LOCATION))
 			return "Wrong location";
 		if (reviewNotes?.startsWith(REVIEW_NOTE_INVALID_LOCATION))
@@ -275,6 +279,7 @@ export function VoiceReviewWorkspace({
 	onDone,
 	companyLocations,
 }: VoiceReviewWorkspaceProps) {
+	const router = useRouter();
 	const isDesktop = useIsDesktop();
 
 	const [loading, setLoading] = useState(true);
@@ -435,6 +440,7 @@ export function VoiceReviewWorkspace({
 			.map((g) => _groupLocationName(g))
 			.filter((n) => n !== "Location group");
 	}, [pendingGroups, orphanItemIds]);
+	const knownLocationCount = companyLocations?.length ?? 0;
 
 	const resolvedGroupIds = useMemo(
 		() =>
@@ -584,11 +590,7 @@ export function VoiceReviewWorkspace({
 			const refreshedItems = await loadItems();
 
 			if (updatedRun.status !== "completed") {
-				const orphanCount = refreshedItems.filter(
-					(i) =>
-						i.status === "invalid" &&
-						i.reviewNotes?.startsWith(REVIEW_NOTE_MISSING_LOCATION),
-				).length;
+				const orphanCount = getActiveOrphanItems(refreshedItems).length;
 				const orphanSuffix =
 					orphanCount > 0
 						? ` ${orphanCount} stream${orphanCount === 1 ? "" : "s"} still need a location.`
@@ -882,85 +884,49 @@ export function VoiceReviewWorkspace({
 				})}
 			</div>
 
-			{/* Orphan streams — inline picker (no Collapsible) */}
-			{orphanItems.length > 0 &&
-				companyLocations &&
-				companyLocations.length > 0 && (
-					<div className="px-4 pb-4 space-y-2">
-						<OrphanStreamPicker
-							orphanItems={orphanItems}
-							sourceLabel="Voice interview"
-							locations={companyLocations}
-							disabled={!runEditable}
-							onAssign={async (locationId, locationName, itemIds) => {
-								if (!runEditable) {
-									toast.error(VOICE_RUN_LOCKED_MESSAGE);
-									return;
-								}
-								try {
-									await bulkImportAPI.importOrphanProjects(
-										run.id,
-										locationId,
-										itemIds,
-									);
-									// Immediately remove imported items from local state
-									// so counter + list update in the same frame
-									const importedSet = new Set(itemIds);
-									setItems((prev) =>
-										prev.map((entry) =>
-											importedSet.has(entry.id)
-												? {
-														...entry,
-														createdProjectId: `orphan-imported-${entry.id}`,
-													}
-												: entry,
-										),
-									);
-									toast.success(
-										`${itemIds.length} stream${itemIds.length === 1 ? "" : "s"} imported to "${locationName}"`,
-									);
-									// Background refresh for full consistency
-									const updatedRun = await bulkImportAPI.getRun(run.id);
-									setRunStatus(updatedRun.status);
-									onRunUpdated(updatedRun);
-									await loadItems();
-								} catch (error) {
-									const conflict = categorizeVoiceConflict(error);
-									if (conflict) {
-										toast.error(conflict.userMessage, {
-											description: conflict.description,
-										});
-										if (conflict.shouldRefresh) {
-											try {
-												const latestRun = await bulkImportAPI.getRun(run.id);
-												setRunStatus(latestRun.status);
-												onRunUpdated(latestRun);
-												await loadItems();
-											} catch {
-												// best effort refresh
-											}
-										}
-										return;
-									}
-									throw error;
-								}
-							}}
-						/>
-						{/* Mention card: location names heard in audio but not matched to known locations */}
-						{orphanGroupNames.length > 0 && (
-							<div className="flex items-start gap-2.5 rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
-								<AudioLines className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-								<p className="text-xs text-muted-foreground">
-									Heard in audio:{" "}
-									<span className="font-medium text-foreground">
-										{orphanGroupNames.join(", ")}
-									</span>
-									{" — not matched to a known location"}
-								</p>
-							</div>
+			{/* Orphan streams now route through Needs Confirmation only */}
+			{orphanItems.length > 0 && (
+				<div className="px-4 pb-4 space-y-2">
+					<div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5">
+						<p className="text-xs text-muted-foreground">
+							Orphan streams can no longer be imported from voice review.
+							Continue in Needs Confirmation to resolve location and confirm.
+						</p>
+						{knownLocationCount > 0 && (
+							<p className="mt-1 text-[11px] text-muted-foreground/80">
+								{knownLocationCount} known location
+								{knownLocationCount === 1 ? "" : "s"} available for resolution.
+							</p>
 						)}
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="mt-2"
+							onClick={() => {
+								onDismiss();
+								router.push(routes.dashboard);
+								toast("Open Needs Confirmation to continue review.");
+							}}
+						>
+							Go to dashboard
+						</Button>
 					</div>
-				)}
+					{/* Mention card: location names heard in audio but not matched to known locations */}
+					{orphanGroupNames.length > 0 && (
+						<div className="flex items-start gap-2.5 rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
+							<AudioLines className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+							<p className="text-xs text-muted-foreground">
+								Heard in audio:{" "}
+								<span className="font-medium text-foreground">
+									{orphanGroupNames.join(", ")}
+								</span>
+								{" — not matched to a known location"}
+							</p>
+						</div>
+					)}
+				</div>
+			)}
 			{/* Already imported groups (read-only, collapsed) */}
 			{importedGroups.length > 0 && (
 				<div className="px-4 pb-4">

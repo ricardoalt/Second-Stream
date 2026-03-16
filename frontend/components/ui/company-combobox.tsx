@@ -26,6 +26,7 @@ interface CompanyComboboxProps {
 	onValueChange?: (value: string) => void;
 	placeholder?: string;
 	className?: string;
+	showCreate?: boolean;
 }
 
 export function CompanyCombobox({
@@ -33,6 +34,7 @@ export function CompanyCombobox({
 	onValueChange,
 	placeholder = "Select company...",
 	className,
+	showCreate = true,
 }: CompanyComboboxProps) {
 	const [open, setOpen] = React.useState(false);
 	const { companies, loadCompanies } = useCompanyStore();
@@ -82,27 +84,31 @@ export function CompanyCombobox({
 								</CommandItem>
 							))}
 						</CommandGroup>
-						<CommandSeparator />
-						<CommandGroup>
-							<CreateCompanyDialog
-								onSuccess={(company) => {
-									loadCompanies();
-									if (company) {
-										onValueChange?.(company.id);
-									}
-									setOpen(false);
-								}}
-								trigger={
-									<button
-										type="button"
-										className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground text-primary"
-									>
-										<Plus className="mr-2 h-4 w-4" />
-										Create new company
-									</button>
-								}
-							/>
-						</CommandGroup>
+						{showCreate && (
+							<>
+								<CommandSeparator />
+								<CommandGroup>
+									<CreateCompanyDialog
+										onSuccess={(company) => {
+											loadCompanies();
+											if (company) {
+												onValueChange?.(company.id);
+											}
+											setOpen(false);
+										}}
+										trigger={
+											<button
+												type="button"
+												className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground text-primary"
+											>
+												<Plus className="mr-2 h-4 w-4" />
+												Create new company
+											</button>
+										}
+									/>
+								</CommandGroup>
+							</>
+						)}
 					</CommandList>
 				</Command>
 			</PopoverContent>

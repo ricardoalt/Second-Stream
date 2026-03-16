@@ -23,11 +23,11 @@ import {
 	useDashboardInitialized,
 } from "@/lib/stores/dashboard-store";
 
-const PremiumProjectWizard = dynamic(
+const DiscoveryWizard = dynamic(
 	() =>
-		import(
-			"@/components/features/dashboard/components/premium-project-wizard"
-		).then((mod) => mod.PremiumProjectWizard),
+		import("@/components/features/discovery-wizard/discovery-wizard").then(
+			(mod) => mod.DiscoveryWizard,
+		),
 	{ ssr: false, loading: () => null },
 );
 
@@ -93,7 +93,7 @@ const DashboardContent = memo(function DashboardContent() {
 			</div>
 
 			{/* Create wizard modal */}
-			<PremiumProjectWizard
+			<DiscoveryWizard
 				open={createModalOpen}
 				onOpenChange={setCreateModalOpen}
 			/>
