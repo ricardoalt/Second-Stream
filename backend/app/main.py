@@ -515,6 +515,7 @@ from app.api.v1 import (
     projects,
     proposals,
     voice_interviews,
+    workspace,
 )
 
 # Health checks (available at root and API prefix)
@@ -563,6 +564,12 @@ app.include_router(
     project_data.router,
     prefix=f"{settings.API_V1_PREFIX}/projects",
     tags=["Project Data"],
+)
+
+app.include_router(
+    workspace.router,
+    prefix=f"{settings.API_V1_PREFIX}/projects",
+    tags=["Workspace"],
 )
 
 app.include_router(

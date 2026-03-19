@@ -62,25 +62,29 @@ document_analysis_agent = Agent(
 
 @document_analysis_agent.system_prompt
 def inject_document_context(ctx: RunContext[DocumentContext]) -> str:
-    """Inject document type and field catalog dynamically from dependencies."""
+    """Inject document context for proposal-only extraction."""
     return (
         f"Document type: {ctx.deps.doc_type}\n\n"
-        f"Allowed fields (use exact field_id values):\n{ctx.deps.field_catalog}"
+        "Workspace base fields available for base_field proposals: "
+        "material_type, material_name, composition, volume, frequency.\n\n"
+        "Additional extraction context:\n"
+        f"{ctx.deps.field_catalog}"
     )
 
 
 async def analyze_document(
-    document_bytes: bytes,
+    document_bytes: bytes | None,
     filename: str,
     doc_type: str,
     field_catalog: str,
     media_type: str = "application/pdf",
+    extracted_text: str | None = None,
 ) -> DocumentAnalysisOutput:
-    if not document_bytes:
+    if document_bytes is None and not extracted_text:
         raise DocumentAnalysisError(f"Empty document: {filename}")
 
-    # Reject documents larger than 10 MB
-    if len(document_bytes) > MAX_DOC_BYTES:
+    # Reject binary documents larger than 10 MB
+    if document_bytes is not None and len(document_bytes) > MAX_DOC_BYTES:
         raise DocumentAnalysisError(
             f"Document too large: {filename} ({len(document_bytes) / 1024 / 1024:.1f} MB). "
             f"Maximum size is {MAX_DOC_BYTES / 1024 / 1024:.0f} MB."
@@ -92,13 +96,19 @@ async def analyze_document(
             doc_type=doc_type,
             field_catalog=field_catalog,
         )
-        result = await document_analysis_agent.run(
-            [
-                "Analyze this document and extract facts with evidence:",
+        if extracted_text is not None:
+            prompt_input: list[str | BinaryContent] = [
+                "Analyze this normalized document text and extract workspace proposals with evidence:",
+                extracted_text,
+            ]
+        else:
+            if document_bytes is None:
+                raise DocumentAnalysisError(f"Empty document: {filename}")
+            prompt_input = [
+                "Analyze this document and extract workspace proposals with evidence:",
                 BinaryContent(data=document_bytes, media_type=media_type),
-            ],
-            deps=context,
-        )
+            ]
+        result = await document_analysis_agent.run(prompt_input, deps=context)
 
         output = DocumentAnalysisOutput.model_validate(result.output)
         return output

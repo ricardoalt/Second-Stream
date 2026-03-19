@@ -8,21 +8,23 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 import structlog
-from pydantic import ValidationError
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.document_analysis_agent import DocumentAnalysisError
 from app.agents.image_analysis_agent import ImageAnalysisError, analyze_image
 from app.agents.notes_analysis_agent import analyze_notes
-from app.models.document_analysis_output import DocumentAnalysisOutput, DocumentUnmapped
+from app.models.document_analysis_output import (
+    DocumentAnalysisOutput,
+    DocumentBaseProposal,
+    DocumentCustomProposal,
+)
 from app.models.file import ProjectFile
 from app.models.intake_note import IntakeNote
 from app.models.intake_suggestion import IntakeSuggestion
 from app.models.intake_unmapped_note import IntakeUnmappedNote
 from app.models.notes_analysis_output import NotesAnalysisOutput
 from app.models.project import Project
-from app.schemas.intake import IntakeEvidence
 from app.services.intake_document_pipeline import analyze_project_file_document
 from app.services.intake_field_catalog import (
     FieldRegistryItem,
@@ -41,18 +43,9 @@ RETRY_BASE_SECONDS = 30
 RETRY_MAX_SECONDS = 600
 RETRY_JITTER_PCT = 0.2
 PROCESSING_ERROR_MAX_LENGTH = 500
-MAX_UNMAPPED_ITEMS = 10
-MIN_UNMAPPED_CONFIDENCE = 60
-_METADATA_PATTERNS = [
-    re.compile(r"^(page|p\.)\s*\d+\b", re.IGNORECASE),
-    re.compile(r"\b(table of contents|contents)\b", re.IGNORECASE),
-    re.compile(r"\b(rev|revision|version|doc(ument)?\s*(no|id))\b", re.IGNORECASE),
-    re.compile(r"\b(tel|phone|fax|email)\b", re.IGNORECASE),
-    re.compile(r"\bwww\.\S+|https?://\S+\b", re.IGNORECASE),
-    re.compile(
-        r"\b(confidential|all rights reserved|copyright|prepared by|issued)\b", re.IGNORECASE
-    ),
-]
+DOCUMENT_FILE_TYPES = {"pdf", "docx", "xlsx", "csv", "txt"}
+MAX_AI_ANALYSIS_PROPOSALS = 25
+MAX_AI_ANALYSIS_TEXT_LENGTH = 300
 
 
 def determine_doc_type(category: str | None) -> DocType:
@@ -162,7 +155,7 @@ class IntakeIngestionService:
             )
             existing = await db.execute(existing_stmt)
             cached = existing.scalar_one_or_none()
-            if cached and (cached.ai_analysis or cached.processed_text):
+            if cached and self._has_cached_results_for_reuse(cached):
                 file.ai_analysis = cached.ai_analysis
                 file.processed_text = cached.processed_text
                 await self._clone_cached_outputs(db, file, cached)
@@ -177,7 +170,7 @@ class IntakeIngestionService:
 
             if file_type in {"jpg", "jpeg", "png"}:
                 await self._process_image_or_document(db, file, file_bytes)
-            elif file_type == "pdf":
+            elif file_type in DOCUMENT_FILE_TYPES:
                 await self._process_document(db, file, file_bytes)
             else:
                 raise ValueError("unsupported_file_type")
@@ -361,68 +354,65 @@ class IntakeIngestionService:
         analysis: DocumentAnalysisOutput,
         doc_type: DocType,
     ) -> None:
-        file.ai_analysis = {
-            "summary": analysis.summary,
-            "key_facts": analysis.key_facts,
-            "doc_type": doc_type,
-        }
+        file.ai_analysis = self._build_file_ai_analysis_payload(analysis, doc_type)
         file.processed_text = analysis.summary
 
         await self._delete_pending_for_source(db, file)
 
-        # Simple direct loop: validate field_id against registry (same pattern as notes)
-        for suggestion in analysis.suggestions:
-            # Skip empty values (handles 0 correctly)
-            value_str = str(suggestion.value).strip()
-            if value_str == "":
+    def _build_file_ai_analysis_payload(
+        self,
+        analysis: DocumentAnalysisOutput,
+        doc_type: DocType,
+    ) -> dict[str, Any]:
+        proposals_payload: list[dict[str, Any]] = []
+        for proposal in analysis.proposals[:MAX_AI_ANALYSIS_PROPOSALS]:
+            answer = proposal.answer.strip()
+            if not answer:
+                continue
+            evidence_refs_payload: list[dict[str, Any]] = []
+            for ref in proposal.evidence_refs:
+                page = _normalize_page(ref.page)
+                excerpt = (ref.excerpt or "").strip()
+                evidence_ref: dict[str, Any] = {}
+                if page is not None:
+                    evidence_ref["page"] = page
+                if excerpt:
+                    evidence_ref["excerpt"] = excerpt[:MAX_AI_ANALYSIS_TEXT_LENGTH]
+                if evidence_ref:
+                    evidence_refs_payload.append(evidence_ref)
+            if not evidence_refs_payload:
+                continue
+            if isinstance(proposal, DocumentBaseProposal):
+                proposals_payload.append(
+                    {
+                        "target_kind": "base_field",
+                        "base_field_id": proposal.base_field_id,
+                        "answer": answer[:MAX_AI_ANALYSIS_TEXT_LENGTH],
+                        "confidence": analysis.normalize_confidence(proposal.confidence),
+                        "evidence_refs": evidence_refs_payload,
+                    }
+                )
                 continue
 
-            # Normalize field_id for lookup
-            field_id = normalize_field_id(suggestion.field_id)
-            registry_item = self.registry.get(field_id)
-
-            if not registry_item:
-                # Unknown field_id → goes to unmapped
-                await self._persist_unmapped(db, file, suggestion.value, suggestion.confidence)
+            if not isinstance(proposal, DocumentCustomProposal):
                 continue
-
-            # Check for evidence - documents require evidence
-            if not suggestion.evidence:
-                await self._persist_unmapped(db, file, suggestion.value, suggestion.confidence)
+            field_label = proposal.field_label.strip()
+            if not field_label:
                 continue
-
-            page = _normalize_page(suggestion.evidence.page)
-            evidence_payload = IntakeEvidence(
-                file_id=file.id,
-                filename=file.filename,
-                page=page,
-                excerpt=suggestion.evidence.excerpt or "",
-            ).model_dump(mode="json")
-
-            value_type = "number" if _is_number_like(suggestion.value) else "string"
-            intake_suggestion = IntakeSuggestion(
-                organization_id=file.organization_id,
-                project_id=file.project_id,
-                source_file_id=file.id,
-                field_id=registry_item.field_id,
-                field_label=registry_item.field_label,
-                section_id=registry_item.section_id,
-                section_title=registry_item.section_title,
-                value=str(suggestion.value),
-                value_type=value_type,
-                unit=suggestion.unit,
-                confidence=analysis.normalize_confidence(suggestion.confidence),
-                status="pending",
-                source="file" if doc_type == "general" else doc_type,
-                evidence=evidence_payload,
-                created_by_user_id=None,
+            proposals_payload.append(
+                {
+                    "target_kind": "custom_field",
+                    "field_label": field_label[:MAX_AI_ANALYSIS_TEXT_LENGTH],
+                    "answer": answer[:MAX_AI_ANALYSIS_TEXT_LENGTH],
+                    "confidence": analysis.normalize_confidence(proposal.confidence),
+                    "evidence_refs": evidence_refs_payload,
+                }
             )
-            db.add(intake_suggestion)
 
-        # Persist unmapped from analysis
-        filtered_unmapped = _filter_unmapped_items(analysis.unmapped)
-        for item in filtered_unmapped:
-            await self._persist_unmapped(db, file, item.extracted_text, item.confidence)
+        return {
+            "summary": analysis.summary,
+            "proposals": proposals_payload,
+        }
 
     async def _delete_pending_for_source(self, db: AsyncSession, file: ProjectFile) -> None:
         await db.execute(
@@ -440,99 +430,16 @@ class IntakeIngestionService:
             .where(IntakeUnmappedNote.status == "open")
         )
 
-    async def _persist_unmapped(
-        self, db: AsyncSession, file: ProjectFile, text: str, confidence: int
-    ) -> None:
-        unmapped = IntakeUnmappedNote(
-            organization_id=file.organization_id,
-            project_id=file.project_id,
-            extracted_text=text,
-            confidence=DocumentAnalysisOutput.normalize_confidence(confidence),
-            source_file_id=file.id,
-            source_file=file.filename,
-            status="open",
-        )
-        db.add(unmapped)
-
     async def _clone_cached_outputs(
         self,
         db: AsyncSession,
         file: ProjectFile,
         cached: ProjectFile,
     ) -> None:
+        # No legacy row cloning here: we only clear per-file pending intake rows.
+        # Applies to doc/image hash reuse paths equally.
         await self._delete_pending_for_source(db, file)
-
-        suggestions_result = await db.execute(
-            select(IntakeSuggestion).where(
-                IntakeSuggestion.project_id == file.project_id,
-                IntakeSuggestion.organization_id == file.organization_id,
-                IntakeSuggestion.source_file_id == cached.id,
-                IntakeSuggestion.status == "pending",
-            )
-        )
-        cached_suggestions = suggestions_result.scalars().all()
-        for suggestion in cached_suggestions:
-            evidence_payload: dict[str, Any] | None = None
-            if suggestion.evidence:
-                try:
-                    evidence = IntakeEvidence.model_validate(suggestion.evidence)
-                except ValidationError:
-                    logger.warning(
-                        "invalid_intake_evidence_clone",
-                        suggestion_id=str(suggestion.id),
-                    )
-                    await self._persist_unmapped(db, file, suggestion.value, suggestion.confidence)
-                    continue
-                if evidence:
-                    evidence_payload = IntakeEvidence(
-                        file_id=file.id,
-                        filename=file.filename,
-                        page=_normalize_page(evidence.page),
-                        excerpt=evidence.excerpt,
-                    ).model_dump(mode="json")
-            else:
-                await self._persist_unmapped(db, file, suggestion.value, suggestion.confidence)
-                continue
-
-            clone = IntakeSuggestion(
-                organization_id=file.organization_id,
-                project_id=file.project_id,
-                source_file_id=file.id,
-                field_id=suggestion.field_id,
-                field_label=suggestion.field_label,
-                section_id=suggestion.section_id,
-                section_title=suggestion.section_title,
-                value=suggestion.value,
-                value_type=suggestion.value_type,
-                unit=suggestion.unit,
-                confidence=suggestion.confidence,
-                status="pending",
-                source=suggestion.source,
-                evidence=evidence_payload,
-                created_by_user_id=None,
-            )
-            db.add(clone)
-
-        unmapped_result = await db.execute(
-            select(IntakeUnmappedNote).where(
-                IntakeUnmappedNote.project_id == file.project_id,
-                IntakeUnmappedNote.organization_id == file.organization_id,
-                IntakeUnmappedNote.source_file_id == cached.id,
-                IntakeUnmappedNote.status == "open",
-            )
-        )
-        cached_unmapped = unmapped_result.scalars().all()
-        for note in cached_unmapped:
-            unmapped = IntakeUnmappedNote(
-                organization_id=file.organization_id,
-                project_id=file.project_id,
-                extracted_text=note.extracted_text,
-                confidence=note.confidence,
-                source_file_id=file.id,
-                source_file=file.filename,
-                status="open",
-            )
-            db.add(unmapped)
+        _ = cached
 
     async def _mark_completed(self, db: AsyncSession, file: ProjectFile) -> None:
         file.processing_status = "completed"
@@ -669,7 +576,33 @@ class IntakeIngestionService:
         return error[:PROCESSING_ERROR_MAX_LENGTH]
 
     def _has_processing_results(self, file: ProjectFile) -> bool:
-        return bool(file.processed_at and (file.ai_analysis or file.processed_text))
+        if not file.processed_at:
+            return False
+        file_type = (file.file_type or "").lower()
+        if file_type in DOCUMENT_FILE_TYPES:
+            return self._has_valid_workspace_analysis_payload(file.ai_analysis)
+        return bool(file.ai_analysis or file.processed_text)
+
+    def _has_cached_results_for_reuse(self, file: ProjectFile) -> bool:
+        file_type = (file.file_type or "").lower()
+        if file_type in DOCUMENT_FILE_TYPES:
+            return self._has_valid_workspace_analysis_payload(file.ai_analysis)
+        return bool(file.ai_analysis or file.processed_text)
+
+    def _has_valid_workspace_analysis_payload(self, payload: object) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        payload_map: dict[str, object] = {
+            str(key): value for key, value in payload.items() if isinstance(key, str)
+        }
+        raw_proposals = payload_map.get("proposals")
+        if not isinstance(raw_proposals, list):
+            return False
+        try:
+            DocumentAnalysisOutput.model_validate(payload_map)
+        except Exception:
+            return False
+        return True
 
     def _build_field_catalog(self) -> str:
         """Build field catalog for prompts using the new formatter.
@@ -735,50 +668,3 @@ def _timestamps_equal(db_ts: datetime, request_ts: datetime) -> bool:
     db_utc = db_ts.astimezone(UTC)
     request_utc = request_ts.astimezone(UTC)
     return floor_to_ms(db_utc) == floor_to_ms(request_utc)
-
-
-def _filter_unmapped_items(items: list[DocumentUnmapped]) -> list[DocumentUnmapped]:
-    cleaned: list[DocumentUnmapped] = []
-    seen: set[str] = set()
-    sorted_items = sorted(
-        items,
-        key=lambda item: DocumentAnalysisOutput.normalize_confidence(item.confidence),
-        reverse=True,
-    )
-    for item in sorted_items:
-        text = _normalize_unmapped_text(item.extracted_text)
-        if not text:
-            continue
-        if _is_metadata_like(text):
-            continue
-        confidence = DocumentAnalysisOutput.normalize_confidence(item.confidence)
-        if confidence < MIN_UNMAPPED_CONFIDENCE:
-            continue
-        dedupe_key = text.casefold()
-        if dedupe_key in seen:
-            continue
-        if _is_trivial_number(text):
-            continue
-        seen.add(dedupe_key)
-        cleaned.append(DocumentUnmapped(extracted_text=text, confidence=confidence))
-        if len(cleaned) >= MAX_UNMAPPED_ITEMS:
-            break
-    return cleaned
-
-
-def _normalize_unmapped_text(text: str) -> str:
-    return " ".join(text.split()).strip()
-
-
-def _is_trivial_number(text: str) -> bool:
-    if any(char.isalpha() for char in text):
-        return False
-    stripped = text.strip()
-    return len(stripped) < 6
-
-
-def _is_metadata_like(text: str) -> bool:
-    lowered = text.casefold()
-    if "cas" in lowered:
-        return False
-    return any(pattern.search(text) for pattern in _METADATA_PATTERNS)

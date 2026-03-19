@@ -168,8 +168,8 @@ async def upload_file(
     - `photos` - Site photos
 
     **Processing:**
-    - If `process_with_ai=true`, queues ingestion for PDFs and images
-    - Other types are stored only (no AI processing in MVP)
+    - If `process_with_ai=true`, queues ingestion for PDFs, docx, xlsx, csv, txt, and images
+    - Other types are stored only
 
     **Storage:**
     - Local: `./storage/projects/{project_id}/`
@@ -204,13 +204,13 @@ async def upload_file(
             )
         file_ext = Path(file.filename).suffix.lower()
 
-        # AI processing is supported for PDFs and images in MVP
+        # AI processing is supported for document evidence + images
         is_image = file_ext in {".jpg", ".jpeg", ".png"}
-        is_pdf = file_ext == ".pdf"
-        if process_with_ai and not (is_image or is_pdf):
+        is_document = file_ext in {".pdf", ".docx", ".xlsx", ".csv", ".txt"}
+        if process_with_ai and not (is_image or is_document):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="AI processing is only supported for PDF or image files in MVP",
+                detail="AI processing is only supported for document or image files",
             )
 
         unique_filename = f"{uuid.uuid4()}{file_ext}"
@@ -289,7 +289,7 @@ async def upload_file(
         # Determine processing defaults
         from datetime import UTC, datetime
 
-        should_process = process_with_ai and (is_image or is_pdf)
+        should_process = process_with_ai and (is_image or is_document)
         initial_status = "queued" if should_process else "completed"
         processed_at = None if should_process else datetime.now(UTC)
 

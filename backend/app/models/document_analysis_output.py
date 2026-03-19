@@ -1,46 +1,68 @@
 """Structured output model for document analysis agent."""
 
-from typing import Literal, cast
+from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.schemas.common import BaseSchema
 
+DocumentBaseFieldId = Literal[
+    "material_type",
+    "material_name",
+    "composition",
+    "volume",
+    "frequency",
+]
 
-class DocumentEvidence(BaseSchema):
-    page: int | None = Field(default=None, description="1-based page number")
+
+class DocumentEvidenceRef(BaseSchema):
+    page: int | None = Field(default=None, ge=1, description="1-based page number")
     excerpt: str | None = Field(default=None, max_length=500)
 
 
-class DocumentSuggestion(BaseSchema):
-    field_id: str
-    value: str
-    unit: str | None = None
-    confidence: int
-    evidence: DocumentEvidence | None = None
+class DocumentBaseProposal(BaseSchema):
+    target_kind: Literal["base_field"]
+    base_field_id: DocumentBaseFieldId
+    answer: str = Field(min_length=1, max_length=2000)
+    confidence: int = Field(ge=0, le=100)
+    evidence_refs: list[DocumentEvidenceRef] = Field(min_length=1)
 
 
-class DocumentUnmapped(BaseSchema):
-    extracted_text: str
-    confidence: int
+class DocumentCustomProposal(BaseSchema):
+    target_kind: Literal["custom_field"]
+    field_label: str = Field(min_length=1, max_length=120)
+    answer: str = Field(min_length=1, max_length=2000)
+    confidence: int = Field(ge=0, le=100)
+    evidence_refs: list[DocumentEvidenceRef] = Field(min_length=1)
+
+
+DocumentProposal = Annotated[
+    DocumentBaseProposal | DocumentCustomProposal,
+    Field(discriminator="target_kind"),
+]
 
 
 class DocumentAnalysisOutput(BaseSchema):
-    summary: str
-    key_facts: list[str]
-    suggestions: list[DocumentSuggestion]
-    unmapped: list[DocumentUnmapped]
+    summary: str | None = None
+    proposals: list[DocumentProposal] = Field(default_factory=list)
 
-    @staticmethod
-    def normalize_value(value: str) -> str:
-        return str(value)
+    @model_validator(mode="after")
+    def normalize_text_fields(self) -> "DocumentAnalysisOutput":
+        if isinstance(self.summary, str):
+            self.summary = self.summary.strip() or None
+
+        normalized: list[DocumentProposal] = []
+        for proposal in self.proposals:
+            proposal.answer = proposal.answer.strip()
+            if isinstance(proposal, DocumentCustomProposal):
+                proposal.field_label = proposal.field_label.strip()
+            for ref in proposal.evidence_refs:
+                if isinstance(ref.excerpt, str):
+                    ref.excerpt = ref.excerpt.strip() or None
+            normalized.append(proposal)
+        self.proposals = normalized
+        return self
 
     @staticmethod
     def normalize_confidence(confidence: int) -> int:
         return max(0, min(100, int(confidence)))
-
-    @staticmethod
-    def normalize_doc_type(doc_type: str) -> Literal["sds", "lab", "general"]:
-        if doc_type in {"sds", "lab", "general"}:
-            return cast(Literal["sds", "lab", "general"], doc_type)
-        return "general"

@@ -485,6 +485,39 @@ class DiscoverySessionService:
         summary = await self._build_summary(db, session=session)
         session.summary_data = summary.model_dump(mode="json")
 
+    async def sync_session_for_source(
+        self,
+        db: AsyncSession,
+        *,
+        source: DiscoverySource,
+    ) -> DiscoverySession | None:
+        result = await db.execute(
+            select(DiscoverySession)
+            .options(selectinload(DiscoverySession.sources))
+            .where(DiscoverySession.id == source.session_id)
+            .with_for_update()
+        )
+        session = result.scalar_one_or_none()
+        if session is None:
+            return None
+        await self.sync_session_status(db, session=session)
+        await db.flush()
+        return session
+
+    async def sync_session_for_import_run(
+        self,
+        db: AsyncSession,
+        *,
+        import_run_id: UUID,
+    ) -> DiscoverySession | None:
+        result = await db.execute(
+            select(DiscoverySource).where(DiscoverySource.import_run_id == import_run_id).limit(1)
+        )
+        source = result.scalar_one_or_none()
+        if source is None:
+            return None
+        return await self.sync_session_for_source(db, source=source)
+
     async def build_response(
         self,
         db: AsyncSession,
@@ -616,6 +649,7 @@ class DiscoverySessionService:
                         run.processing_started_at = None
                         run.processing_available_at = None
                         run.processing_error = "max_attempts_reached"
+                        await self.sync_session_for_source(db, source=source)
                         continue
 
                     run.status = "uploaded"
@@ -690,6 +724,7 @@ class DiscoverySessionService:
             source.status = "review_ready"
             source.processing_error = None
             source.completed_at = datetime.now(UTC)
+            await self.sync_session_for_source(db, source=source)
             await db.commit()
         except Exception as exc:
             await db.rollback()
@@ -732,6 +767,7 @@ class DiscoverySessionService:
             run.processing_available_at = now + timedelta(
                 seconds=_dedupe_backoff_seconds(run.id, run.processing_attempts)
             )
+            await self.sync_session_for_source(db, source=source)
             await db.commit()
             logger.warning(
                 "discovery_source_requeued",
@@ -751,6 +787,7 @@ class DiscoverySessionService:
             run.processing_error = reason
             run.processing_started_at = None
             run.processing_available_at = None
+        await self.sync_session_for_source(db, source=source)
         await db.commit()
         logger.warning("discovery_source_failed", source_id=str(source_id), error=reason)
 

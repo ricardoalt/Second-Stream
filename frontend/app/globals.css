@@ -2186,4 +2186,8 @@ body {
 	.suggestion-row-actions {
 		opacity: 1;
 	}
+
+	.discovery-chip-remove {
+		opacity: 1;
+	}
 }

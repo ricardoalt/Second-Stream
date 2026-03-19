@@ -1,5 +1,7 @@
 import copy
 import uuid
+from datetime import UTC, datetime
+from typing import Any, cast
 
 import pytest
 from conftest import (
@@ -12,10 +14,21 @@ from conftest import (
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from app.models.document_analysis_output import (
+    DocumentAnalysisOutput,
+    DocumentBaseProposal,
+    DocumentCustomProposal,
+    DocumentEvidenceRef,
+)
 from app.models.file import ProjectFile
 from app.models.intake_note import IntakeNote
 from app.models.intake_suggestion import IntakeSuggestion
 from app.models.user import UserRole
+from app.services.document_text_extractor import ExtractedTextResult
+from app.services.intake_document_pipeline import (
+    MAX_PLAIN_TEXT_CHARS,
+    analyze_project_file_document,
+)
 from app.services.intake_ingestion_service import IntakeIngestionService
 from app.templates.assessment_questionnaire import get_assessment_questionnaire
 
@@ -81,6 +94,179 @@ async def test_ingestion_download_failure_marks_failed(db_session, monkeypatch):
     assert file.processing_status == "failed"
     assert file.processing_error
     assert file.processed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_persist_document_analysis_stores_summary_and_proposals(db_session):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Ingest Persist", f"org-ingest-persist-{uid}")
+    user = await create_user(
+        db_session,
+        email=f"ingest-persist-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Ingest Persist Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Ingest Persist Loc"
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Ingest Persist Project",
+    )
+    file = ProjectFile(
+        organization_id=org.id,
+        project_id=project.id,
+        filename="analysis.pdf",
+        file_path="projects/analysis.pdf",
+        file_size=10,
+        mime_type="application/pdf",
+        file_type="pdf",
+        category="general",
+        processing_status="processing",
+        processing_attempts=1,
+    )
+    db_session.add(file)
+    await db_session.commit()
+    await db_session.refresh(file)
+
+    analysis = DocumentAnalysisOutput(
+        summary="Document summary",
+        proposals=[
+            DocumentBaseProposal(
+                target_kind="base_field",
+                base_field_id="material_type",
+                answer="Plastic film",
+                confidence=87,
+                evidence_refs=[DocumentEvidenceRef(page=2, excerpt="Material: plastic film")],
+            ),
+            DocumentCustomProposal(
+                target_kind="custom_field",
+                field_label="UN number",
+                answer="UN1993",
+                confidence=90,
+                evidence_refs=[DocumentEvidenceRef(page=2, excerpt="UN Number: UN1993")],
+            ),
+        ],
+    )
+
+    service = IntakeIngestionService()
+    await service._persist_document_analysis(db_session, file, analysis, "general")
+
+    await db_session.flush()
+    await db_session.refresh(file)
+
+    analysis_payload = cast(dict[str, Any], file.ai_analysis)
+    assert isinstance(analysis_payload, dict)
+    assert analysis_payload["summary"] == "Document summary"
+    proposals = cast(list[dict[str, Any]], analysis_payload["proposals"])
+    assert len(proposals) == 2
+    assert proposals[0]["target_kind"] == "base_field"
+    assert proposals[0]["base_field_id"] == "material_type"
+    assert proposals[0]["answer"] == "Plastic film"
+    assert proposals[1]["target_kind"] == "custom_field"
+    assert proposals[1]["field_label"] == "UN number"
+    assert proposals[1]["answer"] == "UN1993"
+
+
+@pytest.mark.asyncio
+async def test_stale_legacy_cached_payload_is_not_reused(db_session, monkeypatch):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Ingest Cache", f"org-ingest-cache-{uid}")
+    user = await create_user(
+        db_session,
+        email=f"ingest-cache-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Ingest Cache Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Ingest Cache Loc"
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Ingest Cache Project",
+    )
+
+    file_hash = "same-hash"
+    cached = ProjectFile(
+        organization_id=org.id,
+        project_id=project.id,
+        filename="cached.pdf",
+        file_path="projects/cached.pdf",
+        file_size=10,
+        mime_type="application/pdf",
+        file_type="pdf",
+        category="general",
+        file_hash=file_hash,
+        processing_status="completed",
+        processing_attempts=1,
+        processed_at=datetime.now(UTC),
+        ai_analysis={"summary": "Legacy", "key_facts": ["old"]},
+    )
+    target = ProjectFile(
+        organization_id=org.id,
+        project_id=project.id,
+        filename="target.pdf",
+        file_path="projects/target.pdf",
+        file_size=10,
+        mime_type="application/pdf",
+        file_type="pdf",
+        category="general",
+        file_hash=file_hash,
+        processing_status="processing",
+        processing_attempts=1,
+    )
+    db_session.add_all([cached, target])
+    await db_session.commit()
+    await db_session.refresh(target)
+
+    called: dict[str, int] = {"count": 0}
+
+    async def _fake_download(_path: str) -> bytes:
+        return b"%PDF"
+
+    async def _fake_analyze_project_file_document(**_kwargs):
+        called["count"] += 1
+        return DocumentAnalysisOutput(
+            summary="Fresh summary",
+            proposals=[
+                DocumentBaseProposal(
+                    target_kind="base_field",
+                    base_field_id="material_type",
+                    answer="Plastic",
+                    confidence=90,
+                    evidence_refs=[DocumentEvidenceRef(page=1, excerpt="Plastic material")],
+                )
+            ],
+        )
+
+    import app.services.intake_ingestion_service as ingestion_module
+
+    monkeypatch.setattr(ingestion_module, "download_file_content", _fake_download)
+    monkeypatch.setattr(
+        ingestion_module,
+        "analyze_project_file_document",
+        _fake_analyze_project_file_document,
+    )
+
+    service = IntakeIngestionService()
+    await service.process_file(db_session, target)
+
+    await db_session.refresh(target)
+    assert called["count"] == 1
+    assert target.processing_status == "completed"
+    payload = cast(dict[str, Any], target.ai_analysis)
+    assert payload["summary"] == "Fresh summary"
+    assert isinstance(payload.get("proposals"), list)
 
 
 @pytest.mark.asyncio
@@ -307,3 +493,126 @@ def test_apply_suggestion_handles_other_types():
 
     # Combobox - pass through
     assert apply_suggestion("combobox", "value") == "value"
+
+
+@pytest.mark.asyncio
+async def test_document_pipeline_routes_pdf_as_binary(monkeypatch):
+    captured: dict[str, object] = {}
+
+    async def _fake_analyze_document(**kwargs):
+        captured.update(kwargs)
+        return DocumentAnalysisOutput(summary=None, proposals=[])
+
+    import app.services.intake_document_pipeline as pipeline_module
+
+    monkeypatch.setattr(pipeline_module, "analyze_document", _fake_analyze_document)
+
+    await analyze_project_file_document(
+        file_bytes=b"%PDF",
+        filename="test.pdf",
+        doc_type="general",
+        field_catalog="catalog",
+        media_type="application/pdf",
+    )
+
+    assert captured["document_bytes"] == b"%PDF"
+    assert captured["extracted_text"] is None
+
+
+@pytest.mark.asyncio
+async def test_document_pipeline_routes_docx_xlsx_csv_txt_via_text(monkeypatch):
+    captured: list[dict[str, object]] = []
+
+    async def _fake_analyze_document(**kwargs):
+        captured.append(kwargs)
+        return DocumentAnalysisOutput(summary=None, proposals=[])
+
+    import app.services.intake_document_pipeline as pipeline_module
+
+    monkeypatch.setattr(pipeline_module, "analyze_document", _fake_analyze_document)
+    monkeypatch.setattr(
+        pipeline_module,
+        "extract_docx_text",
+        lambda _bytes: ExtractedTextResult(text="docx text", char_count=9, truncated=False),
+    )
+    monkeypatch.setattr(
+        pipeline_module,
+        "extract_xlsx_text",
+        lambda _bytes: ExtractedTextResult(text="xlsx text", char_count=9, truncated=False),
+    )
+
+    await analyze_project_file_document(
+        file_bytes=b"docx",
+        filename="test.docx",
+        doc_type="general",
+        field_catalog="catalog",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    await analyze_project_file_document(
+        file_bytes=b"xlsx",
+        filename="test.xlsx",
+        doc_type="general",
+        field_catalog="catalog",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    await analyze_project_file_document(
+        file_bytes=b"a,b\n1,2",
+        filename="test.csv",
+        doc_type="general",
+        field_catalog="catalog",
+        media_type="text/csv",
+    )
+    await analyze_project_file_document(
+        file_bytes=b"hello",
+        filename="test.txt",
+        doc_type="general",
+        field_catalog="catalog",
+        media_type="text/plain",
+    )
+
+    assert len(captured) == 4
+    assert captured[0]["document_bytes"] is None
+    assert captured[0]["extracted_text"] == "docx text"
+    assert captured[1]["document_bytes"] is None
+    assert captured[1]["extracted_text"] == "xlsx text"
+    assert captured[2]["document_bytes"] is None
+    assert captured[2]["extracted_text"] == "a,b\n1,2"
+    assert captured[3]["document_bytes"] is None
+    assert captured[3]["extracted_text"] == "hello"
+
+
+@pytest.mark.asyncio
+async def test_document_pipeline_truncates_large_csv_txt_text(monkeypatch):
+    captured: list[dict[str, object]] = []
+
+    async def _fake_analyze_document(**kwargs):
+        captured.append(kwargs)
+        return DocumentAnalysisOutput(summary=None, proposals=[])
+
+    import app.services.intake_document_pipeline as pipeline_module
+
+    monkeypatch.setattr(pipeline_module, "analyze_document", _fake_analyze_document)
+
+    long_text = "a" * (MAX_PLAIN_TEXT_CHARS + 200)
+    await analyze_project_file_document(
+        file_bytes=long_text.encode(),
+        filename="big.csv",
+        doc_type="general",
+        field_catalog="catalog",
+        media_type="text/csv",
+    )
+    await analyze_project_file_document(
+        file_bytes=long_text.encode(),
+        filename="big.txt",
+        doc_type="general",
+        field_catalog="catalog",
+        media_type="text/plain",
+    )
+
+    assert len(captured) == 2
+    csv_text = cast(str, captured[0]["extracted_text"])
+    txt_text = cast(str, captured[1]["extracted_text"])
+    assert len(csv_text) == MAX_PLAIN_TEXT_CHARS
+    assert len(txt_text) == MAX_PLAIN_TEXT_CHARS
+    assert csv_text.endswith("[TRUNCATED: content shortened]")
+    assert txt_text.endswith("[TRUNCATED: content shortened]")

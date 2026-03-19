@@ -34,6 +34,11 @@ export enum ProposalView {
 	Edit = "edit",
 }
 
+export enum WorkspaceView {
+	Workspace = "workspace",
+	Files = "files",
+}
+
 // ==============================================
 // MAIN ROUTES
 // ==============================================
@@ -54,36 +59,31 @@ export const routes = {
 		detail: (id: string) => `/project/${id}` as const,
 
 		/**
-		 * Proyecto con tab específico
-		 * @param id - Project ID
-		 * @param tab - Tab to show
+		 * Workspace default (replaces old tab navigation)
 		 */
-		tab: (id: string, tab: ProjectTab) => `/project/${id}?tab=${tab}` as const,
+		tab: (id: string, _tab: ProjectTab) => `/project/${id}` as const,
 
 		/**
-		 * Overview tab
+		 * Workspace default (was Overview tab)
 		 */
-		overview: (id: string) =>
-			`/project/${id}?tab=${ProjectTab.Overview}` as const,
+		overview: (id: string) => `/project/${id}` as const,
 
 		/**
-		 * Technical data tab
+		 * Workspace default (was Technical/Questionnaire tab)
 		 */
-		technical: (id: string, options?: { quickstart?: boolean }) => {
-			const base = `/project/${id}?tab=${ProjectTab.Technical}`;
-			return options?.quickstart ? `${base}&quickstart=true` : base;
-		},
+		technical: (id: string, _options?: { quickstart?: boolean }) =>
+			`/project/${id}` as const,
 
 		/**
-		 * Proposals tab
+		 * Workspace default (proposals hidden in v1, navigates to workspace)
 		 */
-		proposals: (id: string) =>
-			`/project/${id}?tab=${ProjectTab.Proposals}` as const,
+		proposals: (id: string) => `/project/${id}` as const,
 
 		/**
-		 * Files tab
+		 * Files view via workspace local switch
 		 */
-		files: (id: string) => `/project/${id}?tab=${ProjectTab.Files}` as const,
+		files: (id: string) =>
+			`/project/${id}?view=${WorkspaceView.Files}` as const,
 
 		/**
 		 * Intelligence Report standalone page

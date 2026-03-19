@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     AI_PROPOSAL_MODEL: str = "openai:gpt-5.2"
     AI_IMAGE_MODEL: str = "openai:gpt-5-mini"
     AI_DOCUMENT_MODEL: str = "openai:gpt-5-mini"
-    AI_TEXT_MODEL: str = "openai:gpt-5-mini"
+    AI_TEXT_MODEL: str = "openai:gpt-5.4-mini"
 
     # AWS S3
     AWS_ACCESS_KEY_ID: str | None = None

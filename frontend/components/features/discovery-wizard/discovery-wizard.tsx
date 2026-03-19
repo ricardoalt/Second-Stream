@@ -6,6 +6,7 @@ import {
 	FileSpreadsheet,
 	FileText,
 	Image,
+	Loader2,
 	MapPin,
 	Mic,
 	Plus,
@@ -23,6 +24,7 @@ import { discoverySessionsAPI } from "@/lib/api/discovery-sessions";
 import { routes } from "@/lib/routes";
 import { useDashboardActions } from "@/lib/stores/dashboard-store";
 import type { DiscoverySessionResult } from "@/lib/types/discovery";
+import { cn } from "@/lib/utils";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONSTANTS
@@ -569,10 +571,12 @@ export function DiscoveryWizard({
 			>
 				<div
 					key={phase}
+					aria-live="polite"
 					className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col min-h-[480px]"
 				>
-					{phase === "idle" && (
+					{(phase === "idle" || phase === "submitting") && (
 						<IdleView
+							phase={phase}
 							companyId={companyId}
 							onCompanyChange={setCompanyId}
 							files={files}
@@ -597,9 +601,7 @@ export function DiscoveryWizard({
 						/>
 					)}
 
-					{(phase === "submitting" || phase === "processing") && (
-						<ProcessingView phase={phase} />
-					)}
+					{phase === "processing" && <ProcessingView />}
 
 					{phase === "result" && result && (
 						<ResultView result={result} onGoToDashboard={handleGoToDashboard} />
@@ -607,7 +609,7 @@ export function DiscoveryWizard({
 
 					{phase === "error" && (
 						<ErrorView
-							error={error}
+							error={error ?? "An unexpected error occurred"}
 							onTryAgain={handleTryAgain}
 							onClose={() => onOpenChange(false)}
 						/>
@@ -623,6 +625,7 @@ export function DiscoveryWizard({
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function IdleView({
+	phase,
 	companyId,
 	onCompanyChange,
 	files,
@@ -645,6 +648,7 @@ function IdleView({
 	onRemoveAudio,
 	onDiscover,
 }: {
+	phase: "idle" | "submitting";
 	companyId: string;
 	onCompanyChange: (id: string) => void;
 	files: File[];
@@ -668,6 +672,8 @@ function IdleView({
 	onDiscover: () => void;
 }) {
 	const hasAttachments = files.length > 0 || audioFile !== null;
+	const isSubmitting = phase === "submitting";
+	const charsNeeded = MIN_DISCOVERY_TEXT_LENGTH - trimmedText.length;
 
 	return (
 		<div className="flex flex-col flex-1">
@@ -683,13 +689,14 @@ function IdleView({
 
 			{/* Drop zone */}
 			<div className="px-6">
-				{/* biome-ignore lint/a11y/noStaticElementInteractions: drop zone requires drag event handlers */}
-				<div
-					className={`relative rounded-xl border transition-all duration-300 ${
+				<section
+					aria-label={dragActive ? "Drop files here" : "File upload area"}
+					className={cn(
+						"relative rounded-xl border transition-all duration-300",
 						dragActive
-							? "border-primary/30 bg-gradient-to-br from-primary/[0.08] to-primary/[0.06] shadow-glow ring-2 ring-primary/30"
-							: "border-border/30 bg-gradient-to-br from-primary/[0.04] via-transparent to-primary/[0.02]"
-					}`}
+							? "border-primary/30 bg-gradient-to-br from-primary/[0.08] to-primary/[0.06] shadow-glow ring-2 ring-primary/30 motion-safe:scale-[1.01]"
+							: "border-border/30 bg-gradient-to-br from-primary/[0.04] via-transparent to-primary/[0.02]",
+					)}
 					onDragEnter={onDragEnter}
 					onDragOver={onDragOver}
 					onDragLeave={onDragLeave}
@@ -715,8 +722,9 @@ function IdleView({
 											</span>
 											<button
 												type="button"
+												aria-label={`Remove ${file.name}`}
 												onClick={() => onRemoveFile(index)}
-												className="ml-0.5 rounded-sm p-0.5 hover:bg-muted opacity-0 group-hover/chip:opacity-100 transition-opacity"
+												className="discovery-chip-remove ml-0.5 h-6 w-6 flex items-center justify-center rounded-sm hover:bg-muted opacity-0 group-hover/chip:opacity-100 group-focus-within/chip:opacity-100 focus-visible:opacity-100 transition-opacity"
 											>
 												<X className="h-3 w-3" />
 											</button>
@@ -735,8 +743,9 @@ function IdleView({
 										</span>
 										<button
 											type="button"
+											aria-label={`Remove ${audioFile.name}`}
 											onClick={onRemoveAudio}
-											className="ml-0.5 rounded-sm p-0.5 hover:bg-muted opacity-0 group-hover/chip:opacity-100 transition-opacity"
+											className="discovery-chip-remove ml-0.5 h-6 w-6 flex items-center justify-center rounded-sm hover:bg-muted opacity-0 group-hover/chip:opacity-100 group-focus-within/chip:opacity-100 focus-visible:opacity-100 transition-opacity"
 										>
 											<X className="h-3 w-3" />
 										</button>
@@ -750,6 +759,7 @@ function IdleView({
 										size="icon"
 										className="h-9 w-9 border-dashed"
 										onClick={() => fileInputRef.current?.click()}
+										disabled={isSubmitting}
 									>
 										<Plus className="h-4 w-4" />
 										<span className="sr-only">Add files</span>
@@ -762,6 +772,7 @@ function IdleView({
 							type="button"
 							className="flex w-full flex-col items-center gap-3 px-6 py-12 text-center"
 							onClick={() => fileInputRef.current?.click()}
+							disabled={isSubmitting}
 						>
 							{/* Overlapping file-type icons */}
 							<div className="flex items-center -space-x-2">
@@ -771,13 +782,22 @@ function IdleView({
 							</div>
 							<div>
 								<p className="font-display font-medium text-sm">Upload Files</p>
-								<p className="text-xs text-muted-foreground/50 mt-0.5">
-									Drag or upload a file
+								<p
+									className={cn(
+										"text-xs mt-0.5",
+										dragActive
+											? "text-primary font-medium"
+											: "text-muted-foreground/50",
+									)}
+								>
+									{dragActive
+										? "Drop files here"
+										: "PDF, CSV, XLSX, DOC, TXT, or images up to 10 MB"}
 								</p>
 							</div>
 						</button>
 					)}
-				</div>
+				</section>
 			</div>
 
 			{/* Hidden file inputs */}
@@ -821,21 +841,36 @@ function IdleView({
 				<textarea
 					id="discovery-text-input"
 					placeholder="Paste notes, waste descriptions, or any relevant text..."
-					className="w-full min-h-[80px] resize-none rounded-lg bg-muted/20 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:bg-muted/30 focus:outline-none transition-colors"
+					className="w-full min-h-[80px] resize-none rounded-lg bg-muted/20 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 transition-colors"
+					aria-describedby={
+						trimmedText.length > 0 &&
+						trimmedText.length < MIN_DISCOVERY_TEXT_LENGTH
+							? "discovery-text-hint"
+							: undefined
+					}
 					value={text}
 					onChange={(e) => onTextChange(e.target.value)}
+					disabled={isSubmitting}
 				/>
 				{trimmedText.length > 0 &&
 					trimmedText.length < MIN_DISCOVERY_TEXT_LENGTH && (
-						<p className="mt-2 text-xs text-muted-foreground">
-							Add at least {MIN_DISCOVERY_TEXT_LENGTH} characters to submit
-							text.
-						</p>
+						<output
+							id="discovery-text-hint"
+							className="mt-2 flex items-center justify-between text-xs"
+						>
+							<span className="text-warning">
+								{charsNeeded} more character{charsNeeded === 1 ? "" : "s"}{" "}
+								needed
+							</span>
+							<span className="text-muted-foreground tabular-nums">
+								{trimmedText.length}
+							</span>
+						</output>
 					)}
 			</div>
 
 			{/* Footer — pushed to bottom */}
-			<div className="mt-auto flex items-center gap-3 border-t border-border/20 bg-muted/20 px-6 py-4">
+			<div className="mt-auto flex flex-wrap items-center gap-3 border-t border-border/20 bg-muted/20 px-6 py-4">
 				<div className="flex-1 min-w-0">
 					{defaultCompanyId ? (
 						<div className="text-sm text-muted-foreground">
@@ -855,7 +890,7 @@ function IdleView({
 					variant="ghost"
 					className="shrink-0"
 					onClick={() => audioInputRef.current?.click()}
-					disabled={audioFile !== null}
+					disabled={audioFile !== null || isSubmitting}
 				>
 					<Mic className="h-4 w-4 mr-2" />
 					Audio
@@ -863,24 +898,37 @@ function IdleView({
 
 				<Button
 					onClick={onDiscover}
-					disabled={!canDiscover}
+					disabled={!canDiscover || isSubmitting}
 					className="shrink-0 bg-gradient-to-r from-primary to-primary/90 shadow-water hover:shadow-glow transition-shadow duration-300"
 				>
-					<Waves className="h-4 w-4 mr-2" />
-					Discover
+					{isSubmitting ? (
+						<>
+							<Loader2 className="h-4 w-4 mr-2 motion-safe:animate-spin" />
+							Uploading…
+						</>
+					) : (
+						<>
+							<Waves className="h-4 w-4 mr-2" />
+							Discover
+						</>
+					)}
 				</Button>
 			</div>
 		</div>
 	);
 }
 
-function ProcessingView({ phase }: { phase: "submitting" | "processing" }) {
-	const messages =
-		phase === "submitting" ? ["Analyzing your inputs..."] : PROCESSING_MESSAGES;
-	const { message, index } = useRotatingMessage(messages, MESSAGE_CYCLE_MS);
+function ProcessingView() {
+	const { message, index } = useRotatingMessage(
+		PROCESSING_MESSAGES,
+		MESSAGE_CYCLE_MS,
+	);
 
 	return (
-		<div className="flex flex-col items-center justify-center flex-1 px-6 py-20">
+		<section
+			aria-label="Processing your inputs"
+			className="flex flex-col items-center justify-center flex-1 px-6 py-20"
+		>
 			{/* Orbital animation — 3 concentric rotating rings + center icon */}
 			<div className="relative h-32 w-32 mb-8">
 				{/* Ring 1 (outer) */}
@@ -913,7 +961,7 @@ function ProcessingView({ phase }: { phase: "submitting" | "processing" }) {
 			<p className="text-xs text-muted-foreground mt-1">
 				This may take a moment
 			</p>
-		</div>
+		</section>
 	);
 }
 
@@ -929,7 +977,7 @@ function ResultView({
 			icon: MapPin,
 			label: "locations found",
 			count: result.summary.locationsFound,
-			color: "bg-emerald-500/10 text-emerald-600",
+			color: "bg-blue-500/10 text-blue-600",
 		},
 		{
 			icon: Waves,
@@ -941,12 +989,12 @@ function ResultView({
 			icon: FileText,
 			label: "drafts for review",
 			count: result.summary.draftsNeedingConfirmation,
-			color: "bg-emerald-500/10 text-emerald-600",
+			color: "bg-amber-500/10 text-amber-600",
 		},
 	];
 
 	return (
-		<div className="flex flex-col flex-1">
+		<section aria-label="Discovery complete" className="flex flex-col flex-1">
 			{/* Top accent strip */}
 			<div className="h-1 bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-400" />
 
@@ -987,7 +1035,7 @@ function ResultView({
 					Go to dashboard
 				</Button>
 			</div>
-		</div>
+		</section>
 	);
 }
 
@@ -1029,12 +1077,15 @@ function ErrorView({
 	onTryAgain,
 	onClose,
 }: {
-	error: string | null;
+	error: string;
 	onTryAgain: () => void;
 	onClose: () => void;
 }) {
 	return (
-		<div className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col items-center justify-center flex-1 px-6 py-12">
+		<div
+			role="alert"
+			className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col items-center justify-center flex-1 px-6 py-12"
+		>
 			<div className="rounded-full bg-destructive/10 p-4 mb-4">
 				<AlertCircle className="h-8 w-8 text-destructive" />
 			</div>
@@ -1043,7 +1094,7 @@ function ErrorView({
 				Something went wrong
 			</h3>
 			<p className="text-sm text-muted-foreground text-center max-w-sm mb-6">
-				{error ?? "An unexpected error occurred"}
+				{error}
 			</p>
 
 			<div className="flex gap-3">

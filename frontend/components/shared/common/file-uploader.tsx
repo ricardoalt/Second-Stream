@@ -32,12 +32,13 @@ interface FileUploaderProps {
 
 const ACCEPTED_FILE_TYPES = {
 	"application/pdf": [".pdf"],
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
+		".docx",
+	],
 	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
 		".xlsx",
 	],
-	"application/vnd.ms-excel": [".xls"],
 	"text/csv": [".csv"],
-	"application/json": [".json"],
 	"text/plain": [".txt"],
 	"image/jpeg": [".jpg", ".jpeg"],
 	"image/png": [".png"],
@@ -73,11 +74,17 @@ export function FileUploader({
 	const uploadFile = useCallback(
 		async (file: File, fileId: string) => {
 			const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+			const isDocument =
+				extension === "pdf" ||
+				extension === "docx" ||
+				extension === "xlsx" ||
+				extension === "csv" ||
+				extension === "txt";
 			const isImage =
 				extension === "jpg" || extension === "jpeg" || extension === "png";
 
 			const category = isImage ? "photos" : "general";
-			const processWithAi = isImage;
+			const processWithAi = isImage || isDocument;
 
 			try {
 				// Simulate progress (since underlying fetch doesn't support upload progress natively)

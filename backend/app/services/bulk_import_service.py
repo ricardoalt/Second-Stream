@@ -54,6 +54,7 @@ from app.services.s3_service import download_file_content, upload_file_to_s3
 from app.services.storage_delete_service import delete_storage_keys
 from app.services.voice_status_sync import sync_import_run_status_for_voice
 from app.services.voice_transcription_service import voice_transcription_service
+from app.services.workspace_service import WORKSPACE_PROJECT_DATA_KEY, WorkspaceService
 from app.templates.assessment_questionnaire import get_assessment_questionnaire
 
 logger = structlog.get_logger(__name__)
@@ -249,6 +250,17 @@ def _log_diagnostics(diagnostics: ExtractionDiagnostics | None) -> dict[str, obj
 class BulkImportService:
     """Bulk import orchestration across worker and API layers."""
 
+    async def sync_discovery_session_for_run(
+        self,
+        db: AsyncSession,
+        *,
+        run_id: UUID,
+    ) -> None:
+        from app.services.discovery_session_service import DiscoverySessionService
+
+        discovery_service = DiscoverySessionService()
+        await discovery_service.sync_session_for_import_run(db, import_run_id=run_id)
+
     async def claim_next_run(self, db: AsyncSession) -> ImportRun | None:
         result = await db.execute(
             select(ImportRun)
@@ -341,6 +353,7 @@ class BulkImportService:
                 sync_import_run_status_for_voice(run=run, voice_status=voice.status)
             else:
                 run.status = "failed"
+            await self.sync_discovery_session_for_run(db, run_id=run.id)
         return len(runs)
 
     async def purge_expired_artifacts(self, db: AsyncSession, limit: int = 100) -> int:
@@ -454,6 +467,7 @@ class BulkImportService:
                 run.invalid_count = 0
                 run.duplicate_count = 0
                 run.processing_error = None
+                await self.sync_discovery_session_for_run(db, run_id=run.id)
                 await db.flush()
                 return
 
@@ -466,6 +480,7 @@ class BulkImportService:
             run.status = "review_ready"
             run.progress_step = None
             run.processing_error = None
+            await self.sync_discovery_session_for_run(db, run_id=run.id)
             await db.flush()
         except Exception as exc:
             await db.rollback()
@@ -540,6 +555,7 @@ class BulkImportService:
             run.processing_error = None
             voice.status = "review_ready"
             sync_import_run_status_for_voice(run=run, voice_status=voice.status)
+            await self.sync_discovery_session_for_run(db, run_id=run.id)
             await db.flush()
             return
 
@@ -555,6 +571,7 @@ class BulkImportService:
         run.processing_error = None
         voice.error_code = None
         voice.failed_stage = None
+        await self.sync_discovery_session_for_run(db, run_id=run.id)
         await db.flush()
 
     async def _extract_voice_rows(
@@ -770,7 +787,13 @@ class BulkImportService:
                 )
 
             project_data: dict[str, object] = {
-                "technical_sections": copy.deepcopy(get_assessment_questionnaire())
+                "technical_sections": copy.deepcopy(get_assessment_questionnaire()),
+                WORKSPACE_PROJECT_DATA_KEY: WorkspaceService.build_workspace_v1_seed(
+                    material_type=normalized.category,
+                    material_name=normalized.name,
+                    composition=normalized.description,
+                    volume=normalized.estimated_volume,
+                ),
             }
             if normalized.category and normalized.category.strip():
                 project_data["bulk_import_category"] = normalized.category.strip()
@@ -1017,7 +1040,13 @@ class BulkImportService:
                 )
 
             project_data: dict[str, object] = {
-                "technical_sections": copy.deepcopy(get_assessment_questionnaire())
+                "technical_sections": copy.deepcopy(get_assessment_questionnaire()),
+                WORKSPACE_PROJECT_DATA_KEY: WorkspaceService.build_workspace_v1_seed(
+                    material_type=normalized.category,
+                    material_name=normalized.name,
+                    composition=normalized.description,
+                    volume=normalized.estimated_volume,
+                ),
             }
             if normalized.category and normalized.category.strip():
                 project_data["bulk_import_category"] = normalized.category.strip()
@@ -1523,7 +1552,13 @@ class BulkImportService:
                 )
 
             project_data: dict[str, object] = {
-                "technical_sections": copy.deepcopy(get_assessment_questionnaire())
+                "technical_sections": copy.deepcopy(get_assessment_questionnaire()),
+                WORKSPACE_PROJECT_DATA_KEY: WorkspaceService.build_workspace_v1_seed(
+                    material_type=normalized.category,
+                    material_name=normalized.name,
+                    composition=normalized.description,
+                    volume=normalized.estimated_volume,
+                ),
             }
             if normalized.category and normalized.category.strip():
                 project_data["bulk_import_category"] = normalized.category.strip()
@@ -2199,7 +2234,13 @@ class BulkImportService:
                 1 if created_location_from_project_resolution else 0
             )
             project_data: dict[str, object] = {
-                "technical_sections": copy.deepcopy(get_assessment_questionnaire())
+                "technical_sections": copy.deepcopy(get_assessment_questionnaire()),
+                WORKSPACE_PROJECT_DATA_KEY: WorkspaceService.build_workspace_v1_seed(
+                    material_type=normalized.category,
+                    material_name=normalized.name,
+                    composition=normalized.description,
+                    volume=normalized.estimated_volume,
+                ),
             }
             if normalized.category and normalized.category.strip():
                 project_data["bulk_import_category"] = normalized.category.strip()
@@ -2731,7 +2772,13 @@ class BulkImportService:
 
             # Create project (same mapping as finalize_run)
             project_data: dict[str, object] = {
-                "technical_sections": copy.deepcopy(get_assessment_questionnaire())
+                "technical_sections": copy.deepcopy(get_assessment_questionnaire()),
+                WORKSPACE_PROJECT_DATA_KEY: WorkspaceService.build_workspace_v1_seed(
+                    material_type=normalized.category,
+                    material_name=normalized.name,
+                    composition=normalized.description,
+                    volume=normalized.estimated_volume,
+                ),
             }
             if normalized.category and normalized.category.strip():
                 project_data["bulk_import_category"] = normalized.category.strip()
@@ -3233,6 +3280,7 @@ class BulkImportService:
                 seconds=_dedupe_backoff_seconds(run.id, run.processing_attempts)
             )
             run.processing_started_at = None
+            await self.sync_discovery_session_for_run(db, run_id=run.id)
             await db.flush()
             return
 
@@ -3248,6 +3296,7 @@ class BulkImportService:
             run.status = "failed"
         run.progress_step = None
         run.processing_error = reason
+        await self.sync_discovery_session_for_run(db, run_id=run.id)
         await db.flush()
 
     async def _parse_source_with_hard_timeout(

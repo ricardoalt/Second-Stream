@@ -1,9 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useMemo } from "react";
-import { ProjectHeader, ProjectTabs } from "@/components/features/projects";
-import { GuidedTour, type TourStep } from "@/components/shared/guided-tour";
+import { useEffect } from "react";
+import { WorkspaceShell } from "@/components/features/workspace";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	useCurrentProject,
@@ -17,53 +16,6 @@ export default function ProjectPage() {
 	const currentProject = useCurrentProject();
 	const loading = useProjectLoading();
 	const { loadProject } = useProjectActions();
-
-	// Tour steps for new users - MUST be before any conditional returns
-	const tourSteps: TourStep[] = useMemo(
-		() => [
-			{
-				id: "welcome",
-				target: "[data-tour='project-tabs']",
-				title: "Welcome to your Project",
-				content:
-					"This is your project workspace. Use these tabs to navigate between different sections.",
-				placement: "bottom",
-			},
-			{
-				id: "overview",
-				target: "[data-tour='tab-overview']",
-				title: "Overview Tab",
-				content:
-					"See your project summary, progress metrics, and quick actions at a glance.",
-				placement: "bottom",
-			},
-			{
-				id: "assessment",
-				target: "[data-tour='tab-assessment']",
-				title: "Questionnaire Tab",
-				content:
-					"Fill in technical data about the waste stream. The more data you provide, the better the AI proposal will be.",
-				placement: "bottom",
-			},
-			{
-				id: "files",
-				target: "[data-tour='tab-files']",
-				title: "Files Tab",
-				content:
-					"Upload documents, images, and safety data sheets. The AI uses these to improve proposal accuracy.",
-				placement: "bottom",
-			},
-			{
-				id: "proposals",
-				target: "[data-tour='tab-proposals']",
-				title: "Proposals Tab",
-				content:
-					"Generate AI-powered proposals once you have enough data. Review and export them here.",
-				placement: "bottom",
-			},
-		],
-		[],
-	);
 
 	useEffect(() => {
 		if (id && (!currentProject || currentProject.id !== id)) {
@@ -112,14 +64,5 @@ export default function ProjectPage() {
 		);
 	}
 
-	return (
-		<div className="min-h-screen bg-background">
-			<ProjectHeader project={currentProject} />
-			<main className="container mx-auto px-4 py-6">
-				<ProjectTabs project={currentProject} />
-			</main>
-			{/* Guided tour for new users */}
-			<GuidedTour steps={tourSteps} tourId="project-page-tour" />
-		</div>
-	);
+	return <WorkspaceShell project={currentProject} />;
 }

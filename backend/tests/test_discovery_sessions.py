@@ -8,12 +8,52 @@ from conftest import create_company, create_org, create_user
 from httpx import AsyncClient
 from sqlalchemy import select
 
+import app.services.bulk_import_service as bulk_import_module
 import app.services.discovery_session_service as discovery_service_module
 from app.models.bulk_import import ImportItem, ImportRun
 from app.models.discovery_session import DiscoverySession, DiscoverySource
 from app.models.user import UserRole
 from app.models.voice_interview import VoiceInterview
 from app.services.bulk_import_ai_extractor import ParsedRow
+
+
+async def _attach_discovery_file_source(
+    db_session, *, session: DiscoverySession, run: ImportRun
+) -> None:
+    source = DiscoverySource(
+        organization_id=session.organization_id,
+        session_id=session.id,
+        source_type="file",
+        status="processing",
+        source_filename=run.source_filename,
+        source_storage_key=run.source_file_path,
+        import_run_id=run.id,
+        started_at=datetime.now(UTC),
+    )
+    db_session.add(source)
+    await db_session.flush()
+
+
+async def _attach_discovery_audio_source(
+    db_session,
+    *,
+    session: DiscoverySession,
+    run: ImportRun,
+    voice: VoiceInterview,
+) -> None:
+    source = DiscoverySource(
+        organization_id=session.organization_id,
+        session_id=session.id,
+        source_type="audio",
+        status="processing",
+        source_filename=run.source_filename,
+        source_storage_key=run.source_file_path,
+        import_run_id=run.id,
+        voice_interview_id=voice.id,
+        started_at=datetime.now(UTC),
+    )
+    db_session.add(source)
+    await db_session.flush()
 
 
 @pytest.mark.asyncio
@@ -668,6 +708,483 @@ async def test_discovery_session_file_audio_start_creates_internal_runs(
     stored_sources = source_rows.scalars().all()
     assert len(stored_sources) == 2
     assert any(source.voice_interview_id == interview.id for source in stored_sources)
+
+
+@pytest.mark.asyncio
+async def test_discovery_file_terminal_get_has_persisted_summary_on_first_read(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
+) -> None:
+    org = await create_org(db_session, "Discovery File Sync Org", "discovery-file-sync-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-file-sync-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery File Sync Co")
+    set_current_user(user)
+
+    session = DiscoverySession(
+        organization_id=org.id,
+        company_id=company.id,
+        status="processing",
+        created_by_user_id=user.id,
+        started_at=datetime.now(UTC),
+        started_by_user_id=user.id,
+    )
+    db_session.add(session)
+    await db_session.flush()
+
+    run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/discovery-file.csv",
+        source_filename="discovery-file.csv",
+        source_type="bulk_import",
+        status="processing",
+        created_by_user_id=user.id,
+    )
+    db_session.add(run)
+    await db_session.flush()
+    await _attach_discovery_file_source(db_session, session=session, run=run)
+    await db_session.commit()
+
+    async def _fake_download(_: str) -> bytes:
+        return b"name,category\nPET,plastic\n"
+
+    async def _fake_extract(*, file_bytes: bytes, filename: str):
+        return SimpleNamespace(
+            rows=[
+                ParsedRow(
+                    location_data={"name": "Plant File", "city": "Monterrey", "state": "NL"},
+                    project_data={
+                        "name": "PET File",
+                        "category": "plastic",
+                        "project_type": "Assessment",
+                        "description": "desc",
+                        "sector": "industrial",
+                        "subsector": "other",
+                    },
+                    raw={"stream_confidence": "90", "location_confidence": "90"},
+                )
+            ]
+        )
+
+    monkeypatch.setattr(bulk_import_module, "download_file_content", _fake_download)
+    monkeypatch.setattr(
+        bulk_import_module.bulk_import_ai_extractor,
+        "extract_parsed_rows",
+        _fake_extract,
+    )
+
+    service = bulk_import_module.BulkImportService()
+    await service.process_run(db_session, run)
+    await db_session.commit()
+
+    session_row = await db_session.get(DiscoverySession, session.id)
+    assert session_row is not None
+    assert session_row.status == "review_ready"
+    assert session_row.summary_data is not None
+    assert session_row.summary_data["locations_found"] == 1
+    assert session_row.summary_data["waste_streams_found"] == 1
+    assert session_row.summary_data["drafts_needing_confirmation"] == 1
+
+    response = await client.get(f"/api/v1/discovery-sessions/{session.id}")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "review_ready"
+    assert payload["summary"]["locationsFound"] == 1
+    assert payload["summary"]["wasteStreamsFound"] == 1
+    assert payload["summary"]["draftsNeedingConfirmation"] == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_audio_terminal_get_has_persisted_summary_on_first_read(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
+) -> None:
+    org = await create_org(db_session, "Discovery Audio Sync Org", "discovery-audio-sync-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-audio-sync-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Audio Sync Co")
+    set_current_user(user)
+
+    now = datetime.now(UTC)
+    session = DiscoverySession(
+        organization_id=org.id,
+        company_id=company.id,
+        status="processing",
+        created_by_user_id=user.id,
+        started_at=now,
+        started_by_user_id=user.id,
+    )
+    db_session.add(session)
+    await db_session.flush()
+
+    run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="voice-interviews/discovery/audio.wav",
+        source_filename="audio.wav",
+        source_type="voice_interview",
+        status="processing",
+        created_by_user_id=user.id,
+    )
+    voice = VoiceInterview(
+        organization_id=org.id,
+        company_id=company.id,
+        location_id=None,
+        bulk_import_run_id=run.id,
+        audio_object_key="voice-interviews/discovery/audio.wav",
+        status="transcribing",
+        error_code=None,
+        failed_stage=None,
+        processing_attempts=0,
+        consent_at=now,
+        consent_by_user_id=user.id,
+        consent_copy_version="v1",
+        audio_retention_expires_at=now + timedelta(days=180),
+        transcript_retention_expires_at=now + timedelta(days=730),
+        created_by_user_id=user.id,
+    )
+    db_session.add(run)
+    db_session.add(voice)
+    await db_session.flush()
+    await _attach_discovery_audio_source(db_session, session=session, run=run, voice=voice)
+    await db_session.commit()
+
+    async def _fake_download(_: str) -> bytes:
+        return b"audio"
+
+    class _FakeTranscription:
+        text = "Audio stream at Plant Audio in Monterrey"
+        model = "fake"
+
+    async def _fake_transcribe(*, audio_bytes: bytes, filename: str, content_type: str):
+        return _FakeTranscription()
+
+    async def _fake_extract_text(*, extracted_text: str, filename: str, source_type: str):
+        return SimpleNamespace(
+            rows=[
+                ParsedRow(
+                    location_data={"name": "Plant Audio", "city": "Monterrey", "state": "NL"},
+                    project_data={
+                        "name": "PET Audio",
+                        "category": "plastic",
+                        "project_type": "Assessment",
+                        "description": "desc",
+                        "sector": "industrial",
+                        "subsector": "other",
+                    },
+                    raw={"stream_confidence": "90", "location_confidence": "90"},
+                )
+            ]
+        )
+
+    async def _fake_upload(_stream, _key: str, _content_type: str | None):
+        return "ok"
+
+    monkeypatch.setattr(bulk_import_module, "download_file_content", _fake_download)
+    monkeypatch.setattr(
+        bulk_import_module.voice_transcription_service,
+        "transcribe_audio",
+        _fake_transcribe,
+    )
+    monkeypatch.setattr(
+        bulk_import_module.bulk_import_ai_extractor,
+        "extract_parsed_rows_from_text",
+        _fake_extract_text,
+    )
+    monkeypatch.setattr(bulk_import_module, "upload_file_to_s3", _fake_upload)
+
+    service = bulk_import_module.BulkImportService()
+    await service.process_run(db_session, run)
+    await db_session.commit()
+
+    session_row = await db_session.get(DiscoverySession, session.id)
+    assert session_row is not None
+    assert session_row.status == "review_ready"
+    assert session_row.summary_data is not None
+    assert session_row.summary_data["locations_found"] == 1
+    assert session_row.summary_data["waste_streams_found"] == 1
+    assert session_row.summary_data["drafts_needing_confirmation"] == 1
+
+    response = await client.get(f"/api/v1/discovery-sessions/{session.id}")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "review_ready"
+    assert payload["summary"]["locationsFound"] == 1
+    assert payload["summary"]["wasteStreamsFound"] == 1
+    assert payload["summary"]["draftsNeedingConfirmation"] == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_file_failure_persists_terminal_session_summary_on_first_read(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
+) -> None:
+    org = await create_org(db_session, "Discovery File Fail Org", "discovery-file-fail-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-file-fail-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery File Fail Co")
+    set_current_user(user)
+
+    session = DiscoverySession(
+        organization_id=org.id,
+        company_id=company.id,
+        status="processing",
+        created_by_user_id=user.id,
+        started_at=datetime.now(UTC),
+        started_by_user_id=user.id,
+    )
+    db_session.add(session)
+    await db_session.flush()
+
+    run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/discovery-fail.csv",
+        source_filename="discovery-fail.csv",
+        source_type="bulk_import",
+        status="processing",
+        created_by_user_id=user.id,
+    )
+    db_session.add(run)
+    await db_session.flush()
+    await _attach_discovery_file_source(db_session, session=session, run=run)
+    await db_session.commit()
+
+    async def _fake_download(_: str) -> bytes:
+        return b"broken"
+
+    async def _fake_extract(*, file_bytes: bytes, filename: str):
+        raise bulk_import_module.BulkImportAIExtractorError("ai_timeout")
+
+    monkeypatch.setattr(bulk_import_module, "download_file_content", _fake_download)
+    monkeypatch.setattr(
+        bulk_import_module.bulk_import_ai_extractor,
+        "extract_parsed_rows",
+        _fake_extract,
+    )
+    monkeypatch.setattr(bulk_import_module, "MAX_PROCESSING_ATTEMPTS", 1)
+
+    service = bulk_import_module.BulkImportService()
+    await service.process_run(db_session, run)
+    await db_session.commit()
+
+    session_row = await db_session.get(DiscoverySession, session.id)
+    assert session_row is not None
+    assert session_row.status == "failed"
+    assert session_row.summary_data is not None
+    assert session_row.summary_data["failed_sources"] == 1
+
+    response = await client.get(f"/api/v1/discovery-sessions/{session.id}")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "failed"
+    assert payload["summary"]["failedSources"] == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_file_exhausted_by_sweeper_persists_terminal_session_summary(
+    db_session,
+) -> None:
+    org = await create_org(db_session, "Discovery Sweeper File Org", "discovery-sweeper-file-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-sweeper-file-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Sweeper File Co")
+
+    session = DiscoverySession(
+        organization_id=org.id,
+        company_id=company.id,
+        status="processing",
+        created_by_user_id=user.id,
+        started_at=datetime.now(UTC),
+        started_by_user_id=user.id,
+    )
+    db_session.add(session)
+    await db_session.flush()
+
+    run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/sweeper-file.csv",
+        source_filename="sweeper-file.csv",
+        source_type="bulk_import",
+        status="processing",
+        processing_attempts=bulk_import_module.MAX_PROCESSING_ATTEMPTS,
+        created_by_user_id=user.id,
+    )
+    db_session.add(run)
+    await db_session.flush()
+    await _attach_discovery_file_source(db_session, session=session, run=run)
+    await db_session.commit()
+
+    service = bulk_import_module.BulkImportService()
+    failed = await service.fail_exhausted_runs(db_session)
+    assert failed == 1
+    await db_session.commit()
+
+    await db_session.refresh(run)
+    await db_session.refresh(session)
+    assert run.status == "failed"
+    assert session.status == "failed"
+    assert session.summary_data is not None
+    assert session.summary_data["failed_sources"] == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_audio_exhausted_by_sweeper_persists_terminal_session_summary(
+    db_session,
+) -> None:
+    org = await create_org(db_session, "Discovery Sweeper Audio Org", "discovery-sweeper-audio-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-sweeper-audio-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Sweeper Audio Co")
+
+    now = datetime.now(UTC)
+    session = DiscoverySession(
+        organization_id=org.id,
+        company_id=company.id,
+        status="processing",
+        created_by_user_id=user.id,
+        started_at=now,
+        started_by_user_id=user.id,
+    )
+    db_session.add(session)
+    await db_session.flush()
+
+    run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="voice-interviews/discovery/sweeper-audio.wav",
+        source_filename="sweeper-audio.wav",
+        source_type="voice_interview",
+        status="processing",
+        processing_attempts=bulk_import_module.MAX_PROCESSING_ATTEMPTS,
+        created_by_user_id=user.id,
+    )
+    voice = VoiceInterview(
+        organization_id=org.id,
+        company_id=company.id,
+        location_id=None,
+        bulk_import_run_id=run.id,
+        audio_object_key="voice-interviews/discovery/sweeper-audio.wav",
+        status="extracting",
+        error_code=None,
+        failed_stage=None,
+        processing_attempts=bulk_import_module.MAX_PROCESSING_ATTEMPTS,
+        consent_at=now,
+        consent_by_user_id=user.id,
+        consent_copy_version="v1",
+        audio_retention_expires_at=now + timedelta(days=180),
+        transcript_retention_expires_at=now + timedelta(days=730),
+        created_by_user_id=user.id,
+    )
+    db_session.add(run)
+    db_session.add(voice)
+    await db_session.flush()
+    await _attach_discovery_audio_source(db_session, session=session, run=run, voice=voice)
+    await db_session.commit()
+
+    service = bulk_import_module.BulkImportService()
+    failed = await service.fail_exhausted_runs(db_session)
+    assert failed == 1
+    await db_session.commit()
+
+    await db_session.refresh(run)
+    await db_session.refresh(voice)
+    await db_session.refresh(session)
+    assert run.status == "failed"
+    assert voice.status == "failed"
+    assert session.status == "failed"
+    assert session.summary_data is not None
+    assert session.summary_data["failed_sources"] == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_text_stale_max_attempts_persists_terminal_session_summary(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
+) -> None:
+    org = await create_org(db_session, "Discovery Stale Max Org", "discovery-stale-max-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-stale-max-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Stale Max Co")
+    set_current_user(user)
+
+    async def _fake_upload(_stream, _storage_key: str, _content_type: str | None) -> str:
+        return "ok"
+
+    monkeypatch.setattr(discovery_service_module, "upload_file_to_s3", _fake_upload)
+    monkeypatch.setattr(discovery_service_module, "TEXT_SOURCE_LEASE_SECONDS", 1)
+
+    create_response = await client.post(
+        "/api/v1/discovery-sessions",
+        json={"companyId": str(company.id)},
+    )
+    assert create_response.status_code == 201
+    session_id = create_response.json()["id"]
+
+    text_response = await client.post(
+        f"/api/v1/discovery-sessions/{session_id}/text",
+        json={"text": "Long enough text source for stale max attempts sync test."},
+    )
+    assert text_response.status_code == 201
+
+    start_response = await client.post(f"/api/v1/discovery-sessions/{session_id}/start")
+    assert start_response.status_code == 200
+
+    discovery_service = discovery_service_module.DiscoverySessionService()
+    claimed_source = await discovery_service.claim_next_text_source(db_session)
+    assert claimed_source is not None
+    await db_session.commit()
+
+    source_row = await db_session.get(DiscoverySource, claimed_source.id)
+    assert source_row is not None
+    source_row.updated_at = source_row.updated_at.replace(year=2020)
+    run_row = await db_session.get(ImportRun, source_row.import_run_id)
+    assert run_row is not None
+    run_row.processing_attempts = discovery_service_module.TEXT_SOURCE_MAX_ATTEMPTS
+    await db_session.commit()
+
+    requeued = await discovery_service.requeue_stale_text_sources(db_session)
+    assert requeued == 1
+    await db_session.commit()
+
+    session_row = await db_session.get(DiscoverySession, session_id)
+    assert session_row is not None
+    assert session_row.status == "failed"
+    assert session_row.summary_data is not None
+    assert session_row.summary_data["failed_sources"] == 1
 
 
 @pytest.mark.asyncio
