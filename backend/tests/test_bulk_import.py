@@ -1916,6 +1916,8 @@ async def test_discovery_decision_confirm_linked_stream_independent_of_sibling(
                 "sector": "industrial",
                 "subsector": "manufacturing",
                 "estimated_volume": "4 tons/week",
+                "volume": "4 tons",
+                "frequency": "week",
             },
             "reviewNotes": "frequency: weekly",
             "locationResolution": {

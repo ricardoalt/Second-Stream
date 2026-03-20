@@ -1951,7 +1951,7 @@ function buildProjectNormalizedData(
 	const composition = getPersistedFieldValue(fields.composition);
 	const volume = getPersistedFieldValue(fields.volume);
 	const frequency = getPersistedFieldValue(fields.frequency);
-	const estimatedVolume = `${volume} / ${frequency}`;
+	const estimatedVolume = [volume, frequency].filter(Boolean).join(" / ");
 
 	const projectType =
 		pickFirstString(existing, ["project_type"]) ||
@@ -1968,6 +1968,8 @@ function buildProjectNormalizedData(
 		sector: sector || null,
 		subsector: subsector || null,
 		estimated_volume: estimatedVolume,
+		volume: volume || null,
+		frequency: frequency || null,
 	};
 }
 

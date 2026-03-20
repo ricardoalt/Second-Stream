@@ -792,7 +792,8 @@ class BulkImportService:
                     material_type=normalized.category,
                     material_name=normalized.name,
                     composition=normalized.description,
-                    volume=normalized.estimated_volume,
+                    volume=normalized.volume or normalized.estimated_volume,
+                    frequency=normalized.frequency,
                 ),
             }
             if normalized.category and normalized.category.strip():
@@ -1045,7 +1046,8 @@ class BulkImportService:
                     material_type=normalized.category,
                     material_name=normalized.name,
                     composition=normalized.description,
-                    volume=normalized.estimated_volume,
+                    volume=normalized.volume or normalized.estimated_volume,
+                    frequency=normalized.frequency,
                 ),
             }
             if normalized.category and normalized.category.strip():
@@ -1557,7 +1559,8 @@ class BulkImportService:
                     material_type=normalized.category,
                     material_name=normalized.name,
                     composition=normalized.description,
-                    volume=normalized.estimated_volume,
+                    volume=normalized.volume or normalized.estimated_volume,
+                    frequency=normalized.frequency,
                 ),
             }
             if normalized.category and normalized.category.strip():
@@ -2239,7 +2242,8 @@ class BulkImportService:
                     material_type=normalized.category,
                     material_name=normalized.name,
                     composition=normalized.description,
-                    volume=normalized.estimated_volume,
+                    volume=normalized.volume or normalized.estimated_volume,
+                    frequency=normalized.frequency,
                 ),
             }
             if normalized.category and normalized.category.strip():
@@ -2777,7 +2781,8 @@ class BulkImportService:
                     material_type=normalized.category,
                     material_name=normalized.name,
                     composition=normalized.description,
-                    volume=normalized.estimated_volume,
+                    volume=normalized.volume or normalized.estimated_volume,
+                    frequency=normalized.frequency,
                 ),
             }
             if normalized.category and normalized.category.strip():
@@ -3580,6 +3585,8 @@ class BulkImportService:
         sector = self._pick_value(row, ["sector"])
         subsector = self._pick_value(row, ["subsector", "sub_sector"])
         estimated_volume = self._pick_value(row, ["estimated_volume", "volume", "estimated volume"])
+        volume = self._pick_value(row, ["volume"])
+        frequency = self._pick_value(row, ["frequency"])
 
         if not any([name, category, description, estimated_volume]):
             return None
@@ -3592,6 +3599,8 @@ class BulkImportService:
             "sector": sector,
             "subsector": subsector,
             "estimated_volume": estimated_volume,
+            "volume": volume,
+            "frequency": frequency,
         }
 
     def _pick_value(self, row: dict[str, str | None], keys: list[str]) -> str:
@@ -3939,7 +3948,16 @@ class BulkImportService:
             "sector": _sanitize_text(payload.get("sector") or ""),
             "subsector": _sanitize_text(payload.get("subsector") or ""),
             "estimated_volume": _sanitize_text(payload.get("estimated_volume") or ""),
+            "volume": _sanitize_text(payload.get("volume") or ""),
+            "frequency": _sanitize_text(payload.get("frequency") or ""),
         }
+        if not normalized["estimated_volume"] and (normalized["volume"] or normalized["frequency"]):
+            estimated_parts = [
+                part
+                for part in [normalized["volume"], normalized["frequency"]]
+                if isinstance(part, str) and part.strip()
+            ]
+            normalized["estimated_volume"] = " / ".join(estimated_parts)
         return _sanitize_payload(normalized)
 
     def _location_key(self, normalized_location: dict[str, object]) -> str:

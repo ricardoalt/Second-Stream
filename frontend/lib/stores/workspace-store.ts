@@ -19,6 +19,8 @@ import { getErrorMessage, logger } from "@/lib/utils/logger";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+type AutoAnalysisGuard = "idle" | "waiting" | "ran";
+
 interface WorkspaceState {
 	// Core data
 	projectId: string | null;
@@ -42,6 +44,9 @@ interface WorkspaceState {
 	hydratedProjectId: string | null;
 
 	// Loading states
+	initialized: boolean;
+	hydrating: boolean;
+	pendingHydrate: boolean;
 	loading: boolean;
 	refreshing: boolean;
 	confirming: boolean;
@@ -49,6 +54,13 @@ interface WorkspaceState {
 	contextNoteSaveStatus: SaveStatus;
 	customFieldsSaveStatus: SaveStatus;
 	error: string | null;
+	backgroundHydrateError: string | null;
+
+	// Upload session — tracks files from current upload batch for auto-analysis
+	uploadSessionFileIds: string[];
+	autoAnalysisGuard: AutoAnalysisGuard;
+	sessionHydrateNeeded: boolean;
+	sessionHydrateRetries: number;
 
 	// Actions
 	hydrate: (projectId: string) => Promise<void>;
@@ -71,6 +83,10 @@ interface WorkspaceState {
 	closeProposalBatchModal: () => void;
 	reopenProposalBatchModal: () => void;
 	dismissProposalBatch: () => void;
+	registerUploadedFile: (fileId: string) => void;
+	clearUploadSession: () => void;
+	clearUploadSessionSubset: (ids: string[]) => void;
+	clearBackgroundHydrateError: () => void;
 	reset: () => void;
 }
 
@@ -99,6 +115,9 @@ const createInitialState = () => ({
 	newReadyEvidenceSinceAnalysis: false,
 	newReadyEvidenceCountSinceAnalysis: 0,
 	hydratedProjectId: null as string | null,
+	initialized: false,
+	hydrating: false,
+	pendingHydrate: false,
 	loading: false,
 	refreshing: false,
 	confirming: false,
@@ -106,7 +125,15 @@ const createInitialState = () => ({
 	contextNoteSaveStatus: "idle" as SaveStatus,
 	customFieldsSaveStatus: "idle" as SaveStatus,
 	error: null as string | null,
+	backgroundHydrateError: null as string | null,
+	uploadSessionFileIds: [] as string[],
+	autoAnalysisGuard: "idle" as AutoAnalysisGuard,
+	sessionHydrateNeeded: false,
+	sessionHydrateRetries: 0,
 });
+
+const SESSION_HYDRATE_MAX_RETRIES = 5;
+const SESSION_HYDRATE_RETRY_DELAY_MS = 3_000;
 
 export const useWorkspaceStore = create<WorkspaceState>()(
 	immer((set, get) => ({
@@ -114,10 +141,22 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
 		hydrate: async (projectId: string) => {
 			const current = get();
-			if (current.loading && current.projectId === projectId) return;
+			if (current.hydrating && current.projectId === projectId) {
+				// Queue a follow-up so the session doesn't get stranded
+				set((s) => {
+					s.pendingHydrate = true;
+				});
+				return;
+			}
 
+			let isInitialLoad = false;
 			set((s) => {
-				s.loading = true;
+				// Only show loading spinner on initial load or project switch
+				if (!s.initialized || s.projectId !== projectId) {
+					s.loading = true;
+					isInitialLoad = true;
+				}
+				s.hydrating = true;
 				s.error = null;
 				s.projectId = projectId;
 			});
@@ -128,14 +167,57 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 			} catch (error) {
 				const message = getErrorMessage(error, "Failed to load workspace");
 				logger.error("Workspace hydrate failed", error, "WorkspaceStore");
+				let hasPendingHydrate = false;
+				let needsSessionReconcile = false;
 				set((s) => {
 					s.loading = false;
-					s.error = message;
+					s.hydrating = false;
+					hasPendingHydrate = s.pendingHydrate;
+					s.pendingHydrate = false;
+					// Don't clear sessionHydrateNeeded — stays set until a success clears it
+					needsSessionReconcile = s.sessionHydrateNeeded;
+					if (isInitialLoad) {
+						s.error = message;
+					} else {
+						s.backgroundHydrateError = message;
+					}
 				});
+				if (hasPendingHydrate) {
+					// Concurrent-call guard — retry immediately (one-shot, not a server fault)
+					const pid = get().projectId;
+					if (pid) get().hydrate(pid);
+				} else if (needsSessionReconcile) {
+					const retries = get().sessionHydrateRetries;
+					if (retries < SESSION_HYDRATE_MAX_RETRIES) {
+						const pid = get().projectId;
+						if (pid) {
+							set((s) => {
+								s.sessionHydrateRetries += 1;
+							});
+							setTimeout(() => {
+								const current = get();
+								if (current.sessionHydrateNeeded && current.projectId === pid) {
+									current.hydrate(pid);
+								}
+							}, SESSION_HYDRATE_RETRY_DELAY_MS);
+						}
+					} else {
+						set((s) => {
+							s.backgroundHydrateError =
+								"Evidence is still processing or not yet visible. Retry analysis manually.";
+							s.uploadSessionFileIds = [];
+							s.autoAnalysisGuard = "idle";
+							s.sessionHydrateNeeded = false;
+							s.sessionHydrateRetries = 0;
+						});
+					}
+				}
 			}
 		},
 
 		applyHydrateData: (data: WorkspaceHydrateResponse) => {
+			let hasPendingHydrate = false;
+			let sessionStillNeeded = false;
 			set((s) => {
 				const isInitialHydrateForProject =
 					s.hydratedProjectId !== data.projectId;
@@ -190,9 +272,55 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 				}
 				s.hydratedProjectId = data.projectId;
 
+				s.initialized = true;
+				s.hydrating = false;
 				s.loading = false;
 				s.error = null;
+				// Only clear the reconcile flag once all session files are visible
+				const allSessionFilesVisible =
+					s.uploadSessionFileIds.length === 0 ||
+					s.uploadSessionFileIds.every((id) =>
+						s.evidenceItems.some((item) => item.id === id),
+					);
+				if (allSessionFilesVisible) {
+					s.sessionHydrateNeeded = false;
+					s.sessionHydrateRetries = 0;
+				}
+				sessionStillNeeded = s.sessionHydrateNeeded;
+				hasPendingHydrate = s.pendingHydrate;
+				s.pendingHydrate = false;
 			});
+			if (hasPendingHydrate) {
+				// Concurrent-call guard — retry immediately (one-shot)
+				const projectId = get().projectId;
+				if (projectId) get().hydrate(projectId);
+			} else if (sessionStillNeeded) {
+				// Session files still missing — use same delayed/bounded path as error
+				const retries = get().sessionHydrateRetries;
+				if (retries < SESSION_HYDRATE_MAX_RETRIES) {
+					const pid = get().projectId;
+					if (pid) {
+						set((s) => {
+							s.sessionHydrateRetries += 1;
+						});
+						setTimeout(() => {
+							const current = get();
+							if (current.sessionHydrateNeeded && current.projectId === pid) {
+								current.hydrate(pid);
+							}
+						}, SESSION_HYDRATE_RETRY_DELAY_MS);
+					}
+				} else {
+					set((s) => {
+						s.backgroundHydrateError =
+							"Evidence is still processing or not yet visible. Retry analysis manually.";
+						s.uploadSessionFileIds = [];
+						s.autoAnalysisGuard = "idle";
+						s.sessionHydrateNeeded = false;
+						s.sessionHydrateRetries = 0;
+					});
+				}
+			}
 		},
 
 		updateBaseField: (fieldId: BaseFieldId, value: string) => {
@@ -456,6 +584,50 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 			});
 		},
 
+		registerUploadedFile: (fileId: string) => {
+			set((s) => {
+				if (!s.uploadSessionFileIds.includes(fileId)) {
+					s.uploadSessionFileIds.push(fileId);
+				}
+				if (s.autoAnalysisGuard === "idle" || s.autoAnalysisGuard === "ran") {
+					s.autoAnalysisGuard = "waiting";
+				}
+				s.sessionHydrateNeeded = true;
+				s.sessionHydrateRetries = 0;
+			});
+		},
+
+		clearUploadSession: () => {
+			set((s) => {
+				s.uploadSessionFileIds = [];
+				s.autoAnalysisGuard = "idle";
+				s.sessionHydrateNeeded = false;
+				s.sessionHydrateRetries = 0;
+			});
+		},
+
+		clearUploadSessionSubset: (ids: string[]) => {
+			set((s) => {
+				s.uploadSessionFileIds = s.uploadSessionFileIds.filter(
+					(id) => !ids.includes(id),
+				);
+				if (s.uploadSessionFileIds.length === 0) {
+					s.autoAnalysisGuard = "idle";
+					s.sessionHydrateNeeded = false;
+					s.sessionHydrateRetries = 0;
+				} else {
+					// Newer files were added during analysis — re-arm for next cycle
+					s.autoAnalysisGuard = "waiting";
+				}
+			});
+		},
+
+		clearBackgroundHydrateError: () => {
+			set((s) => {
+				s.backgroundHydrateError = null;
+			});
+		},
+
 		reset: () => {
 			set(createInitialState());
 		},
@@ -507,6 +679,10 @@ export const useWorkspaceActions = () =>
 			closeProposalBatchModal: s.closeProposalBatchModal,
 			reopenProposalBatchModal: s.reopenProposalBatchModal,
 			dismissProposalBatch: s.dismissProposalBatch,
+			registerUploadedFile: s.registerUploadedFile,
+			clearUploadSession: s.clearUploadSession,
+			clearUploadSessionSubset: s.clearUploadSessionSubset,
+			clearBackgroundHydrateError: s.clearBackgroundHydrateError,
 			reset: s.reset,
 		})),
 	);

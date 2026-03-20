@@ -134,11 +134,16 @@ export function WorkspaceCanvas({ projectId }: WorkspaceCanvasProps) {
 	const customFieldsDirty = useWorkspaceStore((s) => s.customFieldsDirty);
 	const refreshing = useWorkspaceStore((s) => s.refreshing);
 	const proposalBatch = useWorkspaceStore((s) => s.proposalBatch);
+	const uploadSessionFileIds = useWorkspaceStore((s) => s.uploadSessionFileIds);
+	const autoAnalysisGuard = useWorkspaceStore((s) => s.autoAnalysisGuard);
 	const newReadyEvidenceSinceAnalysis = useWorkspaceStore(
 		(s) => s.newReadyEvidenceSinceAnalysis,
 	);
 	const newReadyEvidenceCountSinceAnalysis = useWorkspaceStore(
 		(s) => s.newReadyEvidenceCountSinceAnalysis,
+	);
+	const backgroundHydrateError = useWorkspaceStore(
+		(s) => s.backgroundHydrateError,
 	);
 	const {
 		updateBaseField,
@@ -150,6 +155,10 @@ export function WorkspaceCanvas({ projectId }: WorkspaceCanvasProps) {
 		runAnalysis,
 		reopenProposalBatchModal,
 		hydrate,
+		registerUploadedFile,
+		clearUploadSession,
+		clearUploadSessionSubset,
+		clearBackgroundHydrateError,
 	} = useWorkspaceActions();
 
 	// Debounced base fields save
@@ -364,6 +373,91 @@ export function WorkspaceCanvas({ projectId }: WorkspaceCanvasProps) {
 		};
 	}, [evidenceItems, hydrate, projectId]);
 
+	// Auto-analysis: when all session files are terminal, run analysis automatically
+	useEffect(() => {
+		if (autoAnalysisGuard !== "waiting" || uploadSessionFileIds.length === 0) {
+			return;
+		}
+		if (refreshing) return;
+		if (proposalBatch !== null) {
+			// Batch pending — keep session queued, re-evaluate after confirm/dismiss
+			return;
+		}
+
+		const isDirty = baseFieldsDirty || contextNoteDirty || customFieldsDirty;
+
+		// Match session file IDs against hydrated evidence items
+		const sessionItems = evidenceItems.filter((item) =>
+			uploadSessionFileIds.includes(item.id),
+		);
+
+		// Not all files visible in evidence list yet — wait for next hydrate
+		if (sessionItems.length < uploadSessionFileIds.length) return;
+
+		// Not all terminal yet — wait for next hydrate
+		const allTerminal = sessionItems.every(
+			(item) =>
+				item.processingStatus === "completed" ||
+				item.processingStatus === "failed",
+		);
+		if (!allTerminal) return;
+
+		// Dirty workspace — wait until save completes and dirty clears
+		if (isDirty) return;
+
+		const completedItems = sessionItems.filter(
+			(item) => item.processingStatus === "completed",
+		);
+
+		if (completedItems.length === 0) {
+			// All files failed to process
+			toast.error("Uploaded files could not be processed");
+			clearUploadSession();
+			return;
+		}
+
+		// At least one file completed — run analysis.
+		// Snapshot session now; files uploaded during the async call are preserved.
+		const sessionIdsAtAnalysisStart = [...uploadSessionFileIds];
+		// Mark guard as "ran" before the async call to prevent re-entry.
+		useWorkspaceStore.setState({ autoAnalysisGuard: "ran" });
+
+		runAnalysis(projectId)
+			.then(() => {
+				if (useWorkspaceStore.getState().proposalBatch === null) {
+					toast.info(
+						"Analysis complete. No new fields were proposed from the current evidence.",
+					);
+				}
+				clearUploadSessionSubset(sessionIdsAtAnalysisStart);
+			})
+			.catch(() => {
+				toast.error("Auto-analysis failed");
+				// Leave session IDs queued and guard at "ran" — prevents re-entry storm.
+				// Next upload (registerUploadedFile) or manual analyze re-arms the cycle.
+			});
+	}, [
+		autoAnalysisGuard,
+		uploadSessionFileIds,
+		evidenceItems,
+		refreshing,
+		proposalBatch,
+		baseFieldsDirty,
+		contextNoteDirty,
+		customFieldsDirty,
+		projectId,
+		runAnalysis,
+		clearUploadSession,
+		clearUploadSessionSubset,
+	]);
+
+	// Surface non-blocking background hydrate errors (e.g. retry budget exhausted)
+	useEffect(() => {
+		if (!backgroundHydrateError) return;
+		toast.warning(backgroundHydrateError);
+		clearBackgroundHydrateError();
+	}, [backgroundHydrateError, clearBackgroundHydrateError]);
+
 	return (
 		<div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 			{/* Left column: unified fields */}
@@ -492,7 +586,8 @@ export function WorkspaceCanvas({ projectId }: WorkspaceCanvasProps) {
 					<CardContent>
 						<FileUploader
 							projectId={projectId}
-							onUploadComplete={() => {
+							onUploadComplete={(fileId) => {
+								registerUploadedFile(fileId);
 								if (isDirtyRef.current) {
 									pendingHydrateRef.current = true;
 								} else {

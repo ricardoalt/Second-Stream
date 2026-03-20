@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.api.dependencies import ActiveProjectDataEditorDep, ActiveProjectDep, AsyncDB, CurrentUser
 from app.authz import permissions
 from app.authz.authz import Ownership, require_permission
+from app.schemas.common import SuccessResponse
 from app.schemas.workspace import (
     WorkspaceBaseFieldUpdateRequest,
     WorkspaceConfirmProposalRequest,
@@ -122,3 +123,20 @@ async def confirm_workspace_custom_fields(
         ignored_temp_ids=ignored_temp_ids,
         workspace=workspace,
     )
+
+
+@router.post(
+    "/{project_id}/workspace/complete-discovery",
+    summary="Mark workspace discovery complete",
+)
+async def complete_workspace_discovery(
+    project: ActiveProjectDataEditorDep,
+    current_user: CurrentUser,
+    db: AsyncDB,
+) -> SuccessResponse:
+    await WorkspaceService.complete_discovery(
+        db=db,
+        project=project,
+        current_user=current_user,
+    )
+    return SuccessResponse(message="Discovery marked complete")

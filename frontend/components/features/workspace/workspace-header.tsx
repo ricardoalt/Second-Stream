@@ -29,11 +29,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { workspaceAPI } from "@/lib/api/workspace";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { STATUS_COLORS } from "@/lib/project-status";
 import type { ProjectDetail, ProjectSummary } from "@/lib/project-types";
@@ -84,6 +80,7 @@ export function WorkspaceHeader({
 	const [isArchiving, setIsArchiving] = useState(false);
 	const [isRestoring, setIsRestoring] = useState(false);
 	const [isPurging, setIsPurging] = useState(false);
+	const [isCompletingDiscovery, setIsCompletingDiscovery] = useState(false);
 	const [menuOpen, setMenuOpen] = useState(false);
 
 	const isArchived = Boolean(project.archivedAt);
@@ -127,6 +124,21 @@ export function WorkspaceHeader({
 		} catch {
 			toast.error("Purge failed");
 			setIsPurging(false);
+		}
+	};
+
+	const handleCompleteDiscovery = async () => {
+		setIsCompletingDiscovery(true);
+		try {
+			await workspaceAPI.completeDiscovery(project.id);
+			toast.success("Discovery complete", {
+				description: "Moved stream to intelligence report",
+			});
+			router.push(routes.dashboard);
+		} catch {
+			toast.error("Could not complete discovery");
+		} finally {
+			setIsCompletingDiscovery(false);
 		}
 	};
 
@@ -235,22 +247,10 @@ export function WorkspaceHeader({
 								</button>
 							) : (
 								<p className="text-xs text-muted-foreground italic">
-									No summary yet — click Start analysis to generate
+									No summary yet &mdash; upload evidence and run analysis to
+									generate
 								</p>
 							)}
-						</div>
-
-						{/* Coverage bar */}
-						<div className="max-w-md">
-							<div className="flex items-center justify-between mb-2">
-								<span className="text-sm font-medium">
-									Information Coverage
-								</span>
-								<span className="text-sm font-semibold text-primary">
-									{derived.informationCoverage}%
-								</span>
-							</div>
-							<Progress value={derived.informationCoverage} className="h-2" />
 						</div>
 					</div>
 
@@ -280,16 +280,15 @@ export function WorkspaceHeader({
 							Files
 						</Button>
 
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span>
-									<Button size="sm" disabled>
-										Discovery Complete
-									</Button>
-								</span>
-							</TooltipTrigger>
-							<TooltipContent>Coming soon in v2</TooltipContent>
-						</Tooltip>
+						<Button
+							size="sm"
+							onClick={handleCompleteDiscovery}
+							disabled={
+								isArchived || !canEditProject(project) || isCompletingDiscovery
+							}
+						>
+							{isCompletingDiscovery ? "Completing..." : "Discovery Complete"}
+						</Button>
 
 						{/* More actions dropdown */}
 						<DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -353,6 +352,17 @@ export function WorkspaceHeader({
 							</DropdownMenuContent>
 						</DropdownMenu>
 					</div>
+				</div>
+
+				{/* Coverage bar — full width below the title/actions row */}
+				<div className="mt-4">
+					<div className="flex items-center justify-between mb-2">
+						<span className="text-sm font-medium">Information Coverage</span>
+						<span className="text-sm font-semibold text-primary">
+							{derived.informationCoverage}%
+						</span>
+					</div>
+					<Progress value={derived.informationCoverage} className="h-2" />
 				</div>
 			</div>
 

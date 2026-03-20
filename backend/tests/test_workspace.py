@@ -1556,3 +1556,43 @@ async def test_workspace_hydrate_returns_seeded_values(
     assert values["composition"] == "95% LDPE"
     assert values["volume"] == "12 tons/month"
     assert values["frequency"] == ""
+
+
+@pytest.mark.asyncio
+async def test_workspace_complete_discovery_writes_completion_flag(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Workspace Complete", f"org-workspace-complete-{uid}")
+    user = await create_user(
+        db_session,
+        email=f"workspace-complete-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Workspace Complete Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Workspace Complete Loc"
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Workspace Complete Project",
+    )
+
+    set_current_user(user)
+    response = await client.post(f"/api/v1/projects/{project.id}/workspace/complete-discovery")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+
+    await db_session.refresh(project)
+    project_data = _project_data_dict(project)
+    workspace_data = _require_dict(project_data["workspace_v1"])
+    completed_at = workspace_data.get("discovery_completed_at")
+    assert isinstance(completed_at, str)
+    parsed = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+    assert parsed.tzinfo is not None

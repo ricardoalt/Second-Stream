@@ -481,6 +481,105 @@ async def test_dashboard_counts_and_rows_are_consistent(
 
 
 @pytest.mark.asyncio
+async def test_dashboard_workspace_completion_flag_routes_low_completion_to_intelligence_report(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session, "Org Dashboard Workspace Flag", "org-dashboard-workspace-flag"
+    )
+    user = await create_user(
+        db_session,
+        email=f"dashboard-workspace-flag-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Workspace Flag Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Workspace Flag Loc"
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Workspace Flag Stream",
+    )
+    _set_project_completion(project, 3)
+    project_data = project.project_data if isinstance(project.project_data, dict) else {}
+    project_data["workspace_v1"] = {"discovery_completed_at": "2026-03-19T12:00:00Z"}
+    project.project_data = project_data
+    await db_session.commit()
+
+    set_current_user(user)
+
+    intelligence_response = await client.get(
+        "/api/v1/projects/dashboard?bucket=intelligence_report"
+    )
+    assert intelligence_response.status_code == 200
+    intelligence_payload = intelligence_response.json()
+    assert intelligence_payload["counts"]["intelligenceReport"] == 1
+    assert [item["streamName"] for item in intelligence_payload["items"]] == [
+        "Workspace Flag Stream"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_dashboard_proposal_bucket_overrides_workspace_completion_flag(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Dashboard Workspace Flag Proposal",
+        "org-dashboard-workspace-flag-proposal",
+    )
+    user = await create_user(
+        db_session,
+        email=f"dashboard-workspace-flag-proposal-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Workspace Flag Proposal Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Workspace Flag Proposal Loc"
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Workspace Flag Proposal Stream",
+    )
+    _set_project_completion(project, 3)
+    project_data = project.project_data if isinstance(project.project_data, dict) else {}
+    project_data["workspace_v1"] = {"discovery_completed_at": "2026-03-19T12:00:00Z"}
+    project.project_data = project_data
+    await _create_proposal_record(db_session, org_id=org.id, project_id=project.id)
+    await db_session.commit()
+
+    set_current_user(user)
+
+    proposal_response = await client.get("/api/v1/projects/dashboard?bucket=proposal")
+    assert proposal_response.status_code == 200
+    proposal_payload = proposal_response.json()
+    assert proposal_payload["counts"]["proposal"] == 1
+    assert [item["streamName"] for item in proposal_payload["items"]] == [
+        "Workspace Flag Proposal Stream"
+    ]
+
+    intelligence_response = await client.get(
+        "/api/v1/projects/dashboard?bucket=intelligence_report"
+    )
+    assert intelligence_response.status_code == 200
+    intelligence_payload = intelligence_response.json()
+    assert intelligence_payload["counts"]["intelligenceReport"] == 0
+    assert intelligence_payload["items"] == []
+
+
+@pytest.mark.asyncio
 async def test_dashboard_needs_confirmation_classifies_draft_kinds(
     client: AsyncClient, db_session, set_current_user
 ):

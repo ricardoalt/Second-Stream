@@ -1,3 +1,4 @@
+import type { SuccessResponse } from "@/lib/types/api";
 import type {
 	WorkspaceBaseFieldUpdate,
 	WorkspaceConfirmProposalEditItem,
@@ -63,6 +64,12 @@ export const workspaceAPI = {
 		return apiClient.post<WorkspaceConfirmResponse>(
 			`/projects/${projectId}/workspace/custom-fields/confirm`,
 			{ batch_id: batchId, proposals },
+		);
+	},
+
+	async completeDiscovery(projectId: string): Promise<SuccessResponse> {
+		return apiClient.post<SuccessResponse>(
+			`/projects/${projectId}/workspace/complete-discovery`,
 		);
 	},
 };

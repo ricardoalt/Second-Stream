@@ -232,13 +232,26 @@ def _project_completion(project: Project) -> int:
     return ProjectDataService.calculate_progress(normalized_sections)
 
 
+def _has_workspace_discovery_completion_flag(project: Project) -> bool:
+    project_data = project.project_data if isinstance(project.project_data, dict) else {}
+    workspace_data_raw = project_data.get("workspace_v1")
+    if not isinstance(workspace_data_raw, dict):
+        return False
+    workspace_data = {str(key): value for key, value in workspace_data_raw.items()}
+    completed_at = workspace_data.get("discovery_completed_at")
+    return isinstance(completed_at, str) and bool(completed_at.strip())
+
+
 def _derive_persisted_bucket(
     *,
     proposal_follow_up_state: ProposalFollowUpState | None,
+    workspace_discovery_completed: bool,
     completion: int,
 ) -> DashboardBucket:
     if proposal_follow_up_state is not None:
         return "proposal"
+    if workspace_discovery_completed:
+        return "intelligence_report"
     if completion >= INTELLIGENCE_REPORT_THRESHOLD:
         return "intelligence_report"
     return "missing_information"
@@ -361,6 +374,7 @@ async def _build_persisted_dashboard_rows(
     ) in result.all():
         assert isinstance(project, Project)
         completion = _project_completion(project)
+        workspace_discovery_completed = _has_workspace_discovery_completion_flag(project)
         pending_confirmation = bool(pending_count)
         missing_fields = _missing_required_field_labels(project)
         effective_state = _effective_proposal_follow_up_state(
@@ -371,6 +385,7 @@ async def _build_persisted_dashboard_rows(
             continue
         bucket = _derive_persisted_bucket(
             proposal_follow_up_state=effective_state,
+            workspace_discovery_completed=workspace_discovery_completed,
             completion=completion,
         )
         resolved_company_label = company_label or project.company_name
@@ -407,7 +422,9 @@ async def _build_persisted_dashboard_rows(
                 pending_confirmation=pending_confirmation,
                 missing_required_info=bool(missing_fields),
                 missing_fields=missing_fields,
-                intelligence_ready=completion >= INTELLIGENCE_REPORT_THRESHOLD
+                intelligence_ready=(
+                    workspace_discovery_completed or completion >= INTELLIGENCE_REPORT_THRESHOLD
+                )
                 and effective_state is None,
                 proposal_follow_up_state=effective_state,
             )

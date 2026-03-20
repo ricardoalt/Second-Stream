@@ -11,6 +11,7 @@ import {
 	useWorkspaceActions,
 	useWorkspaceError,
 	useWorkspaceLoading,
+	useWorkspaceStore,
 } from "@/lib/stores/workspace-store";
 import { ProposalReviewModal } from "./proposal-review-modal";
 import { WorkspaceCanvas } from "./workspace-canvas";
@@ -29,6 +30,7 @@ export function WorkspaceShell({ project }: WorkspaceShellProps) {
 
 	const { hydrate, reset } = useWorkspaceActions();
 	const loading = useWorkspaceLoading();
+	const initialized = useWorkspaceStore((s) => s.initialized);
 	const error = useWorkspaceError();
 
 	// Normalize legacy ?tab= params → workspace view system
@@ -136,7 +138,7 @@ export function WorkspaceShell({ project }: WorkspaceShellProps) {
 				contactsHref={contactsHref}
 			/>
 			<main className="container mx-auto px-4 py-6">
-				{loading ? (
+				{loading && !initialized ? (
 					<div className="flex justify-center py-12">
 						<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 					</div>

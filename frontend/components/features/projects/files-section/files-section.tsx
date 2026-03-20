@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { FileUploader } from "@/components/shared/common/file-uploader";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { projectsAPI } from "@/lib/api/projects";
@@ -233,20 +232,17 @@ export function FilesSection({ projectId, onDataImported }: FilesSectionProps) {
 			{isArchived && (
 				<Card className="border-warning/40 bg-warning/10">
 					<CardContent className="p-4 text-sm text-muted-foreground">
-						This project is archived. File uploads and deletions are disabled.
+						This project is archived. File deletions are disabled.
 					</CardContent>
 				</Card>
 			)}
 
-			{/* File uploader */}
-			<FileUploader
-				projectId={projectId}
-				onUploadComplete={() => {
-					fetchFiles();
-					onDataImported?.();
-				}}
-				readOnly={isArchived}
-			/>
+			<Card>
+				<CardContent className="p-4 text-sm text-muted-foreground">
+					Files uploaded from the workspace appear here. Upload new evidence
+					from the workspace view.
+				</CardContent>
+			</Card>
 
 			{/* Files section */}
 			<div className="space-y-4">

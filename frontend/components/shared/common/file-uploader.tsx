@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 interface FileUploaderProps {
 	projectId: string;
-	onUploadComplete?: (() => void) | undefined;
+	onUploadComplete?: ((fileId: string) => void) | undefined;
 	maxFiles?: number;
 	maxSize?: number; // in bytes
 	className?: string;
@@ -98,7 +98,7 @@ export function FileUploader({
 					);
 				}, 200);
 
-				await projectsAPI.uploadFile(projectId, file, {
+				const response = await projectsAPI.uploadFile(projectId, file, {
 					category,
 					process_with_ai: processWithAi,
 				});
@@ -116,8 +116,8 @@ export function FileUploader({
 
 				toast.success(`${file.name} uploaded successfully`);
 
-				// Notify parent to refresh file list
-				onUploadComplete?.();
+				// Notify parent with the server-assigned file ID
+				onUploadComplete?.(response.id);
 
 				// Remove from uploading list after a delay
 				setTimeout(() => {

@@ -40,6 +40,7 @@ WORKSPACE_PROJECT_DATA_KEY = "workspace_v1"
 WORKSPACE_BASE_FIELDS_KEY = "base_fields"
 WORKSPACE_CUSTOM_FIELDS_KEY = "custom_fields"
 WORKSPACE_DERIVED_KEY = "derived"
+WORKSPACE_DISCOVERY_COMPLETED_AT_KEY = "discovery_completed_at"
 PROPOSAL_BATCH_TTL_SECONDS = 3600
 logger = structlog.get_logger(__name__)
 
@@ -583,6 +584,21 @@ class WorkspaceService:
         workspace = await WorkspaceService.get_workspace(db, project)
         await WorkspaceService._delete_stored_proposal_batch(payload.batch_id)
         return created, ignored_temp_ids, workspace
+
+    @staticmethod
+    async def complete_discovery(
+        db: AsyncSession,
+        project: Project,
+        current_user: User,
+    ) -> None:
+        await WorkspaceService._persist_workspace_patch(
+            db=db,
+            project=project,
+            current_user=current_user,
+            patch={
+                WORKSPACE_DISCOVERY_COMPLETED_AT_KEY: datetime.now(UTC).isoformat(),
+            },
+        )
 
     @staticmethod
     def _build_base_field_items(project: Project) -> list[WorkspaceBaseFieldItem]:
