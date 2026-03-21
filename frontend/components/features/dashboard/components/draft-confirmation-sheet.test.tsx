@@ -27,6 +27,7 @@ function buildContract() {
 		draftItemId: "draft-1",
 		runId: "run-1",
 		sourceType: "bulk_import" as const,
+		sourceFilename: "drafts.csv",
 		groupId: "group-1",
 		companyId: "company-1",
 		locationId: null,

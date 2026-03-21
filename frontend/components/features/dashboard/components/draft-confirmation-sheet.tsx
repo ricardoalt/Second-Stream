@@ -708,6 +708,11 @@ export function DraftConfirmationSheet() {
 								<SheetDescription className="text-xs">
 									Review AI-detected fields before creating a persisted stream
 								</SheetDescription>
+								{contract?.sourceFilename && (
+									<p className="text-[11px] text-muted-foreground truncate">
+										Source: {contract.sourceFilename}
+									</p>
+								)}
 							</div>
 						</div>
 					</SheetHeader>
@@ -1639,6 +1644,7 @@ function buildDraftConfirmationContract(params: {
 		draftItemId: draft.itemId,
 		runId: run.id,
 		sourceType: draft.sourceType,
+		sourceFilename: draft.sourceFilename,
 		groupId: draft.groupId ?? projectItem.groupId,
 		companyId:
 			run.entrypointType === "company" ? run.entrypointId : draft.companyId,

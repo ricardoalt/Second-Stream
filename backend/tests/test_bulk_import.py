@@ -299,6 +299,9 @@ async def test_finalize_can_persist_one_bulk_group_without_closing_run(
         entrypoint_type="company",
         entrypoint_id=company.id,
     )
+    discovery_source = await _attach_discovery_source(db_session, run=run, source_type="file")
+    discovery_source.source_filename = "subset.csv"
+    await db_session.commit()
 
     location_a = await _create_item(
         db_session,
@@ -367,6 +370,19 @@ async def test_finalize_can_persist_one_bulk_group_without_closing_run(
     assert run.status == "review_ready"
     assert project_a.created_project_id is not None
     assert project_b.created_project_id is None
+    created_project_a = await db_session.get(Project, project_a.created_project_id)
+    assert created_project_a is not None
+    project_data_a = created_project_a.project_data
+    assert isinstance(project_data_a, dict)
+    workspace_v1_a = project_data_a.get("workspace_v1")
+    assert isinstance(workspace_v1_a, dict)
+    provenance_a = workspace_v1_a.get("provenance")
+    assert isinstance(provenance_a, dict)
+    assert provenance_a.get("origin") == "ai_discovery"
+    assert provenance_a.get("run_id") == str(run.id)
+    assert provenance_a.get("source_type") == "file"
+    assert provenance_a.get("source_filename") == "subset.csv"
+    assert provenance_a.get("discovery_source_id") == str(discovery_source.id)
 
     accept_location_b = await client.patch(
         f"/api/v1/bulk-import/items/{location_b.id}",
@@ -1945,6 +1961,26 @@ async def test_discovery_decision_confirm_linked_stream_independent_of_sibling(
     assert project_b.created_project_id is None
     assert project_b.status == "pending_review"
 
+    created_project = await db_session.get(Project, project_a.created_project_id)
+    assert created_project is not None
+    project_data = created_project.project_data
+    assert isinstance(project_data, dict)
+    workspace_v1 = project_data.get("workspace_v1")
+    assert isinstance(workspace_v1, dict)
+    provenance = workspace_v1.get("provenance")
+    assert isinstance(provenance, dict)
+    assert provenance.get("origin") == "ai_discovery"
+    assert provenance.get("run_id") == str(run.id)
+    source = await db_session.execute(
+        select(DiscoverySource).where(DiscoverySource.import_run_id == run.id)
+    )
+    discovery_source = source.scalar_one_or_none()
+    assert discovery_source is not None
+    assert provenance.get("discovery_session_id") == str(discovery_source.session_id)
+    assert provenance.get("source_type") == "file"
+    assert provenance.get("source_filename") is None
+    assert provenance.get("discovery_source_id") == str(discovery_source.id)
+
 
 @pytest.mark.asyncio
 async def test_discovery_decision_reject_resolves_without_creating_project(
@@ -2218,6 +2254,27 @@ async def test_discovery_audio_decision_confirm_works_for_voice_run(
     payload = response.json()
     assert payload["status"] == "completed"
     assert payload["summary"]["projectsCreated"] == 1
+
+    await db_session.refresh(project_item)
+    created_project = await db_session.get(Project, project_item.created_project_id)
+    assert created_project is not None
+    project_data = created_project.project_data
+    assert isinstance(project_data, dict)
+    workspace_v1 = project_data.get("workspace_v1")
+    assert isinstance(workspace_v1, dict)
+    provenance = workspace_v1.get("provenance")
+    assert isinstance(provenance, dict)
+    assert provenance.get("origin") == "ai_discovery"
+    assert provenance.get("run_id") == str(run.id)
+    source = await db_session.execute(
+        select(DiscoverySource).where(DiscoverySource.import_run_id == run.id)
+    )
+    discovery_source = source.scalar_one_or_none()
+    assert discovery_source is not None
+    assert provenance.get("discovery_session_id") == str(discovery_source.session_id)
+    assert provenance.get("source_type") == "audio"
+    assert provenance.get("source_filename") is None
+    assert provenance.get("discovery_source_id") == str(discovery_source.id)
 
 
 @pytest.mark.asyncio
@@ -2682,6 +2739,9 @@ async def test_project_with_category_persists_bulk_import_category(
         entrypoint_type="company",
         entrypoint_id=company.id,
     )
+    discovery_source = await _attach_discovery_source(db_session, run=run, source_type="file")
+    discovery_source.source_filename = "full-finalize.csv"
+    await db_session.commit()
     location_item = await _create_item(
         db_session,
         run=run,
@@ -2732,6 +2792,15 @@ async def test_project_with_category_persists_bulk_import_category(
     project_data = created_project.project_data
     assert isinstance(project_data, dict)
     assert project_data.get("bulk_import_category") == "paper"
+    workspace_v1 = project_data.get("workspace_v1")
+    assert isinstance(workspace_v1, dict)
+    provenance = workspace_v1.get("provenance")
+    assert isinstance(provenance, dict)
+    assert provenance.get("origin") == "ai_discovery"
+    assert provenance.get("run_id") == str(run.id)
+    assert provenance.get("source_type") == "file"
+    assert provenance.get("source_filename") == "full-finalize.csv"
+    assert provenance.get("discovery_source_id") == str(discovery_source.id)
     technical_sections = project_data.get("technical_sections")
     assert isinstance(technical_sections, list)
     assert len(technical_sections) == len(get_assessment_questionnaire())

@@ -841,6 +841,163 @@ async def test_dashboard_hides_legacy_review_ready_runs_without_discovery_source
 
 
 @pytest.mark.asyncio
+async def test_dashboard_needs_confirmation_can_filter_by_discovery_session_id(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Draft Session Filter", "org-draft-session-filter")
+    user = await create_user(
+        db_session,
+        email=f"draft-session-filter-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Draft Session Filter Co")
+
+    run_a = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/session-a.csv",
+        source_filename="session-a.csv",
+        source_type="bulk_import",
+        status="review_ready",
+        created_by_user_id=user.id,
+    )
+    run_b = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/session-b.csv",
+        source_filename="session-b.csv",
+        source_type="bulk_import",
+        status="review_ready",
+        created_by_user_id=user.id,
+    )
+    db_session.add_all([run_a, run_b])
+    await db_session.flush()
+    source_a = await _attach_discovery_source(db_session, run=run_a, source_type="file")
+    await _attach_discovery_source(db_session, run=run_b, source_type="file")
+
+    draft_a = ImportItem(
+        organization_id=org.id,
+        run_id=run_a.id,
+        item_type="project",
+        status="pending_review",
+        group_id="grp-session-a",
+        normalized_data={
+            "name": "Session A Draft",
+            "category": "plastics",
+            "project_type": "Assessment",
+        },
+    )
+    draft_b = ImportItem(
+        organization_id=org.id,
+        run_id=run_b.id,
+        item_type="project",
+        status="pending_review",
+        group_id="grp-session-b",
+        normalized_data={
+            "name": "Session B Draft",
+            "category": "paper",
+            "project_type": "Assessment",
+        },
+    )
+    db_session.add_all([draft_a, draft_b])
+    await db_session.commit()
+
+    set_current_user(user)
+
+    response = await client.get(
+        "/api/v1/projects/dashboard?bucket=needs_confirmation"
+        f"&discovery_session_id={source_a.session_id}"
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["counts"]["needsConfirmation"] == 1
+    assert [item["streamName"] for item in payload["items"]] == ["Session A Draft"]
+
+
+@pytest.mark.asyncio
+async def test_dashboard_needs_confirmation_without_session_filter_is_org_global(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Draft Session Global", "org-draft-session-global")
+    user = await create_user(
+        db_session,
+        email=f"draft-session-global-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Draft Session Global Co")
+
+    run_a = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/global-a.csv",
+        source_filename="global-a.csv",
+        source_type="bulk_import",
+        status="review_ready",
+        created_by_user_id=user.id,
+    )
+    run_b = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/global-b.csv",
+        source_filename="global-b.csv",
+        source_type="bulk_import",
+        status="review_ready",
+        created_by_user_id=user.id,
+    )
+    db_session.add_all([run_a, run_b])
+    await db_session.flush()
+    await _attach_discovery_source(db_session, run=run_a, source_type="file")
+    await _attach_discovery_source(db_session, run=run_b, source_type="file")
+
+    draft_a = ImportItem(
+        organization_id=org.id,
+        run_id=run_a.id,
+        item_type="project",
+        status="pending_review",
+        group_id="grp-global-a",
+        normalized_data={
+            "name": "Global A Draft",
+            "category": "plastics",
+            "project_type": "Assessment",
+        },
+    )
+    draft_b = ImportItem(
+        organization_id=org.id,
+        run_id=run_b.id,
+        item_type="project",
+        status="pending_review",
+        group_id="grp-global-b",
+        normalized_data={
+            "name": "Global B Draft",
+            "category": "paper",
+            "project_type": "Assessment",
+        },
+    )
+    db_session.add_all([draft_a, draft_b])
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.get("/api/v1/projects/dashboard?bucket=needs_confirmation")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["counts"]["needsConfirmation"] == 2
+    assert sorted(item["streamName"] for item in payload["items"]) == [
+        "Global A Draft",
+        "Global B Draft",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_dashboard_persisted_pending_confirmation_no_longer_counts_as_needs_confirmation(
     client: AsyncClient, db_session, set_current_user
 ):

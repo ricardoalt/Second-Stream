@@ -93,6 +93,7 @@ export interface DraftItemRow {
 	volumeSummary: string | null;
 	lastActivityAt: string;
 	sourceType: DraftSourceType;
+	sourceFilename: string | null;
 	draftStatus: DraftStatus;
 	confidence: number | null;
 	draftKind: DraftKind;
@@ -160,6 +161,7 @@ export interface DraftConfirmationContract {
 	draftItemId: string;
 	runId: string;
 	sourceType: DraftSourceType;
+	sourceFilename: string | null;
 	groupId: string | null;
 	companyId: string | null;
 	locationId: string | null;

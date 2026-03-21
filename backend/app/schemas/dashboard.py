@@ -86,6 +86,7 @@ class DraftItemDashboardRow(BaseSchema):
     volume_summary: str | None = None
     last_activity_at: datetime
     source_type: Literal["bulk_import", "voice_interview"]
+    source_filename: str | None = None
     draft_status: Literal["pending_review", "accepted", "amended"]
     confidence: int | None = None
     draft_kind: DraftKind

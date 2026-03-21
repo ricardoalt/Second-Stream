@@ -71,6 +71,7 @@ interface DashboardState {
 	// Filters (server-side)
 	filters: {
 		search?: string | undefined;
+		discoverySessionId?: string | undefined;
 		proposalFollowUpState?: ProposalFollowUpState | undefined;
 	};
 
@@ -78,10 +79,12 @@ interface DashboardState {
 	loadDashboard: () => Promise<void>;
 	switchBucket: (bucket: DashboardBucket) => void;
 	openFullDraftQueue: () => void;
+	openNeedsConfirmationForSession: (sessionId: string) => void;
 	openDraftConfirmation: (draft: DraftItemRow) => void;
 	closeDraftConfirmation: () => void;
 	setSearch: (search: string) => void;
 	setProposalSubfilter: (state: ProposalFollowUpState | undefined) => void;
+	clearNeedsConfirmationSessionFilter: () => void;
 	setPage: (page: number) => void;
 	setSort: (sort: DashboardSortField) => void;
 	updateProposalFollowUpState: (
@@ -175,6 +178,7 @@ export const useDashboardStore = create<DashboardState>()(
 					page,
 					size: DASHBOARD_PAGE_SIZE,
 					search: filters.search || undefined,
+					discoverySessionId: filters.discoverySessionId,
 					archived: "active",
 					proposalFollowUpState: filters.proposalFollowUpState,
 					signal: requestController.signal,
@@ -228,6 +232,9 @@ export const useDashboardStore = create<DashboardState>()(
 				if (current.bucket === "proposal" && bucket !== "proposal") {
 					draft.filters.proposalFollowUpState = undefined;
 				}
+				if (bucket !== "needs_confirmation") {
+					draft.filters.discoverySessionId = undefined;
+				}
 				draft.bucket = bucket;
 				resetVisibleDashboardList(draft);
 				draft.loading = true;
@@ -244,7 +251,22 @@ export const useDashboardStore = create<DashboardState>()(
 				resetVisibleDashboardList(draft);
 				draft.loading = true;
 				draft.filters.search = undefined;
+				draft.filters.discoverySessionId = undefined;
 				draft.filters.proposalFollowUpState = undefined;
+				draft.searchResetVersion += 1;
+			});
+
+			void get().loadDashboard();
+		},
+
+		openNeedsConfirmationForSession: (sessionId: string) => {
+			set((draft) => {
+				draft.bucket = "needs_confirmation";
+				resetVisibleDashboardList(draft);
+				draft.loading = true;
+				draft.filters.search = undefined;
+				draft.filters.proposalFollowUpState = undefined;
+				draft.filters.discoverySessionId = sessionId;
 				draft.searchResetVersion += 1;
 			});
 
@@ -275,6 +297,16 @@ export const useDashboardStore = create<DashboardState>()(
 		setProposalSubfilter: (state: ProposalFollowUpState | undefined) => {
 			set((draft) => {
 				draft.filters.proposalFollowUpState = state;
+				resetVisibleDashboardList(draft);
+				draft.loading = true;
+			});
+			void get().loadDashboard();
+		},
+
+		clearNeedsConfirmationSessionFilter: () => {
+			set((draft) => {
+				if (draft.filters.discoverySessionId === undefined) return;
+				draft.filters.discoverySessionId = undefined;
 				resetVisibleDashboardList(draft);
 				draft.loading = true;
 			});
@@ -456,10 +488,13 @@ export const useDashboardActions = () =>
 			loadDashboard: s.loadDashboard,
 			switchBucket: s.switchBucket,
 			openFullDraftQueue: s.openFullDraftQueue,
+			openNeedsConfirmationForSession: s.openNeedsConfirmationForSession,
 			openDraftConfirmation: s.openDraftConfirmation,
 			closeDraftConfirmation: s.closeDraftConfirmation,
 			setSearch: s.setSearch,
 			setProposalSubfilter: s.setProposalSubfilter,
+			clearNeedsConfirmationSessionFilter:
+				s.clearNeedsConfirmationSessionFilter,
 			setPage: s.setPage,
 			setSort: s.setSort,
 			updateProposalFollowUpState: s.updateProposalFollowUpState,

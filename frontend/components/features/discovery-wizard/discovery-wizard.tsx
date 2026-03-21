@@ -23,7 +23,10 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { discoverySessionsAPI } from "@/lib/api/discovery-sessions";
 import { routes } from "@/lib/routes";
 import { useDashboardActions } from "@/lib/stores/dashboard-store";
-import type { DiscoverySessionResult } from "@/lib/types/discovery";
+import type {
+	DiscoverySessionResult,
+	DiscoverySource,
+} from "@/lib/types/discovery";
 import { cn } from "@/lib/utils";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -112,6 +115,13 @@ interface ConfirmTerminalSessionArgs {
 	getSession: (sessionId: string) => Promise<DiscoverySessionResult>;
 }
 
+interface NavigateToSessionScopedDashboardArgs {
+	sessionId: string;
+	openNeedsConfirmationForSession: (sessionId: string) => void;
+	closeWizard: () => void;
+	push: (href: string) => void;
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // HELPERS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -180,6 +190,17 @@ export async function confirmTerminalDiscoverySnapshot({
 	}
 
 	return terminalSession;
+}
+
+export function navigateToSessionScopedDashboard({
+	sessionId,
+	openNeedsConfirmationForSession,
+	closeWizard,
+	push,
+}: NavigateToSessionScopedDashboardArgs): void {
+	openNeedsConfirmationForSession(sessionId);
+	closeWizard();
+	push(routes.dashboard);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -263,7 +284,7 @@ export function DiscoveryWizard({
 	const terminalConfirmingRef = useRef(false);
 
 	const router = useRouter();
-	const { switchBucket } = useDashboardActions();
+	const { openNeedsConfirmationForSession } = useDashboardActions();
 	const trimmedText = text.trim();
 	const hasValidTextSource = trimmedText.length >= MIN_DISCOVERY_TEXT_LENGTH;
 
@@ -544,11 +565,17 @@ export function DiscoveryWizard({
 	}, []);
 
 	// ── Navigate to dashboard ──
-	const handleGoToDashboard = useCallback(() => {
-		switchBucket("needs_confirmation");
-		onOpenChange(false);
-		router.push(routes.dashboard);
-	}, [switchBucket, onOpenChange, router]);
+	const handleGoToDashboard = useCallback(
+		(sessionId: string) => {
+			navigateToSessionScopedDashboard({
+				sessionId,
+				openNeedsConfirmationForSession,
+				closeWizard: () => onOpenChange(false),
+				push: (href) => router.push(href),
+			});
+		},
+		[openNeedsConfirmationForSession, onOpenChange, router],
+	);
 
 	// ── Prevent close during blocking phases ──
 	const handleOpenChange = useCallback(
@@ -965,33 +992,69 @@ function ProcessingView() {
 	);
 }
 
-function ResultView({
+export function sourceStatusLabel(status: DiscoverySource["status"]): string {
+	if (status === "review_ready") {
+		return "Processed";
+	}
+	if (status === "failed") {
+		return "Needs attention";
+	}
+	return "Processing";
+}
+
+export function sourceTypeLabel(
+	sourceType: DiscoverySource["sourceType"],
+): string {
+	if (sourceType === "audio") {
+		return "Audio";
+	}
+	if (sourceType === "text") {
+		return "Text";
+	}
+	return "File";
+}
+
+export function sourceDisplayLabel(source: DiscoverySource): string {
+	if (source.sourceFilename && source.sourceFilename.trim().length > 0) {
+		return source.sourceFilename;
+	}
+	if (source.textPreview && source.textPreview.trim().length > 0) {
+		return source.textPreview;
+	}
+	if (source.sourceType === "text") {
+		return "Text input";
+	}
+	if (source.sourceType === "audio") {
+		return "Audio source";
+	}
+	return "File source";
+}
+
+export function ResultView({
 	result,
 	onGoToDashboard,
 }: {
 	result: DiscoverySessionResult;
-	onGoToDashboard: () => void;
+	onGoToDashboard: (sessionId: string) => void;
 }) {
 	const stats = [
 		{
-			icon: MapPin,
-			label: "locations found",
-			count: result.summary.locationsFound,
-			color: "bg-blue-500/10 text-blue-600",
-		},
-		{
 			icon: Waves,
-			label: "waste streams",
+			label: "Waste-streams found",
 			count: result.summary.wasteStreamsFound,
 			color: "bg-emerald-500/10 text-emerald-600",
 		},
 		{
-			icon: FileText,
-			label: "drafts for review",
-			count: result.summary.draftsNeedingConfirmation,
-			color: "bg-amber-500/10 text-amber-600",
+			icon: MapPin,
+			label: "Locations found",
+			count: result.summary.locationsFound,
+			color: "bg-blue-500/10 text-blue-600",
 		},
 	];
+	const subtitle =
+		result.status === "partial_failure"
+			? "We analyzed your sources and prepared drafts. A few inputs need attention."
+			: "We analyzed your sources and prepared drafts for review.";
 
 	return (
 		<section aria-label="Discovery complete" className="flex flex-col flex-1">
@@ -1007,11 +1070,7 @@ function ResultView({
 				<h3 className="font-display text-xl font-semibold tracking-tight mb-1">
 					Ready for review
 				</h3>
-				<p className="text-sm text-muted-foreground mb-8">
-					{result.status === "partial_failure"
-						? "Some sources had issues, but drafts were created"
-						: "Drafts have been created from your inputs"}
-				</p>
+				<p className="text-sm text-muted-foreground mb-8">{subtitle}</p>
 
 				{/* Stat cards — vertical stack */}
 				<div className="w-full max-w-sm space-y-3 mb-8">
@@ -1025,15 +1084,53 @@ function ResultView({
 							delay={i * 100}
 						/>
 					))}
+					<p className="text-xs text-muted-foreground px-1">
+						Locations are prefilled inside each draft.
+					</p>
+				</div>
+
+				<div className="w-full max-w-sm mb-8">
+					<p className="text-xs font-medium text-muted-foreground mb-2">
+						Sources analyzed
+					</p>
+					<div className="rounded-lg border border-border/50 divide-y divide-border/40">
+						{result.sources.length === 0 ? (
+							<div className="px-3 py-2 text-xs text-muted-foreground">
+								No sources recorded.
+							</div>
+						) : (
+							result.sources.map((source) => (
+								<div
+									key={source.id}
+									className="px-3 py-2 flex items-start justify-between gap-3"
+								>
+									<div className="min-w-0">
+										<p className="text-sm truncate">
+											{sourceDisplayLabel(source)}
+										</p>
+										<p className="text-xs text-muted-foreground">
+											{sourceTypeLabel(source.sourceType)}
+										</p>
+									</div>
+									<span className="text-xs text-muted-foreground whitespace-nowrap">
+										{sourceStatusLabel(source.status)}
+									</span>
+								</div>
+							))
+						)}
+					</div>
 				</div>
 
 				{/* CTA — full-width at bottom */}
 				<Button
-					onClick={onGoToDashboard}
+					onClick={() => onGoToDashboard(result.id)}
 					className="w-full max-w-sm mt-auto bg-emerald-600 hover:bg-emerald-700 text-white"
 				>
 					Go to dashboard
 				</Button>
+				<p className="mt-2 text-xs text-muted-foreground">
+					Scoped to this discovery session.
+				</p>
 			</div>
 		</section>
 	);

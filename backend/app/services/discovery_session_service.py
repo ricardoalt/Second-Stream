@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 import structlog
 from fastapi import HTTPException, status
-from sqlalchemy import and_, case, delete, func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -77,6 +77,13 @@ def _sanitize_filename(filename: str) -> str:
     if len(cleaned) > 255:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename too long")
     return cleaned
+
+
+def _normalize_location_fingerprint_token(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    normalized = " ".join(value.strip().casefold().split())
+    return normalized
 
 
 def _map_run_status_to_source_status(run_status: str) -> str:
@@ -804,31 +811,43 @@ class DiscoverySessionService:
         waste_streams_found = 0
         drafts_needing_confirmation = 0
         if run_ids:
-            counts_result = await db.execute(
-                select(
-                    func.sum(case((ImportItem.item_type == "location", 1), else_=0)),
-                    func.sum(case((ImportItem.item_type == "project", 1), else_=0)),
-                    func.sum(
-                        case(
-                            (
-                                and_(
-                                    ImportItem.item_type == "project",
-                                    ImportItem.created_project_id.is_(None),
-                                    ImportItem.status.in_(
-                                        ("pending_review", "accepted", "amended")
-                                    ),
-                                ),
-                                1,
-                            ),
-                            else_=0,
-                        )
-                    ),
-                ).where(ImportItem.run_id.in_(run_ids))
+            project_draft_result = await db.execute(
+                select(ImportItem.id, ImportItem.parent_item_id)
+                .where(ImportItem.run_id.in_(run_ids))
+                .where(ImportItem.item_type == "project")
+                .where(ImportItem.created_project_id.is_(None))
+                .where(ImportItem.status.in_(("pending_review", "accepted", "amended")))
             )
-            counts = counts_result.one()
-            locations_found = int(counts[0] or 0)
-            waste_streams_found = int(counts[1] or 0)
-            drafts_needing_confirmation = int(counts[2] or 0)
+            project_draft_rows = project_draft_result.all()
+            project_parent_item_ids: list[UUID] = []
+            for _, parent_item_id in project_draft_rows:
+                if isinstance(parent_item_id, UUID):
+                    project_parent_item_ids.append(parent_item_id)
+
+            waste_streams_found = len(project_draft_rows)
+            drafts_needing_confirmation = waste_streams_found
+
+            unique_parent_item_ids = list(dict.fromkeys(project_parent_item_ids))
+            if unique_parent_item_ids:
+                location_rows_result = await db.execute(
+                    select(ImportItem.normalized_data)
+                    .where(ImportItem.id.in_(unique_parent_item_ids))
+                    .where(ImportItem.item_type == "location")
+                )
+                location_fingerprints: set[str] = set()
+                for normalized_data in location_rows_result.scalars().all():
+                    if not isinstance(normalized_data, dict):
+                        continue
+                    name_token = _normalize_location_fingerprint_token(normalized_data.get("name"))
+                    city_token = _normalize_location_fingerprint_token(normalized_data.get("city"))
+                    state_token = _normalize_location_fingerprint_token(
+                        normalized_data.get("state")
+                    )
+                    if not (name_token or city_token or state_token):
+                        continue
+                    location_fingerprints.add(f"{name_token}|{city_token}|{state_token}")
+
+                locations_found = len(location_fingerprints)
 
         return DiscoverySessionSummaryResponse(
             total_sources=len(session.sources),

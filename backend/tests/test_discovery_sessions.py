@@ -56,6 +56,52 @@ async def _attach_discovery_audio_source(
     await db_session.flush()
 
 
+async def _create_session_with_discovery_run(
+    db_session,
+    *,
+    org_id,
+    company_id,
+    user_id,
+    source_type: str = "file",
+) -> tuple[DiscoverySession, ImportRun, DiscoverySource]:
+    session = DiscoverySession(
+        organization_id=org_id,
+        company_id=company_id,
+        status="processing",
+        created_by_user_id=user_id,
+        started_by_user_id=user_id,
+        started_at=datetime.now(UTC),
+    )
+    db_session.add(session)
+    await db_session.flush()
+
+    run = ImportRun(
+        organization_id=org_id,
+        entrypoint_type="company",
+        entrypoint_id=company_id,
+        source_file_path="imports/discovery-summary.csv",
+        source_filename="discovery-summary.csv",
+        source_type="bulk_import",
+        status="review_ready",
+        created_by_user_id=user_id,
+    )
+    db_session.add(run)
+    await db_session.flush()
+
+    source = DiscoverySource(
+        organization_id=org_id,
+        session_id=session.id,
+        source_type=source_type,
+        status="review_ready",
+        source_filename="discovery-summary.csv",
+        import_run_id=run.id,
+        started_at=datetime.now(UTC),
+    )
+    db_session.add(source)
+    await db_session.flush()
+    return session, run, source
+
+
 @pytest.mark.asyncio
 async def test_discovery_session_text_start_handoff_and_idempotency(
     client: AsyncClient, db_session, set_current_user, monkeypatch
@@ -1246,3 +1292,203 @@ async def test_discovery_session_rejects_short_text_and_unsupported_file(
         files={"file": ("notes.exe", b"not allowed", "application/octet-stream")},
     )
     assert bad_file_response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_discovery_summary_locations_dedupes_same_location_across_stream_drafts(
+    db_session,
+) -> None:
+    org = await create_org(db_session, "Discovery Summary Dedup Org", "discovery-summary-dedup")
+    user = await create_user(
+        db_session,
+        email=f"discovery-summary-dedup-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Summary Dedup Co")
+
+    session, run, _ = await _create_session_with_discovery_run(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        user_id=user.id,
+    )
+
+    location_a = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="location",
+        status="pending_review",
+        normalized_data={"name": "North Plant", "city": "Monterrey", "state": "NL"},
+    )
+    location_b = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="location",
+        status="pending_review",
+        normalized_data={"name": " north  plant ", "city": " MONTERREY", "state": "nl "},
+    )
+    db_session.add_all([location_a, location_b])
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            ImportItem(
+                organization_id=org.id,
+                run_id=run.id,
+                item_type="project",
+                status="pending_review",
+                parent_item_id=location_a.id,
+                normalized_data={"name": "Draft A", "project_type": "Assessment"},
+            ),
+            ImportItem(
+                organization_id=org.id,
+                run_id=run.id,
+                item_type="project",
+                status="accepted",
+                parent_item_id=location_b.id,
+                normalized_data={"name": "Draft B", "project_type": "Assessment"},
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    service = discovery_service_module.DiscoverySessionService()
+    refreshed_session = await service.get_session(
+        db_session,
+        organization_id=org.id,
+        session_id=session.id,
+        for_update=True,
+    )
+    summary = await service._build_summary(db_session, session=refreshed_session)
+
+    assert summary.waste_streams_found == 2
+    assert summary.locations_found == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_summary_stream_drafts_without_linked_location_reports_zero_locations(
+    db_session,
+) -> None:
+    org = await create_org(db_session, "Discovery Summary Orphan Org", "discovery-summary-orphan")
+    user = await create_user(
+        db_session,
+        email=f"discovery-summary-orphan-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Summary Orphan Co")
+
+    session, run, _ = await _create_session_with_discovery_run(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        user_id=user.id,
+    )
+
+    db_session.add_all(
+        [
+            ImportItem(
+                organization_id=org.id,
+                run_id=run.id,
+                item_type="project",
+                status="pending_review",
+                parent_item_id=None,
+                normalized_data={"name": "Orphan Draft", "project_type": "Assessment"},
+            ),
+            ImportItem(
+                organization_id=org.id,
+                run_id=run.id,
+                item_type="project",
+                status="amended",
+                parent_item_id=None,
+                normalized_data={"name": "Orphan Draft 2", "project_type": "Assessment"},
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    service = discovery_service_module.DiscoverySessionService()
+    refreshed_session = await service.get_session(
+        db_session,
+        organization_id=org.id,
+        session_id=session.id,
+        for_update=True,
+    )
+    summary = await service._build_summary(db_session, session=refreshed_session)
+
+    assert summary.waste_streams_found == 2
+    assert summary.locations_found == 0
+
+
+@pytest.mark.asyncio
+async def test_discovery_summary_location_only_items_do_not_inflate_locations_count(
+    db_session,
+) -> None:
+    org = await create_org(
+        db_session,
+        "Discovery Summary Location Only Org",
+        "discovery-summary-location-only",
+    )
+    user = await create_user(
+        db_session,
+        email=f"discovery-summary-location-only-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(
+        db_session,
+        org_id=org.id,
+        name="Discovery Summary Location Only Co",
+    )
+
+    session, run, _ = await _create_session_with_discovery_run(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        user_id=user.id,
+    )
+
+    linked_location = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="location",
+        status="pending_review",
+        normalized_data={"name": "Linked Plant", "city": "Monterrey", "state": "NL"},
+    )
+    location_only = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="location",
+        status="pending_review",
+        normalized_data={"name": "Location Only", "city": "Guadalajara", "state": "JA"},
+    )
+    db_session.add_all([linked_location, location_only])
+    await db_session.flush()
+
+    db_session.add(
+        ImportItem(
+            organization_id=org.id,
+            run_id=run.id,
+            item_type="project",
+            status="pending_review",
+            parent_item_id=linked_location.id,
+            normalized_data={"name": "Linked Draft", "project_type": "Assessment"},
+        )
+    )
+    await db_session.commit()
+
+    service = discovery_service_module.DiscoverySessionService()
+    refreshed_session = await service.get_session(
+        db_session,
+        organization_id=org.id,
+        session_id=session.id,
+        for_update=True,
+    )
+    summary = await service._build_summary(db_session, session=refreshed_session)
+
+    assert summary.waste_streams_found == 1
+    assert summary.locations_found == 1

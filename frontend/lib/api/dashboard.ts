@@ -18,6 +18,7 @@ export interface DashboardParams {
 	search?: string | undefined;
 	archived?: ArchivedFilter | undefined;
 	companyId?: string | undefined;
+	discoverySessionId?: string | undefined;
 	proposalFollowUpState?: ProposalFollowUpState | undefined;
 	signal?: AbortSignal | undefined;
 }
@@ -38,6 +39,8 @@ export const dashboardAPI = {
 		if (params?.search) searchParams.append("search", params.search);
 		if (params?.archived) searchParams.append("archived", params.archived);
 		if (params?.companyId) searchParams.append("company_id", params.companyId);
+		if (params?.discoverySessionId)
+			searchParams.append("discovery_session_id", params.discoverySessionId);
 		if (params?.proposalFollowUpState)
 			searchParams.append(
 				"proposal_follow_up_state",

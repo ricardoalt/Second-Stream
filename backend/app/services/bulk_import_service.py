@@ -715,6 +715,7 @@ class BulkImportService:
         company_cache: dict[UUID, Company] = {}
         if company is not None:
             company_cache[company.id] = company
+        discovery_provenance = await self._build_discovery_provenance_for_run(db=db, run=run)
 
         location_by_parent_item_id: dict[UUID, Location] = {}
         created_locations_count = 0
@@ -798,6 +799,10 @@ class BulkImportService:
             }
             if normalized.category and normalized.category.strip():
                 project_data["bulk_import_category"] = normalized.category.strip()
+            self._apply_workspace_provenance(
+                project_data=project_data,
+                provenance=discovery_provenance,
+            )
 
             project = Project(
                 organization_id=run.organization_id,
@@ -959,6 +964,7 @@ class BulkImportService:
         company_cache: dict[UUID, Company] = {}
         if company is not None:
             company_cache[company.id] = company
+        discovery_provenance = await self._build_discovery_provenance_for_run(db=db, run=run)
 
         location_by_parent_item_id: dict[UUID, Location] = {}
         created_locations_count = 0
@@ -1052,6 +1058,10 @@ class BulkImportService:
             }
             if normalized.category and normalized.category.strip():
                 project_data["bulk_import_category"] = normalized.category.strip()
+            self._apply_workspace_provenance(
+                project_data=project_data,
+                provenance=discovery_provenance,
+            )
 
             project = Project(
                 organization_id=run.organization_id,
@@ -1450,6 +1460,7 @@ class BulkImportService:
         company_cache: dict[UUID, Company] = {}
         if company is not None:
             company_cache[company.id] = company
+        discovery_provenance = await self._build_discovery_provenance_for_run(db=db, run=run)
 
         location_by_parent_item_id: dict[UUID, Location] = {}
         created_locations_count = 0
@@ -1565,6 +1576,10 @@ class BulkImportService:
             }
             if normalized.category and normalized.category.strip():
                 project_data["bulk_import_category"] = normalized.category.strip()
+            self._apply_workspace_provenance(
+                project_data=project_data,
+                provenance=discovery_provenance,
+            )
 
             project = Project(
                 organization_id=run.organization_id,
@@ -2046,11 +2061,10 @@ class BulkImportService:
         if run is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
         discovery_source_type_result = await db.execute(
-            select(DiscoverySource.source_type)
-            .where(DiscoverySource.import_run_id == run.id)
-            .limit(1)
+            select(DiscoverySource).where(DiscoverySource.import_run_id == run.id).limit(1)
         )
-        discovery_source_type = discovery_source_type_result.scalar_one_or_none()
+        discovery_source = discovery_source_type_result.scalar_one_or_none()
+        discovery_source_type = discovery_source.source_type if discovery_source else None
         if discovery_source_type not in {"file", "text", "audio"}:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -2248,6 +2262,14 @@ class BulkImportService:
             }
             if normalized.category and normalized.category.strip():
                 project_data["bulk_import_category"] = normalized.category.strip()
+            discovery_provenance = self._build_discovery_provenance_payload(
+                run=run,
+                discovery_source=discovery_source,
+            )
+            self._apply_workspace_provenance(
+                project_data=project_data,
+                provenance=discovery_provenance,
+            )
             project = Project(
                 organization_id=run.organization_id,
                 user_id=current_user.id,
@@ -2719,6 +2741,7 @@ class BulkImportService:
         company = await db.get(Company, location.company_id)
         if not company:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Company not found")
+        discovery_provenance = await self._build_discovery_provenance_for_run(db=db, run=run)
 
         # Load requested items (locked)
         items_result = await db.execute(
@@ -2787,6 +2810,10 @@ class BulkImportService:
             }
             if normalized.category and normalized.category.strip():
                 project_data["bulk_import_category"] = normalized.category.strip()
+            self._apply_workspace_provenance(
+                project_data=project_data,
+                provenance=discovery_provenance,
+            )
 
             project = Project(
                 organization_id=organization_id,
@@ -2891,6 +2918,56 @@ class BulkImportService:
 
     def get_run_summary(self, run: ImportRun) -> BulkImportFinalizeSummary:
         return self._summary_from_run(run)
+
+    async def _build_discovery_provenance_for_run(
+        self,
+        *,
+        db: AsyncSession,
+        run: ImportRun,
+    ) -> dict[str, object] | None:
+        discovery_source_result = await db.execute(
+            select(DiscoverySource).where(DiscoverySource.import_run_id == run.id).limit(1)
+        )
+        discovery_source = discovery_source_result.scalar_one_or_none()
+        return self._build_discovery_provenance_payload(
+            run=run,
+            discovery_source=discovery_source,
+        )
+
+    def _build_discovery_provenance_payload(
+        self,
+        *,
+        run: ImportRun,
+        discovery_source: DiscoverySource | None,
+    ) -> dict[str, object] | None:
+        if discovery_source is None:
+            return None
+        if discovery_source.source_type not in {"file", "audio", "text"}:
+            return None
+        return {
+            "origin": "ai_discovery",
+            "run_id": str(run.id),
+            "discovery_session_id": (
+                str(discovery_source.session_id) if discovery_source.session_id else None
+            ),
+            "source_type": discovery_source.source_type,
+            "source_filename": discovery_source.source_filename,
+            "discovery_source_id": (str(discovery_source.id) if discovery_source.id else None),
+        }
+
+    def _apply_workspace_provenance(
+        self,
+        *,
+        project_data: dict[str, object],
+        provenance: dict[str, object] | None,
+    ) -> None:
+        if provenance is None:
+            return
+        workspace_raw = project_data.get(WORKSPACE_PROJECT_DATA_KEY)
+        workspace_data = workspace_raw if isinstance(workspace_raw, dict) else {}
+        merged_workspace_data = dict(workspace_data)
+        merged_workspace_data["provenance"] = provenance
+        project_data[WORKSPACE_PROJECT_DATA_KEY] = merged_workspace_data
 
     def _legacy_orphan_group_id(self, *, run_id: UUID, item_id: UUID) -> str:
         return f"legacy_orphan:{run_id}:{item_id}"

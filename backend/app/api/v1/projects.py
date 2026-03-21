@@ -86,6 +86,27 @@ TOTAL_DRAFT_PREVIEW_LIMIT = 5
 bulk_import_service = BulkImportService()
 
 
+async def _discovery_source_filename_by_run_id(
+    *,
+    db: AsyncDB,
+    run_ids: list[UUID],
+) -> dict[UUID, str | None]:
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(DiscoverySource.import_run_id, DiscoverySource.source_filename)
+        .where(DiscoverySource.import_run_id.in_(run_ids))
+        .where(DiscoverySource.source_type.in_(("file", "text", "audio")))
+    )
+    filename_by_run_id: dict[UUID, str | None] = {}
+    for import_run_id, source_filename in result.all():
+        if import_run_id is None:
+            continue
+        if import_run_id not in filename_by_run_id:
+            filename_by_run_id[import_run_id] = source_filename
+    return filename_by_run_id
+
+
 PROPOSAL_FOLLOW_UP_TRANSITIONS: dict[str | None, set[str]] = {
     None: {"uploaded"},
     "uploaded": {"waiting_to_send"},
@@ -440,6 +461,7 @@ async def _build_draft_dashboard_rows(
     archived: Literal["active", "archived", "all"],
     company_id: UUID | None,
     proposal_follow_up_state: ProposalFollowUpState | None,
+    discovery_session_id: UUID | None,
     search: str | None,
 ) -> list[DraftItemDashboardRow]:
     if archived == "archived" or proposal_follow_up_state is not None:
@@ -507,6 +529,11 @@ async def _build_draft_dashboard_rows(
             .where(
                 DiscoverySource.import_run_id == ImportRun.id,
                 DiscoverySource.source_type.in_(("file", "text", "audio")),
+                *(
+                    [DiscoverySource.session_id == discovery_session_id]
+                    if discovery_session_id is not None
+                    else []
+                ),
             )
             .exists(),
         )
@@ -516,6 +543,11 @@ async def _build_draft_dashboard_rows(
         query = query.where(ImportRun.created_by_user_id == current_user.id)
 
     result = await db.execute(query.order_by(ImportItem.updated_at.desc()))
+    query_rows = result.all()
+    source_filename_by_run_id = await _discovery_source_filename_by_run_id(
+        db=db,
+        run_ids=list({run.id for _, run, *_ in query_rows}),
+    )
     rows: list[DraftItemDashboardRow] = []
     for (
         item,
@@ -526,7 +558,7 @@ async def _build_draft_dashboard_rows(
         entrypoint_location_company_id,
         entrypoint_location_name,
         entrypoint_location_company_name,
-    ) in result.all():
+    ) in query_rows:
         normalized_data = item.normalized_data if isinstance(item.normalized_data, dict) else {}
         parent_data = (
             parent_item.normalized_data
@@ -588,6 +620,7 @@ async def _build_draft_dashboard_rows(
                 volume_summary=_extract_volume_summary(normalized_data),
                 last_activity_at=item.updated_at,
                 source_type=run.source_type,
+                source_filename=source_filename_by_run_id.get(run.id),
                 draft_status=item.status,
                 confidence=item.confidence,
                 draft_kind=draft_kind,
@@ -617,6 +650,7 @@ async def _build_location_only_draft_rows(
     archived: Literal["active", "archived", "all"],
     company_id: UUID | None,
     proposal_follow_up_state: ProposalFollowUpState | None,
+    discovery_session_id: UUID | None,
     search: str | None,
 ) -> list[DraftItemDashboardRow]:
     if archived == "archived" or proposal_follow_up_state is not None:
@@ -681,6 +715,11 @@ async def _build_location_only_draft_rows(
             .where(
                 DiscoverySource.import_run_id == ImportRun.id,
                 DiscoverySource.source_type.in_(("file", "text", "audio")),
+                *(
+                    [DiscoverySource.session_id == discovery_session_id]
+                    if discovery_session_id is not None
+                    else []
+                ),
             )
             .exists(),
         )
@@ -693,6 +732,10 @@ async def _build_location_only_draft_rows(
     candidates = candidates_result.all()
     if not candidates:
         return []
+    source_filename_by_run_id = await _discovery_source_filename_by_run_id(
+        db=db,
+        run_ids=list({run.id for _, run, *_ in candidates}),
+    )
 
     candidate_item_ids = [row[0].id for row in candidates]
     active_child_result = await db.execute(
@@ -769,6 +812,7 @@ async def _build_location_only_draft_rows(
                 volume_summary=None,
                 last_activity_at=item.updated_at,
                 source_type=run.source_type,
+                source_filename=source_filename_by_run_id.get(run.id),
                 draft_status=item.status,
                 confidence=item.confidence,
                 draft_kind="location_only",
@@ -1075,6 +1119,10 @@ async def get_dashboard_projection(
     search: SearchQuery = None,
     archived: ArchivedFilter = "active",
     company_id: Annotated[UUID | None, Query(description="Filter by company ID")] = None,
+    discovery_session_id: Annotated[
+        UUID | None,
+        Query(description="Filter needs_confirmation queue to one discovery session"),
+    ] = None,
     proposal_follow_up_state: Annotated[
         ProposalFollowUpState | None,
         Query(description="Filter by stream-level proposal follow-up state"),
@@ -1098,6 +1146,7 @@ async def get_dashboard_projection(
         archived=archived,
         company_id=company_id,
         proposal_follow_up_state=proposal_follow_up_state,
+        discovery_session_id=discovery_session_id,
         search=search,
     )
     secondary_draft_rows: list[DraftItemDashboardRow] = []

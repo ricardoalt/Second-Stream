@@ -15,6 +15,26 @@
 - Dashboard triage is a dedicated projection layered on top of `Project` plus staging drafts from `ImportRun`/`ImportItem`; stream-level commercial follow-up lives on `Project.proposal_follow_up_state`, while `Proposal.status` remains version lifecycle only.
 - Discovery wizard orchestration uses `DiscoverySession` + `DiscoverySource` as lightweight intake fan-out, then hands off to existing `ImportRun`/`ImportItem` draft pipeline for `Needs Confirmation`.
 
+### Discovery wizard semantics
+- Discovery can ingest multi-source in one session (`file` + `audio` + `text`), then stage draft candidates in bulk-import items.
+- At this stage, discovery output is draft/candidate only. It is not a persisted waste-stream until user confirm/finalize creates `Project`.
+- Result modal metrics are session-scoped and intentionally simple:
+  - `Waste-streams found`: count of project draft items in session runs where `item_type=project`, `created_project_id IS NULL`, `status IN (pending_review, accepted, amended)`.
+  - `Locations found`: distinct normalized `name|city|state` fingerprints from location items linked via `parent_item_id` to those project drafts.
+- Location-only detections do not inflate modal `Locations found`; locations are used as prefill context inside each stream draft.
+- Result modal also renders `sources analyzed` from `DiscoverySession.sources` (friendly status labels), so users can verify what was processed.
+
+### Discovery provenance strategy
+- On project materialization from discovery draft paths (per-item decision confirm, finalize, subset finalize), backend writes provenance metadata to `project.project_data.workspace_v1.provenance`.
+- Minimal provenance payload:
+  - `origin = ai_discovery`
+  - `run_id`
+  - `discovery_session_id` (if available)
+  - `source_type`
+  - `source_filename`
+  - `discovery_source_id` (if available)
+- Non-goal for now: no automatic `ProjectFile` creation or file copy from discovery sources. Provenance is metadata only.
+
 #### Database relationships
 ```
 User ──1:N──> Project ──1:N──> Proposal
