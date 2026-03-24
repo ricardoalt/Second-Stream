@@ -8,21 +8,28 @@ Prefer these references instead of copying commands into `AGENTS.md`.
 - Run database migrations: `cd backend && docker-compose exec app alembic upgrade head`
 
 ### Backend
-Prerequisites: `cd backend && make install-dev` (one-time setup for local tooling)
 
-Tooling stack:
-- **Ruff**: Linter + formatter (replaces Black, isort, flake8)
-- **ty**: Type checker (replaces Pyright/Mypy, 10-100x faster)
+**No local setup required.** All tooling runs via Docker.
 
-- Full check (auto-fix + format + typecheck): `cd backend && make check`
-- CI mode (verify only, no changes): `cd backend && make check-ci`
+#### Code Quality (Local - ruff)
+Requires: `uv tool install ruff` (one-time)
+
+- Full check (auto-fix + format): `cd backend && make check`
 - Lint only: `cd backend && make lint`
 - Lint with auto-fix: `cd backend && make lint-fix`
 - Format: `cd backend && make format`
-- Type checks: `cd backend && make typecheck`
-- Tests (requires docker compose up): `cd backend && make test`
+
+#### Tests (Docker)
+Requires: `docker compose up -d postgres redis`
+
+- Run all tests: `cd backend && make test`
 - Tests with coverage: `cd backend && make test-cov`
-- Single test file: `cd backend && make test-file FILE=tests/test_location_contacts.py`
+- Single test file: `cd backend && make test-file FILE=tests/test_auth.py`
+
+#### Old commands (deprecated)
+- `make install-dev`: **Removed** - no longer needed
+- `make typecheck`: **Removed** - use ruff for linting
+- `make check-ci`: **Removed** - use `make check`
 
 ### Frontend
 - Full code quality (CI mode): `cd frontend && bun run check:ci`

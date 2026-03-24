@@ -1,87 +1,51 @@
-.PHONY: lint lint-fix format format-check typecheck check check-ci test test-cov ci install-dev
+.PHONY: help lint format check test test-file test-cov
 
-# ============================================================================
-# Development Tooling Commands
-# ============================================================================
-# Prerequisites:
-#   1. uv installed: curl -LsSf https://astral.sh/uv/install.sh | sh
-#   2. Run 'make install-dev' to set up local venv with tooling
-#   3. Docker services running for tests: docker compose up -d postgres redis
-# ============================================================================
+# =============================================================================
+# Help - Show available commands
+# =============================================================================
+help:
+	@grep -E '^[a-zA-Z_-]+:' Makefile | grep -v help | sed 's/:.*//' | column -t
 
-# Install dev dependencies in local venv (ruff, ty, pytest)
-install-dev:
-	uv venv --python 3.11
-	uv pip install ruff ty pytest pytest-asyncio pytest-cov httpx
+# =============================================================================
+# Code Quality (Local - ruff)
+# =============================================================================
+# Requiere: uv tool install ruff
 
-# ============================================================================
-# Linting (Ruff)
-# ============================================================================
-
-# Check for linting errors (no changes)
+# Check linting errors
 lint:
-	.venv/bin/ruff check .
+	ruff check .
 
-# Check and auto-fix linting errors
+# Auto-fix linting errors
 lint-fix:
-	.venv/bin/ruff check --fix .
-
-# ============================================================================
-# Formatting (Ruff)
-# ============================================================================
+	ruff check --fix .
 
 # Auto-format all files
 format:
-	.venv/bin/ruff format .
+	ruff format .
 
-# Check formatting without changes (for CI)
+# Check formatting without changes
 format-check:
-	.venv/bin/ruff format --check .
-
-# ============================================================================
-# Type Checking (ty - Astral)
-# ============================================================================
-
-typecheck:
-	.venv/bin/ty check
-
-# ============================================================================
-# Combined Commands
-# ============================================================================
+	ruff format --check .
 
 # Development mode: fix everything automatically
 check:
-	.venv/bin/ruff check --fix .
-	.venv/bin/ruff format .
-	.venv/bin/ty check
+	ruff check --fix .
+	ruff format .
 
-# CI mode: verify only, no changes (fails on any issue)
-check-ci:
-	.venv/bin/ruff check .
-	.venv/bin/ruff format --check .
-	.venv/bin/ty check
-
-# ============================================================================
-# Testing (Pytest)
-# ============================================================================
-# Note: Tests require Postgres and Redis running via docker compose
-#   docker compose up -d postgres redis
+# =============================================================================
+# Testing (Docker)
+# =============================================================================
+# Requiere: docker compose up -d postgres redis
 
 # Run all tests
 test:
-	.venv/bin/pytest
+	docker compose run --rm tests
 
-# Run tests with coverage report
+# Run tests with coverage
 test-cov:
-	.venv/bin/pytest --cov=app --cov-report=html --cov-report=term
+	docker compose run --rm tests pytest --cov=app --cov-report=term
 
 # Run specific test file
-# Usage: make test-file FILE=tests/test_location_contacts.py
+# Uso: make test-file FILE=tests/test_auth.py
 test-file:
-	.venv/bin/pytest -v $(FILE)
-
-# ============================================================================
-# Full CI Pipeline (what GitHub Actions should run)
-# ============================================================================
-
-ci: check-ci test
+	docker compose run --rm tests pytest -v $(FILE)

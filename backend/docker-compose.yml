@@ -151,6 +151,36 @@ services:
       timeout: 5s
       retries: 5
 
+  # =============================================================================
+  # Test Runner - Corre tests en el mismo entorno que producción
+  # =============================================================================
+  tests:
+    container_name: waste-platform-tests
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_SERVER=postgres
+      - REDIS_HOST=redis
+      - PYTHONPATH=/app
+      - PYTEST_ADDOPTS=--ignore=tests/test_intelligent_case_filter_v2.py --ignore=tests/test_v1_improvements.py
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command:
+      - pytest
+      - -v
+      - --tb=short
+    # Limpia archivos temporales al terminar
+    tmpfs:
+      - /tmp:size=50m
+
 volumes:
   waste_postgres_data:  # Volumen separado del proyecto de agua
   waste_redis_data:     # Volumen separado del proyecto de agua
