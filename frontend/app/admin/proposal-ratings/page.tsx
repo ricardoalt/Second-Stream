@@ -647,10 +647,7 @@ export default function AdminProposalRatingsPage() {
 																asChild
 															>
 																<Link
-																	href={routes.project.proposal.detail(
-																		item.projectId,
-																		item.proposalId,
-																	)}
+																	href={routes.streams.detail(item.projectId)}
 																>
 																	View proposal
 																	<ExternalLink className="h-3 w-3" />

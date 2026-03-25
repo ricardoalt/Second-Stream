@@ -84,17 +84,12 @@ export const StreamRow = memo(function StreamRow({
 
 	const handleClick = useCallback(() => {
 		if (isPersistedStream(row)) {
-			const url =
-				bucket === "proposal"
-					? routes.project.proposalDetail(row.projectId)
-					: bucket === "intelligence_report"
-						? routes.project.intelligenceReport(row.projectId)
-						: routes.project.detail(row.projectId);
+			const url = routes.streams.detail(row.projectId);
 			router.push(url);
 		} else if (isDraftItem(row)) {
 			openDraftConfirmation(row);
 		}
-	}, [row, bucket, router, openDraftConfirmation]);
+	}, [row, router, openDraftConfirmation]);
 
 	if (isPersistedStream(row)) {
 		return (
@@ -632,7 +627,7 @@ function ReportQuickViewButton({
 	}, []);
 	const reportSnapshot = buildIntelligenceReportSnapshot(row);
 	const handleOpenProject = useCallback(() => {
-		router.push(routes.project.detail(row.projectId));
+		router.push(routes.streams.detail(row.projectId));
 	}, [router, row.projectId]);
 
 	return (

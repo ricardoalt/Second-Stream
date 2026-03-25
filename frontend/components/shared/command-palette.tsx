@@ -64,7 +64,7 @@ export function CommandPalette() {
 	const navigateToProject = useCallback(
 		(project: { id: string; name: string }) => {
 			addRecentProject(project);
-			runCommand(() => router.push(routes.project.detail(project.id)));
+			runCommand(() => router.push(routes.streams.detail(project.id)));
 		},
 		[addRecentProject, runCommand, router],
 	);

@@ -37,7 +37,7 @@ export function useNotifications() {
 						? "Ready to generate proposal"
 						: `${readyForProposal.length} ready to generate proposal`,
 				projects: readyForProposal,
-				getRoute: (id) => routes.project.proposals(id),
+				getRoute: (id) => routes.streams.detail(id),
 				actionLabel: "Generate",
 			});
 		}
@@ -59,7 +59,7 @@ export function useNotifications() {
 						? "Proposal completed"
 						: `${recentlyCompleted.length} proposals completed`,
 				projects: recentlyCompleted,
-				getRoute: (id) => routes.project.proposals(id),
+				getRoute: (id) => routes.streams.detail(id),
 				actionLabel: "Review",
 			});
 		}
@@ -84,7 +84,7 @@ export function useNotifications() {
 						? "Waste stream inactive"
 						: `${stalledProjects.length} waste streams inactive`,
 				projects: stalledProjects,
-				getRoute: (id) => routes.project.technical(id),
+				getRoute: (id) => routes.streams.detail(id),
 				actionLabel: "Resume",
 			});
 		}

@@ -1,18 +1,20 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
-import { DM_Sans, Geist, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import type React from "react";
 import { ClientLayout } from "@/components/providers/client-layout";
 import { ThemeProvider } from "@/components/shared/common/theme-provider";
 import "./globals.css";
+import "./theme-overrides.css";
 
-const geist = Geist({
+const inter = Inter({
 	subsets: ["latin"],
 	variable: "--font-sans",
+	weight: ["400", "500", "600", "700"],
 	display: "swap",
 });
 
-const dmSans = DM_Sans({
+const manrope = Manrope({
 	subsets: ["latin"],
 	variable: "--font-display",
 	weight: ["400", "500", "600", "700"],
@@ -40,7 +42,7 @@ export default function RootLayout({
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<body
-				className={`${geist.variable} ${dmSans.variable} ${jetbrains.variable} font-sans antialiased`}
+				className={`${inter.variable} ${manrope.variable} ${jetbrains.variable} font-sans antialiased`}
 			>
 				{/* Skip to main content link for keyboard navigation */}
 				<a
@@ -52,8 +54,7 @@ export default function RootLayout({
 
 				<ThemeProvider
 					attribute="class"
-					defaultTheme="system"
-					enableSystem
+					forcedTheme="light"
 					disableTransitionOnChange
 				>
 					<ClientLayout>{children}</ClientLayout>

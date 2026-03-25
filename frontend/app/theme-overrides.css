@@ -1,0 +1,106 @@
+/* Sprint 1A — Field Agent redesign tokens (light only) */
+
+:root,
+.dark {
+	--background: #f7f9ff;
+	--foreground: #0b1d2b;
+	--card: #ffffff;
+	--card-foreground: #0b1d2b;
+	--popover: color-mix(in srgb, #ffffff 86%, transparent);
+	--popover-foreground: #0b1d2b;
+
+	--surface: #f7f9ff;
+	--surface-container: #eef3ff;
+	--surface-container-low: #ecf4ff;
+	--surface-container-high: #f2f7ff;
+	--surface-container-highest: #f7fbff;
+	--surface-container-lowest: #ffffff;
+
+	--primary: #006565;
+	--primary-foreground: #ffffff;
+	--secondary: #545e76;
+	--secondary-foreground: #ffffff;
+	--muted: #ecf4ff;
+	--muted-foreground: #5d6c83;
+	--accent: #dde8ff;
+	--accent-foreground: #0b1d2b;
+
+	--destructive: #b3261e;
+	--destructive-foreground: #ffffff;
+	--success: #146c43;
+	--success-foreground: #ffffff;
+	--warning: #b7791f;
+	--warning-foreground: #ffffff;
+	--info: #2563eb;
+	--info-foreground: #ffffff;
+
+	--border: color-mix(in srgb, #0b1d2b 20%, transparent);
+	--input: #f7fbff;
+	--ring: #006565;
+	--radius: 0.25rem;
+
+	--chart-1: #006565;
+	--chart-2: #008080;
+	--chart-3: #326a9e;
+	--chart-4: #146c43;
+	--chart-5: #b7791f;
+
+	--sidebar: #ecf4ff;
+	--sidebar-foreground: #5d6c83;
+	--sidebar-primary: #006565;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #ffffff;
+	--sidebar-accent-foreground: #0b1d2b;
+	--sidebar-border: transparent;
+	--sidebar-ring: #006565;
+
+	--gradient-primary: linear-gradient(135deg, #006565 0%, #008080 100%);
+
+	--shadow-xs: 0 1px 3px rgb(11 29 43 / 0.04);
+	--shadow-sm: 0 2px 8px rgb(11 29 43 / 0.05);
+	--shadow: 0 4px 12px rgb(11 29 43 / 0.06);
+	--shadow-md: 0 8px 24px rgb(11 29 43 / 0.06);
+	--shadow-lg: 0 10px 30px rgb(11 29 43 / 0.08);
+
+	--font-sans: var(--font-sans), "Inter", sans-serif;
+	--font-display: var(--font-display), "Manrope", sans-serif;
+}
+
+body {
+	background: var(--surface);
+	color: var(--foreground);
+}
+
+@theme inline {
+	--color-surface: var(--surface);
+	--color-surface-container: var(--surface-container);
+	--color-surface-container-low: var(--surface-container-low);
+	--color-surface-container-high: var(--surface-container-high);
+	--color-surface-container-highest: var(--surface-container-highest);
+	--color-surface-container-lowest: var(--surface-container-lowest);
+}
+
+.btn-primary-gradient {
+	background-image: var(--gradient-primary);
+	box-shadow: 0 8px 20px rgb(0 101 101 / 0.2);
+}
+
+.btn-primary-gradient:hover {
+	filter: brightness(1.04);
+}
+
+.btn-secondary-surface {
+	background-color: var(--surface-container-highest);
+	color: var(--primary);
+}
+
+.glass-popover {
+	background-color: color-mix(
+		in srgb,
+		var(--surface-container-lowest) 86%,
+		transparent
+	);
+	backdrop-filter: blur(16px);
+	box-shadow: var(--shadow-md);
+	border-color: transparent;
+}
