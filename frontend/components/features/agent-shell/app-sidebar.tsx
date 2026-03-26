@@ -24,16 +24,7 @@ type AppSidebarProps = {
 
 const navItems = [
 	{ href: "/dashboard", label: "Dashboard", icon: Home },
-	{
-		href: "/streams",
-		label: "Streams",
-		icon: Layers,
-		subItems: [
-			{ href: "/streams", label: "All" },
-			{ href: "/streams/drafts", label: "Drafts" },
-			{ href: "/streams/follow-ups", label: "Follow-ups" },
-		],
-	},
+	{ href: "/streams", label: "Streams", icon: Layers },
 	{ href: "/clients", label: "Clients", icon: Building2 },
 	{ href: "/offers", label: "Offers", icon: FileText },
 ];
@@ -119,29 +110,6 @@ export function AppSidebar({ userName, userEmail }: AppSidebarProps) {
 								<Icon className="shrink-0" />
 								{!collapsed && <span>{item.label}</span>}
 							</Link>
-							{!collapsed &&
-								item.subItems &&
-								pathname.startsWith(item.href) && (
-									<div className="ml-8 flex flex-col gap-1">
-										{item.subItems.map((subItem) => {
-											const subActive = pathname === subItem.href;
-											return (
-												<Link
-													key={subItem.href}
-													href={subItem.href}
-													className={cn(
-														"rounded-md px-2 py-1 text-xs",
-														subActive
-															? "bg-sidebar-accent text-primary"
-															: "text-sidebar-foreground hover:text-foreground",
-													)}
-												>
-													{subItem.label}
-												</Link>
-											);
-										})}
-									</div>
-								)}
 						</div>
 					);
 				})}

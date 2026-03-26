@@ -12,6 +12,13 @@ import {
 	Upload,
 } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
+import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
+import { QuickPasteModal } from "@/components/features/discovery/quick-paste-modal";
+import { CallClientModal } from "@/components/features/modals/call-client-modal";
+import { LogActivityModal } from "@/components/features/modals/log-activity-modal";
+import { RequestUpdateModal } from "@/components/features/modals/request-update-modal";
+import { SendEmailModal } from "@/components/features/modals/send-email-modal";
 import { StreamPhaseStepper } from "@/components/features/streams/stream-phase-stepper";
 import { StreamStatusBadge } from "@/components/features/streams/stream-status-badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -25,6 +32,7 @@ const quickActions = [
 	{ label: "Email", icon: Mail },
 	{ label: "Call", icon: Phone },
 	{ label: "Log Activity", icon: StickyNote },
+	{ label: "Request Update", icon: FileText },
 	{ label: "Upload", icon: Upload },
 	{ label: "Quick Paste", icon: Paperclip },
 	{ label: "Voice Memo", icon: Mic },
@@ -39,9 +47,59 @@ const phaseCTA: Record<StreamPhase, string> = {
 
 export function StreamDetailPageContent({ id }: { id: string }) {
 	const detail = getStreamDetail(id);
+	const discoveryWizard = useDiscoveryWizard();
+	const [emailOpen, setEmailOpen] = useState<boolean>(false);
+	const [callOpen, setCallOpen] = useState<boolean>(false);
+	const [logOpen, setLogOpen] = useState<boolean>(false);
+	const [requestUpdateOpen, setRequestUpdateOpen] = useState<boolean>(false);
+	const [quickPasteOpen, setQuickPasteOpen] = useState<boolean>(false);
+
+	const streamContacts = [
+		{
+			id: `${detail.id}-contact`,
+			name: `${detail.client} Coordinator`,
+			role: "Client Contact",
+			phone: "+1 (555) 010-2214",
+		},
+	];
+
+	const quickActionHandlers: Record<string, () => void> = {
+		Email: () => setEmailOpen(true),
+		Call: () => setCallOpen(true),
+		"Log Activity": () => setLogOpen(true),
+		"Request Update": () => setRequestUpdateOpen(true),
+		Upload: discoveryWizard.open,
+		"Quick Paste": () => setQuickPasteOpen(true),
+		"Voice Memo": discoveryWizard.open,
+	};
 
 	return (
 		<div className="flex flex-col gap-6">
+			<SendEmailModal open={emailOpen} onOpenChange={setEmailOpen} />
+			<CallClientModal
+				open={callOpen}
+				onOpenChange={setCallOpen}
+				contacts={streamContacts}
+			/>
+			<LogActivityModal
+				open={logOpen}
+				onOpenChange={setLogOpen}
+				relatedStreams={[
+					{ id: detail.id, label: `${detail.name} (${detail.id})` },
+				]}
+			/>
+			<RequestUpdateModal
+				open={requestUpdateOpen}
+				onOpenChange={setRequestUpdateOpen}
+				recipients={[
+					{
+						id: "assigned-agent",
+						name: detail.assignedAgent,
+						role: "Field Agent",
+					},
+				]}
+			/>
+			<QuickPasteModal open={quickPasteOpen} onOpenChange={setQuickPasteOpen} />
 			<header className="rounded-xl bg-surface-container-lowest p-6 shadow-sm">
 				<p className="text-xs uppercase tracking-[0.08em] text-secondary">
 					Streams / {detail.client} / {detail.id}
@@ -199,11 +257,13 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 						<CardContent className="flex flex-col gap-2 pt-0">
 							{quickActions.map((action) => {
 								const Icon = action.icon;
+								const onClick = quickActionHandlers[action.label];
 								return (
 									<Button
 										key={action.label}
 										variant="secondary"
 										className="justify-start"
+										onClick={onClick}
 									>
 										<Icon data-icon="inline-start" aria-hidden />
 										{action.label}

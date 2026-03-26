@@ -1,9 +1,4 @@
-import type {
-	DraftStreamRow,
-	FollowUpItem,
-	StreamDetail,
-	StreamRow,
-} from "./types";
+import type { StreamDetail, StreamRow } from "./types";
 
 export const allStreams: StreamRow[] = [
 	{
@@ -17,6 +12,12 @@ export const allStreams: StreamRow[] = [
 		lastUpdated: "10 min ago",
 		phase: 2,
 		status: "missing_info",
+		daysSinceLastActivity: 18,
+		missingFields: ["SDS", "Hazard class", "Container type"],
+		priority: "urgent",
+		reason: "No update in 18 days and missing SDS revision.",
+		nextAction: "Call EHS manager and request latest SDS + transport profile.",
+		dueDate: "Today · 4:00 PM",
 	},
 	{
 		id: "STR-993",
@@ -29,6 +30,9 @@ export const allStreams: StreamRow[] = [
 		lastUpdated: "48 min ago",
 		phase: 1,
 		status: "draft",
+		processMethod: "Mechanical recovery",
+		units: "tons/once",
+		lastEdited: "34 min ago",
 	},
 	{
 		id: "STR-1120",
@@ -40,7 +44,13 @@ export const allStreams: StreamRow[] = [
 		volume: "34 tons/mo",
 		lastUpdated: "2 h ago",
 		phase: 3,
-		status: "in_review",
+		status: "missing_info",
+		daysSinceLastActivity: 14,
+		missingFields: ["Admin sign-off", "Generator mandate"],
+		priority: "medium",
+		reason: "Profile draft expired before admin sign-off.",
+		nextAction: "Re-submit profile summary and schedule admin review.",
+		dueDate: "Tomorrow · 10:00 AM",
 	},
 	{
 		id: "STR-8841",
@@ -53,6 +63,12 @@ export const allStreams: StreamRow[] = [
 		lastUpdated: "14 days ago",
 		phase: 2,
 		status: "blocked",
+		daysSinceLastActivity: 21,
+		missingFields: ["Lab analysis", "Flash point"],
+		priority: "high",
+		reason: "Lab profile pending after compliance hold.",
+		nextAction: "Ping lab partner and attach interim COA in stream workspace.",
+		dueDate: "Overdue · Yesterday",
 	},
 	{
 		id: "STR-2234",
@@ -78,43 +94,62 @@ export const allStreams: StreamRow[] = [
 		phase: 4,
 		status: "ready_for_offer",
 	},
-];
-
-export const draftStreams: DraftStreamRow[] = [
 	{
 		id: "DRAFT-01",
-		materialType: "Neutralization Slurry",
+		name: "Neutralization Slurry",
+		client: "Apex Refining Co.",
+		agent: "Alex Fischer",
+		wasteType: "Neutralization Slurry",
 		processMethod: "Thermal treatment",
 		volume: "22",
 		units: "tons/mo",
 		location: "Houston, TX",
+		lastUpdated: "11 min ago",
+		phase: 1,
+		status: "draft",
 		lastEdited: "11 min ago",
 	},
 	{
 		id: "DRAFT-02",
-		materialType: "Pyrolysis Residue",
+		name: "Pyrolysis Residue",
+		client: "Precision Chem-Tech",
+		agent: "Alex Fischer",
+		wasteType: "Pyrolysis Residue",
 		processMethod: "Mechanical recovery",
 		volume: "14",
 		units: "tons/mo",
 		location: "Baton Rouge, LA",
+		lastUpdated: "34 min ago",
+		phase: 1,
+		status: "draft",
 		lastEdited: "34 min ago",
 	},
 	{
 		id: "DRAFT-03",
-		materialType: "Distillation Bottoms",
+		name: "Distillation Bottoms",
+		client: "Heavy Construct Corp",
+		agent: "Marta Vega",
+		wasteType: "Distillation Bottoms",
 		processMethod: "Solvent wash",
 		volume: "9",
 		units: "tons/mo",
 		location: "Tulsa, OK",
+		lastUpdated: "1 h ago",
+		phase: 1,
+		status: "draft",
 		lastEdited: "1 h ago",
 	},
-];
-
-export const followUps: FollowUpItem[] = [
 	{
-		id: "FU-9923",
-		streamName: "Spent Sulfuric Acid (98%)",
+		id: "STR-9923",
+		name: "Spent Sulfuric Acid (98%)",
 		client: "Apex Refining Co.",
+		location: "Corpus Christi, TX",
+		agent: "Alex Fischer",
+		wasteType: "Spent acid",
+		volume: "1,100 gal/mo",
+		lastUpdated: "18 days ago",
+		phase: 2,
+		status: "missing_info",
 		reason: "No update in 18 days and missing SDS revision.",
 		nextAction: "Call EHS manager and request latest SDS + transport profile.",
 		dueDate: "Today · 4:00 PM",
@@ -122,29 +157,20 @@ export const followUps: FollowUpItem[] = [
 		priority: "urgent",
 		missingFields: ["SDS", "Hazard class", "Container type"],
 	},
-	{
-		id: "FU-8841",
-		streamName: "Chlorinated Solvent Mix",
-		client: "Precision Chem-Tech",
-		reason: "Lab profile pending after compliance hold.",
-		nextAction: "Ping lab partner and attach interim COA in stream workspace.",
-		dueDate: "Overdue · Yesterday",
-		daysSinceLastActivity: 21,
-		priority: "overdue",
-		missingFields: ["Lab analysis", "Flash point"],
-	},
-	{
-		id: "FU-1120",
-		streamName: "Metal Plating Sludge",
-		client: "United Aerospace",
-		reason: "Profile draft expired before admin sign-off.",
-		nextAction: "Re-submit profile summary and schedule admin review.",
-		dueDate: "Tomorrow · 10:00 AM",
-		daysSinceLastActivity: 14,
-		priority: "upcoming",
-		missingFields: ["Admin sign-off", "Generator mandate"],
-	},
 ];
+
+export function getDraftStreams(): StreamRow[] {
+	return allStreams.filter((stream) => stream.status === "draft");
+}
+
+export function getMissingInfoStreams(): StreamRow[] {
+	return allStreams.filter(
+		(stream) =>
+			stream.status === "missing_info" ||
+			stream.status === "blocked" ||
+			(stream.daysSinceLastActivity ?? 0) > 7,
+	);
+}
 
 export const streamDetails: StreamDetail[] = [
 	{
@@ -216,7 +242,11 @@ export function getStreamDetail(streamId: string): StreamDetail {
 		return selected;
 	}
 
-	const fallback = streamDetails[0]!;
+	const fallback = streamDetails[0];
+	if (!fallback) {
+		throw new Error("Stream details mock data is empty");
+	}
+
 	return {
 		...fallback,
 		id: streamId,

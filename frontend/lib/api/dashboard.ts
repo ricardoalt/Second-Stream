@@ -7,8 +7,10 @@ import type { ArchivedFilter } from "@/lib/api/companies";
 import type {
 	DashboardBucket,
 	DashboardListResponse,
+	DraftItemRow,
 	ProposalFollowUpState,
 } from "@/lib/types/dashboard";
+import { isDraftItem } from "@/lib/types/dashboard";
 import { apiClient } from "./client";
 
 export interface DashboardParams {
@@ -66,3 +68,15 @@ export const dashboardAPI = {
 		);
 	},
 };
+
+export async function fetchCandidates(
+	sessionId: string,
+): Promise<DraftItemRow[]> {
+	const response = await dashboardAPI.getDashboard({
+		bucket: "needs_confirmation",
+		discoverySessionId: sessionId,
+		size: 100,
+	});
+
+	return response.items.filter(isDraftItem);
+}

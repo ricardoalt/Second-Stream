@@ -9,6 +9,8 @@ export type StreamStatus =
 	| "blocked"
 	| "completed";
 
+export type FollowUpPriority = "urgent" | "high" | "medium" | "low";
+
 export type StreamRow = {
 	id: string;
 	name: string;
@@ -20,30 +22,15 @@ export type StreamRow = {
 	lastUpdated: string;
 	phase: StreamPhase;
 	status: StreamStatus;
-};
-
-export type DraftStreamRow = {
-	id: string;
-	materialType: string;
-	processMethod: string;
-	volume: string;
-	units: string;
-	location: string;
-	lastEdited: string;
-};
-
-export type FollowUpPriority = "urgent" | "overdue" | "upcoming";
-
-export type FollowUpItem = {
-	id: string;
-	streamName: string;
-	client: string;
-	reason: string;
-	nextAction: string;
-	dueDate: string;
-	daysSinceLastActivity: number;
-	priority: FollowUpPriority;
-	missingFields: string[];
+	processMethod?: string;
+	units?: string;
+	lastEdited?: string;
+	daysSinceLastActivity?: number;
+	missingFields?: string[];
+	priority?: FollowUpPriority;
+	reason?: string;
+	nextAction?: string;
+	dueDate?: string;
 };
 
 export type StreamAttachment = {

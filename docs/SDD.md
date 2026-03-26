@@ -711,6 +711,9 @@ All infrastructure files (config, database, auth backend, user manager, startup 
 - Zustand stores (all new state shape)
 - Feature-specific API clients (new endpoints)
 
+**Field-agent frontend canonical plan:**
+- Use `docs/plans/2026-03-24-field-agent-implementation-plan.md` as the canonical implementation plan and Stitch-parity tracking document for field-agent frontend follow-up.
+
 ### 7.4 Implementation Sequence
 
 ```

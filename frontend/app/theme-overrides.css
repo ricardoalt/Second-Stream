@@ -1,4 +1,7 @@
-/* Sprint 1A — Field Agent redesign tokens (light only) */
+/* Sprint 1A — Field Agent redesign tokens (light only)
+ * Source of truth: Stitch "Kinetic Stream" design system
+ * asset: 68b16ca8b601449d8b30790ec9caf33e
+ */
 
 :root,
 .dark {
@@ -9,24 +12,49 @@
 	--popover: color-mix(in srgb, #ffffff 86%, transparent);
 	--popover-foreground: #0b1d2b;
 
+	/* Surface hierarchy — Stitch "Kinetic Stream" exact values */
 	--surface: #f7f9ff;
-	--surface-container: #eef3ff;
+	--surface-container: #e2efff;
 	--surface-container-low: #ecf4ff;
-	--surface-container-high: #f2f7ff;
-	--surface-container-highest: #f7fbff;
+	--surface-container-high: #d9eafd;
+	--surface-container-highest: #d3e4f7;
 	--surface-container-lowest: #ffffff;
+	--surface-dim: #cadcef;
+	--surface-tint: #006a6a;
+	--surface-bright: #f7f9ff;
 
+	/* Primary — Teal */
 	--primary: #006565;
 	--primary-foreground: #ffffff;
+	--primary-container: #008080;
+	--primary-fixed: #93f2f2;
+	--primary-fixed-dim: #76d6d5;
+	--inverse-primary: #76d6d5;
+
+	/* Secondary — Slate blue */
 	--secondary: #545e76;
 	--secondary-foreground: #ffffff;
+	--secondary-container: #d7e2ff;
+
+	/* Tertiary — Steel blue */
+	--tertiary: #435c79;
+	--tertiary-container: #5c7593;
+
+	/* Neutral */
 	--muted: #ecf4ff;
 	--muted-foreground: #5d6c83;
 	--accent: #dde8ff;
 	--accent-foreground: #0b1d2b;
 
-	--destructive: #b3261e;
+	/* Outline */
+	--outline: #6e7979;
+	--outline-variant: #bdc9c8;
+
+	/* Semantic */
+	--destructive: #ba1a1a;
 	--destructive-foreground: #ffffff;
+	--error-container: #ffdad6;
+	--on-error-container: #93000a;
 	--success: #146c43;
 	--success-foreground: #ffffff;
 	--warning: #b7791f;
@@ -34,17 +62,24 @@
 	--info: #2563eb;
 	--info-foreground: #ffffff;
 
+	/* Inverse */
+	--inverse-surface: #213240;
+	--inverse-on-surface: #e7f2ff;
+
+	/* Chrome */
 	--border: color-mix(in srgb, #0b1d2b 20%, transparent);
-	--input: #f7fbff;
+	--input: #d3e4f7;
 	--ring: #006565;
 	--radius: 0.25rem;
 
+	/* Charts */
 	--chart-1: #006565;
 	--chart-2: #008080;
-	--chart-3: #326a9e;
+	--chart-3: #435c79;
 	--chart-4: #146c43;
 	--chart-5: #b7791f;
 
+	/* Sidebar */
 	--sidebar: #ecf4ff;
 	--sidebar-foreground: #5d6c83;
 	--sidebar-primary: #006565;
@@ -54,14 +89,17 @@
 	--sidebar-border: transparent;
 	--sidebar-ring: #006565;
 
+	/* Gradients */
 	--gradient-primary: linear-gradient(135deg, #006565 0%, #008080 100%);
 
+	/* Shadows — tinted with on-surface */
 	--shadow-xs: 0 1px 3px rgb(11 29 43 / 0.04);
 	--shadow-sm: 0 2px 8px rgb(11 29 43 / 0.05);
 	--shadow: 0 4px 12px rgb(11 29 43 / 0.06);
 	--shadow-md: 0 8px 24px rgb(11 29 43 / 0.06);
 	--shadow-lg: 0 10px 30px rgb(11 29 43 / 0.08);
 
+	/* Typography */
 	--font-sans: var(--font-sans), "Inter", sans-serif;
 	--font-display: var(--font-display), "Manrope", sans-serif;
 }
@@ -78,6 +116,20 @@ body {
 	--color-surface-container-high: var(--surface-container-high);
 	--color-surface-container-highest: var(--surface-container-highest);
 	--color-surface-container-lowest: var(--surface-container-lowest);
+	--color-surface-dim: var(--surface-dim);
+	--color-surface-tint: var(--surface-tint);
+	--color-surface-bright: var(--surface-bright);
+	--color-primary-container: var(--primary-container);
+	--color-tertiary: var(--tertiary);
+	--color-tertiary-container: var(--tertiary-container);
+	--color-outline: var(--outline);
+	--color-outline-variant: var(--outline-variant);
+	--color-error-container: var(--error-container);
+	--color-on-error-container: var(--on-error-container);
+	--color-inverse-surface: var(--inverse-surface);
+	--color-inverse-on-surface: var(--inverse-on-surface);
+	--color-inverse-primary: var(--inverse-primary);
+	--color-secondary-container: var(--secondary-container);
 }
 
 .btn-primary-gradient {

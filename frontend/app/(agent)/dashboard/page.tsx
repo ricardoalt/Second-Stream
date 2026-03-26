@@ -8,7 +8,6 @@ import {
 	Layers3,
 	Mic,
 	PlusCircle,
-	Sparkles,
 	Users,
 } from "lucide-react";
 import {
@@ -24,23 +23,6 @@ import {
 import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const kpis = [
 	{
@@ -51,7 +33,7 @@ const kpis = [
 		icon: Layers3,
 	},
 	{
-		title: "Pending follow-ups",
+		title: "Missing information",
 		value: "11",
 		caption: "5 are compliance-sensitive",
 		trend: { value: "-2 from yesterday", direction: "down" as const },
@@ -151,150 +133,73 @@ const pipelineSnapshot: DashboardPipelineStage[] = [
 	{ stage: "Closing", count: 2, value: "$430K", fill: 31 },
 ];
 
-const streams = {
-	active: [
-		{
-			name: "Mixed Solvent Waste",
-			client: "BioTech Solutions",
-			phase: "Phase 3",
-			status: "On Track",
-			updated: "10m ago",
-		},
-		{
-			name: "Acid Etch Solution",
-			client: "Precision Circuits",
-			phase: "Phase 2",
-			status: "Awaiting client",
-			updated: "52m ago",
-		},
-		{
-			name: "Scrap Catalyst Material",
-			client: "Global Refining",
-			phase: "Phase 1",
-			status: "Draft ready",
-			updated: "2h ago",
-		},
-	],
-	action: [
-		{
-			name: "Infectious Solid Waste",
-			client: "City Medical Hub",
-			phase: "Phase 2",
-			status: "Critical delay",
-			updated: "11d stale",
-		},
-		{
-			name: "Oily Water Mixture",
-			client: "Heavy Gear Mfg",
-			phase: "Phase 1",
-			status: "Missing SDS",
-			updated: "8d stale",
-		},
-	],
-	drafts: [
-		{
-			name: "Catalyst Slurry Residue",
-			client: "Zenith Industrial",
-			phase: "Draft",
-			status: "Needs review",
-			updated: "25m ago",
-		},
-		{
-			name: "Spent Coolant Blend",
-			client: "Apex Manufacturing",
-			phase: "Draft",
-			status: "AI suggested",
-			updated: "1h ago",
-		},
-	],
-};
+const blockedStreams = [
+	{
+		material: "Infectious Solid Waste",
+		client: "City Medical Hub",
+		complianceStatus: "Blocked",
+		missingDocs: "Updated transport manifest",
+	},
+	{
+		material: "Oily Water Mixture",
+		client: "Heavy Gear Mfg",
+		complianceStatus: "Pending validation",
+		missingDocs: "SDS + disposal certificate",
+	},
+	{
+		material: "Spent Coolant Blend",
+		client: "Apex Manufacturing",
+		complianceStatus: "Action required",
+		missingDocs: "Generator signature",
+	},
+	{
+		material: "Catalyst Slurry Residue",
+		client: "Zenith Industrial",
+		complianceStatus: "Blocked",
+		missingDocs: "Analysis sheet",
+	},
+];
 
-function renderStreamTable(
-	items: Array<{
-		name: string;
-		client: string;
-		phase: string;
-		status: string;
-		updated: string;
-	}>,
-) {
-	return (
-		<Table>
-			<TableHeader>
-				<TableRow className="bg-surface-container-low">
-					<TableHead className="px-4 py-3 text-[0.68rem]">Stream</TableHead>
-					<TableHead className="px-4 py-3 text-[0.68rem]">Client</TableHead>
-					<TableHead className="px-4 py-3 text-[0.68rem]">Phase</TableHead>
-					<TableHead className="px-4 py-3 text-[0.68rem]">Status</TableHead>
-					<TableHead className="px-4 py-3 text-right text-[0.68rem]">
-						Last updated
-					</TableHead>
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				{items.map((stream, index) => (
-					<TableRow
-						key={`${stream.name}-${stream.client}`}
-						className={
-							index % 2 === 0 ? "bg-surface" : "bg-surface-container-low"
-						}
-					>
-						<TableCell className="px-4 py-3 font-medium text-foreground">
-							{stream.name}
-						</TableCell>
-						<TableCell className="px-4 py-3 text-muted-foreground">
-							{stream.client}
-						</TableCell>
-						<TableCell className="px-4 py-3 text-muted-foreground">
-							{stream.phase}
-						</TableCell>
-						<TableCell className="px-4 py-3">
-							<Badge
-								variant="muted"
-								className="rounded-full border-0 text-[0.65rem]"
-							>
-								{stream.status}
-							</Badge>
-						</TableCell>
-						<TableCell className="px-4 py-3 text-right text-muted-foreground">
-							{stream.updated}
-						</TableCell>
-					</TableRow>
-				))}
-			</TableBody>
-		</Table>
-	);
+function getGreeting(now: Date) {
+	const hour = now.getHours();
+	if (hour < 12) return "Good morning";
+	if (hour < 18) return "Good afternoon";
+	return "Good evening";
 }
 
 export default function AgentDashboardPage() {
 	const discoveryWizard = useDiscoveryWizard();
+	const now = new Date();
+	const formattedDate = now.toLocaleDateString("en-US", {
+		weekday: "long",
+		month: "long",
+		day: "numeric",
+	});
+	const greeting = getGreeting(now);
 
 	return (
 		<div className="flex flex-col gap-8">
+			{/* Zone 1: Greeting Header */}
 			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
-				<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-					<div className="flex flex-col gap-1">
-						<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-							Good morning, Alex
-						</h1>
-						<p className="text-sm text-muted-foreground">
-							Tuesday, March 24 • Prioritize follow-ups and unblock high-value
-							streams.
-						</p>
-					</div>
-					<Button className="md:self-center" onClick={discoveryWizard.open}>
-						<Sparkles data-icon="inline-start" aria-hidden="true" />
-						Discovery Wizard
-					</Button>
+				<div className="flex flex-col gap-1">
+					<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
+						{greeting}, Alex
+					</h1>
+					<p className="text-sm text-muted-foreground">
+						{formattedDate} • Prioritize missing information and unblock
+						high-value streams.
+					</p>
 				</div>
 			</section>
 
+			{/* Zone 2: KPI Cards */}
 			<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				{kpis.map((kpi) => (
 					<AgentDashboardKpiCard key={kpi.title} {...kpi} />
 				))}
 			</section>
 
+			{/* Zone 3: Activity + Quick Actions */}
 			<section className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
 				<AgentDashboardActivityFeed items={recentActivity} />
 				<AgentDashboardQuickActions
@@ -308,42 +213,73 @@ export default function AgentDashboardPage() {
 				/>
 			</section>
 
-			<section>
-				<Card className="bg-surface-container-lowest shadow-sm">
-					<CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-						<div className="flex flex-col gap-1">
-							<CardTitle className="font-display text-xl font-semibold">
-								My streams
-							</CardTitle>
-							<CardDescription>
-								Track active streams, blocked items, and fresh drafts.
-							</CardDescription>
+			{/* Zone 4: Blocked Streams */}
+			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
+				<div className="mb-4 flex items-end justify-between gap-4">
+					<div>
+						<h2 className="font-display text-xl font-semibold">
+							Blocked Streams
+						</h2>
+						<p className="text-sm text-muted-foreground">
+							Streams waiting on compliance documentation before progress.
+						</p>
+					</div>
+				</div>
+				<div className="grid grid-cols-[1.3fr_1fr_1fr_1.2fr_auto] gap-3 px-3 py-2 text-[0.68rem] font-semibold uppercase tracking-wide text-muted-foreground">
+					<span>Material</span>
+					<span>Client</span>
+					<span>Compliance Status</span>
+					<span>Missing Docs</span>
+					<span className="text-right">Action</span>
+				</div>
+				<div className="space-y-2">
+					{blockedStreams.map((stream) => (
+						<div
+							key={`${stream.material}-${stream.client}`}
+							className="grid grid-cols-[1.3fr_1fr_1fr_1.2fr_auto] items-center gap-3 rounded-xl bg-surface-container-low px-3 py-3"
+						>
+							<span className="text-sm font-medium text-foreground">
+								{stream.material}
+							</span>
+							<span className="text-sm text-muted-foreground">
+								{stream.client}
+							</span>
+							<Badge variant="muted" className="w-fit border-0 rounded-full">
+								{stream.complianceStatus}
+							</Badge>
+							<span className="text-sm text-muted-foreground">
+								{stream.missingDocs}
+							</span>
+							<div className="flex justify-end">
+								<Button size="sm">Resolve</Button>
+							</div>
 						</div>
-					</CardHeader>
-					<CardContent className="pt-0">
-						<Tabs defaultValue="active" className="flex flex-col gap-3">
-							<TabsList className="w-fit bg-surface-container-low">
-								<TabsTrigger value="active">Active</TabsTrigger>
-								<TabsTrigger value="action">Action required</TabsTrigger>
-								<TabsTrigger value="drafts">Drafts</TabsTrigger>
-							</TabsList>
-							<TabsContent value="active" className="mt-0">
-								{renderStreamTable(streams.active)}
-							</TabsContent>
-							<TabsContent value="action" className="mt-0">
-								{renderStreamTable(streams.action)}
-							</TabsContent>
-							<TabsContent value="drafts" className="mt-0">
-								{renderStreamTable(streams.drafts)}
-							</TabsContent>
-						</Tabs>
-					</CardContent>
-					<CardFooter className="justify-end">
-						<Button variant="ghost" className="text-primary">
-							View all streams
-						</Button>
-					</CardFooter>
-				</Card>
+					))}
+				</div>
+			</section>
+
+			{/* Zone 5: Strategic Focus */}
+			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
+				<div className="mb-4">
+					<h2 className="font-display text-xl font-semibold">
+						Today's Strategic Focus
+					</h2>
+					<p className="text-sm text-muted-foreground">
+						High-impact tasks curated to maximize pipeline velocity
+					</p>
+				</div>
+				<p className="mb-3 text-sm font-medium text-foreground">
+					2 / 5 Complete
+				</p>
+				<div className="rounded-xl bg-surface-container-low p-4">
+					<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+						Placeholder task
+					</p>
+					<p className="mt-1 text-sm font-medium text-foreground">
+						Unblock City Medical Hub by collecting signed manifest and SDS
+						packet.
+					</p>
+				</div>
 			</section>
 		</div>
 	);

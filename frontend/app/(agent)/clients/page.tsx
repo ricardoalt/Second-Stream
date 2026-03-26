@@ -1,12 +1,20 @@
 "use client";
 
-import { Building2, PlusCircle, Search, SlidersHorizontal } from "lucide-react";
+import {
+	Building2,
+	ChevronRight,
+	PlusCircle,
+	Search,
+	SlidersHorizontal,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ClientPortfolioCard } from "@/components/features/clients/components/client-portfolio-card";
 import {
 	type ClientStatus,
 	portfolioClients,
 } from "@/components/features/clients/mock-data";
+import { AddNewClientModal } from "@/components/features/modals/add-new-client-modal";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,13 +25,34 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
 	style: "currency",
 	currency: "USD",
 	maximumFractionDigits: 0,
 });
+
+const statusLabel: Record<ClientStatus, string> = {
+	active: "Active",
+	prospect: "Prospect",
+	inactive: "Inactive",
+};
+
+const statusClass: Record<ClientStatus, string> = {
+	active: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+	prospect: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+	inactive: "bg-muted text-muted-foreground",
+};
 
 const sortOptions = {
 	"name-asc": "Name (A-Z)",
@@ -71,7 +100,9 @@ function bySortOption(
 }
 
 export default function ClientsPage() {
+	const router = useRouter();
 	const [searchValue, setSearchValue] = useState("");
+	const [addClientOpen, setAddClientOpen] = useState<boolean>(false);
 	const [statusFilter, setStatusFilter] = useState<"all" | ClientStatus>("all");
 	const [industryFilter, setIndustryFilter] = useState<string>("all");
 	const [sortBy, setSortBy] = useState<SortOption>("name-asc");
@@ -123,6 +154,9 @@ export default function ClientsPage() {
 
 	return (
 		<div className="flex flex-col gap-8">
+			<AddNewClientModal open={addClientOpen} onOpenChange={setAddClientOpen} />
+
+			{/* ── Header ── */}
 			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
 				<div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
 					<div className="flex flex-col gap-2">
@@ -138,12 +172,13 @@ export default function ClientsPage() {
 							prioritize high-value opportunities.
 						</p>
 					</div>
-					<Button>
+					<Button onClick={() => setAddClientOpen(true)}>
 						<PlusCircle data-icon="inline-start" aria-hidden="true" />
 						Add New Client
 					</Button>
 				</div>
 
+				{/* ── KPI row ── */}
 				<div className="mt-6 grid gap-3 md:grid-cols-3">
 					<div className="rounded-xl bg-surface-container-low p-4">
 						<p className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
@@ -172,6 +207,7 @@ export default function ClientsPage() {
 				</div>
 			</section>
 
+			{/* ── Filter bar ── */}
 			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
 				<div className="flex flex-col gap-3 lg:flex-row lg:items-center">
 					<div className="relative flex-1">
@@ -247,10 +283,93 @@ export default function ClientsPage() {
 				</div>
 			</section>
 
-			<section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-				{filteredClients.map((client) => (
-					<ClientPortfolioCard key={client.id} client={client} />
-				))}
+			{/* ── Operations table ── */}
+			<section className="overflow-hidden rounded-2xl bg-surface-container-lowest shadow-sm">
+				<Table>
+					<TableHeader>
+						<TableRow className="bg-surface-container-low">
+							<TableHead className="px-4 py-3 text-[0.68rem]">
+								Client name
+							</TableHead>
+							<TableHead className="px-4 py-3 text-[0.68rem]">
+								Industry
+							</TableHead>
+							<TableHead className="px-4 py-3 text-center text-[0.68rem]">
+								Locations
+							</TableHead>
+							<TableHead className="px-4 py-3 text-center text-[0.68rem]">
+								Streams
+							</TableHead>
+							<TableHead className="px-4 py-3 text-right text-[0.68rem]">
+								Pipeline
+							</TableHead>
+							<TableHead className="px-4 py-3 text-center text-[0.68rem]">
+								Status
+							</TableHead>
+							<TableHead className="px-4 py-3 text-[0.68rem]">
+								Last activity
+							</TableHead>
+							<TableHead className="px-4 py-3 text-right text-[0.68rem]">
+								&nbsp;
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{filteredClients.map((client, index) => (
+							<TableRow
+								key={client.id}
+								onClick={() => router.push(`/clients/${client.id}`)}
+								className={cn(
+									"cursor-pointer transition-colors hover:bg-surface-container-low/60",
+									index % 2 === 0 ? "bg-surface" : "bg-surface-container-low",
+								)}
+							>
+								<TableCell className="px-4 py-3">
+									<div className="flex flex-col gap-0.5">
+										<span className="font-medium text-foreground">
+											{client.name}
+										</span>
+										<span className="text-xs text-muted-foreground">
+											{client.contactName} · {client.contactRole}
+										</span>
+									</div>
+								</TableCell>
+								<TableCell className="px-4 py-3 text-sm text-muted-foreground">
+									{client.industry}
+								</TableCell>
+								<TableCell className="px-4 py-3 text-center text-sm text-muted-foreground">
+									{client.locationCount}
+								</TableCell>
+								<TableCell className="px-4 py-3 text-center text-sm font-medium text-foreground">
+									{client.streamCount}
+								</TableCell>
+								<TableCell className="px-4 py-3 text-right text-sm font-medium text-foreground">
+									{currencyFormatter.format(client.pipelineValue)}
+								</TableCell>
+								<TableCell className="px-4 py-3 text-center">
+									<Badge
+										variant="secondary"
+										className={cn(
+											"rounded-full border-0 text-[0.65rem]",
+											statusClass[client.status],
+										)}
+									>
+										{statusLabel[client.status]}
+									</Badge>
+								</TableCell>
+								<TableCell className="px-4 py-3 text-sm text-muted-foreground">
+									{client.lastActivity}
+								</TableCell>
+								<TableCell className="px-4 py-3 text-right">
+									<ChevronRight
+										aria-hidden
+										className="size-4 text-muted-foreground"
+									/>
+								</TableCell>
+							</TableRow>
+						))}
+					</TableBody>
+				</Table>
 			</section>
 		</div>
 	);

@@ -1,7 +1,8 @@
 "use client";
 
-import { Bolt, ClipboardPaste, Sparkles } from "lucide-react";
+import { ClipboardPaste, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,8 +11,9 @@ import {
 	DialogDescription,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+
+const MIN_QUICK_PASTE_LENGTH = 20;
 
 type QuickPasteModalProps = {
 	open: boolean;
@@ -19,44 +21,24 @@ type QuickPasteModalProps = {
 };
 
 export function QuickPasteModal({ open, onOpenChange }: QuickPasteModalProps) {
+	const discoveryWizard = useDiscoveryWizard();
 	const [text, setText] = useState("");
-	const [isProcessing, setIsProcessing] = useState(false);
-	const [progress, setProgress] = useState(0);
-
-	useEffect(() => {
-		if (!isProcessing) return undefined;
-
-		const interval = window.setInterval(() => {
-			setProgress((value) => Math.min(100, value + 12));
-		}, 120);
-
-		const timeout = window.setTimeout(() => {
-			setIsProcessing(false);
-			setProgress(100);
-		}, 1200);
-
-		return () => {
-			window.clearInterval(interval);
-			window.clearTimeout(timeout);
-		};
-	}, [isProcessing]);
+	const trimmedText = text.trim();
+	const hasValidText = trimmedText.length >= MIN_QUICK_PASTE_LENGTH;
+	const charsNeeded = MIN_QUICK_PASTE_LENGTH - trimmedText.length;
 
 	useEffect(() => {
 		if (!open) {
 			setText("");
-			setIsProcessing(false);
-			setProgress(0);
 		}
 	}, [open]);
-
-	const finished = !isProcessing && progress === 100;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="glass-popover w-[min(92vw,760px)] max-w-none gap-0 rounded-xl p-0">
 				<DialogTitle className="sr-only">Quick Paste Modal</DialogTitle>
 				<DialogDescription className="sr-only">
-					Paste unstructured data and run mock AI extraction.
+					Paste unstructured data then continue in Discovery Wizard.
 				</DialogDescription>
 
 				<div className="flex flex-col bg-surface-container-lowest">
@@ -66,7 +48,7 @@ export function QuickPasteModal({ open, onOpenChange }: QuickPasteModalProps) {
 							<p className="font-display text-lg font-semibold">Quick Paste</p>
 						</div>
 						<Badge variant="secondary" className="rounded-full">
-							AI Extraction Enabled
+							Bridge to Discovery Wizard
 						</Badge>
 					</div>
 
@@ -76,23 +58,20 @@ export function QuickPasteModal({ open, onOpenChange }: QuickPasteModalProps) {
 							onChange={(event) => setText(event.target.value)}
 							placeholder="Paste laboratory certificates, shipping manifests, or supplier emails..."
 							className="min-h-60 bg-surface"
+							aria-describedby={
+								!hasValidText && trimmedText.length > 0
+									? "quick-paste-text-hint"
+									: undefined
+							}
 						/>
-
-						{isProcessing || finished ? (
-							<div className="flex flex-col gap-2 rounded-lg bg-surface p-3">
-								<Progress value={progress} aria-label="Extraction progress" />
-								{finished ? (
-									<div className="flex flex-wrap gap-2">
-										<Badge className="rounded-full">Material identified</Badge>
-										<Badge className="rounded-full">Volume identified</Badge>
-										<Badge className="rounded-full">Location identified</Badge>
-									</div>
-								) : (
-									<p className="text-xs text-muted-foreground">
-										Analyzing content and extracting structured fields...
-									</p>
-								)}
-							</div>
+						{!hasValidText && trimmedText.length > 0 ? (
+							<output
+								id="quick-paste-text-hint"
+								className="text-xs text-warning"
+							>
+								{charsNeeded} more character{charsNeeded === 1 ? "" : "s"}{" "}
+								needed
+							</output>
 						) : null}
 					</div>
 
@@ -102,22 +81,15 @@ export function QuickPasteModal({ open, onOpenChange }: QuickPasteModalProps) {
 						</Button>
 						<Button
 							onClick={() => {
-								setProgress(8);
-								setIsProcessing(true);
+								onOpenChange(false);
+								window.setTimeout(() => {
+									discoveryWizard.openWithText(trimmedText);
+								}, 0);
 							}}
-							disabled={text.trim().length < 20 || isProcessing}
+							disabled={!hasValidText}
 						>
-							{isProcessing ? (
-								<>
-									<Sparkles data-icon="inline-start" aria-hidden />
-									Extracting...
-								</>
-							) : (
-								<>
-									<Bolt data-icon="inline-start" aria-hidden />
-									Analyze &amp; Extract
-								</>
-							)}
+							<ExternalLink data-icon="inline-start" aria-hidden />
+							Open in Discovery Wizard
 						</Button>
 					</div>
 				</div>

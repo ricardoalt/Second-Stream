@@ -1,9 +1,15 @@
 "use client";
 
-import { Building2, PlusCircle } from "lucide-react";
+import { Building2, ChevronDown, PlusCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { CompactSectorSelect } from "@/components/shared/forms/compact-sector-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
 	Dialog,
 	DialogContent,
@@ -23,33 +29,46 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { isValidZipCode, ZIP_CODE_FORMAT_MESSAGE } from "@/lib/forms/schemas";
+import type { Sector, Subsector } from "@/lib/sectors-config";
+import { cn } from "@/lib/utils";
 
 type AddNewClientModalProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 };
 
-const industries = [
-	"Chemical Manufacturing",
-	"Pharmaceutical",
-	"Energy & Utilities",
-	"Aerospace",
-	"Food Processing",
-];
-
 const statuses = ["active", "prospect", "inactive"] as const;
 
-const initialFormState = {
+type AddNewClientFormState = {
+	companyName: string;
+	sector: Sector | "";
+	subsector: Subsector | "";
+	status: (typeof statuses)[number];
+	contactName: string;
+	contactEmail: string;
+	contactPhone: string;
+	locationName: string;
+	locationCity: string;
+	locationState: string;
+	locationAddress: string;
+	locationZip: string;
+	notes: string;
+};
+
+const initialFormState: AddNewClientFormState = {
 	companyName: "",
-	industry: industries[0] ?? "",
+	sector: "",
+	subsector: "",
 	status: statuses[0],
 	contactName: "",
 	contactEmail: "",
 	contactPhone: "",
-	addressLine1: "",
-	city: "",
-	state: "",
-	postalCode: "",
+	locationName: "",
+	locationCity: "",
+	locationState: "",
+	locationAddress: "",
+	locationZip: "",
 	notes: "",
 };
 
@@ -58,19 +77,29 @@ export function AddNewClientModal({
 	onOpenChange,
 }: AddNewClientModalProps) {
 	const [form, setForm] = useState(initialFormState);
+	const [isFirstLocationOpen, setIsFirstLocationOpen] = useState(false);
+
+	const locationZipTrimmed = form.locationZip.trim();
+	const locationZipError =
+		locationZipTrimmed.length > 0 && !isValidZipCode(locationZipTrimmed)
+			? ZIP_CODE_FORMAT_MESSAGE
+			: null;
 
 	useEffect(() => {
 		if (!open) {
 			setForm(initialFormState);
+			setIsFirstLocationOpen(false);
 		}
 	}, [open]);
 
-	function updateField(field: keyof typeof initialFormState, value: string) {
+	function updateField(
+		field: keyof AddNewClientFormState,
+		value: AddNewClientFormState[keyof AddNewClientFormState],
+	) {
 		setForm((current) => ({ ...current, [field]: value }));
 	}
 
-	const canCreate =
-		form.companyName.trim().length > 1 && form.contactEmail.trim().length > 3;
+	const canCreate = form.companyName.trim().length > 1;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,8 +115,8 @@ export function AddNewClientModal({
 						Add New Client
 					</DialogTitle>
 					<DialogDescription>
-						Register a new industrial account with company profile, contact, and
-						address details.
+						Register a new industrial account with industry classification and
+						optional first location.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -132,24 +161,13 @@ export function AddNewClientModal({
 
 					<div className="grid gap-4 md:grid-cols-2">
 						<div className="flex flex-col gap-2">
-							<Label>Industry</Label>
-							<Select
-								value={form.industry}
-								onValueChange={(value) => updateField("industry", value)}
-							>
-								<SelectTrigger className="bg-surface">
-									<SelectValue placeholder="Select industry" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectGroup>
-										{industries.map((item) => (
-											<SelectItem key={item} value={item}>
-												{item}
-											</SelectItem>
-										))}
-									</SelectGroup>
-								</SelectContent>
-							</Select>
+							<CompactSectorSelect
+								sector={form.sector}
+								subsector={form.subsector}
+								onSectorChange={(value) => updateField("sector", value)}
+								onSubsectorChange={(value) => updateField("subsector", value)}
+								className="space-y-2"
+							/>
 						</div>
 						<div className="flex flex-col gap-2">
 							<Label htmlFor="new-client-contact-name">
@@ -195,49 +213,98 @@ export function AddNewClientModal({
 						</div>
 					</div>
 
-					<div className="grid gap-4 md:grid-cols-6">
-						<div className="flex flex-col gap-2 md:col-span-3">
-							<Label htmlFor="new-client-address-line1">Address</Label>
-							<Input
-								id="new-client-address-line1"
-								value={form.addressLine1}
-								onChange={(event) =>
-									updateField("addressLine1", event.target.value)
-								}
-								placeholder="1401 Eastgate Industrial Pkwy"
-								className="bg-surface"
-							/>
-						</div>
-						<div className="flex flex-col gap-2 md:col-span-1">
-							<Label htmlFor="new-client-city">City</Label>
-							<Input
-								id="new-client-city"
-								value={form.city}
-								onChange={(event) => updateField("city", event.target.value)}
-								className="bg-surface"
-							/>
-						</div>
-						<div className="flex flex-col gap-2 md:col-span-1">
-							<Label htmlFor="new-client-state">State</Label>
-							<Input
-								id="new-client-state"
-								value={form.state}
-								onChange={(event) => updateField("state", event.target.value)}
-								className="bg-surface"
-							/>
-						</div>
-						<div className="flex flex-col gap-2 md:col-span-1">
-							<Label htmlFor="new-client-postal">Postal</Label>
-							<Input
-								id="new-client-postal"
-								value={form.postalCode}
-								onChange={(event) =>
-									updateField("postalCode", event.target.value)
-								}
-								className="bg-surface"
-							/>
-						</div>
-					</div>
+					<Collapsible
+						open={isFirstLocationOpen}
+						onOpenChange={setIsFirstLocationOpen}
+						className="rounded-lg border border-border/60 bg-surface/50"
+					>
+						<CollapsibleTrigger asChild>
+							<Button
+								variant="ghost"
+								type="button"
+								className="w-full justify-between px-4 py-3 text-sm font-medium"
+							>
+								<span>Add first location (optional)</span>
+								<ChevronDown
+									className={cn(
+										"h-4 w-4 transition-transform",
+										isFirstLocationOpen && "rotate-180",
+									)}
+								/>
+							</Button>
+						</CollapsibleTrigger>
+						<CollapsibleContent className="px-4 pb-4">
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="flex flex-col gap-2">
+									<Label htmlFor="new-client-location-name">
+										Location name
+									</Label>
+									<Input
+										id="new-client-location-name"
+										value={form.locationName}
+										onChange={(event) =>
+											updateField("locationName", event.target.value)
+										}
+										placeholder="Houston Main Processing"
+										className="bg-surface"
+									/>
+								</div>
+								<div className="flex flex-col gap-2">
+									<Label htmlFor="new-client-location-address">Address</Label>
+									<Input
+										id="new-client-location-address"
+										value={form.locationAddress}
+										onChange={(event) =>
+											updateField("locationAddress", event.target.value)
+										}
+										placeholder="1401 Eastgate Industrial Pkwy"
+										className="bg-surface"
+									/>
+								</div>
+							</div>
+							<div className="mt-4 grid gap-4 md:grid-cols-6">
+								<div className="flex flex-col gap-2 md:col-span-3">
+									<Label htmlFor="new-client-location-city">City</Label>
+									<Input
+										id="new-client-location-city"
+										value={form.locationCity}
+										onChange={(event) =>
+											updateField("locationCity", event.target.value)
+										}
+										className="bg-surface"
+									/>
+								</div>
+								<div className="flex flex-col gap-2 md:col-span-1">
+									<Label htmlFor="new-client-location-state">State</Label>
+									<Input
+										id="new-client-location-state"
+										value={form.locationState}
+										onChange={(event) =>
+											updateField("locationState", event.target.value)
+										}
+										className="bg-surface"
+									/>
+								</div>
+								<div className="flex flex-col gap-2 md:col-span-2">
+									<Label htmlFor="new-client-location-zip">ZIP</Label>
+									<Input
+										id="new-client-location-zip"
+										value={form.locationZip}
+										onChange={(event) =>
+											updateField("locationZip", event.target.value)
+										}
+										placeholder="77029"
+										className="bg-surface"
+									/>
+									{locationZipError && (
+										<p className="text-xs text-destructive">
+											{locationZipError}
+										</p>
+									)}
+								</div>
+							</div>
+						</CollapsibleContent>
+					</Collapsible>
 
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="new-client-notes">Notes</Label>
@@ -255,7 +322,10 @@ export function AddNewClientModal({
 					<Button
 						variant="secondary"
 						type="button"
-						onClick={() => setForm(initialFormState)}
+						onClick={() => {
+							setForm(initialFormState);
+							setIsFirstLocationOpen(false);
+						}}
 					>
 						Reset form
 					</Button>

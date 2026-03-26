@@ -34,7 +34,7 @@ type SendEmailModalProps = {
 const templates = [
 	"Follow-up after site visit",
 	"Compliance documentation request",
-	"Proposal summary and next steps",
+	"Offer summary and next steps",
 	"Pickup coordination update",
 ];
 

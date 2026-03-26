@@ -2,14 +2,18 @@
 
 import {
 	AlertCircle,
+	Calendar,
 	CheckCircle,
+	CircleCheck,
 	FileSpreadsheet,
 	FileText,
 	Image,
 	Loader2,
 	MapPin,
 	Mic,
+	Package,
 	Plus,
+	Trash2,
 	Waves,
 	X,
 } from "lucide-react";
@@ -20,12 +24,16 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { CompanyCombobox } from "@/components/ui/company-combobox";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { bulkImportAPI } from "@/lib/api/bulk-import";
+import { fetchCandidates } from "@/lib/api/dashboard";
 import { discoverySessionsAPI } from "@/lib/api/discovery-sessions";
 import { routes } from "@/lib/routes";
 import { useDashboardActions } from "@/lib/stores/dashboard-store";
+import type { DraftItemRow } from "@/lib/types/dashboard";
 import type {
 	DiscoverySessionResult,
 	DiscoverySource,
+	DraftCandidate,
 } from "@/lib/types/discovery";
 import { cn } from "@/lib/utils";
 
@@ -101,12 +109,27 @@ const COUNTER_DURATION_MS = 800;
 // TYPES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-type WizardPhase = "idle" | "submitting" | "processing" | "result" | "error";
+type WizardPhase =
+	| "idle"
+	| "submitting"
+	| "processing"
+	| "result"
+	| "review"
+	| "confirming"
+	| "complete"
+	| "error";
+
+interface ReviewSummary {
+	confirmed: number;
+	skipped: number;
+	total: number;
+}
 
 interface DiscoveryWizardProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	defaultCompanyId?: string;
+	defaultText?: string;
 }
 
 interface ConfirmTerminalSessionArgs {
@@ -203,6 +226,40 @@ export function navigateToSessionScopedDashboard({
 	push(routes.dashboard);
 }
 
+export function mapCandidateRows(rows: DraftItemRow[]): DraftCandidate[] {
+	return rows.map((row) => ({
+		itemId: row.itemId,
+		runId: row.runId,
+		material: row.streamName,
+		volume: row.volumeSummary,
+		locationLabel: row.locationLabel,
+		source: row.sourceFilename ?? sourceTypeLabelFromDraft(row.sourceType),
+		confidence: row.confidence,
+		status: "pending",
+	}));
+}
+
+function sourceTypeLabelFromDraft(
+	sourceType: DraftItemRow["sourceType"],
+): string {
+	if (sourceType === "voice_interview") {
+		return "Voice interview";
+	}
+	return "Bulk import";
+}
+
+function reviewCounts(candidates: DraftCandidate[]): ReviewSummary {
+	const confirmed = candidates.filter(
+		(item) => item.status === "confirmed",
+	).length;
+	const skipped = candidates.filter((item) => item.status === "skipped").length;
+	return {
+		confirmed,
+		skipped,
+		total: candidates.length,
+	};
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // HOOKS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -264,6 +321,7 @@ export function DiscoveryWizard({
 	open,
 	onOpenChange,
 	defaultCompanyId,
+	defaultText,
 }: DiscoveryWizardProps): ReactElement {
 	// ── State ──
 	const [phase, setPhase] = useState<WizardPhase>("idle");
@@ -272,6 +330,11 @@ export function DiscoveryWizard({
 	const [audioFile, setAudioFile] = useState<File | null>(null);
 	const [text, setText] = useState("");
 	const [result, setResult] = useState<DiscoverySessionResult | null>(null);
+	const [candidates, setCandidates] = useState<DraftCandidate[]>([]);
+	const [confirmingId, setConfirmingId] = useState<string | null>(null);
+	const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(
+		null,
+	);
 	const [error, setError] = useState<string | null>(null);
 	const [dragActive, setDragActive] = useState(false);
 
@@ -292,7 +355,8 @@ export function DiscoveryWizard({
 	const canDiscover =
 		companyId !== "" &&
 		(files.length > 0 || audioFile !== null || hasValidTextSource);
-	const isBlocking = phase === "submitting" || phase === "processing";
+	const isBlocking =
+		phase === "submitting" || phase === "processing" || phase === "confirming";
 
 	// ── Sync defaultCompanyId on open ──
 	useEffect(
@@ -302,6 +366,19 @@ export function DiscoveryWizard({
 			}
 		},
 		[open, defaultCompanyId],
+	);
+
+	// ── Prefill text when opened via quick paste bridge ──
+	useEffect(
+		function syncDefaultTextOnOpen() {
+			if (!open) {
+				return;
+			}
+			if (defaultText && defaultText.trim().length > 0) {
+				setText(defaultText);
+			}
+		},
+		[open, defaultText],
 	);
 
 	// ── Reset on close ──
@@ -316,6 +393,9 @@ export function DiscoveryWizard({
 				setAudioFile(null);
 				setText("");
 				setResult(null);
+				setCandidates([]);
+				setConfirmingId(null);
+				setReviewSummary(null);
 				setError(null);
 				setDragActive(false);
 				dragCounterRef.current = 0;
@@ -478,6 +558,19 @@ export function DiscoveryWizard({
 						setPhase("error");
 					} else {
 						setResult(finalSession);
+						if (finalSession.summary.draftsNeedingConfirmation > 0) {
+							try {
+								const rows = await fetchCandidates(sid);
+								const mapped = mapCandidateRows(rows);
+								if (mapped.length > 0) {
+									setCandidates(mapped);
+									setPhase("review");
+									return;
+								}
+							} catch {
+								toast.error("Could not load draft candidates for review");
+							}
+						}
 						setPhase("result");
 					}
 					return;
@@ -562,7 +655,62 @@ export function DiscoveryWizard({
 		setPhase("idle");
 		setError(null);
 		setResult(null);
+		setCandidates([]);
+		setConfirmingId(null);
+		setReviewSummary(null);
 	}, []);
+
+	const handleConfirmCandidate = useCallback(async (itemId: string) => {
+		setPhase("confirming");
+		setConfirmingId(itemId);
+		try {
+			await bulkImportAPI.decideDiscoveryDraft(itemId, { action: "confirm" });
+			setCandidates((prev) =>
+				prev.map((candidate) =>
+					candidate.itemId === itemId
+						? { ...candidate, status: "confirmed" }
+						: candidate,
+				),
+			);
+		} catch (err) {
+			toast.error(
+				err instanceof Error ? err.message : "Failed to confirm stream",
+			);
+		} finally {
+			setConfirmingId(null);
+			setPhase("review");
+		}
+	}, []);
+
+	const handleSkipCandidate = useCallback((itemId: string) => {
+		setCandidates((prev) =>
+			prev.map((candidate) =>
+				candidate.itemId === itemId
+					? { ...candidate, status: "skipped" }
+					: candidate,
+			),
+		);
+	}, []);
+
+	const handleFinishReview = useCallback(() => {
+		const counts = reviewCounts(candidates);
+		const allActioned = counts.confirmed + counts.skipped === counts.total;
+		if (!allActioned && counts.confirmed < 1) {
+			return;
+		}
+		setReviewSummary(counts);
+		setPhase("complete");
+	}, [candidates]);
+
+	const handleGoToStreams = useCallback(() => {
+		onOpenChange(false);
+		router.push(routes.streams.all);
+	}, [onOpenChange, router]);
+
+	const handleGoToDrafts = useCallback(() => {
+		onOpenChange(false);
+		router.push(routes.streams.all);
+	}, [onOpenChange, router]);
 
 	// ── Navigate to dashboard ──
 	const handleGoToDashboard = useCallback(
@@ -593,13 +741,13 @@ export function DiscoveryWizard({
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
-				className="discovery-wizard-dialog max-w-[540px] min-h-[480px] p-0 gap-0 overflow-hidden rounded-2xl shadow-water-lg"
+				className="glass-popover discovery-wizard-dialog w-[min(92vw,800px)] max-w-none min-h-[560px] p-0 gap-0 overflow-hidden rounded-2xl shadow-water-lg"
 				showCloseButton={!isBlocking}
 			>
 				<div
 					key={phase}
 					aria-live="polite"
-					className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col min-h-[480px]"
+					className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col min-h-[560px]"
 				>
 					{(phase === "idle" || phase === "submitting") && (
 						<IdleView
@@ -632,6 +780,28 @@ export function DiscoveryWizard({
 
 					{phase === "result" && result && (
 						<ResultView result={result} onGoToDashboard={handleGoToDashboard} />
+					)}
+
+					{phase === "review" && (
+						<ReviewView
+							candidates={candidates}
+							confirmingId={confirmingId}
+							onConfirm={handleConfirmCandidate}
+							onSkip={handleSkipCandidate}
+							onFinish={handleFinishReview}
+						/>
+					)}
+
+					{phase === "confirming" && <ConfirmingView />}
+
+					{phase === "complete" && reviewSummary && (
+						<CompleteView
+							confirmed={reviewSummary.confirmed}
+							skipped={reviewSummary.skipped}
+							total={reviewSummary.total}
+							onGoToStreams={handleGoToStreams}
+							onGoToDrafts={handleGoToDrafts}
+						/>
 					)}
 
 					{phase === "error" && (
@@ -700,247 +870,538 @@ function IdleView({
 }) {
 	const hasAttachments = files.length > 0 || audioFile !== null;
 	const isSubmitting = phase === "submitting";
-	const charsNeeded = MIN_DISCOVERY_TEXT_LENGTH - trimmedText.length;
+
+	const [wizardTab, setWizardTab] = useState<"ai" | "quick">("ai");
+	const [qe, setQe] = useState({
+		client: "",
+		material: "",
+		process: "",
+		volume: "",
+		units: "Gallons",
+		location: "",
+		frequency: "Weekly",
+		packaging: "Bulk Tanker",
+		firstLift: "",
+	});
 
 	return (
 		<div className="flex flex-col flex-1">
 			{/* Header */}
-			<div className="px-6 pt-6 pb-4">
+			<div className="px-6 pt-6 pb-2">
 				<h2 className="font-display text-lg font-semibold tracking-tight">
 					Discovery Wizard
 				</h2>
 				<p className="text-sm text-muted-foreground/80 mt-0.5">
-					Upload files, record audio, or describe waste streams
+					Select a method to identify and ingest waste stream data
 				</p>
+				{/* Tab bar */}
+				<div className="mt-3 flex gap-1 border-b border-border/20">
+					<button
+						type="button"
+						onClick={() => setWizardTab("ai")}
+						className={cn(
+							"px-4 py-2 text-xs font-semibold uppercase tracking-[0.05em] border-b-2 transition-colors",
+							wizardTab === "ai"
+								? "border-primary text-primary"
+								: "border-transparent text-muted-foreground hover:text-foreground",
+						)}
+					>
+						AI Discovery
+					</button>
+					<button
+						type="button"
+						onClick={() => setWizardTab("quick")}
+						className={cn(
+							"px-4 py-2 text-xs font-semibold uppercase tracking-[0.05em] border-b-2 transition-colors",
+							wizardTab === "quick"
+								? "border-primary text-primary"
+								: "border-transparent text-muted-foreground hover:text-foreground",
+						)}
+					>
+						Quick Entry
+					</button>
+				</div>
 			</div>
 
-			{/* Drop zone */}
-			<div className="px-6">
-				<section
-					aria-label={dragActive ? "Drop files here" : "File upload area"}
-					className={cn(
-						"relative rounded-xl border transition-all duration-300",
-						dragActive
-							? "border-primary/30 bg-gradient-to-br from-primary/[0.08] to-primary/[0.06] shadow-glow ring-2 ring-primary/30 motion-safe:scale-[1.01]"
-							: "border-border/30 bg-gradient-to-br from-primary/[0.04] via-transparent to-primary/[0.02]",
-					)}
-					onDragEnter={onDragEnter}
-					onDragOver={onDragOver}
-					onDragLeave={onDragLeave}
-					onDrop={onDrop}
-				>
-					{hasAttachments ? (
-						<div className="p-4 space-y-3">
-							{/* File chips */}
-							<div className="flex flex-wrap gap-2">
-								{files.map((file, index) => {
-									const Icon = fileIcon(file.name);
-									return (
-										<div
-											key={`${file.name}-${file.size}`}
-											className="group/chip flex items-center gap-1.5 rounded-lg border border-border/40 bg-card px-3 py-2 text-sm shadow-sm hover:shadow-md hover:border-border/60 transition-all"
-										>
-											<Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-											<span className="truncate max-w-[140px]">
-												{file.name}
-											</span>
-											<span className="text-xs text-muted-foreground">
-												{formatSize(file.size)}
-											</span>
-											<button
-												type="button"
-												aria-label={`Remove ${file.name}`}
-												onClick={() => onRemoveFile(index)}
-												className="discovery-chip-remove ml-0.5 h-6 w-6 flex items-center justify-center rounded-sm hover:bg-muted opacity-0 group-hover/chip:opacity-100 group-focus-within/chip:opacity-100 focus-visible:opacity-100 transition-opacity"
-											>
-												<X className="h-3 w-3" />
-											</button>
-										</div>
-									);
-								})}
-
-								{audioFile && (
-									<div className="group/chip flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-sm shadow-sm hover:shadow-md transition-all">
-										<Mic className="h-3.5 w-3.5 text-primary shrink-0" />
-										<span className="truncate max-w-[140px]">
-											{audioFile.name}
+			{wizardTab === "quick" ? (
+				/* ── Quick Entry Form ── */
+				<div className="flex flex-col flex-1">
+					<div className="flex-1 overflow-auto px-6 py-4">
+						<div className="grid gap-4 lg:grid-cols-2">
+							{/* Material Identity */}
+							<div className="rounded-xl bg-surface-container-low/50 p-4">
+								<div className="flex items-center gap-2 mb-3">
+									<Package className="size-4 text-primary" />
+									<h4 className="text-sm font-semibold">Material Identity</h4>
+								</div>
+								<div className="space-y-3">
+									<div>
+										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+											Client Selection
 										</span>
-										<span className="text-xs text-muted-foreground">
-											{formatSize(audioFile.size)}
-										</span>
-										<button
-											type="button"
-											aria-label={`Remove ${audioFile.name}`}
-											onClick={onRemoveAudio}
-											className="discovery-chip-remove ml-0.5 h-6 w-6 flex items-center justify-center rounded-sm hover:bg-muted opacity-0 group-hover/chip:opacity-100 group-focus-within/chip:opacity-100 focus-visible:opacity-100 transition-opacity"
-										>
-											<X className="h-3 w-3" />
-										</button>
+										<CompanyCombobox
+											value={qe.client}
+											onValueChange={(v) => setQe({ ...qe, client: v })}
+											placeholder="Select an existing client..."
+											showCreate={false}
+										/>
 									</div>
-								)}
+									<div>
+										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+											Material Name
+										</span>
+										<input
+											type="text"
+											placeholder="e.g. Toluene"
+											value={qe.material}
+											onChange={(e) =>
+												setQe({ ...qe, material: e.target.value })
+											}
+											className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+										/>
+									</div>
+									<div>
+										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+											Generating Process
+										</span>
+										<input
+											type="text"
+											placeholder="e.g. Reactor Cleaning"
+											value={qe.process}
+											onChange={(e) =>
+												setQe({ ...qe, process: e.target.value })
+											}
+											className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+										/>
+									</div>
+								</div>
+							</div>
+							{/* Frequency & Volume + Timeline */}
+							<div className="flex flex-col gap-4">
+								<div className="rounded-xl bg-surface-container-low/50 p-4">
+									<div className="flex items-center gap-2 mb-3">
+										<Waves className="size-4 text-primary" />
+										<h4 className="text-sm font-semibold">
+											Frequency &amp; Volume
+										</h4>
+									</div>
+									<div className="space-y-3">
+										<div className="grid grid-cols-2 gap-2">
+											<div>
+												<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+													Volume / Weight
+												</span>
+												<input
+													type="text"
+													placeholder="5,000"
+													value={qe.volume}
+													onChange={(e) =>
+														setQe({ ...qe, volume: e.target.value })
+													}
+													className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+												/>
+											</div>
+											<div>
+												<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+													&nbsp;
+												</span>
+												<select
+													value={qe.units}
+													onChange={(e) =>
+														setQe({ ...qe, units: e.target.value })
+													}
+													className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+												>
+													<option>Gallons</option>
+													<option>Tons</option>
+													<option>Barrels</option>
+													<option>Pounds</option>
+												</select>
+											</div>
+										</div>
+										<div>
+											<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+												Primary Location
+											</span>
+											<div className="relative mt-1">
+												<MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+												<input
+													type="text"
+													placeholder="City, State"
+													value={qe.location}
+													onChange={(e) =>
+														setQe({ ...qe, location: e.target.value })
+													}
+													className="w-full rounded-lg bg-surface-container-high/60 pl-8 pr-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+												/>
+											</div>
+										</div>
+										<div className="grid grid-cols-2 gap-2">
+											<div>
+												<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+													Frequency
+												</span>
+												<select
+													value={qe.frequency}
+													onChange={(e) =>
+														setQe({ ...qe, frequency: e.target.value })
+													}
+													className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+												>
+													<option>Weekly</option>
+													<option>Bi-Weekly</option>
+													<option>Monthly</option>
+													<option>Quarterly</option>
+													<option>Ad-hoc</option>
+												</select>
+											</div>
+											<div>
+												<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+													Packaging Type
+												</span>
+												<select
+													value={qe.packaging}
+													onChange={(e) =>
+														setQe({ ...qe, packaging: e.target.value })
+													}
+													className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+												>
+													<option>Bulk Tanker</option>
+													<option>Drums</option>
+													<option>Totes</option>
+													<option>Containers</option>
+												</select>
+											</div>
+										</div>
+									</div>
+								</div>
+								{/* Timeline */}
+								<div className="rounded-xl bg-surface-container-low/50 p-4">
+									<div className="flex items-center gap-2 mb-3">
+										<Calendar className="size-4 text-primary" />
+										<h4 className="text-sm font-semibold">Timeline</h4>
+									</div>
+									<div>
+										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+											Expected First Lift
+										</span>
+										<input
+											type="date"
+											value={qe.firstLift}
+											onChange={(e) =>
+												setQe({ ...qe, firstLift: e.target.value })
+											}
+											className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+										/>
+									</div>
+								</div>
+							</div>
+						</div>
+						{/* Entry Guidelines */}
+						<div className="mt-4 rounded-lg bg-primary/5 px-4 py-3">
+							<p className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-primary mb-1">
+								Entry Guidelines
+							</p>
+							<ul className="space-y-1">
+								<li className="flex items-center gap-2 text-xs text-muted-foreground">
+									<span className="size-1.5 rounded-full bg-primary" />
+									Ensure MSDS are available.
+								</li>
+								<li className="flex items-center gap-2 text-xs text-muted-foreground">
+									<span className="size-1.5 rounded-full bg-primary" />
+									Verify packaging compatibility.
+								</li>
+							</ul>
+						</div>
+					</div>
+					{/* Quick Entry Footer */}
+					<div className="flex items-center justify-between border-t border-border/20 bg-muted/20 px-6 py-4">
+						<button
+							type="button"
+							onClick={() =>
+								setQe({
+									client: "",
+									material: "",
+									process: "",
+									volume: "",
+									units: "Gallons",
+									location: "",
+									frequency: "Weekly",
+									packaging: "Bulk Tanker",
+									firstLift: "",
+								})
+							}
+							className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground hover:text-foreground transition-colors"
+						>
+							Clear All
+						</button>
+						<div className="flex items-center gap-3">
+							<Button variant="ghost" onClick={() => onDiscover()}>
+								Cancel
+							</Button>
+							<Button
+								disabled={!qe.client || !qe.material}
+								className="bg-gradient-to-r from-primary to-primary/90 shadow-water"
+							>
+								Save Stream
+							</Button>
+						</div>
+					</div>
+				</div>
+			) : (
+				<div className="flex flex-col flex-1">
+					<div className="flex-1 overflow-auto px-6 py-4 space-y-5">
+						{/* CLIENT INFORMATION */}
+						<div>
+							<div className="flex items-center justify-between mb-2">
+								<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+									Client Information
+								</span>
+								<button
+									type="button"
+									className="text-[0.6875rem] font-semibold text-primary hover:underline"
+								>
+									⊕ Add New Client
+								</button>
+							</div>
+							{defaultCompanyId ? (
+								<div className="rounded-lg border border-border/30 bg-surface-container-lowest px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
+									<Package className="size-4 text-muted-foreground" />
+									Company pre-selected
+								</div>
+							) : (
+								<CompanyCombobox
+									value={companyId}
+									onValueChange={onCompanyChange}
+									placeholder="Select Existing Client"
+									showCreate={false}
+								/>
+							)}
+						</div>
 
-								{/* Add more — icon button */}
-								{files.length < MAX_FILES && (
-									<Button
-										variant="outline"
-										size="icon"
-										className="h-9 w-9 border-dashed"
+						{/* ASSIGN DEFAULT LOCATION */}
+						<div>
+							<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary block mb-2">
+								Assign Default Location to All Streams (Optional)
+							</span>
+							<div className="relative">
+								<MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+								<input
+									type="text"
+									placeholder="e.g. Houston Facility, TX"
+									className="w-full rounded-lg border border-border/30 bg-surface-container-lowest pl-9 pr-3 py-3 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+									disabled={isSubmitting}
+								/>
+							</div>
+							<p className="text-xs text-muted-foreground mt-1.5">
+								This location will be applied to all identified waste streams
+								from this session.
+							</p>
+						</div>
+
+						{/* UPLOAD CLIENT FILES OR EMAILS */}
+						<div>
+							<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary block mb-2">
+								Upload Client Files or Emails
+							</span>
+							<section
+								aria-label={dragActive ? "Drop files here" : "File upload area"}
+								className={cn(
+									"relative rounded-xl border-2 border-dashed transition-all duration-300",
+									dragActive
+										? "border-primary/40 bg-primary/[0.06] shadow-glow ring-2 ring-primary/20"
+										: "border-border/30 bg-surface-container-lowest",
+								)}
+								onDragEnter={onDragEnter}
+								onDragOver={onDragOver}
+								onDragLeave={onDragLeave}
+								onDrop={onDrop}
+							>
+								{hasAttachments ? (
+									<div className="p-4 space-y-3">
+										<div className="flex flex-wrap gap-2">
+											{files.map((file, index) => {
+												const Icon = fileIcon(file.name);
+												return (
+													<div
+														key={`${file.name}-${file.size}`}
+														className="group/chip flex items-center gap-1.5 rounded-lg border border-border/40 bg-card px-3 py-2 text-sm shadow-sm hover:shadow-md hover:border-border/60 transition-all"
+													>
+														<Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+														<span className="truncate max-w-[140px]">
+															{file.name}
+														</span>
+														<span className="text-xs text-muted-foreground">
+															{formatSize(file.size)}
+														</span>
+														<button
+															type="button"
+															aria-label={`Remove ${file.name}`}
+															onClick={() => onRemoveFile(index)}
+															className="ml-0.5 h-5 w-5 flex items-center justify-center rounded-sm hover:bg-muted transition-opacity"
+														>
+															<X className="h-3 w-3" />
+														</button>
+													</div>
+												);
+											})}
+											{audioFile && (
+												<div className="group/chip flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-sm shadow-sm">
+													<Mic className="h-3.5 w-3.5 text-primary shrink-0" />
+													<span className="truncate max-w-[140px]">
+														{audioFile.name}
+													</span>
+													<span className="text-xs text-muted-foreground">
+														{formatSize(audioFile.size)}
+													</span>
+													<button
+														type="button"
+														aria-label={`Remove ${audioFile.name}`}
+														onClick={onRemoveAudio}
+														className="ml-0.5 h-5 w-5 flex items-center justify-center rounded-sm hover:bg-muted transition-opacity"
+													>
+														<X className="h-3 w-3" />
+													</button>
+												</div>
+											)}
+											{files.length < MAX_FILES && (
+												<Button
+													variant="outline"
+													size="icon"
+													className="h-9 w-9 border-dashed"
+													onClick={() => fileInputRef.current?.click()}
+													disabled={isSubmitting}
+												>
+													<Plus className="h-4 w-4" />
+													<span className="sr-only">Add files</span>
+												</Button>
+											)}
+										</div>
+									</div>
+								) : (
+									<button
+										type="button"
+										className="flex w-full flex-col items-center gap-3 px-6 py-10 text-center"
 										onClick={() => fileInputRef.current?.click()}
 										disabled={isSubmitting}
 									>
-										<Plus className="h-4 w-4" />
-										<span className="sr-only">Add files</span>
-									</Button>
+										<div className="flex items-center gap-3">
+											<FileSpreadsheet className="h-5 w-5 text-primary/60" />
+											<FileText className="h-5 w-5 text-primary/60" />
+											<Image className="h-5 w-5 text-primary/60" />
+										</div>
+										<div>
+											<p
+												className={cn(
+													"font-medium text-sm",
+													dragActive ? "text-primary" : "text-foreground",
+												)}
+											>
+												{dragActive
+													? "Drop files here"
+													: "Drag and drop discovery assets here"}
+											</p>
+											<p className="text-xs text-muted-foreground/60 mt-0.5">
+												PDF, XLSX, or EML files supported (Max 50MB)
+											</p>
+										</div>
+									</button>
 								)}
-							</div>
+							</section>
 						</div>
-					) : (
+
+						{/* DICTATE DISCOVERY NOTES */}
+						<div>
+							<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary block mb-2">
+								Dictate Discovery Notes
+							</span>
+							<button
+								type="button"
+								className="w-full rounded-xl border border-border/30 bg-surface-container-lowest px-4 py-4 flex items-center justify-between hover:border-border/50 transition-colors"
+								onClick={() => audioInputRef.current?.click()}
+								disabled={audioFile !== null || isSubmitting}
+							>
+								<div className="flex items-center gap-3">
+									<div className="size-10 rounded-full bg-primary flex items-center justify-center">
+										<Mic className="size-5 text-primary-foreground" />
+									</div>
+									<div className="text-left">
+										<p className="text-sm font-semibold">Record Voice Note</p>
+										<p className="text-xs text-muted-foreground">
+											AI-transcription will process clinical nuances
+										</p>
+									</div>
+								</div>
+								<div className="flex items-end gap-[2px] h-6">
+									{[3, 5, 2, 6, 4, 3, 5].map((h, i) => (
+										<div
+											key={`bar-${h}-${i}`}
+											className="w-1 rounded-full bg-muted-foreground/20"
+											style={{ height: `${h * 4}px` }}
+										/>
+									))}
+								</div>
+							</button>
+						</div>
+					</div>
+
+					{/* Hidden file inputs */}
+					<input
+						ref={fileInputRef}
+						type="file"
+						multiple
+						accept={ACCEPTED_FILE_TYPES}
+						className="hidden"
+						onChange={(e) => {
+							const s = Array.from(e.target.files ?? []);
+							if (s.length > 0) onFilesSelected(s);
+							e.target.value = "";
+						}}
+					/>
+					<input
+						ref={audioInputRef}
+						type="file"
+						accept={ACCEPTED_AUDIO_TYPES}
+						className="hidden"
+						onChange={(e) => {
+							const f = e.target.files?.[0];
+							if (f) onAudioSelected(f);
+							e.target.value = "";
+						}}
+					/>
+
+					{/* AI Discovery Footer */}
+					<div className="flex items-center justify-between border-t border-border/20 bg-muted/20 px-6 py-4">
 						<button
 							type="button"
-							className="flex w-full flex-col items-center gap-3 px-6 py-12 text-center"
-							onClick={() => fileInputRef.current?.click()}
-							disabled={isSubmitting}
+							onClick={() => {
+								onRemoveAudio();
+								onTextChange("");
+							}}
+							className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground hover:text-foreground transition-colors"
 						>
-							{/* Overlapping file-type icons */}
-							<div className="flex items-center -space-x-2">
-								<FileText className="h-6 w-6 text-muted-foreground/40" />
-								<FileSpreadsheet className="h-6 w-6 text-muted-foreground/40 relative z-10" />
-								<Image className="h-6 w-6 text-muted-foreground/40" />
-							</div>
-							<div>
-								<p className="font-display font-medium text-sm">Upload Files</p>
-								<p
-									className={cn(
-										"text-xs mt-0.5",
-										dragActive
-											? "text-primary font-medium"
-											: "text-muted-foreground/50",
-									)}
-								>
-									{dragActive
-										? "Drop files here"
-										: "PDF, CSV, XLSX, DOC, TXT, or images up to 10 MB"}
-								</p>
-							</div>
+							Clear All
 						</button>
-					)}
-				</section>
-			</div>
-
-			{/* Hidden file inputs */}
-			<input
-				ref={fileInputRef}
-				type="file"
-				multiple
-				accept={ACCEPTED_FILE_TYPES}
-				className="hidden"
-				onChange={(e) => {
-					const selected = Array.from(e.target.files ?? []);
-					if (selected.length > 0) onFilesSelected(selected);
-					e.target.value = "";
-				}}
-			/>
-			<input
-				ref={audioInputRef}
-				type="file"
-				accept={ACCEPTED_AUDIO_TYPES}
-				className="hidden"
-				onChange={(e) => {
-					const file = e.target.files?.[0];
-					if (file) onAudioSelected(file);
-					e.target.value = "";
-				}}
-			/>
-
-			{/* Thin divider */}
-			<div className="px-6 py-3">
-				<div className="h-px bg-border/30" />
-			</div>
-
-			{/* Text area */}
-			<div className="px-6 pb-4">
-				<label
-					htmlFor="discovery-text-input"
-					className="block text-xs font-medium text-muted-foreground/70 uppercase tracking-wide mb-2"
-				>
-					Or describe what you know
-				</label>
-				<textarea
-					id="discovery-text-input"
-					placeholder="Paste notes, waste descriptions, or any relevant text..."
-					className="w-full min-h-[80px] resize-none rounded-lg bg-muted/20 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 transition-colors"
-					aria-describedby={
-						trimmedText.length > 0 &&
-						trimmedText.length < MIN_DISCOVERY_TEXT_LENGTH
-							? "discovery-text-hint"
-							: undefined
-					}
-					value={text}
-					onChange={(e) => onTextChange(e.target.value)}
-					disabled={isSubmitting}
-				/>
-				{trimmedText.length > 0 &&
-					trimmedText.length < MIN_DISCOVERY_TEXT_LENGTH && (
-						<output
-							id="discovery-text-hint"
-							className="mt-2 flex items-center justify-between text-xs"
-						>
-							<span className="text-warning">
-								{charsNeeded} more character{charsNeeded === 1 ? "" : "s"}{" "}
-								needed
-							</span>
-							<span className="text-muted-foreground tabular-nums">
-								{trimmedText.length}
-							</span>
-						</output>
-					)}
-			</div>
-
-			{/* Footer — pushed to bottom */}
-			<div className="mt-auto flex flex-wrap items-center gap-3 border-t border-border/20 bg-muted/20 px-6 py-4">
-				<div className="flex-1 min-w-0">
-					{defaultCompanyId ? (
-						<div className="text-sm text-muted-foreground">
-							Company pre-selected
+						<div className="flex items-center gap-3">
+							<Button variant="ghost">Cancel</Button>
+							<Button
+								onClick={onDiscover}
+								disabled={!canDiscover || isSubmitting}
+								className="bg-gradient-to-r from-primary to-primary/90 shadow-water hover:shadow-glow transition-shadow duration-300"
+							>
+								{isSubmitting ? (
+									<>
+										<Loader2 className="h-4 w-4 mr-2 motion-safe:animate-spin" />
+										Uploading…
+									</>
+								) : (
+									"Process with Second Stream AI"
+								)}
+							</Button>
 						</div>
-					) : (
-						<CompanyCombobox
-							value={companyId}
-							onValueChange={onCompanyChange}
-							placeholder="Select company..."
-							showCreate={false}
-						/>
-					)}
+					</div>
 				</div>
-
-				<Button
-					variant="ghost"
-					className="shrink-0"
-					onClick={() => audioInputRef.current?.click()}
-					disabled={audioFile !== null || isSubmitting}
-				>
-					<Mic className="h-4 w-4 mr-2" />
-					Audio
-				</Button>
-
-				<Button
-					onClick={onDiscover}
-					disabled={!canDiscover || isSubmitting}
-					className="shrink-0 bg-gradient-to-r from-primary to-primary/90 shadow-water hover:shadow-glow transition-shadow duration-300"
-				>
-					{isSubmitting ? (
-						<>
-							<Loader2 className="h-4 w-4 mr-2 motion-safe:animate-spin" />
-							Uploading…
-						</>
-					) : (
-						<>
-							<Waves className="h-4 w-4 mr-2" />
-							Discover
-						</>
-					)}
-				</Button>
-			</div>
+			)}
 		</div>
 	);
 }
@@ -1166,6 +1627,291 @@ function StatCard({
 				<span className="text-sm text-muted-foreground">{label}</span>
 			</div>
 		</div>
+	);
+}
+
+function ConfirmingView() {
+	return (
+		<section className="flex flex-col items-center justify-center flex-1 px-6 py-20">
+			<Loader2 className="h-8 w-8 text-primary motion-safe:animate-spin" />
+			<p className="mt-4 text-sm font-medium">Confirming stream…</p>
+			<p className="text-xs text-muted-foreground mt-1">
+				Applying your decision
+			</p>
+		</section>
+	);
+}
+
+function _confidenceBadgeClass(confidence: number): string {
+	if (confidence >= 0.8) {
+		return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
+	}
+	if (confidence >= 0.5) {
+		return "bg-amber-500/10 text-amber-700 border-amber-500/20";
+	}
+	return "bg-muted text-muted-foreground border-border/60";
+}
+
+export function ReviewView({
+	candidates,
+	confirmingId,
+	onConfirm,
+	onSkip,
+	onFinish,
+}: {
+	candidates: DraftCandidate[];
+	confirmingId: string | null;
+	onConfirm: (itemId: string) => void;
+	onSkip: (itemId: string) => void;
+	onFinish: () => void;
+}) {
+	const counts = reviewCounts(candidates);
+	const actioned = counts.confirmed + counts.skipped;
+	const finishEnabled = actioned === counts.total || counts.confirmed >= 1;
+
+	return (
+		<section className="flex flex-col flex-1">
+			{/* Header */}
+			<div className="px-6 pt-6 pb-4">
+				<h3 className="font-display text-xl font-semibold tracking-tight">
+					Confirm Identified Streams
+				</h3>
+				<p className="text-sm text-muted-foreground mt-1">
+					Review AI-extracted chemical waste manifests before system ingestion.
+				</p>
+			</div>
+
+			{/* Table */}
+			<div className="flex-1 overflow-auto px-6">
+				<table className="w-full text-sm">
+					<thead>
+						<tr className="border-b border-border/30">
+							<th className="text-left text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary py-2 pr-3">
+								Material Name
+							</th>
+							<th className="text-left text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary py-2 pr-3">
+								Source
+							</th>
+							<th className="text-right text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary py-2 pr-3">
+								Volume
+							</th>
+							<th className="text-left text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary py-2 pr-3">
+								Frequency
+							</th>
+							<th className="text-left text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary py-2 pr-3">
+								Units
+							</th>
+							<th className="text-right text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary py-2">
+								Actions
+							</th>
+						</tr>
+					</thead>
+					<tbody className="divide-y divide-border/20">
+						{candidates.map((candidate) => {
+							const isConfirmed = candidate.status === "confirmed";
+							const isSkipped = candidate.status === "skipped";
+							return (
+								<tr
+									key={candidate.itemId}
+									className={cn(
+										"transition-colors",
+										isConfirmed && "bg-emerald-500/5",
+										isSkipped && "opacity-60",
+									)}
+								>
+									<td className="py-3 pr-3">
+										<p className="font-medium truncate max-w-[180px]">
+											{candidate.material}
+										</p>
+										{candidate.locationLabel && (
+											<p className="text-[0.6875rem] text-muted-foreground uppercase tracking-wide truncate">
+												{candidate.locationLabel}
+											</p>
+										)}
+									</td>
+									<td className="py-3 pr-3">
+										<span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+											<FileText className="size-3" />
+											{candidate.source}
+										</span>
+									</td>
+									<td className="py-3 pr-3 text-right font-medium tabular-nums">
+										{candidate.volume ?? "—"}
+									</td>
+									<td className="py-3 pr-3 text-xs text-muted-foreground">
+										Monthly
+									</td>
+									<td className="py-3 pr-3 text-xs text-muted-foreground">
+										Gallons
+									</td>
+									<td className="py-3">
+										<div className="flex items-center justify-end gap-1.5">
+											{isConfirmed ? (
+												<span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+													<CircleCheck className="size-3.5" />
+													Confirmed
+												</span>
+											) : isSkipped ? (
+												<span className="inline-flex rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
+													Draft
+												</span>
+											) : (
+												<>
+													<Button
+														size="sm"
+														onClick={() => onConfirm(candidate.itemId)}
+														disabled={confirmingId === candidate.itemId}
+														className="h-7 bg-primary text-primary-foreground text-[11px] px-2.5"
+													>
+														{confirmingId === candidate.itemId ? (
+															<Loader2 className="size-3 animate-spin" />
+														) : (
+															<>
+																<CircleCheck className="size-3 mr-1" />
+																Confirm
+															</>
+														)}
+													</Button>
+													<Button
+														size="sm"
+														variant="outline"
+														onClick={() => onSkip(candidate.itemId)}
+														className="h-7 text-[11px] px-2.5"
+													>
+														<FileText className="size-3 mr-1" />
+														Draft
+													</Button>
+													<button
+														type="button"
+														className="h-7 w-7 flex items-center justify-center rounded-md text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+													>
+														<Trash2 className="size-3.5" />
+													</button>
+												</>
+											)}
+										</div>
+									</td>
+								</tr>
+							);
+						})}
+					</tbody>
+				</table>
+			</div>
+
+			{/* Footer */}
+			<div className="flex items-center justify-between border-t border-border/20 bg-muted/20 px-6 py-4">
+				<div className="flex items-center gap-2">
+					<span className="inline-flex items-center justify-center size-6 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">
+						{counts.confirmed}
+					</span>
+					<span className="inline-flex items-center justify-center size-6 rounded-full bg-muted text-muted-foreground text-[11px] font-semibold">
+						{counts.skipped}
+					</span>
+					<span className="text-xs text-muted-foreground">
+						{counts.total} streams identified for batch processing.
+					</span>
+				</div>
+				<div className="flex items-center gap-3">
+					<Button
+						variant="ghost"
+						onClick={onFinish}
+						disabled={!finishEnabled}
+						className="text-xs"
+					>
+						Cancel
+					</Button>
+					<Button
+						onClick={onFinish}
+						disabled={!finishEnabled}
+						className="bg-gradient-to-r from-primary to-primary/90 shadow-water"
+					>
+						Process & Finalize All
+					</Button>
+				</div>
+			</div>
+		</section>
+	);
+}
+
+export function CompleteView({
+	confirmed,
+	skipped,
+	total,
+	onGoToStreams,
+	onGoToDrafts,
+}: {
+	confirmed: number;
+	skipped: number;
+	total: number;
+	onGoToStreams: () => void;
+	onGoToDrafts: () => void;
+}) {
+	const phases = [
+		{ num: 1, label: "Operational" },
+		{ num: 2, label: "Commercial" },
+		{ num: 3, label: "Technical" },
+		{ num: 4, label: "Diagnostic" },
+	];
+
+	return (
+		<section className="flex flex-col flex-1 px-6 pt-8 pb-6">
+			<div className="flex items-start gap-3 mb-2">
+				<div className="rounded-xl bg-primary/10 p-2.5">
+					<CheckCircle className="h-5 w-5 text-primary" />
+				</div>
+				<div>
+					<h3 className="font-display text-xl font-semibold tracking-tight">
+						Complete Discovery
+					</h3>
+					<p className="text-sm text-muted-foreground mt-0.5 max-w-md">
+						All four phases of information have been successfully gathered and
+						all missing data is now complete for{" "}
+						<strong className="text-foreground">
+							Stream #WD-{String(total).padStart(3, "0")}
+						</strong>
+						. Confirming this step will transition the waste stream from a
+						&lsquo;Draft&rsquo; status to the &lsquo;Proposals&rsquo; section
+						for final generation.
+					</p>
+				</div>
+			</div>
+
+			{/* Phase grid */}
+			<div className="grid grid-cols-2 gap-3 mt-6">
+				{phases.map((phase) => (
+					<div
+						key={phase.num}
+						className="rounded-xl bg-surface-container-low/50 p-4 flex items-center justify-between"
+					>
+						<div className="flex items-center gap-2.5">
+							<CircleCheck className="size-5 text-primary" />
+							<div>
+								<p className="text-[0.6875rem] uppercase tracking-[0.05em] text-muted-foreground">
+									Phase {phase.num}
+								</p>
+								<p className="text-sm font-semibold">{phase.label}</p>
+							</div>
+						</div>
+						<span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+							Complete
+						</span>
+					</div>
+				))}
+			</div>
+
+			{/* Footer */}
+			<div className="mt-auto flex items-center justify-end gap-3 pt-6">
+				<Button variant="ghost" onClick={onGoToDrafts}>
+					Cancel
+				</Button>
+				<Button
+					onClick={onGoToStreams}
+					className="bg-gradient-to-r from-primary to-primary/90 shadow-water"
+				>
+					Confirm & Create Proposal →
+				</Button>
+			</div>
+		</section>
 	);
 }
 

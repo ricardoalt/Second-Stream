@@ -8,8 +8,6 @@ export const routes = {
 	dashboard: "/dashboard",
 	streams: {
 		all: "/streams",
-		drafts: "/streams/drafts",
-		followUps: "/streams/follow-ups",
 		detail: (id: string) => `/streams/${id}` as const,
 	},
 	clients: {

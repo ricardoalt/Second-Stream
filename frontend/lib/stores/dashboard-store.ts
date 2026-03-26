@@ -1,3 +1,4 @@
+// TODO: FE-FA-2 Waste Streams — this store and bucket model will be migrated to the Waste Streams family
 /**
  * Dashboard store — dedicated Zustand store for the triage dashboard.
  *

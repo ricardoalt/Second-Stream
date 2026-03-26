@@ -30,6 +30,19 @@ export interface DiscoverySource {
 	updatedAt: string;
 }
 
+export type CandidateStatus = "pending" | "confirmed" | "skipped";
+
+export type DraftCandidate = {
+	itemId: string;
+	runId: string;
+	material: string;
+	volume: string | null;
+	locationLabel: string | null;
+	source: string;
+	confidence: number | null;
+	status: CandidateStatus;
+};
+
 export interface DiscoverySessionSummary {
 	totalSources: number;
 	fileSources: number;

@@ -2,7 +2,11 @@ import { describe, expect, it } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { routes } from "@/lib/routes";
-import type { DiscoverySessionResult } from "@/lib/types/discovery";
+import type { DraftItemRow } from "@/lib/types/dashboard";
+import type {
+	DiscoverySessionResult,
+	DraftCandidate,
+} from "@/lib/types/discovery";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 
@@ -154,6 +158,29 @@ describe("navigateToSessionScopedDashboard", () => {
 });
 
 describe("ResultView", () => {
+	it("still renders result copy when drafts needing confirmation is zero", () => {
+		const html = renderToStaticMarkup(
+			createElement(discoveryWizardModule.ResultView, {
+				result: buildSession({
+					summary: {
+						totalSources: 1,
+						fileSources: 1,
+						audioSources: 0,
+						textSources: 0,
+						locationsFound: 1,
+						wasteStreamsFound: 2,
+						draftsNeedingConfirmation: 0,
+						failedSources: 0,
+					},
+				}),
+				onGoToDashboard: () => {},
+			}),
+		);
+
+		expect(html).toContain("Ready for review");
+		expect(html).toContain("Go to dashboard");
+	});
+
 	it("renders only two metrics, helper copy, and analyzed sources", () => {
 		const html = renderToStaticMarkup(
 			createElement(discoveryWizardModule.ResultView, {
@@ -214,5 +241,114 @@ describe("ResultView", () => {
 		expect(html).toContain("voice.m4a");
 		expect(html).toContain("Processed");
 		expect(html).toContain("Needs attention");
+	});
+});
+
+describe("review flow helpers", () => {
+	it("maps dashboard draft rows to pending draft candidates", () => {
+		const rows: DraftItemRow[] = [
+			{
+				kind: "draft_item",
+				bucket: "needs_confirmation",
+				itemId: "item-1",
+				runId: "run-1",
+				groupId: null,
+				streamName: "PET flakes",
+				companyId: "company-1",
+				companyLabel: "Acme",
+				locationLabel: "Plant A",
+				volumeSummary: "120 kg/week",
+				lastActivityAt: "2026-01-01T00:00:00Z",
+				sourceType: "bulk_import",
+				sourceFilename: "streams.csv",
+				draftStatus: "pending_review",
+				confidence: 0.91,
+				draftKind: "linked",
+				confirmable: true,
+				target: null,
+			},
+		];
+
+		const mapped = discoveryWizardModule.mapCandidateRows(rows);
+
+		expect(mapped).toEqual([
+			{
+				itemId: "item-1",
+				runId: "run-1",
+				material: "PET flakes",
+				volume: "120 kg/week",
+				locationLabel: "Plant A",
+				source: "streams.csv",
+				confidence: 0.91,
+				status: "pending",
+			},
+		]);
+	});
+
+	it("renders review progress and finish button state", () => {
+		const candidates: DraftCandidate[] = [
+			{
+				itemId: "item-1",
+				runId: "run-1",
+				material: "PET",
+				volume: "100 kg/week",
+				locationLabel: "Plant A",
+				source: "streams.csv",
+				confidence: 0.9,
+				status: "confirmed",
+			},
+			{
+				itemId: "item-2",
+				runId: "run-1",
+				material: "HDPE",
+				volume: null,
+				locationLabel: null,
+				source: "voice.m4a",
+				confidence: 0.4,
+				status: "skipped",
+			},
+			{
+				itemId: "item-3",
+				runId: "run-1",
+				material: "Cardboard",
+				volume: "50 kg/week",
+				locationLabel: "Plant B",
+				source: "notes.txt",
+				confidence: null,
+				status: "pending",
+			},
+		];
+
+		const html = renderToStaticMarkup(
+			createElement(discoveryWizardModule.ReviewView, {
+				candidates,
+				confirmingId: null,
+				onConfirm: () => {},
+				onSkip: () => {},
+				onFinish: () => {},
+			}),
+		);
+
+		expect(html).toContain("2 of 3 actioned");
+		expect(html).toContain("Finish Review");
+		expect(html).toContain("Confirmed");
+		expect(html).toContain("Kept as draft");
+	});
+
+	it("renders complete view totals", () => {
+		const html = renderToStaticMarkup(
+			createElement(discoveryWizardModule.CompleteView, {
+				confirmed: 2,
+				skipped: 1,
+				total: 3,
+				onGoToStreams: () => {},
+				onGoToDrafts: () => {},
+			}),
+		);
+
+		expect(html).toContain("2 streams confirmed, 1 kept as drafts");
+		expect(html).toContain("3 streams reviewed");
+		expect(html).toContain("Go to My Streams");
+		expect(html).toContain("View Drafts");
 	});
 });

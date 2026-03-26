@@ -6,10 +6,12 @@ import {
 	LogOut,
 	Search,
 	Settings,
+	Sparkles,
 	User,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,8 +28,6 @@ import type { User as AuthUser } from "@/lib/types/user";
 const pageTitleMap: Record<string, string> = {
 	"/dashboard": "Dashboard",
 	"/streams": "Waste Streams",
-	"/streams/drafts": "Draft Streams",
-	"/streams/follow-ups": "Urgent Follow-ups",
 	"/clients": "Client Portfolio",
 	"/offers": "Offers Pipeline",
 	"/offers/archive": "Historical Archive",
@@ -57,6 +57,7 @@ type TopBarProps = {
 
 export function TopBar({ user, onLogout }: TopBarProps) {
 	const pathname = usePathname();
+	const discoveryWizard = useDiscoveryWizard();
 	const title = getTitle(pathname);
 	const fullName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim();
 
@@ -79,6 +80,14 @@ export function TopBar({ user, onLogout }: TopBarProps) {
 				</div>
 
 				<div className="flex items-center gap-2">
+					<Button
+						onClick={discoveryWizard.open}
+						className="bg-gradient-to-r from-[#006565] to-[#008080] text-white hover:opacity-90"
+					>
+						<Sparkles data-icon="inline-start" aria-hidden="true" />
+						Discovery Wizard
+					</Button>
+
 					<Button variant="ghost" size="icon" aria-label="Notifications">
 						<Bell />
 					</Button>

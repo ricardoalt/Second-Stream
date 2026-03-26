@@ -13,11 +13,16 @@ import {
 	TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import { ClientActivityTimeline } from "@/components/features/clients/components/client-activity-timeline";
 import { ClientStatusBadge } from "@/components/features/clients/components/client-status-badge";
 import { ClientSummaryStatCard } from "@/components/features/clients/components/client-summary-stat-card";
 import { getClientDetail } from "@/components/features/clients/mock-data";
+import { CallClientModal } from "@/components/features/modals/call-client-modal";
+import { EditClientModal } from "@/components/features/modals/edit-client-modal";
+import { LogActivityModal } from "@/components/features/modals/log-activity-modal";
+import { SendEmailModal } from "@/components/features/modals/send-email-modal";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -111,11 +116,48 @@ function getOfferStatusBadge(
 
 export default function ClientDetailPage() {
 	const params = useParams<{ id: string }>();
+	const router = useRouter();
 	const clientId = Array.isArray(params.id) ? params.id[0] : params.id;
 	const client = getClientDetail(clientId);
+	const [callOpen, setCallOpen] = useState<boolean>(false);
+	const [emailOpen, setEmailOpen] = useState<boolean>(false);
+	const [logOpen, setLogOpen] = useState<boolean>(false);
+	const [editModalOpen, setEditModalOpen] = useState(false);
+
+	const callContacts = client.keyContacts.map((contact) => ({
+		id: contact.id,
+		name: contact.name,
+		role: contact.role,
+		phone: contact.phone,
+	}));
+
+	const relatedStreams = client.streams.map((stream) => ({
+		id: stream.id,
+		label: `${stream.material} (${stream.id})`,
+	}));
 
 	return (
 		<div className="flex flex-col gap-8">
+			<CallClientModal
+				open={callOpen}
+				onOpenChange={setCallOpen}
+				contacts={callContacts}
+			/>
+			<SendEmailModal
+				open={emailOpen}
+				onOpenChange={setEmailOpen}
+				defaultTo={client.contactEmail}
+			/>
+			<LogActivityModal
+				open={logOpen}
+				onOpenChange={setLogOpen}
+				relatedStreams={relatedStreams}
+			/>
+			<EditClientModal
+				client={client}
+				open={editModalOpen}
+				onClose={() => setEditModalOpen(false)}
+			/>
 			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
 				<div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
 					<div className="flex flex-col gap-2">
@@ -138,19 +180,19 @@ export default function ClientDetailPage() {
 					</div>
 
 					<div className="flex flex-wrap gap-2">
-						<Button variant="outline">
+						<Button variant="outline" onClick={() => setEditModalOpen(true)}>
 							<PenSquare data-icon="inline-start" aria-hidden="true" />
-							Edit
+							Edit Profile
 						</Button>
-						<Button variant="secondary">
+						<Button variant="secondary" onClick={() => setCallOpen(true)}>
 							<Phone data-icon="inline-start" aria-hidden="true" />
 							Call
 						</Button>
-						<Button variant="secondary">
+						<Button variant="secondary" onClick={() => setEmailOpen(true)}>
 							<Mail data-icon="inline-start" aria-hidden="true" />
 							Email
 						</Button>
-						<Button>
+						<Button onClick={() => setLogOpen(true)}>
 							<FileText data-icon="inline-start" aria-hidden="true" />
 							Log Activity
 						</Button>
@@ -183,6 +225,40 @@ export default function ClientDetailPage() {
 					subtitle="Trailing 12 months"
 					icon={TrendingUp}
 				/>
+			</section>
+
+			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
+				<div className="mb-4 flex items-center gap-2">
+					<MapPin aria-hidden className="size-5 text-primary" />
+					<h2 className="font-display text-xl font-semibold tracking-tight text-foreground">
+						Locations
+					</h2>
+				</div>
+				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+					{client.locations.map((location) => (
+						<div
+							key={location.id}
+							className="rounded-xl bg-surface-container-lowest p-4 shadow-sm"
+						>
+							<div className="flex items-start justify-between gap-3">
+								<div className="min-w-0">
+									<p className="text-sm font-semibold text-foreground">
+										{location.name}
+									</p>
+									<p className="mt-1 text-xs text-muted-foreground">
+										{location.address}
+									</p>
+									<p className="text-xs text-muted-foreground">
+										{location.city}, {location.state}
+									</p>
+								</div>
+								<Badge variant="outline" className="rounded-full">
+									{location.streamCount} streams
+								</Badge>
+							</div>
+						</div>
+					))}
+				</div>
 			</section>
 
 			<section className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
@@ -323,10 +399,11 @@ export default function ClientDetailPage() {
 								{client.streams.map((stream, index) => (
 									<TableRow
 										key={stream.id}
+										onClick={() => router.push(`/streams/${stream.id}`)}
 										className={
 											index % 2 === 0
-												? "bg-surface"
-												: "bg-surface-container-low"
+												? "cursor-pointer bg-surface transition-colors hover:bg-surface-container"
+												: "cursor-pointer bg-surface-container-low transition-colors hover:bg-surface-container"
 										}
 									>
 										<TableCell className="px-4 py-3">
@@ -359,7 +436,7 @@ export default function ClientDetailPage() {
 				<Card className="bg-surface-container-lowest shadow-sm">
 					<CardHeader>
 						<CardTitle className="font-display text-xl font-semibold">
-							Offers and proposals
+							Offers
 						</CardTitle>
 						<CardDescription>
 							Commercial opportunities linked to this account.
