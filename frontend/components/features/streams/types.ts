@@ -1,3 +1,8 @@
+import type {
+	DraftItemRow,
+	PersistedStreamRow,
+} from "@/lib/types/dashboard";
+
 export type StreamPhase = 1 | 2 | 3 | 4;
 
 export type StreamStatus =
@@ -11,27 +16,64 @@ export type StreamStatus =
 
 export type FollowUpPriority = "urgent" | "high" | "medium" | "low";
 
+export type KpiUnavailableReason =
+	| "pending_backend_contract"
+	| "not_collected_in_ui";
+
+export type WasteStreamsKpiKey =
+	| "activeStreams"
+	| "criticalAlerts"
+	| "monthlyVolume"
+	| "openOffers";
+
+export type WasteStreamsKpis = {
+	activeStreams: number | null;
+	criticalAlerts: number | null;
+	monthlyVolume: number | null;
+	openOffers: number | null;
+	unavailableReasons?: Partial<
+		Record<WasteStreamsKpiKey, KpiUnavailableReason>
+	>;
+};
+
 export type StreamRow = {
 	id: string;
 	name: string;
 	client: string;
+	clientId?: string;
 	location: string;
+	locationId?: string;
 	agent: string;
 	wasteType: string;
 	volume: string;
 	lastUpdated: string;
-	phase: StreamPhase;
+	phase?: StreamPhase;
 	status: StreamStatus;
 	processMethod?: string;
 	units?: string;
 	lastEdited?: string;
 	daysSinceLastActivity?: number;
 	missingFields?: string[];
+	/**
+	 * Optional from source data; UI should derive a value with
+	 * `computeFollowUpPriority` when this is missing.
+	 */
 	priority?: FollowUpPriority;
 	reason?: string;
 	nextAction?: string;
 	dueDate?: string;
 };
+
+export type StreamsAdapterSourceRow = PersistedStreamRow | DraftItemRow;
+
+export type StreamsAdapterRow = Pick<StreamRow, "id" | "status"> &
+	Partial<Omit<StreamRow, "id" | "status" | "phase">> & {
+		phase?: StreamPhase;
+	};
+
+export function isDraftStream(stream: StreamRow): boolean {
+	return stream.status === "draft";
+}
 
 export type StreamAttachment = {
 	id: string;

@@ -18,7 +18,6 @@ export function useStreamFilters() {
 
 	const search = normalizeParam(searchParams.get("search"), "");
 	const clientFilter = normalizeParam(searchParams.get("client"), "all");
-	const phaseFilter = normalizeParam(searchParams.get("phase"), "all");
 	const statusFilter = normalizeParam(searchParams.get("status"), "all");
 
 	const updateParam = useCallback(
@@ -40,11 +39,9 @@ export function useStreamFilters() {
 	return {
 		search,
 		clientFilter,
-		phaseFilter,
 		statusFilter,
 		setSearch: (value: string) => updateParam("search", value),
 		setClientFilter: (value: string) => updateParam("client", value),
-		setPhaseFilter: (value: string) => updateParam("phase", value),
 		setStatusFilter: (value: string) => updateParam("status", value),
 	};
 }

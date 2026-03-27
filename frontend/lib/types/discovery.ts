@@ -35,8 +35,12 @@ export type CandidateStatus = "pending" | "confirmed" | "skipped";
 export type DraftCandidate = {
 	itemId: string;
 	runId: string;
+	clientId: string | null;
+	locationId: string | null;
 	material: string;
 	volume: string | null;
+	frequency?: string | null;
+	units?: string | null;
 	locationLabel: string | null;
 	source: string;
 	confidence: number | null;

@@ -43,7 +43,7 @@ This section is the operational status baseline for day-to-day SDD apply/verify 
 ### 3.2 Backend-connected vs mock-driven reality
 
 - **Backend-connected and active in UI:** Discovery Wizard flow
-- **Backend-connected but not actively mounted:** `DraftConfirmationSheet`
+- **Deprecated legacy surface:** `DraftConfirmationSheet` (removed; centered confirmation modal is canonical)
 - **Mostly mock/local-state driven:** Dashboard, Streams, Stream Detail, Clients, Offers
 
 ### 3.3 Important implementation truths (must remain explicit)
@@ -109,7 +109,7 @@ Verification claims must always distinguish these dimensions; do not collapse th
 | Offers Pipeline | `/offers` | Active UI coverage | Mostly mock/local-state | Partial parity | Confirm stage semantics/copy and wire real pipeline data + transitions |
 | Offer Detail | `/offers/[id]` | Active UI coverage | Mostly mock/local-state | Partial parity | Connect status transitions/activity context to backend model |
 | Offers Archive | `/offers/archive` | Active UI coverage | Mostly mock/local-state | Partial parity | Backend archive retrieval/filtering + final read semantics |
-| Discovery family (modal-first) | Global modal surfaces | Strongest flow, active canonical | Backend-connected (wizard); DraftConfirmationSheet backend-connected but not mounted | Closest to parity, still not closed | Mount/decide DraftConfirmationSheet usage, complete orchestration and recovery parity checks |
+| Discovery family (modal-first) | Global modal surfaces | Strongest flow, active canonical | Backend-connected (wizard + centered `DraftConfirmationModal`) | Closest to parity, still not closed | Keep modal flow canonical; complete orchestration and recovery parity checks |
 
 Summary: route/surface coverage is strong; the core execution gap is backend connectivity + parity depth verification.
 
@@ -319,7 +319,7 @@ Priority order for next SDD cycles:
 2. **Dashboard data integration + triage fidelity hardening**
 3. **Clients family backend integration** (portfolio/profile)
 4. **Offers family backend integration** (pipeline/detail/archive)
-5. **Discovery parity hardening** (including decision on `DraftConfirmationSheet` mount/flow)
+5. **Discovery parity hardening** (centered confirmation modal canonical; continue orchestration/recovery hardening)
 
 Rationale:
 - Discovery already leads on real integration; highest value now is raising the rest of families from mock/local-state to backend-connected.
@@ -395,7 +395,7 @@ Exit criteria:
 
 ## Phase D — Offers integration + Discovery parity closeout
 - Complete Offers family backend connectivity and status semantics
-- Resolve DraftConfirmationSheet usage (mount path or explicit deprecation)
+- Keep `DraftConfirmationModal` as canonical discovery confirmation surface; legacy `DraftConfirmationSheet` remains deprecated
 - Final cross-family consistency pass (copy, action patterns, state semantics)
 
 Exit criteria:
@@ -468,7 +468,7 @@ Dependency note:
 ## 18) Open questions / blockers
 
 1. ~~Waste Streams taxonomy final decision: exact state naming/semantics for missing-information vs follow-up handling.~~ **RESOLVED: Use "Missing Information" as canonical taxonomy visible in Waste Streams.**
-2. Discovery surface policy: finalize whether `DraftConfirmationSheet` is mounted as active flow or deprecated.
+2. ~~Discovery surface policy: finalize whether `DraftConfirmationSheet` is mounted as active flow or deprecated.~~ **RESOLVED: Keep centered `DraftConfirmationModal` as canonical; deprecate/remove `DraftConfirmationSheet`.**
 3. Offer status vocabulary alignment: confirm canonical wording for all field-agent-facing status chips/tooltips.
 4. Backend contract sequencing: confirm API delivery order for Streams/Clients/Offers to match Section 10 priority order.
 

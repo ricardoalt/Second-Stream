@@ -1,5 +1,17 @@
 import type { StreamDetail, StreamRow } from "./types";
 
+const MOCK_CLIENT_IDS = {
+	apexRefining: "0be834dc-7e9f-4cf8-b038-f9ce5ec7ac54",
+	precisionChemTech: "f8d24fcf-5e6e-4d35-aa35-6af51b8f7dc7",
+	heavyConstruct: "eaacbc0c-35d5-4b4b-b39c-ce3d96f3dcd2",
+} as const;
+
+const MOCK_LOCATION_IDS = {
+	houston: "9a475d8f-22ed-4a4a-9e09-18cd44e56c9a",
+	batonRouge: "8d3381cc-f0a1-4ffd-ac0c-e1955c4fe8ab",
+	tulsa: "c4727ff7-a153-4de1-bf56-e8da3fd14704",
+} as const;
+
 export const allStreams: StreamRow[] = [
 	{
 		id: "STR-442",
@@ -23,7 +35,9 @@ export const allStreams: StreamRow[] = [
 		id: "STR-993",
 		name: "Contaminated Soil",
 		client: "Heavy Construct Corp",
+		clientId: MOCK_CLIENT_IDS.heavyConstruct,
 		location: "Tulsa, OK",
+		locationId: MOCK_LOCATION_IDS.tulsa,
 		agent: "Alex Fischer",
 		wasteType: "Solid",
 		volume: "250 tons/once",
@@ -98,12 +112,14 @@ export const allStreams: StreamRow[] = [
 		id: "DRAFT-01",
 		name: "Neutralization Slurry",
 		client: "Apex Refining Co.",
+		clientId: MOCK_CLIENT_IDS.apexRefining,
 		agent: "Alex Fischer",
 		wasteType: "Neutralization Slurry",
 		processMethod: "Thermal treatment",
 		volume: "22",
 		units: "tons/mo",
 		location: "Houston, TX",
+		locationId: MOCK_LOCATION_IDS.houston,
 		lastUpdated: "11 min ago",
 		phase: 1,
 		status: "draft",
@@ -113,12 +129,14 @@ export const allStreams: StreamRow[] = [
 		id: "DRAFT-02",
 		name: "Pyrolysis Residue",
 		client: "Precision Chem-Tech",
+		clientId: MOCK_CLIENT_IDS.precisionChemTech,
 		agent: "Alex Fischer",
 		wasteType: "Pyrolysis Residue",
 		processMethod: "Mechanical recovery",
 		volume: "14",
 		units: "tons/mo",
 		location: "Baton Rouge, LA",
+		locationId: MOCK_LOCATION_IDS.batonRouge,
 		lastUpdated: "34 min ago",
 		phase: 1,
 		status: "draft",
@@ -128,12 +146,14 @@ export const allStreams: StreamRow[] = [
 		id: "DRAFT-03",
 		name: "Distillation Bottoms",
 		client: "Heavy Construct Corp",
+		clientId: MOCK_CLIENT_IDS.heavyConstruct,
 		agent: "Marta Vega",
 		wasteType: "Distillation Bottoms",
 		processMethod: "Solvent wash",
 		volume: "9",
 		units: "tons/mo",
 		location: "Tulsa, OK",
+		locationId: MOCK_LOCATION_IDS.tulsa,
 		lastUpdated: "1 h ago",
 		phase: 1,
 		status: "draft",

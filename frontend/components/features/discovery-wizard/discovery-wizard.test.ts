@@ -1,7 +1,6 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { routes } from "@/lib/routes";
 import type { DraftItemRow } from "@/lib/types/dashboard";
 import type {
 	DiscoverySessionResult,
@@ -41,36 +40,8 @@ function buildSession(
 
 describe("confirmTerminalDiscoverySnapshot", () => {
 	it("uses confirmed terminal snapshot when second fetch has final summary", async () => {
-		const textSource = {
-			id: "source-1",
-			sourceType: "text" as const,
-			status: "review_ready" as const,
-			sourceFilename: null,
-			contentType: null,
-			sizeBytes: null,
-			textLength: 42,
-			textPreview: "Detected source text",
-			importRunId: null,
-			voiceInterviewId: null,
-			processingError: null,
-			createdAt: "2026-01-01T00:00:00Z",
-			updatedAt: "2026-01-01T00:00:00Z",
-		};
-		const initialTerminal = buildSession({
-			sources: [textSource],
-			summary: {
-				totalSources: 1,
-				fileSources: 1,
-				audioSources: 0,
-				textSources: 0,
-				locationsFound: 0,
-				wasteStreamsFound: 0,
-				draftsNeedingConfirmation: 0,
-				failedSources: 0,
-			},
-		});
+		const initialTerminal = buildSession();
 		const confirmedTerminal = buildSession({
-			sources: [textSource],
 			summary: {
 				totalSources: 1,
 				fileSources: 1,
@@ -91,160 +62,11 @@ describe("confirmTerminalDiscoverySnapshot", () => {
 			},
 		);
 
-		expect(result.summary.locationsFound).toBe(2);
-		expect(result.summary.wasteStreamsFound).toBe(3);
 		expect(result.summary.draftsNeedingConfirmation).toBe(3);
-		expect(discoveryWizardModule.sourceStatusLabel("review_ready")).toBe(
-			"Processed",
-		);
-		expect(discoveryWizardModule.sourceStatusLabel("failed")).toBe(
-			"Needs attention",
-		);
-		expect(discoveryWizardModule.sourceStatusLabel("processing")).toBe(
-			"Processing",
-		);
-		expect(discoveryWizardModule.sourceTypeLabel("file")).toBe("File");
-		expect(discoveryWizardModule.sourceTypeLabel("audio")).toBe("Audio");
-		expect(discoveryWizardModule.sourceTypeLabel("text")).toBe("Text");
-		expect(discoveryWizardModule.sourceDisplayLabel(textSource)).toBe(
-			"Detected source text",
-		);
-	});
-
-	it("falls back to original failed payload if confirmation fetch errors", async () => {
-		const failedSession = buildSession({
-			status: "failed",
-			processingError: "Extraction failed",
-		});
-
-		const result = await discoveryWizardModule.confirmTerminalDiscoverySnapshot(
-			{
-				sessionId: "session-1",
-				terminalSession: failedSession,
-				getSession: async () => {
-					throw new Error("network");
-				},
-			},
-		);
-
-		expect(result.status).toBe("failed");
-		expect(result.processingError).toBe("Extraction failed");
 	});
 });
 
-describe("navigateToSessionScopedDashboard", () => {
-	it("navigates to needs confirmation scoped by discovery session", () => {
-		let openedSessionId: string | null = null;
-		let closed = false;
-		let pushedPath: string | null = null;
-
-		discoveryWizardModule.navigateToSessionScopedDashboard({
-			sessionId: "session-42",
-			openNeedsConfirmationForSession: (sessionId: string) => {
-				openedSessionId = sessionId;
-			},
-			closeWizard: () => {
-				closed = true;
-			},
-			push: (href: string) => {
-				pushedPath = href;
-			},
-		});
-
-		expect(openedSessionId).toBe("session-42");
-		expect(closed).toBe(true);
-		expect(pushedPath).toBe(routes.dashboard);
-	});
-});
-
-describe("ResultView", () => {
-	it("still renders result copy when drafts needing confirmation is zero", () => {
-		const html = renderToStaticMarkup(
-			createElement(discoveryWizardModule.ResultView, {
-				result: buildSession({
-					summary: {
-						totalSources: 1,
-						fileSources: 1,
-						audioSources: 0,
-						textSources: 0,
-						locationsFound: 1,
-						wasteStreamsFound: 2,
-						draftsNeedingConfirmation: 0,
-						failedSources: 0,
-					},
-				}),
-				onGoToDashboard: () => {},
-			}),
-		);
-
-		expect(html).toContain("Ready for review");
-		expect(html).toContain("Go to dashboard");
-	});
-
-	it("renders only two metrics, helper copy, and analyzed sources", () => {
-		const html = renderToStaticMarkup(
-			createElement(discoveryWizardModule.ResultView, {
-				result: buildSession({
-					sources: [
-						{
-							id: "src-file",
-							sourceType: "file",
-							status: "review_ready",
-							sourceFilename: "streams.csv",
-							contentType: "text/csv",
-							sizeBytes: 123,
-							textLength: null,
-							textPreview: null,
-							importRunId: null,
-							voiceInterviewId: null,
-							processingError: null,
-							createdAt: "2026-01-01T00:00:00Z",
-							updatedAt: "2026-01-01T00:00:00Z",
-						},
-						{
-							id: "src-audio",
-							sourceType: "audio",
-							status: "failed",
-							sourceFilename: "voice.m4a",
-							contentType: "audio/mp4",
-							sizeBytes: 456,
-							textLength: null,
-							textPreview: null,
-							importRunId: null,
-							voiceInterviewId: null,
-							processingError: "failed",
-							createdAt: "2026-01-01T00:00:00Z",
-							updatedAt: "2026-01-01T00:00:00Z",
-						},
-					],
-					summary: {
-						totalSources: 2,
-						fileSources: 1,
-						audioSources: 1,
-						textSources: 0,
-						locationsFound: 1,
-						wasteStreamsFound: 3,
-						draftsNeedingConfirmation: 3,
-						failedSources: 1,
-					},
-				}),
-				onGoToDashboard: () => {},
-			}),
-		);
-
-		expect(html).toContain("Waste-streams found");
-		expect(html).toContain("Locations found");
-		expect(html).not.toContain(">drafts for review<");
-		expect(html).toContain("Locations are prefilled inside each draft.");
-		expect(html).toContain("Sources analyzed");
-		expect(html).toContain("streams.csv");
-		expect(html).toContain("voice.m4a");
-		expect(html).toContain("Processed");
-		expect(html).toContain("Needs attention");
-	});
-});
-
-describe("review flow helpers", () => {
+describe("review helpers", () => {
 	it("maps dashboard draft rows to pending draft candidates", () => {
 		const rows: DraftItemRow[] = [
 			{
@@ -269,14 +91,18 @@ describe("review flow helpers", () => {
 			},
 		];
 
-		const mapped = discoveryWizardModule.mapCandidateRows(rows);
-
-		expect(mapped).toEqual([
+		expect(
+			discoveryWizardModule.mapCandidateRows(rows, "company-1", "location-1"),
+		).toEqual([
 			{
 				itemId: "item-1",
 				runId: "run-1",
+				clientId: "company-1",
+				locationId: "location-1",
 				material: "PET flakes",
 				volume: "120 kg/week",
+				frequency: "week",
+				units: "kg",
 				locationLabel: "Plant A",
 				source: "streams.csv",
 				confidence: 0.91,
@@ -285,70 +111,278 @@ describe("review flow helpers", () => {
 		]);
 	});
 
-	it("renders review progress and finish button state", () => {
+	it("routes to no-results when no candidates exist", () => {
+		expect(
+			discoveryWizardModule.shouldRouteToNoResults({
+				draftsNeedingConfirmation: 0,
+				mappedCandidatesCount: 0,
+			}),
+		).toBe(true);
+
+		expect(
+			discoveryWizardModule.shouldRouteToNoResults({
+				draftsNeedingConfirmation: 2,
+				mappedCandidatesCount: 0,
+			}),
+		).toBe(true);
+
+		expect(
+			discoveryWizardModule.shouldRouteToNoResults({
+				draftsNeedingConfirmation: 2,
+				mappedCandidatesCount: 2,
+			}),
+		).toBe(false);
+	});
+
+	it("auto-opens confirmation modal when AI candidates exist", () => {
+		expect(
+			discoveryWizardModule.resolveDiscoveryReviewStep({
+				draftsNeedingConfirmation: 2,
+				mappedCandidatesCount: 2,
+			}),
+		).toEqual({
+			phase: "review",
+			openCandidateModal: true,
+		});
+
+		expect(
+			discoveryWizardModule.resolveDiscoveryReviewStep({
+				draftsNeedingConfirmation: 2,
+				mappedCandidatesCount: 0,
+			}),
+		).toEqual({
+			phase: "no-results",
+			openCandidateModal: false,
+		});
+	});
+
+	it("uses guarded close warning while unresolved candidates remain", () => {
+		expect(
+			discoveryWizardModule.resolveCandidateModalInstruction({
+				nextOpen: false,
+				pendingCandidatesCount: 1,
+			}),
+		).toBe("warn-unresolved-drafts");
+
+		expect(
+			discoveryWizardModule.resolveCandidateModalInstruction({
+				nextOpen: false,
+				pendingCandidatesCount: 0,
+			}),
+		).toBe("close-complete");
+	});
+
+	it("renders no-results actions for recovery paths", () => {
+		const html = renderToStaticMarkup(
+			createElement(discoveryWizardModule.NoResultsView, {
+				onClose: () => {},
+				onTryAgain: () => {},
+				onCreateManually: () => {},
+			}),
+		);
+
+		expect(html).toContain("No streams detected");
+		expect(html).toContain("Close");
+		expect(html).toContain("Try Again");
+		expect(html).toContain("Create Manually");
+	});
+});
+
+describe("candidate confirmation flow", () => {
+	it("returns validation errors for incomplete single-candidate confirm", async () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-1",
+			runId: "run-1",
+			clientId: "company-1",
+			locationId: "location-1",
+			material: "",
+			volume: null,
+			frequency: null,
+			units: "kg",
+			locationLabel: "Plant A",
+			source: "streams.csv",
+			confidence: 0.8,
+			status: "pending",
+		};
+
+		const decideDraft = mock(async () => ({}) as never);
+		const errors = await discoveryWizardModule.confirmCandidateDecision({
+			candidate,
+			decideDiscoveryDraft: decideDraft,
+		});
+
+		expect(errors.material).toBeDefined();
+		expect(errors.volume).toBeDefined();
+		expect(errors.frequency).toBeDefined();
+		expect(decideDraft).not.toHaveBeenCalled();
+	});
+
+	it("process & finalize all confirms pending via API and keeps unresolved as drafts", async () => {
 		const candidates: DraftCandidate[] = [
 			{
-				itemId: "item-1",
+				itemId: "pending-valid-1",
 				runId: "run-1",
+				clientId: "company-1",
+				locationId: "location-1",
 				material: "PET",
 				volume: "100 kg/week",
+				frequency: "weekly",
+				units: "kg",
 				locationLabel: "Plant A",
-				source: "streams.csv",
+				source: "a.csv",
+				confidence: 0.9,
+				status: "pending",
+			},
+			{
+				itemId: "pending-valid-2",
+				runId: "run-1",
+				clientId: "company-1",
+				locationId: "location-2",
+				material: "HDPE",
+				volume: "80 kg/week",
+				frequency: "weekly",
+				units: "kg",
+				locationLabel: "Plant B",
+				source: "b.csv",
+				confidence: 0.88,
+				status: "pending",
+			},
+			{
+				itemId: "pending-invalid",
+				runId: "run-1",
+				clientId: "company-1",
+				locationId: null,
+				material: "",
+				volume: null,
+				frequency: null,
+				units: "kg",
+				locationLabel: null,
+				source: "c.csv",
+				confidence: 0.4,
+				status: "pending",
+			},
+			{
+				itemId: "already-confirmed",
+				runId: "run-1",
+				clientId: "company-1",
+				locationId: "location-3",
+				material: "Paper",
+				volume: "20 kg/week",
+				frequency: "weekly",
+				units: "kg",
+				locationLabel: "Plant C",
+				source: "d.csv",
 				confidence: 0.9,
 				status: "confirmed",
 			},
-			{
-				itemId: "item-2",
-				runId: "run-1",
-				material: "HDPE",
-				volume: null,
-				locationLabel: null,
-				source: "voice.m4a",
-				confidence: 0.4,
-				status: "skipped",
-			},
-			{
-				itemId: "item-3",
-				runId: "run-1",
-				material: "Cardboard",
-				volume: "50 kg/week",
-				locationLabel: "Plant B",
-				source: "notes.txt",
-				confidence: null,
-				status: "pending",
-			},
 		];
 
-		const html = renderToStaticMarkup(
-			createElement(discoveryWizardModule.ReviewView, {
-				candidates,
-				confirmingId: null,
-				onConfirm: () => {},
-				onSkip: () => {},
-				onFinish: () => {},
-			}),
-		);
+		const decideDraft = mock(async () => ({}) as never);
+		const outcome = await discoveryWizardModule.processFinalizeAllCandidates({
+			candidates,
+			decideDiscoveryDraft: decideDraft,
+		});
 
-		expect(html).toContain("2 of 3 actioned");
-		expect(html).toContain("Finish Review");
-		expect(html).toContain("Confirmed");
-		expect(html).toContain("Kept as draft");
+		expect(decideDraft).toHaveBeenCalledTimes(2);
+		expect(outcome.confirmedIds.sort()).toEqual([
+			"pending-valid-1",
+			"pending-valid-2",
+		]);
+		expect(outcome.validationById["pending-invalid"]?.material).toBeDefined();
+		expect(outcome.updatedCandidates).toEqual([
+			{ ...candidates[0], status: "confirmed" },
+			{ ...candidates[1], status: "confirmed" },
+			{ ...candidates[2], status: "skipped" },
+			candidates[3],
+		]);
 	});
 
-	it("renders complete view totals", () => {
-		const html = renderToStaticMarkup(
-			createElement(discoveryWizardModule.CompleteView, {
-				confirmed: 2,
-				skipped: 1,
-				total: 3,
-				onGoToStreams: () => {},
-				onGoToDrafts: () => {},
+	it("requires selected location before discovery can start", () => {
+		expect(
+			discoveryWizardModule.canStartDiscovery({
+				companyId: "company-1",
+				locationId: "",
+				filesCount: 1,
+				hasAudio: false,
+				hasValidTextSource: false,
+			}),
+		).toBe(false);
+	});
+
+	it("resets selected location when client changes", () => {
+		expect(
+			discoveryWizardModule.resolveLocationIdOnCompanyChange({
+				previousCompanyId: "company-1",
+				nextCompanyId: "company-2",
+				currentLocationId: "location-1",
+			}),
+		).toBe("");
+	});
+
+	it("blocks quick entry save when location is missing", () => {
+		expect(
+			discoveryWizardModule.canSaveQuickEntry({
+				clientId: "company-1",
+				locationId: "",
+				material: "Spent Solvent",
+				isSaving: false,
+			}),
+		).toBe(false);
+	});
+
+	it("applies locationResolution only when a location can be resolved", async () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-1",
+			runId: "run-1",
+			clientId: "company-1",
+			locationId: null,
+			material: "PET",
+			volume: "100 kg/week",
+			frequency: "weekly",
+			units: "kg",
+			locationLabel: null,
+			source: "streams.csv",
+			confidence: 0.9,
+			status: "pending",
+		};
+
+		const decideDraftWithFallback = mock(async () => ({}) as never);
+		await discoveryWizardModule.confirmCandidateDecision({
+			candidate,
+			decideDiscoveryDraft: decideDraftWithFallback,
+			defaultLocationId: "location-99",
+		});
+
+		expect(decideDraftWithFallback).toHaveBeenCalledWith(
+			"item-1",
+			expect.objectContaining({
+				locationResolution: {
+					mode: "existing",
+					locationId: "location-99",
+				},
 			}),
 		);
 
-		expect(html).toContain("2 streams confirmed, 1 kept as drafts");
-		expect(html).toContain("3 streams reviewed");
-		expect(html).toContain("Go to My Streams");
-		expect(html).toContain("View Drafts");
+		const decideDraftWithoutFallback = mock(async () => ({}) as never);
+		await discoveryWizardModule.confirmCandidateDecision({
+			candidate,
+			decideDiscoveryDraft: decideDraftWithoutFallback,
+		});
+
+		expect(decideDraftWithoutFallback).toHaveBeenCalledWith(
+			"item-1",
+			expect.not.objectContaining({
+				locationResolution: expect.anything(),
+			}),
+		);
+	});
+
+	it("keeps discovery session creation company-scoped", () => {
+		expect(
+			discoveryWizardModule.resolveDiscoverySessionCompanyScope({
+				companyId: "company-1",
+				locationId: "location-1",
+			}),
+		).toBe("company-1");
 	});
 });

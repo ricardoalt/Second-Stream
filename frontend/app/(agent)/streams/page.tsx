@@ -1,25 +1,28 @@
 "use client";
 
 import {
-	AlertTriangle,
 	ArrowUpRight,
 	ChevronLeft,
 	ChevronRight,
 	Download,
 	Filter,
+	Loader2,
 	PlusCircle,
 	Search,
 	Sparkles,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
 import {
-	allStreams,
-	getDraftStreams,
-	getMissingInfoStreams,
-} from "@/components/features/streams/mock-data";
+	resolveOpenDraftState,
+	type StreamsTab,
+} from "@/components/features/streams/runtime-helpers";
 import { StreamsAllTable } from "@/components/features/streams/streams-all-table";
-import { StreamsDraftsTable } from "@/components/features/streams/streams-drafts-table";
+import { StreamsDraftConfirmation } from "@/components/features/streams/streams-draft-confirmation";
+import {
+	type DraftEditorState,
+	StreamsDraftsTable,
+} from "@/components/features/streams/streams-drafts-table";
 import { StreamsFamilyHeader } from "@/components/features/streams/streams-family-header";
 import { StreamsFollowUpBoard } from "@/components/features/streams/streams-follow-up-board";
 import { useStreamFilters } from "@/components/features/streams/use-stream-filters";
@@ -36,39 +39,65 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	useStreamsActions,
+	useStreamsAll,
+	useStreamsCounts,
+	useStreamsDraftRowsById,
+	useStreamsDrafts,
+	useStreamsError,
+	useStreamsInitialized,
+	useStreamsLoading,
+	useStreamsMissingInfo,
+} from "@/lib/stores/streams-store";
+import type { DraftItemRow } from "@/lib/types/dashboard";
 import { cn } from "@/lib/utils";
-
-type StreamsTab = "all" | "drafts" | "missing-info";
+import { computeWasteStreamsKpis } from "@/lib/utils/compute-waste-streams-kpis";
 
 export default function AgentStreamsPage() {
 	const discoveryWizard = useDiscoveryWizard();
 	const {
 		search,
 		clientFilter,
-		phaseFilter,
 		statusFilter,
 		setSearch,
 		setClientFilter,
-		setPhaseFilter,
 		setStatusFilter,
 	} = useStreamFilters();
+	const allStreams = useStreamsAll();
+	const draftStreams = useStreamsDrafts();
+	const missingInfoStreams = useStreamsMissingInfo();
+	const counts = useStreamsCounts();
+	const draftRowsById = useStreamsDraftRowsById();
+	const loading = useStreamsLoading();
+	const isInitialized = useStreamsInitialized();
+	const error = useStreamsError();
+	const { loadStreams } = useStreamsActions();
 	const [activeTab, setActiveTab] = useState<StreamsTab>("all");
+	const [confirmTarget, setConfirmTarget] = useState<{
+		draftItemRow: DraftItemRow;
+		editorState: DraftEditorState;
+	} | null>(null);
 
-	// ── Draft state ──
-	const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
-	const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+	const [highlightedDraftId, setHighlightedDraftId] = useState<string | null>(
+		null,
+	);
 
-	// ── Missing Info state ──
-	const [addressedIds, setAddressedIds] = useState<Set<string>>(new Set());
+	// ── All Streams state ──
+	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+	// ── Missing Information state ──
+	const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(
+		null,
+	);
 
 	// ── Computed data ──
-	const allDrafts = getDraftStreams();
-	const allMissingInfo = getMissingInfoStreams();
+	const operationalStreams = allStreams;
 
 	const filteredStreams = useMemo(() => {
 		const normalizedSearch = search.trim().toLowerCase();
 
-		return allStreams.filter((row) => {
+		return operationalStreams.filter((row) => {
 			const matchSearch =
 				normalizedSearch.length === 0 ||
 				row.name.toLowerCase().includes(normalizedSearch) ||
@@ -76,75 +105,118 @@ export default function AgentStreamsPage() {
 				row.wasteType.toLowerCase().includes(normalizedSearch);
 
 			const matchClient = clientFilter === "all" || row.client === clientFilter;
-			const matchPhase =
-				phaseFilter === "all" || String(row.phase) === phaseFilter;
 			const matchStatus = statusFilter === "all" || row.status === statusFilter;
 
-			return matchSearch && matchClient && matchPhase && matchStatus;
+			return matchSearch && matchClient && matchStatus;
 		});
-	}, [clientFilter, phaseFilter, search, statusFilter]);
+	}, [clientFilter, operationalStreams, search, statusFilter]);
 
 	const filteredDrafts = useMemo(() => {
 		const normalizedSearch = search.trim().toLowerCase();
 
-		return allDrafts
-			.filter((row) => !confirmedIds.has(row.id) && !deletedIds.has(row.id))
-			.filter((row) => {
-				const matchSearch =
-					normalizedSearch.length === 0 ||
-					row.name.toLowerCase().includes(normalizedSearch) ||
-					row.client.toLowerCase().includes(normalizedSearch) ||
-					row.wasteType.toLowerCase().includes(normalizedSearch);
+		return draftStreams.filter((row) => {
+			const matchSearch =
+				normalizedSearch.length === 0 ||
+				row.name.toLowerCase().includes(normalizedSearch) ||
+				row.client.toLowerCase().includes(normalizedSearch) ||
+				row.wasteType.toLowerCase().includes(normalizedSearch);
 
-				const matchClient =
-					clientFilter === "all" || row.client === clientFilter;
-				const matchPhase =
-					phaseFilter === "all" || String(row.phase) === phaseFilter;
+			const matchClient = clientFilter === "all" || row.client === clientFilter;
 
-				return matchSearch && matchClient && matchPhase;
-			});
-	}, [clientFilter, phaseFilter, search, confirmedIds, deletedIds, allDrafts]);
+			return matchSearch && matchClient;
+		});
+	}, [clientFilter, draftStreams, search]);
 
 	const filteredFollowUps = useMemo(() => {
 		const normalizedSearch = search.trim().toLowerCase();
 
-		return allMissingInfo
-			.filter((row) => !addressedIds.has(row.id))
-			.filter((row) => {
-				const matchSearch =
-					normalizedSearch.length === 0 ||
-					row.name.toLowerCase().includes(normalizedSearch) ||
-					row.client.toLowerCase().includes(normalizedSearch) ||
-					row.wasteType.toLowerCase().includes(normalizedSearch);
+		return missingInfoStreams.filter((row) => {
+			const matchSearch =
+				normalizedSearch.length === 0 ||
+				row.name.toLowerCase().includes(normalizedSearch) ||
+				row.client.toLowerCase().includes(normalizedSearch) ||
+				row.wasteType.toLowerCase().includes(normalizedSearch);
 
-				const matchClient =
-					clientFilter === "all" || row.client === clientFilter;
-				const matchPhase =
-					phaseFilter === "all" || String(row.phase) === phaseFilter;
+			const matchClient = clientFilter === "all" || row.client === clientFilter;
 
-				return matchSearch && matchClient && matchPhase;
-			});
-	}, [clientFilter, phaseFilter, search, addressedIds, allMissingInfo]);
+			return matchSearch && matchClient;
+		});
+	}, [clientFilter, missingInfoStreams, search]);
 
 	// ── Derived KPIs ──
-	const criticalAlerts = allStreams.filter(
-		(s) => s.status === "missing_info" || s.status === "blocked",
-	).length;
-	const openOffers = allStreams.filter(
-		(s) => s.status === "ready_for_offer",
-	).length;
+	const kpis = useMemo(() => computeWasteStreamsKpis(counts), [counts]);
+
+	useEffect(() => {
+		if (!isInitialized) {
+			void loadStreams();
+		}
+	}, [isInitialized, loadStreams]);
+
+	useEffect(() => {
+		setSelectedIds((prev) => {
+			const validIds = new Set(operationalStreams.map((stream) => stream.id));
+			return new Set([...prev].filter((id) => validIds.has(id)));
+		});
+	}, [operationalStreams]);
+
+	useEffect(() => {
+		if (
+			selectedFollowUpId &&
+			!filteredFollowUps.some((row) => row.id === selectedFollowUpId)
+		) {
+			setSelectedFollowUpId(null);
+		}
+	}, [filteredFollowUps, selectedFollowUpId]);
 
 	// ── Handlers ──
-	function handleConfirmDraft(id: string) {
-		setConfirmedIds((prev) => new Set([...prev, id]));
+	function handleConfirmDraft(id: string, editorState: DraftEditorState) {
+		const draft = draftRowsById[id];
+		if (!draft) {
+			return;
+		}
+
+		setConfirmTarget({ draftItemRow: draft, editorState });
+		setHighlightedDraftId(null);
 	}
 
-	function handleDeleteDraft(id: string) {
-		setDeletedIds((prev) => new Set([...prev, id]));
+	function handleOpenDraft(id: string) {
+		const next = resolveOpenDraftState(id);
+		setActiveTab(next.activeTab);
+		setHighlightedDraftId(next.highlightedDraftId);
 	}
 
-	function handleMarkAddressed(id: string) {
-		setAddressedIds((prev) => new Set([...prev, id]));
+	function handleToggleSelection(id: string, isSelected: boolean) {
+		setSelectedIds((prev) => {
+			const next = new Set(prev);
+			if (isSelected) {
+				next.add(id);
+			} else {
+				next.delete(id);
+			}
+			return next;
+		});
+	}
+
+	function handleToggleAllVisible(isSelected: boolean) {
+		setSelectedIds((prev) => {
+			const next = new Set(prev);
+			for (const row of filteredStreams) {
+				if (isSelected) {
+					next.add(row.id);
+				} else {
+					next.delete(row.id);
+				}
+			}
+			return next;
+		});
+	}
+
+	function formatKpi(value: number | null): string | null {
+		if (value === null) {
+			return null;
+		}
+
+		return String(value);
 	}
 
 	return (
@@ -167,23 +239,39 @@ export default function AgentStreamsPage() {
 				}
 			/>
 
-			{/* ── KPI Row ── */}
+			{/* KPI rail — page-level, tab-invariant */}
 			<div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-				<KpiCard
-					label="Active Streams"
-					value={String(allStreams.length)}
-					badge="+4%"
-					badgeType="success"
-				/>
+				<KpiCard label="Active Streams" value={formatKpi(kpis.activeStreams)} />
 				<KpiCard
 					label="Critical Alerts"
-					value={String(criticalAlerts)}
+					value={formatKpi(kpis.criticalAlerts)}
 					badge="Action Needed"
 					badgeType="destructive"
 				/>
-				<KpiCard label="Monthly Volume" value="42.5k" subValue="Gallons" />
-				<KpiCard label="Open Offers" value={String(openOffers)} hasAction />
+				<KpiCard
+					label="Monthly Volume"
+					value={formatKpi(kpis.monthlyVolume)}
+					{...(kpis.monthlyVolume !== null ? { subValue: "Gallons" } : {})}
+				/>
+				<KpiCard
+					label="Open Offers"
+					value={formatKpi(kpis.openOffers)}
+					hasAction
+				/>
 			</div>
+
+			{loading && !isInitialized ? (
+				<div className="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-sm text-muted-foreground">
+					<Loader2 aria-hidden className="size-4 animate-spin" />
+					Loading streams…
+				</div>
+			) : null}
+
+			{error ? (
+				<div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+					{error}
+				</div>
+			) : null}
 
 			{/* ── Unified tabs ── */}
 			<Tabs
@@ -220,7 +308,7 @@ export default function AgentStreamsPage() {
 					<div className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm">
 						{/* Search / Filters */}
 						{activeTab === "all" && (
-							<div className="grid gap-3 border-b border-outline-variant/20 p-4 lg:grid-cols-[1.4fr_repeat(3,minmax(0,1fr))]">
+							<div className="grid gap-3 border-b border-outline-variant/20 p-4 lg:grid-cols-[1.4fr_repeat(2,minmax(0,1fr))]">
 								<div className="relative">
 									<Search
 										aria-hidden
@@ -242,27 +330,14 @@ export default function AgentStreamsPage() {
 										<SelectGroup>
 											<SelectItem value="all">All clients</SelectItem>
 											{[
-												...new Set(allStreams.map((stream) => stream.client)),
+												...new Set(
+													operationalStreams.map((stream) => stream.client),
+												),
 											].map((client) => (
 												<SelectItem key={client} value={client}>
 													{client}
 												</SelectItem>
 											))}
-										</SelectGroup>
-									</SelectContent>
-								</Select>
-
-								<Select value={phaseFilter} onValueChange={setPhaseFilter}>
-									<SelectTrigger>
-										<SelectValue placeholder="Phase" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectGroup>
-											<SelectItem value="all">All phases</SelectItem>
-											<SelectItem value="1">Phase 1</SelectItem>
-											<SelectItem value="2">Phase 2</SelectItem>
-											<SelectItem value="3">Phase 3</SelectItem>
-											<SelectItem value="4">Phase 4</SelectItem>
 										</SelectGroup>
 									</SelectContent>
 								</Select>
@@ -288,7 +363,13 @@ export default function AgentStreamsPage() {
 						)}
 
 						{filteredStreams.length > 0 ? (
-							<StreamsAllTable rows={filteredStreams} />
+							<StreamsAllTable
+								rows={filteredStreams}
+								selectedIds={selectedIds}
+								onToggleSelection={handleToggleSelection}
+								onToggleAllVisible={handleToggleAllVisible}
+								onOpenDraft={handleOpenDraft}
+							/>
 						) : (
 							<div className="p-6">
 								<EmptyState
@@ -300,7 +381,6 @@ export default function AgentStreamsPage() {
 										onClick: () => {
 											setSearch("");
 											setClientFilter("all");
-											setPhaseFilter("all");
 											setStatusFilter("all");
 										},
 									}}
@@ -311,8 +391,8 @@ export default function AgentStreamsPage() {
 						{/* Pagination Footer */}
 						<div className="flex items-center justify-between border-t border-outline-variant/20 px-4 py-3">
 							<p className="text-xs text-muted-foreground">
-								Showing {filteredStreams.length} of {allStreams.length} active
-								streams
+								Showing {filteredStreams.length} of {operationalStreams.length}{" "}
+								active streams
 							</p>
 							<div className="flex items-center gap-1">
 								<button
@@ -347,7 +427,7 @@ export default function AgentStreamsPage() {
 								Based on your current volume of Spent Isopropyl Alcohol,
 								we&apos;ve identified 3 potential solvent recovery facilities
 								with active buy-orders within a 200-mile radius. Run the
-								Discovery Wizard to generate proposals.
+								Discovery Wizard to generate offers.
 							</p>
 						</div>
 						<Button
@@ -382,13 +462,13 @@ export default function AgentStreamsPage() {
 						<StreamsDraftsTable
 							rows={filteredDrafts}
 							onConfirm={handleConfirmDraft}
-							onDelete={handleDeleteDraft}
+							highlightedId={highlightedDraftId}
 						/>
 
 						{/* Pagination Footer */}
 						<div className="flex items-center justify-between border-t border-outline-variant/20 px-4 py-3">
 							<p className="text-xs text-muted-foreground">
-								Showing {filteredDrafts.length} of {allDrafts.length} pending
+								Showing {filteredDrafts.length} of {draftStreams.length} pending
 								drafts
 							</p>
 							<div className="flex items-center gap-1">
@@ -416,10 +496,20 @@ export default function AgentStreamsPage() {
 				<TabsContent value="missing-info" className="mt-4">
 					<StreamsFollowUpBoard
 						items={filteredFollowUps}
-						onMarkAddressed={handleMarkAddressed}
+						selectedId={selectedFollowUpId}
+						onSelect={setSelectedFollowUpId}
 					/>
 				</TabsContent>
 			</Tabs>
+
+			<StreamsDraftConfirmation
+				draftItemRow={confirmTarget?.draftItemRow ?? null}
+				editorState={confirmTarget?.editorState ?? null}
+				onClose={() => {
+					setConfirmTarget(null);
+					void loadStreams();
+				}}
+			/>
 		</div>
 	);
 }
@@ -434,7 +524,7 @@ function KpiCard({
 	hasAction,
 }: {
 	label: string;
-	value: string;
+	value: string | null;
 	badge?: string;
 	badgeType?: "success" | "destructive";
 	subValue?: string;
@@ -446,9 +536,18 @@ function KpiCard({
 				{label}
 			</p>
 			<div className="mt-1 flex items-baseline gap-2">
-				<span className="font-display text-2xl font-bold text-foreground">
-					{value}
-				</span>
+				{value === null ? (
+					<span
+						title="Data not yet available"
+						className="font-display text-2xl font-bold text-muted-foreground"
+					>
+						—
+					</span>
+				) : (
+					<span className="font-display text-2xl font-bold text-foreground">
+						{value}
+					</span>
+				)}
 				{badge ? (
 					<Badge
 						variant="secondary"

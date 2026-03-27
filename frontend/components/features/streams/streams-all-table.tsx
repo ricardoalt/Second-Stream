@@ -1,8 +1,10 @@
 "use client";
 
-import { AlertTriangle, ChevronRight, MoreVertical } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Table,
 	TableBody,
@@ -11,11 +13,16 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { getAllStreamsPrimaryActionLabel } from "./runtime-helpers";
 import { StreamStatusBadge } from "./stream-status-badge";
-import type { StreamRow } from "./types";
+import { isDraftStream, type StreamRow } from "./types";
 
 type StreamsAllTableProps = {
 	rows: StreamRow[];
+	selectedIds: Set<string>;
+	onToggleSelection: (id: string, isSelected: boolean) => void;
+	onToggleAllVisible: (isSelected: boolean) => void;
+	onOpenDraft: (id: string) => void;
 };
 
 function getAlertForRow(row: StreamRow) {
@@ -25,19 +32,33 @@ function getAlertForRow(row: StreamRow) {
 	if (row.status === "blocked") {
 		return { label: "Blocked: Pending review", variant: "warning" as const };
 	}
-	if (row.status === "draft") {
-		return { label: "Go Confirm", variant: "confirm" as const };
-	}
 	return null;
 }
 
-export function StreamsAllTable({ rows }: StreamsAllTableProps) {
+export function StreamsAllTable({
+	rows,
+	selectedIds,
+	onToggleSelection,
+	onToggleAllVisible,
+	onOpenDraft,
+}: StreamsAllTableProps) {
 	const router = useRouter();
+	const areAllVisibleSelected =
+		rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
 
 	return (
 		<Table>
 			<TableHeader>
 				<TableRow className="border-b-0 bg-surface-container">
+					<TableHead className="w-12 px-4 py-3">
+						<Checkbox
+							checked={areAllVisibleSelected}
+							onCheckedChange={(checked) =>
+								onToggleAllVisible(checked === true)
+							}
+							aria-label="Select all visible streams"
+						/>
+					</TableHead>
 					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 						Material &amp; Client
 					</TableHead>
@@ -58,16 +79,36 @@ export function StreamsAllTable({ rows }: StreamsAllTableProps) {
 			<TableBody>
 				{rows.map((row, index) => {
 					const alert = getAlertForRow(row);
+					const isDraft = isDraftStream(row);
+					const isSelected = selectedIds.has(row.id);
+
+					function openRowWorkspace() {
+						if (isDraft) {
+							return;
+						}
+						router.push(`/streams/${row.id}`);
+					}
+
 					return (
 						<TableRow
 							key={row.id}
-							onClick={() => router.push(`/streams/${row.id}`)}
+							onClick={openRowWorkspace}
 							className={
 								index % 2 === 0
-									? "cursor-pointer border-b-0 bg-surface-container-lowest transition-colors hover:bg-surface-container-high/50"
-									: "cursor-pointer border-b-0 bg-surface transition-colors hover:bg-surface-container-high/50"
+									? "border-b-0 bg-surface-container-lowest transition-colors hover:bg-surface-container-high/50"
+									: "border-b-0 bg-surface transition-colors hover:bg-surface-container-high/50"
 							}
 						>
+							<TableCell className="w-12 px-4 py-3.5">
+								<Checkbox
+									checked={isSelected}
+									onCheckedChange={(checked) => {
+										onToggleSelection(row.id, checked === true);
+									}}
+									onClick={(event) => event.stopPropagation()}
+									aria-label={`Select ${row.name}`}
+								/>
+							</TableCell>
 							<TableCell className="px-4 py-3.5">
 								<div className="flex flex-col gap-0.5">
 									<span className="font-medium text-foreground">
@@ -86,40 +127,51 @@ export function StreamsAllTable({ rows }: StreamsAllTableProps) {
 							</TableCell>
 							<TableCell className="px-4 py-3.5">
 								{alert ? (
-									alert.variant === "confirm" ? (
-										<button
-											type="button"
-											onClick={(e) => {
-												e.stopPropagation();
-												router.push(`/streams/${row.id}`);
-											}}
-											className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary-container"
-										>
-											Go Confirm
-											<ChevronRight aria-hidden className="size-3" />
-										</button>
-									) : (
-										<Badge
-											variant="secondary"
-											className="rounded-full border-0 bg-error-container text-on-error-container"
-										>
-											<AlertTriangle aria-hidden className="mr-1 size-3" />
-											{alert.label}
-										</Badge>
-									)
+									<Badge
+										variant="secondary"
+										className="rounded-full border-0 bg-error-container text-on-error-container"
+									>
+										<AlertTriangle aria-hidden className="mr-1 size-3" />
+										{alert.label}
+									</Badge>
 								) : (
 									<span className="text-xs text-muted-foreground">—</span>
 								)}
 							</TableCell>
 							<TableCell className="px-4 py-3.5 text-right">
-								<button
-									type="button"
-									aria-label={`More actions for ${row.name}`}
-									className="inline-flex rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-surface-container hover:text-foreground"
-									onClick={(e) => e.stopPropagation()}
-								>
-									<MoreVertical aria-hidden className="size-4" />
-								</button>
+								{isDraft ? (
+									<Button
+										variant="default"
+										size="sm"
+										onClick={(event) => {
+											event.stopPropagation();
+											onOpenDraft(row.id);
+										}}
+									>
+										{getAllStreamsPrimaryActionLabel(row)}
+										<ChevronRight
+											data-icon="inline-end"
+											aria-hidden
+											className="size-3"
+										/>
+									</Button>
+								) : (
+									<Button
+										variant="secondary"
+										size="sm"
+										onClick={(event) => {
+											event.stopPropagation();
+											openRowWorkspace();
+										}}
+									>
+										{getAllStreamsPrimaryActionLabel(row)}
+										<ArrowUpRight
+											data-icon="inline-end"
+											aria-hidden
+											className="size-3"
+										/>
+									</Button>
+								)}
 							</TableCell>
 						</TableRow>
 					);

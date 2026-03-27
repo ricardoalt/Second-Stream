@@ -103,7 +103,7 @@ export function AddNewClientModal({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="glass-popover w-[min(92vw,900px)] max-w-none rounded-xl border-0 p-0">
+			<DialogContent className="glass-popover w-[min(92vw,960px)] max-w-none rounded-xl border-0 p-0">
 				<DialogHeader className="flex flex-col gap-2 bg-surface-container-low px-6 py-5 text-left">
 					<div className="flex items-center gap-2">
 						<Building2 aria-hidden className="text-primary" />
