@@ -14,6 +14,9 @@ from app.schemas.workspace import (
     WorkspaceContextNoteUpdateResponse,
     WorkspaceCustomFieldUpdateRequest,
     WorkspaceHydrateResponse,
+    WorkspaceQuestionnaireUpdateRequest,
+    WorkspaceQuestionSuggestionReviewRequest,
+    WorkspaceQuestionSuggestionReviewResponse,
     WorkspaceRefreshInsightsResponse,
 )
 from app.services.workspace_service import WorkspaceService
@@ -84,6 +87,24 @@ async def update_workspace_custom_fields(
     )
 
 
+@router.patch(
+    "/{project_id}/workspace/questionnaire",
+    summary="Update workspace questionnaire answers",
+)
+async def update_workspace_questionnaire(
+    project: ActiveProjectDataEditorDep,
+    payload: WorkspaceQuestionnaireUpdateRequest,
+    current_user: CurrentUser,
+    db: AsyncDB,
+) -> WorkspaceHydrateResponse:
+    return await WorkspaceService.update_questionnaire_answers(
+        db=db,
+        project=project,
+        current_user=current_user,
+        updates=payload.answers,
+    )
+
+
 @router.post(
     "/{project_id}/workspace/refresh-insights",
     summary="Refresh workspace insights",
@@ -121,6 +142,31 @@ async def confirm_workspace_custom_fields(
     return WorkspaceConfirmProposalResponse(
         created_fields=created_fields,
         ignored_temp_ids=ignored_temp_ids,
+        workspace=workspace,
+    )
+
+
+@router.post(
+    "/{project_id}/workspace/questionnaire-suggestions/review",
+    summary="Review workspace questionnaire AI suggestions",
+)
+async def review_workspace_questionnaire_suggestions(
+    project: ActiveProjectDataEditorDep,
+    payload: WorkspaceQuestionSuggestionReviewRequest,
+    current_user: CurrentUser,
+    db: AsyncDB,
+) -> WorkspaceQuestionSuggestionReviewResponse:
+    processed_count, ignored_question_ids, workspace = (
+        await WorkspaceService.review_questionnaire_suggestions(
+            db=db,
+            project=project,
+            current_user=current_user,
+            payload=payload,
+        )
+    )
+    return WorkspaceQuestionSuggestionReviewResponse(
+        processed_count=processed_count,
+        ignored_question_ids=ignored_question_ids,
         workspace=workspace,
     )
 

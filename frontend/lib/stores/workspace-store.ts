@@ -12,8 +12,13 @@ import type {
 	WorkspaceDerivedInsights,
 	WorkspaceEvidenceItem,
 	WorkspaceHydrateResponse,
+	WorkspacePhaseProgress,
 	WorkspaceProposalBatch,
 	WorkspaceProposalItem,
+	WorkspaceQuestionAnswerUpdate,
+	WorkspaceQuestionId,
+	WorkspaceQuestionSuggestion,
+	WorkspaceQuestionSuggestionReviewScope,
 } from "@/lib/types/workspace";
 import { getErrorMessage, logger } from "@/lib/utils/logger";
 
@@ -29,6 +34,10 @@ interface WorkspaceState {
 	evidenceItems: WorkspaceEvidenceItem[];
 	contextNote: string;
 	derived: WorkspaceDerivedInsights | null;
+	questionnaireAnswers: Record<WorkspaceQuestionId, string>;
+	questionnaireSuggestions: WorkspaceQuestionSuggestion[];
+	phaseProgress: WorkspacePhaseProgress;
+	firstIncompletePhase: 1 | 2 | 3 | 4;
 
 	// Transient
 	proposalBatch: WorkspaceProposalBatch | null;
@@ -38,6 +47,7 @@ interface WorkspaceState {
 	baseFieldsDirty: boolean;
 	contextNoteDirty: boolean;
 	customFieldsDirty: boolean;
+	questionnaireAnswersDirty: boolean;
 	summaryStale: boolean;
 	newReadyEvidenceSinceAnalysis: boolean;
 	newReadyEvidenceCountSinceAnalysis: number;
@@ -53,6 +63,8 @@ interface WorkspaceState {
 	baseFieldsSaveStatus: SaveStatus;
 	contextNoteSaveStatus: SaveStatus;
 	customFieldsSaveStatus: SaveStatus;
+	questionnaireSaveStatus: SaveStatus;
+	reviewSuggestionsStatus: SaveStatus;
 	error: string | null;
 	backgroundHydrateError: string | null;
 
@@ -67,6 +79,16 @@ interface WorkspaceState {
 	applyHydrateData: (data: WorkspaceHydrateResponse) => void;
 	updateBaseField: (fieldId: BaseFieldId, value: string) => void;
 	saveBaseFields: (projectId: string) => Promise<void>;
+	updateQuestionnaireAnswer: (
+		questionId: WorkspaceQuestionId,
+		value: string,
+	) => void;
+	reviewQuestionnaireSuggestions: (
+		projectId: string,
+		action: "accept" | "reject",
+		scope: WorkspaceQuestionSuggestionReviewScope,
+	) => Promise<void>;
+	saveQuestionnaireAnswers: (projectId: string) => Promise<void>;
 	updateContextNote: (text: string) => void;
 	saveContextNote: (projectId: string) => Promise<void>;
 	updateCustomField: (
@@ -106,11 +128,16 @@ const createInitialState = () => ({
 	evidenceItems: [] as WorkspaceEvidenceItem[],
 	contextNote: "",
 	derived: null as WorkspaceDerivedInsights | null,
+	questionnaireAnswers: {} as Record<WorkspaceQuestionId, string>,
+	questionnaireSuggestions: [] as WorkspaceQuestionSuggestion[],
+	phaseProgress: { "1": false, "2": false, "3": false, "4": false },
+	firstIncompletePhase: 1 as 1 | 2 | 3 | 4,
 	proposalBatch: null as WorkspaceProposalBatch | null,
 	proposalModalOpen: false,
 	baseFieldsDirty: false,
 	contextNoteDirty: false,
 	customFieldsDirty: false,
+	questionnaireAnswersDirty: false,
 	summaryStale: false,
 	newReadyEvidenceSinceAnalysis: false,
 	newReadyEvidenceCountSinceAnalysis: 0,
@@ -124,6 +151,8 @@ const createInitialState = () => ({
 	baseFieldsSaveStatus: "idle" as SaveStatus,
 	contextNoteSaveStatus: "idle" as SaveStatus,
 	customFieldsSaveStatus: "idle" as SaveStatus,
+	questionnaireSaveStatus: "idle" as SaveStatus,
+	reviewSuggestionsStatus: "idle" as SaveStatus,
 	error: null as string | null,
 	backgroundHydrateError: null as string | null,
 	uploadSessionFileIds: [] as string[],
@@ -134,6 +163,51 @@ const createInitialState = () => ({
 
 const SESSION_HYDRATE_MAX_RETRIES = 5;
 const SESSION_HYDRATE_RETRY_DELAY_MS = 3_000;
+
+function areQuestionnaireAnswersEqual(
+	left: Record<string, string>,
+	right: Record<string, string>,
+): boolean {
+	const leftKeys = Object.keys(left);
+	const rightKeys = Object.keys(right);
+	if (leftKeys.length !== rightKeys.length) {
+		return false;
+	}
+
+	for (const key of leftKeys) {
+		if (left[key] !== right[key]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function getReviewScopeQuestionIds(
+	suggestions: WorkspaceQuestionSuggestion[],
+	scope: WorkspaceQuestionSuggestionReviewScope,
+): WorkspaceQuestionId[] {
+	if (scope.kind === "field") {
+		return [scope.question_id];
+	}
+
+	if (scope.kind === "section") {
+		return suggestions
+			.filter(
+				(suggestion) =>
+					suggestion.status === "pending" &&
+					suggestion.section === scope.section,
+			)
+			.map((suggestion) => suggestion.questionId);
+	}
+
+	return suggestions
+		.filter(
+			(suggestion) =>
+				suggestion.status === "pending" && suggestion.phase === scope.phase,
+		)
+		.map((suggestion) => suggestion.questionId);
+}
 
 export const useWorkspaceStore = create<WorkspaceState>()(
 	immer((set, get) => ({
@@ -240,6 +314,21 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 					s.contextNote =
 						typeof data.contextNote === "string" ? data.contextNote : "";
 				}
+				if (!s.questionnaireAnswersDirty) {
+					s.questionnaireAnswers = data.questionnaireAnswers ?? {};
+				}
+				s.questionnaireSuggestions = Array.isArray(
+					data.questionnaireSuggestions,
+				)
+					? data.questionnaireSuggestions
+					: [];
+				s.phaseProgress = data.phaseProgress ?? {
+					"1": false,
+					"2": false,
+					"3": false,
+					"4": false,
+				};
+				s.firstIncompletePhase = data.firstIncompletePhase ?? 1;
 				if (data.derived && typeof data.derived === "object") {
 					s.derived = {
 						...data.derived,
@@ -380,6 +469,127 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 			}
 		},
 
+		updateQuestionnaireAnswer: (
+			questionId: WorkspaceQuestionId,
+			value: string,
+		) => {
+			set((s) => {
+				s.questionnaireAnswers[questionId] = value;
+				s.questionnaireAnswersDirty = true;
+				s.questionnaireSaveStatus = "idle";
+			});
+		},
+
+		reviewQuestionnaireSuggestions: async (
+			projectId: string,
+			action: "accept" | "reject",
+			scope: WorkspaceQuestionSuggestionReviewScope,
+		) => {
+			const currentState = get();
+			if (currentState.reviewSuggestionsStatus === "saving") return;
+
+			const targetQuestionIds = getReviewScopeQuestionIds(
+				currentState.questionnaireSuggestions,
+				scope,
+			);
+
+			set((s) => {
+				s.reviewSuggestionsStatus = "saving";
+			});
+
+			try {
+				const response = await workspaceAPI.reviewQuestionnaireSuggestions(
+					projectId,
+					{ action, scope },
+				);
+				get().applyHydrateData(response.workspace);
+
+				if (action === "accept" && targetQuestionIds.length > 0) {
+					const ignored = new Set(response.ignoredQuestionIds);
+					set((s) => {
+						for (const questionId of targetQuestionIds) {
+							if (ignored.has(questionId)) continue;
+							const accepted =
+								response.workspace.questionnaireAnswers[questionId];
+							if (typeof accepted === "string") {
+								s.questionnaireAnswers[questionId] = accepted;
+							}
+						}
+					});
+				}
+
+				set((s) => {
+					s.reviewSuggestionsStatus = "saved";
+				});
+			} catch (error) {
+				logger.error(
+					"Failed to review questionnaire suggestions",
+					error,
+					"WorkspaceStore",
+				);
+				set((s) => {
+					s.reviewSuggestionsStatus = "error";
+				});
+				throw error;
+			}
+		},
+
+		saveQuestionnaireAnswers: async (projectId: string) => {
+			const currentState = get();
+			if (!currentState.questionnaireAnswersDirty) return;
+			if (currentState.questionnaireSaveStatus === "saving") return;
+
+			const answers = currentState.questionnaireAnswers;
+			const updates: WorkspaceQuestionAnswerUpdate[] = Object.entries(
+				answers,
+			).map(([questionId, value]) => ({
+				question_id: questionId as WorkspaceQuestionId,
+				value,
+			}));
+
+			if (updates.length === 0) return;
+
+			const sentValues = { ...answers };
+
+			set((s) => {
+				s.questionnaireSaveStatus = "saving";
+			});
+
+			try {
+				const data = await workspaceAPI.updateQuestionnaireAnswers(
+					projectId,
+					updates,
+				);
+				const latestAnswers = get().questionnaireAnswers;
+				const valuesStillMatch = areQuestionnaireAnswersEqual(
+					latestAnswers,
+					sentValues,
+				);
+				if (valuesStillMatch) {
+					set((s) => {
+						s.questionnaireAnswersDirty = false;
+					});
+					get().applyHydrateData(data);
+					set((s) => {
+						s.questionnaireSaveStatus = "saved";
+					});
+				} else {
+					set((s) => {
+						s.questionnaireSaveStatus = "saved";
+					});
+				}
+			} catch (error) {
+				logger.error(
+					"Failed to save questionnaire answers",
+					error,
+					"WorkspaceStore",
+				);
+				set((s) => {
+					s.questionnaireSaveStatus = "error";
+				});
+			}
+		},
+
 		updateContextNote: (text: string) => {
 			set((s) => {
 				s.contextNote = text;
@@ -489,6 +699,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 					s.derived = data.derived;
 					s.proposalBatch =
 						data.proposalBatch.proposals.length > 0 ? data.proposalBatch : null;
+					s.questionnaireSuggestions = Array.isArray(
+						data.questionnaireSuggestions,
+					)
+						? data.questionnaireSuggestions
+						: [];
 					s.proposalModalOpen = data.proposalBatch.proposals.length > 0;
 					s.refreshing = false;
 					s.summaryStale = false;
@@ -651,6 +866,12 @@ export const useWorkspaceEvidence = () =>
 export const useWorkspaceDerived = () =>
 	useWorkspaceStore((s) => s.derived ?? INITIAL_DERIVED);
 
+export const useWorkspaceQuestionnaireSuggestions = () =>
+	useWorkspaceStore(useShallow((s) => s.questionnaireSuggestions));
+
+export const useWorkspaceReviewSuggestionsStatus = () =>
+	useWorkspaceStore((s) => s.reviewSuggestionsStatus);
+
 export const useWorkspaceProposalBatch = () =>
 	useWorkspaceStore((s) => s.proposalBatch);
 
@@ -669,6 +890,9 @@ export const useWorkspaceActions = () =>
 			hydrate: s.hydrate,
 			updateBaseField: s.updateBaseField,
 			saveBaseFields: s.saveBaseFields,
+			updateQuestionnaireAnswer: s.updateQuestionnaireAnswer,
+			reviewQuestionnaireSuggestions: s.reviewQuestionnaireSuggestions,
+			saveQuestionnaireAnswers: s.saveQuestionnaireAnswers,
 			updateContextNote: s.updateContextNote,
 			saveContextNote: s.saveContextNote,
 			updateCustomField: s.updateCustomField,

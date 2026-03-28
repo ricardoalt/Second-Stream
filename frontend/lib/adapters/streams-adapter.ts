@@ -1,10 +1,5 @@
-import type {
-	StreamRow,
-} from "@/components/features/streams/types";
-import type {
-	DraftItemRow,
-	PersistedStreamRow,
-} from "@/lib/types/dashboard";
+import type { StreamRow } from "@/components/features/streams/types";
+import type { DraftItemRow, PersistedStreamRow } from "@/lib/types/dashboard";
 
 function computeDaysSinceLastActivity(lastActivityAt: string): number {
 	const parsed = Date.parse(lastActivityAt);
@@ -37,9 +32,7 @@ function persistedStatus(row: PersistedStreamRow): StreamRow["status"] {
 	return "active";
 }
 
-export function adaptPersistedStream(
-	row: PersistedStreamRow,
-	): StreamRow {
+export function adaptPersistedStream(row: PersistedStreamRow): StreamRow {
 	return {
 		id: row.projectId,
 		name: row.streamName,
@@ -62,7 +55,7 @@ export function adaptDraftItem(row: DraftItemRow): StreamRow {
 	return {
 		id: row.itemId,
 		name: row.streamName,
-		wasteType: "",
+		wasteType: row.streamName,
 		client: row.companyLabel ?? "",
 		...(row.companyId ? { clientId: row.companyId } : {}),
 		location: row.locationLabel ?? "",

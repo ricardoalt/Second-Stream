@@ -40,7 +40,7 @@ export function mapEditorStateToDraftCandidate(
 		locationId: editorState.locationId || null,
 		material: editorState.wasteType,
 		volume: editorState.volume || null,
-		frequency: null,
+		frequency: editorState.frequency || null,
 		units: editorState.units || null,
 		locationLabel: null,
 		source: "Waste Streams Drafts",

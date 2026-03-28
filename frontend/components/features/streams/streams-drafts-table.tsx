@@ -1,12 +1,9 @@
 "use client";
 
 import { Check, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CompanyCombobox } from "@/components/ui/company-combobox";
 import { Input } from "@/components/ui/input";
-import { LocationCombobox } from "@/components/ui/location-combobox";
 import {
 	Select,
 	SelectContent,
@@ -23,8 +20,16 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { useLocationStore } from "@/lib/stores/location-store";
 import type { StreamRow } from "./types";
+
+const FREQUENCY_OPTIONS = [
+	"One-time",
+	"Weekly",
+	"Bi-weekly",
+	"Monthly",
+	"Quarterly",
+	"As needed",
+] as const;
 
 type StreamsDraftsTableProps = {
 	rows: StreamRow[];
@@ -35,8 +40,8 @@ type StreamsDraftsTableProps = {
 
 export type DraftEditorState = {
 	wasteType: string;
-	processMethod: string;
 	volume: string;
+	frequency: string;
 	units: string;
 	clientId: string;
 	locationId: string;
@@ -50,19 +55,16 @@ export function validateDraft(
 	const errors: DraftValidationErrors = {};
 
 	if (draftRow.wasteType.trim().length === 0) {
-		errors.wasteType = "Material type is required.";
-	}
-	if (draftRow.processMethod.trim().length === 0) {
-		errors.processMethod = "Process method is required.";
+		errors.wasteType = "Material name is required.";
 	}
 	if (draftRow.volume.trim().length === 0) {
 		errors.volume = "Volume is required.";
 	}
+	if (draftRow.frequency.trim().length === 0) {
+		errors.frequency = "Frequency is required.";
+	}
 	if (draftRow.units.trim().length === 0) {
 		errors.units = "Units are required.";
-	}
-	if (draftRow.locationId.trim().length === 0) {
-		errors.locationId = "Location is required";
 	}
 
 	return errors;
@@ -88,14 +90,6 @@ export function applyDraftFieldUpdate<
 	return nextDraft;
 }
 
-export function shouldShowZeroLocationRecovery(params: {
-	clientId: string;
-	availableLocationsCount: number;
-}): boolean {
-	const { clientId, availableLocationsCount } = params;
-	return clientId.length > 0 && availableLocationsCount === 0;
-}
-
 export function StreamsDraftsTable({
 	rows,
 	onConfirm,
@@ -106,29 +100,13 @@ export function StreamsDraftsTable({
 	const [errorsByRow, setErrorsByRow] = useState<
 		Record<string, DraftValidationErrors>
 	>({});
-	const { locations, loadLocationsByCompany } = useLocationStore();
-
-	useEffect(() => {
-		const companyIds = new Set<string>();
-		for (const row of rows) {
-			const rowDraft = draft[row.id];
-			const companyId = rowDraft?.clientId ?? row.clientId ?? "";
-			if (companyId) {
-				companyIds.add(companyId);
-			}
-		}
-
-		for (const companyId of companyIds) {
-			void loadLocationsByCompany(companyId);
-		}
-	}, [draft, rows, loadLocationsByCompany]);
 
 	function getDraftState(row: StreamRow): DraftEditorState {
 		return (
 			draft[row.id] ?? {
-				wasteType: row.wasteType,
-				processMethod: row.processMethod ?? "",
+				wasteType: row.wasteType || row.name,
 				volume: row.volume,
+				frequency: row.frequency ?? "",
 				units: row.units ?? "",
 				clientId: row.clientId ?? "",
 				locationId: row.locationId ?? "",
@@ -192,10 +170,10 @@ export function StreamsDraftsTable({
 			<TableHeader>
 				<TableRow className="border-b-0 bg-surface-container">
 					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-						Material type
+						Company
 					</TableHead>
 					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-						Process method
+						Material Name
 					</TableHead>
 					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 						Volume
@@ -204,7 +182,7 @@ export function StreamsDraftsTable({
 						Units
 					</TableHead>
 					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-						Client / Location
+						Frequency
 					</TableHead>
 					<TableHead className="px-4 py-3 text-right text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 						Actions
@@ -215,9 +193,6 @@ export function StreamsDraftsTable({
 				{rows.map((row, index) => {
 					const rowDraft = getDraftState(row);
 					const rowErrors = errorsByRow[row.id] ?? {};
-					const filteredLocations = locations.filter(
-						(location) => location.companyId === rowDraft.clientId,
-					);
 
 					return (
 						<TableRow
@@ -229,6 +204,16 @@ export function StreamsDraftsTable({
 								highlightedId === row.id ? "ring-2 ring-primary" : "",
 							].join(" ")}
 						>
+							<TableCell className="px-4 py-3">
+								<p className="text-sm font-medium text-foreground">
+									{row.client || "—"}
+								</p>
+								{row.location ? (
+									<p className="mt-0.5 text-xs text-muted-foreground">
+										{row.location}
+									</p>
+								) : null}
+							</TableCell>
 							<TableCell className="px-4 py-3">
 								<Input
 									value={rowDraft.wasteType}
@@ -246,35 +231,6 @@ export function StreamsDraftsTable({
 								{rowErrors.wasteType ? (
 									<p className="mt-1 text-xs text-destructive">
 										{rowErrors.wasteType}
-									</p>
-								) : null}
-							</TableCell>
-							<TableCell className="px-4 py-3">
-								<Select
-									value={rowDraft.processMethod}
-									onValueChange={(value) =>
-										updateDraft(row.id, rowDraft, "processMethod", value)
-									}
-								>
-									<SelectTrigger className="bg-surface-container-high/60">
-										<SelectValue placeholder="Select method" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectGroup>
-											<SelectItem value="Neutralization">
-												Neutralization
-											</SelectItem>
-											<SelectItem value="Mechanical Rect.">
-												Mechanical Rect.
-											</SelectItem>
-											<SelectItem value="Distillation">Distillation</SelectItem>
-											<SelectItem value="Incineration">Incineration</SelectItem>
-										</SelectGroup>
-									</SelectContent>
-								</Select>
-								{rowErrors.processMethod ? (
-									<p className="mt-1 text-xs text-destructive">
-										{rowErrors.processMethod}
 									</p>
 								) : null}
 							</TableCell>
@@ -318,64 +274,34 @@ export function StreamsDraftsTable({
 									</p>
 								) : null}
 							</TableCell>
-							<TableCell className="px-4 py-3 align-top">
-								<div className="space-y-2">
-									<CompanyCombobox
-										value={rowDraft.clientId}
-										onValueChange={(value) =>
-											updateDraft(row.id, rowDraft, "clientId", value)
-										}
-										placeholder="Select Client"
-									/>
-									<LocationCombobox
-										companyId={rowDraft.clientId}
-										value={rowDraft.locationId}
-										onValueChange={(value) =>
-											updateDraft(row.id, rowDraft, "locationId", value)
-										}
-										placeholder={
-											rowDraft.clientId
-												? "Select Location"
-												: "Select Client first"
-										}
-									/>
-									{shouldShowZeroLocationRecovery({
-										clientId: rowDraft.clientId,
-										availableLocationsCount: filteredLocations.length,
-									}) ? (
-										<div className="text-xs text-muted-foreground">
-											No locations —{" "}
-											<CreateLocationDialog
-												companyId={rowDraft.clientId}
-												onSuccess={(location) => {
-													if (!location) {
-														return;
-													}
-													void loadLocationsByCompany(rowDraft.clientId);
-													updateDraft(
-														row.id,
-														rowDraft,
-														"locationId",
-														location.id,
-													);
-												}}
-												trigger={
-													<button
-														type="button"
-														className="font-medium text-primary hover:underline"
-													>
-														[+ Add location]
-													</button>
-												}
-											/>
-										</div>
-									) : null}
-									{rowErrors.locationId ? (
-										<p className="text-xs text-destructive">
-											{rowErrors.locationId}
-										</p>
-									) : null}
-								</div>
+							<TableCell className="px-4 py-3">
+								<Select
+									value={rowDraft.frequency}
+									onValueChange={(value) =>
+										updateDraft(row.id, rowDraft, "frequency", value)
+									}
+								>
+									<SelectTrigger
+										className="bg-surface-container-high/60"
+										aria-invalid={Boolean(rowErrors.frequency)}
+									>
+										<SelectValue placeholder="Select frequency" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectGroup>
+											{FREQUENCY_OPTIONS.map((option) => (
+												<SelectItem key={option} value={option}>
+													{option}
+												</SelectItem>
+											))}
+										</SelectGroup>
+									</SelectContent>
+								</Select>
+								{rowErrors.frequency ? (
+									<p className="mt-1 text-xs text-destructive">
+										{rowErrors.frequency}
+									</p>
+								) : null}
 							</TableCell>
 							<TableCell className="px-4 py-3">
 								<div className="flex items-center justify-end gap-1.5">

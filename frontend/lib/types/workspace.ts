@@ -9,6 +9,15 @@ export type BaseFieldId =
 	| "volume"
 	| "frequency";
 
+export type WorkspaceQuestionId = `q${number}`;
+
+export type WorkspacePhaseProgress = {
+	"1": boolean;
+	"2": boolean;
+	"3": boolean;
+	"4": boolean;
+};
+
 // Response type — field names match camelCase serialization from backend BaseSchema
 export interface WorkspaceBaseField {
 	fieldId: BaseFieldId;
@@ -72,13 +81,60 @@ export interface WorkspaceDerivedInsights {
 	lastRefreshedAt: string | null;
 }
 
+export interface WorkspaceQuestionSuggestion {
+	questionId: WorkspaceQuestionId;
+	suggestedValue: string;
+	status: "pending" | "rejected";
+	phase: 1 | 2 | 3 | 4;
+	section: string;
+	evidenceRefs: WorkspaceEvidenceRef[];
+	confidence: number | null;
+	updatedAt: string;
+	hasConflict: boolean;
+	confirmedAnswer: string | null;
+}
+
+export type WorkspaceQuestionSuggestionReviewScope =
+	| {
+			kind: "field";
+			question_id: WorkspaceQuestionId;
+	  }
+	| {
+			kind: "section";
+			section: string;
+	  }
+	| {
+			kind: "phase";
+			phase: 1 | 2 | 3 | 4;
+	  };
+
+export interface WorkspaceQuestionSuggestionReviewRequest {
+	action: "accept" | "reject";
+	scope: WorkspaceQuestionSuggestionReviewScope;
+}
+
+export interface WorkspaceQuestionSuggestionReviewResponse {
+	processedCount: number;
+	ignoredQuestionIds: WorkspaceQuestionId[];
+	workspace: WorkspaceHydrateResponse;
+}
+
 export interface WorkspaceHydrateResponse {
 	projectId: string;
 	baseFields: WorkspaceBaseField[];
 	customFields: WorkspaceCustomField[];
 	evidenceItems: WorkspaceEvidenceItem[];
 	contextNote: string | null;
+	questionnaireAnswers: Record<WorkspaceQuestionId, string>;
+	questionnaireSuggestions: WorkspaceQuestionSuggestion[];
+	phaseProgress: WorkspacePhaseProgress;
+	firstIncompletePhase: 1 | 2 | 3 | 4;
 	derived: WorkspaceDerivedInsights;
+}
+
+export interface WorkspaceQuestionAnswerUpdate {
+	question_id: WorkspaceQuestionId;
+	value: string;
 }
 
 export interface WorkspaceProposalItem {
@@ -109,6 +165,7 @@ export interface WorkspaceProposalBatch {
 export interface WorkspaceRefreshInsightsResponse {
 	derived: WorkspaceDerivedInsights;
 	proposalBatch: WorkspaceProposalBatch;
+	questionnaireSuggestions: WorkspaceQuestionSuggestion[];
 }
 
 export interface WorkspaceConfirmResponse {

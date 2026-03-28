@@ -7,7 +7,6 @@ import {
 	Download,
 	Filter,
 	Loader2,
-	PlusCircle,
 	Search,
 	Sparkles,
 } from "lucide-react";
@@ -225,18 +224,7 @@ export default function AgentStreamsPage() {
 				breadcrumb="Waste Streams"
 				title="Waste Stream Management"
 				subtitle="Track, validate, and propose disposal routes for active industrial byproduct flows."
-				actions={
-					<>
-						<Button variant="secondary" onClick={discoveryWizard.open}>
-							<PlusCircle data-icon="inline-start" aria-hidden />
-							New stream
-						</Button>
-						<Button onClick={discoveryWizard.open}>
-							<Sparkles data-icon="inline-start" aria-hidden />
-							New Discovery
-						</Button>
-					</>
-				}
+				actions={null}
 			/>
 
 			{/* KPI rail — page-level, tab-invariant */}

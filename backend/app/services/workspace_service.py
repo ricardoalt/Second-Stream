@@ -29,6 +29,9 @@ from app.schemas.workspace import (
     WorkspaceHydrateResponse,
     WorkspaceProposalBatch,
     WorkspaceProposalItem,
+    WorkspaceQuestionAnswerUpdateItem,
+    WorkspaceQuestionSuggestionItem,
+    WorkspaceQuestionSuggestionReviewRequest,
     WorkspaceReadiness,
     WorkspaceRefreshInsightsResponse,
 )
@@ -41,6 +44,9 @@ WORKSPACE_BASE_FIELDS_KEY = "base_fields"
 WORKSPACE_CUSTOM_FIELDS_KEY = "custom_fields"
 WORKSPACE_DERIVED_KEY = "derived"
 WORKSPACE_DISCOVERY_COMPLETED_AT_KEY = "discovery_completed_at"
+WORKSPACE_QUESTIONNAIRE_ANSWERS_KEY = "questionnaire_answers"
+WORKSPACE_QUESTIONNAIRE_SUGGESTIONS_KEY = "questionnaire_suggestions"
+WORKSPACE_PHASE_PROGRESS_KEY = "phase_progress"
 PROPOSAL_BATCH_TTL_SECONDS = 3600
 logger = structlog.get_logger(__name__)
 
@@ -69,6 +75,29 @@ BASE_FIELD_LABELS: dict[WorkspaceBaseFieldKey, str] = {
     "frequency": "Frequency",
 }
 
+QUESTIONNAIRE_PHASE_QUESTION_IDS: dict[int, tuple[str, ...]] = {
+    1: tuple(f"q{index}" for index in range(1, 10)),
+    2: tuple(f"q{index}" for index in range(10, 15)),
+    3: tuple(f"q{index}" for index in range(15, 21)),
+    4: tuple(f"q{index}" for index in range(21, 32)),
+}
+QUESTIONNAIRE_PHASE_KEYS: tuple[str, ...] = ("1", "2", "3", "4")
+
+QUESTIONNAIRE_BASE_FIELD_INFERENCE_MAP: dict[WorkspaceBaseFieldKey, str] = {
+    "material_name": "q1",
+    "volume": "q4",
+    "frequency": "q6",
+    "composition": "q17",
+}
+
+QUESTIONNAIRE_QUESTION_META: dict[str, tuple[int, str]] = {
+    **{f"q{index}": (1, "Stream Snapshot") for index in range(1, 10)},
+    **{f"q{index}": (2, "Current Handling") for index in range(10, 15)},
+    **{f"q{index}": (3, "Technical Confidence") for index in range(15, 21)},
+    **{f"q{index}": (4, "Project Driver") for index in range(21, 26)},
+    **{f"q{index}": (4, "Later-stage commercial fields") for index in range(26, 32)},
+}
+
 
 class WorkspaceBatchScope(Protocol):
     id: Any
@@ -86,6 +115,18 @@ class WorkspaceService:
         custom_fields = WorkspaceService._build_custom_field_items(project)
         evidence_items = await WorkspaceService._load_evidence_items(db, project)
         context_note, _ = await WorkspaceService._load_context_note(db, project)
+        questionnaire_answers = WorkspaceService._load_questionnaire_answers(project.project_data)
+        questionnaire_suggestion_map = WorkspaceService._load_questionnaire_suggestions(
+            project.project_data
+        )
+        questionnaire_suggestions = WorkspaceService._build_pending_questionnaire_suggestions(
+            questionnaire_answers=questionnaire_answers,
+            suggestion_map=questionnaire_suggestion_map,
+        )
+        phase_progress = WorkspaceService._calculate_questionnaire_phase_progress(
+            questionnaire_answers
+        )
+        first_incomplete_phase = WorkspaceService._calculate_first_incomplete_phase(phase_progress)
         derived = WorkspaceService._build_derived(
             project, base_fields, evidence_items, custom_fields
         )
@@ -95,8 +136,46 @@ class WorkspaceService:
             custom_fields=custom_fields,
             evidence_items=evidence_items,
             context_note=context_note,
+            questionnaire_answers=questionnaire_answers,
+            questionnaire_suggestions=questionnaire_suggestions,
+            phase_progress=phase_progress,
+            first_incomplete_phase=first_incomplete_phase,
             derived=derived,
         )
+
+    @staticmethod
+    async def update_questionnaire_answers(
+        db: AsyncSession,
+        project: Project,
+        current_user: User,
+        updates: list[WorkspaceQuestionAnswerUpdateItem],
+    ) -> WorkspaceHydrateResponse:
+        current_answers = WorkspaceService._load_questionnaire_answers(project.project_data)
+        for item in updates:
+            current_answers[item.question_id] = item.value
+
+        suggestion_map = WorkspaceService._load_questionnaire_suggestions(project.project_data)
+        suggestion_map = WorkspaceService._prune_suggestions_matching_answers(
+            suggestion_map=suggestion_map,
+            questionnaire_answers=current_answers,
+        )
+
+        phase_progress = WorkspaceService._calculate_questionnaire_phase_progress(current_answers)
+
+        await WorkspaceService._persist_workspace_patch(
+            db=db,
+            project=project,
+            current_user=current_user,
+            patch={
+                WORKSPACE_QUESTIONNAIRE_ANSWERS_KEY: current_answers,
+                WORKSPACE_QUESTIONNAIRE_SUGGESTIONS_KEY: WorkspaceService._serialize_questionnaire_suggestions_for_storage(
+                    suggestion_map
+                ),
+                WORKSPACE_PHASE_PROGRESS_KEY: phase_progress,
+            },
+        )
+        await db.refresh(project)
+        return await WorkspaceService.get_workspace(db, project)
 
     @staticmethod
     async def update_base_fields(
@@ -269,6 +348,11 @@ class WorkspaceService:
                 },
             )
             await db.refresh(project)
+            questionnaire_answers = WorkspaceService._load_questionnaire_answers(project.project_data)
+            questionnaire_suggestions = WorkspaceService._build_pending_questionnaire_suggestions(
+                questionnaire_answers=questionnaire_answers,
+                suggestion_map=WorkspaceService._load_questionnaire_suggestions(project.project_data),
+            )
             return WorkspaceRefreshInsightsResponse(
                 derived=derived,
                 proposal_batch=WorkspaceProposalBatch(
@@ -276,6 +360,7 @@ class WorkspaceService:
                     proposals=[],
                     generated_at=generated_at,
                 ),
+                questionnaire_suggestions=questionnaire_suggestions,
             )
 
         batch_id = WorkspaceService._build_batch_id(project)
@@ -316,6 +401,26 @@ class WorkspaceService:
             proposals=proposal_items,
         )
 
+        questionnaire_answers = WorkspaceService._load_questionnaire_answers(project.project_data)
+        existing_questionnaire_suggestions = WorkspaceService._load_questionnaire_suggestions(
+            project.project_data
+        )
+        questionnaire_candidates = WorkspaceService._derive_questionnaire_suggestions_from_batch(
+            proposal_items=proposal_items,
+            updated_at=generated_at,
+        )
+        merged_questionnaire_suggestions = WorkspaceService._merge_questionnaire_suggestions(
+            existing_suggestions=existing_questionnaire_suggestions,
+            candidate_suggestions=questionnaire_candidates,
+            questionnaire_answers=questionnaire_answers,
+        )
+        pending_questionnaire_suggestions = (
+            WorkspaceService._build_pending_questionnaire_suggestions(
+                questionnaire_answers=questionnaire_answers,
+                suggestion_map=merged_questionnaire_suggestions,
+            )
+        )
+
         derived = WorkspaceService._build_derived(
             project, base_fields, evidence_items, custom_fields
         )
@@ -329,7 +434,12 @@ class WorkspaceService:
             db=db,
             project=project,
             current_user=current_user,
-            patch={WORKSPACE_DERIVED_KEY: WorkspaceService._serialize_derived_for_storage(derived)},
+            patch={
+                WORKSPACE_DERIVED_KEY: WorkspaceService._serialize_derived_for_storage(derived),
+                WORKSPACE_QUESTIONNAIRE_SUGGESTIONS_KEY: WorkspaceService._serialize_questionnaire_suggestions_for_storage(
+                    merged_questionnaire_suggestions
+                ),
+            },
         )
         await db.refresh(project)
         return WorkspaceRefreshInsightsResponse(
@@ -339,7 +449,72 @@ class WorkspaceService:
                 proposals=proposal_items,
                 generated_at=generated_at,
             ),
+            questionnaire_suggestions=pending_questionnaire_suggestions,
         )
+
+    @staticmethod
+    async def review_questionnaire_suggestions(
+        db: AsyncSession,
+        project: Project,
+        current_user: User,
+        payload: WorkspaceQuestionSuggestionReviewRequest,
+    ) -> tuple[int, list[str], WorkspaceHydrateResponse]:
+        questionnaire_answers = WorkspaceService._load_questionnaire_answers(project.project_data)
+        suggestion_map = WorkspaceService._load_questionnaire_suggestions(project.project_data)
+        target_question_ids = WorkspaceService._resolve_review_question_ids(
+            suggestion_map=suggestion_map,
+            scope=payload.scope,
+        )
+
+        now = datetime.now(UTC)
+        processed_count = 0
+        ignored_question_ids: list[str] = []
+        for question_id in target_question_ids:
+            suggestion = suggestion_map.get(question_id)
+            if suggestion is None or suggestion.status != "pending":
+                ignored_question_ids.append(question_id)
+                continue
+            if payload.action == "accept":
+                questionnaire_answers[question_id] = suggestion.suggested_value
+                suggestion_map.pop(question_id, None)
+                processed_count += 1
+                continue
+
+            suggestion_map[question_id] = WorkspaceQuestionSuggestionItem(
+                question_id=suggestion.question_id,
+                suggested_value=suggestion.suggested_value,
+                status="rejected",
+                phase=suggestion.phase,
+                section=suggestion.section,
+                evidence_refs=suggestion.evidence_refs,
+                confidence=suggestion.confidence,
+                updated_at=now,
+                has_conflict=False,
+                confirmed_answer=None,
+            )
+            processed_count += 1
+
+        suggestion_map = WorkspaceService._prune_suggestions_matching_answers(
+            suggestion_map=suggestion_map,
+            questionnaire_answers=questionnaire_answers,
+        )
+        phase_progress = WorkspaceService._calculate_questionnaire_phase_progress(questionnaire_answers)
+
+        await WorkspaceService._persist_workspace_patch(
+            db=db,
+            project=project,
+            current_user=current_user,
+            patch={
+                WORKSPACE_QUESTIONNAIRE_ANSWERS_KEY: questionnaire_answers,
+                WORKSPACE_QUESTIONNAIRE_SUGGESTIONS_KEY: WorkspaceService._serialize_questionnaire_suggestions_for_storage(
+                    suggestion_map
+                ),
+                WORKSPACE_PHASE_PROGRESS_KEY: phase_progress,
+            },
+        )
+        await db.refresh(project)
+        workspace = await WorkspaceService.get_workspace(db, project)
+        return processed_count, ignored_question_ids, workspace
 
     @staticmethod
     async def confirm_proposals(
@@ -1085,6 +1260,248 @@ class WorkspaceService:
         return [field for field in raw_fields if isinstance(field, dict)]
 
     @staticmethod
+    def _load_questionnaire_answers(project_data: dict[str, Any] | None) -> dict[str, str]:
+        workspace = WorkspaceService._load_workspace_section(project_data)
+        raw_answers = workspace.get(WORKSPACE_QUESTIONNAIRE_ANSWERS_KEY)
+        if not isinstance(raw_answers, dict):
+            return {}
+
+        answers: dict[str, str] = {}
+        for key, value in raw_answers.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                continue
+            if not WorkspaceService._is_valid_question_id(key):
+                continue
+            answers[key] = value.strip()
+        return answers
+
+    @staticmethod
+    def _load_questionnaire_suggestions(
+        project_data: dict[str, Any] | None,
+    ) -> dict[str, WorkspaceQuestionSuggestionItem]:
+        workspace = WorkspaceService._load_workspace_section(project_data)
+        raw_suggestions = workspace.get(WORKSPACE_QUESTIONNAIRE_SUGGESTIONS_KEY)
+        if not isinstance(raw_suggestions, dict):
+            return {}
+
+        suggestions: dict[str, WorkspaceQuestionSuggestionItem] = {}
+        for key, value in raw_suggestions.items():
+            if not isinstance(key, str) or not isinstance(value, dict):
+                continue
+            try:
+                parsed = WorkspaceQuestionSuggestionItem.model_validate(value)
+            except Exception:
+                continue
+            if parsed.question_id != key:
+                continue
+            suggestions[key] = parsed
+        return suggestions
+
+    @staticmethod
+    def _serialize_questionnaire_suggestions_for_storage(
+        suggestions: dict[str, WorkspaceQuestionSuggestionItem],
+    ) -> dict[str, dict[str, Any]]:
+        return {
+            question_id: suggestion.model_dump(mode="json", by_alias=False)
+            for question_id, suggestion in suggestions.items()
+        }
+
+    @staticmethod
+    def _prune_suggestions_matching_answers(
+        *,
+        suggestion_map: dict[str, WorkspaceQuestionSuggestionItem],
+        questionnaire_answers: dict[str, str],
+    ) -> dict[str, WorkspaceQuestionSuggestionItem]:
+        pruned: dict[str, WorkspaceQuestionSuggestionItem] = {}
+        for question_id, suggestion in suggestion_map.items():
+            existing_answer = questionnaire_answers.get(question_id, "")
+            if WorkspaceService._values_effectively_equal(
+                suggestion.suggested_value,
+                existing_answer,
+            ):
+                continue
+            pruned[question_id] = suggestion
+        return pruned
+
+    @staticmethod
+    def _build_pending_questionnaire_suggestions(
+        *,
+        questionnaire_answers: dict[str, str],
+        suggestion_map: dict[str, WorkspaceQuestionSuggestionItem],
+    ) -> list[WorkspaceQuestionSuggestionItem]:
+        pending: list[WorkspaceQuestionSuggestionItem] = []
+        for suggestion in suggestion_map.values():
+            if suggestion.status != "pending":
+                continue
+            confirmed_answer = questionnaire_answers.get(suggestion.question_id, "").strip()
+            has_conflict = bool(confirmed_answer) and not WorkspaceService._values_effectively_equal(
+                confirmed_answer,
+                suggestion.suggested_value,
+            )
+            pending.append(
+                WorkspaceQuestionSuggestionItem(
+                    question_id=suggestion.question_id,
+                    suggested_value=suggestion.suggested_value,
+                    status="pending",
+                    phase=suggestion.phase,
+                    section=suggestion.section,
+                    evidence_refs=suggestion.evidence_refs,
+                    confidence=suggestion.confidence,
+                    updated_at=suggestion.updated_at,
+                    has_conflict=has_conflict,
+                    confirmed_answer=confirmed_answer if has_conflict else None,
+                )
+            )
+        pending.sort(key=WorkspaceService._question_sort_key)
+        return pending
+
+    @staticmethod
+    def _derive_questionnaire_suggestions_from_batch(
+        *,
+        proposal_items: list[WorkspaceProposalItem],
+        updated_at: datetime,
+    ) -> dict[str, WorkspaceQuestionSuggestionItem]:
+        candidates: dict[str, WorkspaceQuestionSuggestionItem] = {}
+        for proposal in proposal_items:
+            if proposal.target_kind != "base_field" or proposal.base_field_id is None:
+                continue
+            mapped_question_id = QUESTIONNAIRE_BASE_FIELD_INFERENCE_MAP.get(proposal.base_field_id)
+            if mapped_question_id is None:
+                continue
+            meta = QUESTIONNAIRE_QUESTION_META.get(mapped_question_id)
+            if meta is None:
+                continue
+            phase, section = meta
+            current = candidates.get(mapped_question_id)
+            candidate = WorkspaceQuestionSuggestionItem(
+                question_id=mapped_question_id,
+                suggested_value=proposal.proposed_answer,
+                status="pending",
+                phase=phase,
+                section=section,
+                evidence_refs=proposal.evidence_refs,
+                confidence=proposal.confidence,
+                updated_at=updated_at,
+                has_conflict=False,
+                confirmed_answer=None,
+            )
+            if current is None:
+                candidates[mapped_question_id] = candidate
+                continue
+            if WorkspaceService._is_higher_priority_questionnaire_suggestion(candidate, current):
+                candidates[mapped_question_id] = candidate
+        return candidates
+
+    @staticmethod
+    def _is_higher_priority_questionnaire_suggestion(
+        candidate: WorkspaceQuestionSuggestionItem,
+        current: WorkspaceQuestionSuggestionItem,
+    ) -> bool:
+        candidate_confidence = candidate.confidence if isinstance(candidate.confidence, int) else -1
+        current_confidence = current.confidence if isinstance(current.confidence, int) else -1
+        if candidate_confidence != current_confidence:
+            return candidate_confidence > current_confidence
+        return len(candidate.evidence_refs) > len(current.evidence_refs)
+
+    @staticmethod
+    def _merge_questionnaire_suggestions(
+        *,
+        existing_suggestions: dict[str, WorkspaceQuestionSuggestionItem],
+        candidate_suggestions: dict[str, WorkspaceQuestionSuggestionItem],
+        questionnaire_answers: dict[str, str],
+    ) -> dict[str, WorkspaceQuestionSuggestionItem]:
+        merged = dict(existing_suggestions)
+
+        for question_id, candidate in candidate_suggestions.items():
+            existing_answer = questionnaire_answers.get(question_id, "")
+            if WorkspaceService._values_effectively_equal(
+                candidate.suggested_value,
+                existing_answer,
+            ):
+                merged.pop(question_id, None)
+                continue
+
+            current = merged.get(question_id)
+            if (
+                current is not None
+                and current.status == "rejected"
+                and WorkspaceService._values_effectively_equal(
+                    current.suggested_value,
+                    candidate.suggested_value,
+                )
+            ):
+                continue
+
+            merged[question_id] = candidate
+
+        return WorkspaceService._prune_suggestions_matching_answers(
+            suggestion_map=merged,
+            questionnaire_answers=questionnaire_answers,
+        )
+
+    @staticmethod
+    def _resolve_review_question_ids(
+        *,
+        suggestion_map: dict[str, WorkspaceQuestionSuggestionItem],
+        scope: Any,
+    ) -> list[str]:
+        if scope.kind == "field" and scope.question_id is not None:
+            return [scope.question_id]
+        if scope.kind == "section" and scope.section is not None:
+            return [
+                question_id
+                for question_id, suggestion in suggestion_map.items()
+                if suggestion.status == "pending" and suggestion.section == scope.section
+            ]
+        if scope.kind == "phase" and scope.phase is not None:
+            return [
+                question_id
+                for question_id, suggestion in suggestion_map.items()
+                if suggestion.status == "pending" and suggestion.phase == scope.phase
+            ]
+        return []
+
+    @staticmethod
+    def _question_sort_key(suggestion: WorkspaceQuestionSuggestionItem) -> tuple[int, str]:
+        question_id = suggestion.question_id
+        try:
+            return int(question_id[1:]), question_id
+        except Exception:
+            return 999, question_id
+
+    @staticmethod
+    def _calculate_questionnaire_phase_progress(answers: dict[str, str]) -> dict[str, bool]:
+        progress: dict[str, bool] = {}
+        for phase, question_ids in QUESTIONNAIRE_PHASE_QUESTION_IDS.items():
+            progress[str(phase)] = all(
+                bool(answers.get(question_id, "").strip()) for question_id in question_ids
+            )
+        return progress
+
+    @staticmethod
+    def _calculate_first_incomplete_phase(phase_progress: dict[str, bool]) -> Literal[1, 2, 3, 4]:
+        for phase_key in QUESTIONNAIRE_PHASE_KEYS:
+            if not phase_progress.get(phase_key, False):
+                if phase_key == "1":
+                    return 1
+                if phase_key == "2":
+                    return 2
+                if phase_key == "3":
+                    return 3
+                return 4
+        return 4
+
+    @staticmethod
+    def _is_valid_question_id(value: str) -> bool:
+        if not value.startswith("q"):
+            return False
+        suffix = value[1:]
+        if not suffix.isdigit():
+            return False
+        question_number = int(suffix)
+        return 1 <= question_number <= 31
+
+    @staticmethod
     async def _persist_workspace_patch(
         *,
         db: AsyncSession,
@@ -1092,13 +1509,22 @@ class WorkspaceService:
         current_user: User,
         patch: dict[str, Any],
     ) -> None:
+        current_data = (
+            {str(key): value for key, value in project.project_data.items()}
+            if isinstance(project.project_data, dict)
+            else {}
+        )
+        current_workspace = WorkspaceService._load_workspace_section(current_data)
+        next_workspace = {**current_workspace, **patch}
+        next_project_data = {**current_data, WORKSPACE_PROJECT_DATA_KEY: next_workspace}
+
         await ProjectDataService.update_project_data(
             db=db,
             project_id=project.id,
             current_user=current_user,
             org_id=project.organization_id,
-            updates={WORKSPACE_PROJECT_DATA_KEY: patch},
-            merge=True,
+            updates=next_project_data,
+            merge=False,
             commit=True,
         )
 

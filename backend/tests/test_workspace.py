@@ -1596,3 +1596,408 @@ async def test_workspace_complete_discovery_writes_completion_flag(
     assert isinstance(completed_at, str)
     parsed = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
     assert parsed.tzinfo is not None
+
+
+def test_questionnaire_phase_progress_marks_completion_by_phase_requirements():
+    answers = {f"q{index}": "answered" for index in range(1, 10)}
+    answers["q10"] = ""
+
+    progress = WorkspaceService._calculate_questionnaire_phase_progress(answers)
+
+    assert progress == {
+        "1": True,
+        "2": False,
+        "3": False,
+        "4": False,
+    }
+
+
+def test_questionnaire_first_incomplete_phase_defaults_to_four_when_all_complete():
+    assert (
+        WorkspaceService._calculate_first_incomplete_phase(
+            {"1": True, "2": False, "3": False, "4": False}
+        )
+        == 2
+    )
+    assert (
+        WorkspaceService._calculate_first_incomplete_phase(
+            {"1": True, "2": True, "3": True, "4": True}
+        )
+        == 4
+    )
+
+
+@pytest.mark.asyncio
+async def test_workspace_questionnaire_answers_persist_and_hydrate_progress(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Workspace Questionnaire",
+        f"org-workspace-questionnaire-{uid}",
+    )
+    user = await create_user(
+        db_session,
+        email=f"workspace-questionnaire-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Workspace Questionnaire Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Workspace Questionnaire Loc",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Workspace Questionnaire Project",
+    )
+
+    set_current_user(user)
+    response = await client.patch(
+        f"/api/v1/projects/{project.id}/workspace/questionnaire",
+        json={
+            "answers": [
+                {"questionId": "q1", "value": "Spent Solvent A"},
+                {"questionId": "q2", "value": "Tank flush"},
+                {"questionId": "q3", "value": "Recurring"},
+                {"questionId": "q4", "value": "12"},
+                {"questionId": "q5", "value": "tons"},
+                {"questionId": "q6", "value": "weekly"},
+                {"questionId": "q7", "value": "Houston, TX, US"},
+                {"questionId": "q8", "value": "drums"},
+                {"questionId": "q9", "value": "within 30 days"},
+                {"questionId": "q10", "value": ""},
+            ]
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["questionnaireAnswers"]["q1"] == "Spent Solvent A"
+    assert data["questionnaireAnswers"]["q10"] == ""
+    assert data["phaseProgress"] == {
+        "1": True,
+        "2": False,
+        "3": False,
+        "4": False,
+    }
+    assert data["firstIncompletePhase"] == 2
+
+    reload_response = await client.get(f"/api/v1/projects/{project.id}/workspace")
+    assert reload_response.status_code == 200
+    reloaded = reload_response.json()
+    assert reloaded["questionnaireAnswers"]["q1"] == "Spent Solvent A"
+    assert reloaded["questionnaireAnswers"]["q10"] == ""
+    assert reloaded["phaseProgress"] == {
+        "1": True,
+        "2": False,
+        "3": False,
+        "4": False,
+    }
+    assert reloaded["firstIncompletePhase"] == 2
+
+    await db_session.refresh(project)
+    project_data = _project_data_dict(project)
+    workspace_data = _require_dict(project_data["workspace_v1"])
+    stored_answers = _require_dict(workspace_data["questionnaire_answers"])
+    stored_progress = _require_dict(workspace_data["phase_progress"])
+    assert stored_answers["q1"] == "Spent Solvent A"
+    assert stored_answers["q10"] == ""
+    assert stored_progress == {"1": True, "2": False, "3": False, "4": False}
+
+
+@pytest.mark.asyncio
+async def test_workspace_refresh_insights_populates_questionnaire_suggestions(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Workspace Questionnaire Suggestions",
+        f"org-workspace-questionnaire-suggestions-{uid}",
+    )
+    user = await create_user(
+        db_session,
+        email=f"workspace-questionnaire-suggestions-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(
+        db_session,
+        org_id=org.id,
+        name="Workspace Questionnaire Suggestions Co",
+    )
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Workspace Questionnaire Suggestions Loc",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Workspace Questionnaire Suggestions Project",
+    )
+    project.project_data = {
+        "workspace_v1": {
+            "questionnaire_answers": {
+                "q4": "15 tons/month",
+            }
+        }
+    }
+    evidence_file = ProjectFile(
+        organization_id=org.id,
+        project_id=project.id,
+        filename="lab.pdf",
+        file_path="projects/test/lab.pdf",
+        file_size=100,
+        mime_type="application/pdf",
+        file_type="pdf",
+        category="analysis",
+        processing_status="completed",
+        processing_attempts=1,
+        ai_analysis={
+            "summary": "Lab summary",
+            "proposals": [
+                {
+                    "target_kind": "base_field",
+                    "base_field_id": "volume",
+                    "answer": "12 tons/month",
+                    "confidence": 89,
+                    "evidence_refs": [
+                        {
+                            "page": 2,
+                            "excerpt": "Estimated volume is 12 tons/month.",
+                        }
+                    ],
+                },
+                {
+                    "target_kind": "base_field",
+                    "base_field_id": "frequency",
+                    "answer": "Daily",
+                    "confidence": 78,
+                    "evidence_refs": [
+                        {
+                            "page": 3,
+                            "excerpt": "Material is generated daily.",
+                        }
+                    ],
+                },
+            ],
+        },
+    )
+    db_session.add(evidence_file)
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.post(f"/api/v1/projects/{project.id}/workspace/refresh-insights")
+    assert response.status_code == 200
+    payload = response.json()
+    suggestions = payload["questionnaireSuggestions"]
+    by_question = {item["questionId"]: item for item in suggestions}
+
+    assert set(by_question.keys()) == {"q4", "q6"}
+    assert by_question["q4"]["suggestedValue"] == "12 tons/month"
+    assert by_question["q4"]["status"] == "pending"
+    assert by_question["q4"]["hasConflict"] is True
+    assert by_question["q4"]["confirmedAnswer"] == "15 tons/month"
+    assert by_question["q6"]["suggestedValue"] == "Daily"
+    assert by_question["q6"]["status"] == "pending"
+    assert by_question["q6"]["hasConflict"] is False
+    assert by_question["q6"]["confirmedAnswer"] is None
+
+    await db_session.refresh(project)
+    project_data = _project_data_dict(project)
+    workspace_data = _require_dict(project_data["workspace_v1"])
+    stored_answers = _require_dict(workspace_data["questionnaire_answers"])
+    stored_suggestions = _require_dict(workspace_data["questionnaire_suggestions"])
+    assert stored_answers["q4"] == "15 tons/month"
+    assert _require_dict(stored_suggestions["q4"])["status"] == "pending"
+    assert _require_dict(stored_suggestions["q6"])["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_workspace_review_questionnaire_suggestions_accept_phase(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Workspace Questionnaire Review",
+        f"org-workspace-questionnaire-review-{uid}",
+    )
+    user = await create_user(
+        db_session,
+        email=f"workspace-questionnaire-review-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Workspace Review Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Workspace Review Loc",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Workspace Review Project",
+    )
+    project.project_data = {
+        "workspace_v1": {
+            "questionnaire_answers": {},
+            "questionnaire_suggestions": {
+                "q4": {
+                    "question_id": "q4",
+                    "suggested_value": "12",
+                    "status": "pending",
+                    "phase": 1,
+                    "section": "Stream Snapshot",
+                    "updated_at": "2026-03-27T12:00:00+00:00",
+                    "evidence_refs": [],
+                    "confidence": 90,
+                },
+                "q6": {
+                    "question_id": "q6",
+                    "suggested_value": "Daily",
+                    "status": "pending",
+                    "phase": 1,
+                    "section": "Stream Snapshot",
+                    "updated_at": "2026-03-27T12:00:00+00:00",
+                    "evidence_refs": [],
+                    "confidence": 75,
+                },
+            },
+        }
+    }
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.post(
+        f"/api/v1/projects/{project.id}/workspace/questionnaire-suggestions/review",
+        json={
+            "action": "accept",
+            "scope": {"kind": "phase", "phase": 1},
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["processedCount"] == 2
+    assert payload["ignoredQuestionIds"] == []
+    assert payload["workspace"]["questionnaireAnswers"]["q4"] == "12"
+    assert payload["workspace"]["questionnaireAnswers"]["q6"] == "Daily"
+    assert payload["workspace"]["questionnaireSuggestions"] == []
+
+    await db_session.refresh(project)
+    project_data = _project_data_dict(project)
+    workspace_data = _require_dict(project_data["workspace_v1"])
+    stored_answers = _require_dict(workspace_data["questionnaire_answers"])
+    stored_suggestions = _require_dict(workspace_data["questionnaire_suggestions"])
+    assert stored_answers["q4"] == "12"
+    assert stored_answers["q6"] == "Daily"
+    assert stored_suggestions == {}
+
+
+@pytest.mark.asyncio
+async def test_workspace_rejected_questionnaire_suggestion_is_not_reintroduced(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Workspace Questionnaire Rejected",
+        f"org-workspace-questionnaire-rejected-{uid}",
+    )
+    user = await create_user(
+        db_session,
+        email=f"workspace-questionnaire-rejected-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Workspace Rejected Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Workspace Rejected Loc",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Workspace Rejected Project",
+    )
+    project.project_data = {
+        "workspace_v1": {
+            "questionnaire_suggestions": {
+                "q4": {
+                    "question_id": "q4",
+                    "suggested_value": "12 tons/month",
+                    "status": "rejected",
+                    "phase": 1,
+                    "section": "Stream Snapshot",
+                    "updated_at": "2026-03-27T12:00:00+00:00",
+                    "evidence_refs": [],
+                    "confidence": 82,
+                }
+            }
+        }
+    }
+    evidence_file = ProjectFile(
+        organization_id=org.id,
+        project_id=project.id,
+        filename="lab.pdf",
+        file_path="projects/test/lab.pdf",
+        file_size=100,
+        mime_type="application/pdf",
+        file_type="pdf",
+        category="analysis",
+        processing_status="completed",
+        processing_attempts=1,
+        ai_analysis={
+            "summary": "Lab summary",
+            "proposals": [
+                {
+                    "target_kind": "base_field",
+                    "base_field_id": "volume",
+                    "answer": "12 tons/month",
+                    "confidence": 88,
+                    "evidence_refs": [
+                        {
+                            "page": 1,
+                            "excerpt": "Expected volume around 12 tons/month.",
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    db_session.add(evidence_file)
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.post(f"/api/v1/projects/{project.id}/workspace/refresh-insights")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["questionnaireSuggestions"] == []
+
+    await db_session.refresh(project)
+    project_data = _project_data_dict(project)
+    workspace_data = _require_dict(project_data["workspace_v1"])
+    stored_suggestions = _require_dict(workspace_data["questionnaire_suggestions"])
+    assert _require_dict(stored_suggestions["q4"])["status"] == "rejected"

@@ -6,6 +6,9 @@ import type {
 	WorkspaceContextNoteResponse,
 	WorkspaceCustomFieldUpdate,
 	WorkspaceHydrateResponse,
+	WorkspaceQuestionAnswerUpdate,
+	WorkspaceQuestionSuggestionReviewRequest,
+	WorkspaceQuestionSuggestionReviewResponse,
 	WorkspaceRefreshInsightsResponse,
 } from "@/lib/types/workspace";
 import { apiClient } from "./client";
@@ -47,12 +50,32 @@ export const workspaceAPI = {
 		);
 	},
 
+	async updateQuestionnaireAnswers(
+		projectId: string,
+		answers: WorkspaceQuestionAnswerUpdate[],
+	): Promise<WorkspaceHydrateResponse> {
+		return apiClient.patch<WorkspaceHydrateResponse>(
+			`/projects/${projectId}/workspace/questionnaire`,
+			{ answers },
+		);
+	},
+
 	async refreshInsights(
 		projectId: string,
 	): Promise<WorkspaceRefreshInsightsResponse> {
 		return apiClient.request<WorkspaceRefreshInsightsResponse>(
 			`/projects/${projectId}/workspace/refresh-insights`,
 			{ method: "POST", timeout: 120000 },
+		);
+	},
+
+	async reviewQuestionnaireSuggestions(
+		projectId: string,
+		payload: WorkspaceQuestionSuggestionReviewRequest,
+	): Promise<WorkspaceQuestionSuggestionReviewResponse> {
+		return apiClient.post<WorkspaceQuestionSuggestionReviewResponse>(
+			`/projects/${projectId}/workspace/questionnaire-suggestions/review`,
+			payload,
 		);
 	},
 

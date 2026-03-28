@@ -325,6 +325,35 @@ describe("candidate confirmation flow", () => {
 				clientId: "company-1",
 				locationId: "",
 				material: "Spent Solvent",
+				volume: "5000",
+				units: "Gallons",
+				frequency: "Weekly",
+				isSaving: false,
+			}),
+		).toBe(false);
+	});
+
+	it("blocks quick entry save when required core fields are missing", () => {
+		expect(
+			discoveryWizardModule.canSaveQuickEntry({
+				clientId: "company-1",
+				locationId: "location-1",
+				material: "Spent Solvent",
+				volume: "",
+				units: "Gallons",
+				frequency: "Weekly",
+				isSaving: false,
+			}),
+		).toBe(false);
+
+		expect(
+			discoveryWizardModule.canSaveQuickEntry({
+				clientId: "company-1",
+				locationId: "location-1",
+				material: "Spent Solvent",
+				volume: "5000",
+				units: "Gallons",
+				frequency: "",
 				isSaving: false,
 			}),
 		).toBe(false);

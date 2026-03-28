@@ -27,8 +27,8 @@ type StreamsDraftConfirmationProps = {
 function getFallbackEditorState(draftItemRow: DraftItemRow): DraftEditorState {
 	return {
 		wasteType: draftItemRow.streamName,
-		processMethod: "",
 		volume: draftItemRow.volumeSummary ?? "",
+		frequency: "",
 		units: "",
 		clientId: draftItemRow.companyId ?? "",
 		locationId:

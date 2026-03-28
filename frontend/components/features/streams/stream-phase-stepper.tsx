@@ -1,70 +1,66 @@
-import { Check, Circle, Lock, TriangleAlert } from "lucide-react";
+import { Check, Circle } from "lucide-react";
+import { STREAM_WORKSPACE_PHASES } from "@/config/stream-questionnaire";
 import { cn } from "@/lib/utils";
 import type { StreamPhase } from "./types";
 
 type StreamPhaseStepperProps = {
 	activePhase: StreamPhase;
-	blockedPhases?: StreamPhase[];
-};
-
-const labels: Record<StreamPhase, string> = {
-	1: "Initial screening",
-	2: "Commercial & economic",
-	3: "Technical feasibility",
-	4: "Value discovery",
+	phaseProgress: Record<StreamPhase, boolean>;
+	onPhaseSelect?: (phase: StreamPhase) => void;
 };
 
 export function StreamPhaseStepper({
 	activePhase,
-	blockedPhases = [],
+	phaseProgress,
+	onPhaseSelect,
 }: StreamPhaseStepperProps) {
-	const phases: StreamPhase[] = [1, 2, 3, 4];
+	const phases = STREAM_WORKSPACE_PHASES;
 
 	return (
 		<ol className="grid gap-3 rounded-xl bg-surface-container-low p-3 md:grid-cols-4">
-			{phases.map((phase) => {
-				const isCompleted = phase < activePhase;
+			{phases.map((phaseMeta) => {
+				const phase = phaseMeta.phase;
+				const isCompleted = Boolean(phaseProgress[phase]);
 				const isActive = phase === activePhase;
-				const isBlocked = blockedPhases.includes(phase);
 
 				return (
 					<li
 						key={phase}
 						className={cn(
-							"flex items-center gap-2 rounded-lg px-3 py-2",
+							"rounded-lg",
 							isActive && "bg-surface-container-lowest",
 						)}
 					>
-						<span
-							className={cn(
-								"inline-flex size-6 items-center justify-center rounded-full",
-								isCompleted && "bg-primary text-primary-foreground",
-								isActive && "bg-primary/20 text-primary",
-								!isCompleted &&
-									!isActive &&
-									!isBlocked &&
-									"bg-muted text-muted-foreground",
-								isBlocked && "bg-warning/20 text-warning-foreground",
-							)}
+						<button
+							type="button"
+							onClick={() => onPhaseSelect?.(phase)}
+							className="flex w-full items-center gap-2 px-3 py-2 text-left"
 						>
-							{isCompleted ? (
-								<Check aria-hidden className="size-4" />
-							) : isBlocked ? (
-								<TriangleAlert aria-hidden className="size-4" />
-							) : isActive ? (
-								<Circle aria-hidden className="size-3 fill-current" />
-							) : (
-								<Lock aria-hidden className="size-3" />
-							)}
-						</span>
-						<div className="flex min-w-0 flex-col gap-0.5">
-							<span className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
-								Phase {phase}
+							<span
+								className={cn(
+									"inline-flex size-6 shrink-0 items-center justify-center rounded-full",
+									isCompleted
+										? "bg-primary text-primary-foreground"
+										: isActive
+											? "bg-primary/20 text-primary"
+											: "bg-muted text-muted-foreground",
+								)}
+							>
+								{isCompleted ? (
+									<Check aria-hidden className="size-4" />
+								) : (
+									<Circle aria-hidden className="size-3 fill-current" />
+								)}
 							</span>
-							<span className="truncate text-sm text-foreground">
-								{labels[phase]}
-							</span>
-						</div>
+							<div className="flex min-w-0 flex-col gap-0.5">
+								<span className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
+									Phase {phase}
+								</span>
+								<span className="truncate text-sm text-foreground">
+									{phaseMeta.label}
+								</span>
+							</div>
+						</button>
 					</li>
 				);
 			})}

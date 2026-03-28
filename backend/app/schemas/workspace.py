@@ -53,6 +53,20 @@ class WorkspaceCustomFieldUpdateRequest(BaseSchema):
     custom_fields: list[WorkspaceCustomFieldUpdateItem] = Field(min_length=1, max_length=200)
 
 
+class WorkspaceQuestionAnswerUpdateItem(BaseSchema):
+    question_id: str = Field(pattern=r"^q([1-9]|[12][0-9]|3[01])$")
+    value: str = Field(max_length=2000)
+
+    @field_validator("value")
+    @classmethod
+    def validate_trimmed_value(cls, value: str) -> str:
+        return value.strip()
+
+
+class WorkspaceQuestionnaireUpdateRequest(BaseSchema):
+    answers: list[WorkspaceQuestionAnswerUpdateItem] = Field(min_length=1, max_length=31)
+
+
 class WorkspaceEvidenceRef(BaseSchema):
     file_id: UUID
     filename: str
@@ -137,6 +151,41 @@ class WorkspaceReadiness(BaseSchema):
     missing_base_fields: list[str] = Field(default_factory=list)
 
 
+WorkspaceQuestionSuggestionStatus = Literal["pending", "rejected"]
+
+
+class WorkspaceQuestionSuggestionItem(BaseSchema):
+    question_id: str = Field(pattern=r"^q([1-9]|[12][0-9]|3[01])$")
+    suggested_value: str = Field(min_length=1, max_length=2000)
+    status: WorkspaceQuestionSuggestionStatus = "pending"
+    phase: Literal[1, 2, 3, 4]
+    section: str = Field(min_length=1, max_length=120)
+    evidence_refs: list[WorkspaceEvidenceRef] = Field(default_factory=list)
+    confidence: int | None = Field(default=None, ge=0, le=100)
+    updated_at: datetime
+    has_conflict: bool = False
+    confirmed_answer: str | None = None
+
+    @field_validator("suggested_value", "section")
+    @classmethod
+    def validate_trimmed_text(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("value must not be empty")
+        return trimmed
+
+    @field_validator("confirmed_answer")
+    @classmethod
+    def validate_confirmed_answer(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip()
+
+    @field_serializer("updated_at")
+    def serialize_updated_at(self, dt: datetime) -> str:
+        return _serialize_canonical_datetime(dt)
+
+
 class WorkspaceDerivedInsights(BaseSchema):
     summary: str | None = None
     facts: list[str] = Field(default_factory=list)
@@ -158,6 +207,12 @@ class WorkspaceHydrateResponse(BaseSchema):
     custom_fields: list[WorkspaceCustomFieldItem]
     evidence_items: list[WorkspaceEvidenceItem]
     context_note: str | None = None
+    questionnaire_answers: dict[str, str] = Field(default_factory=dict)
+    questionnaire_suggestions: list[WorkspaceQuestionSuggestionItem] = Field(
+        default_factory=list
+    )
+    phase_progress: dict[str, bool] = Field(default_factory=dict)
+    first_incomplete_phase: Literal[1, 2, 3, 4] = 1
     derived: WorkspaceDerivedInsights
 
 
@@ -177,6 +232,59 @@ class WorkspaceContextNoteUpdateResponse(BaseSchema):
 class WorkspaceRefreshInsightsResponse(BaseSchema):
     derived: WorkspaceDerivedInsights
     proposal_batch: WorkspaceProposalBatch
+    questionnaire_suggestions: list[WorkspaceQuestionSuggestionItem] = Field(
+        default_factory=list
+    )
+
+
+class WorkspaceQuestionSuggestionReviewScope(BaseSchema):
+    kind: Literal["field", "section", "phase"]
+    question_id: str | None = Field(default=None, pattern=r"^q([1-9]|[12][0-9]|3[01])$")
+    section: str | None = Field(default=None, max_length=120)
+    phase: Literal[1, 2, 3, 4] | None = None
+
+    @field_validator("section")
+    @classmethod
+    def validate_optional_section(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("section must not be empty")
+        return trimmed
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> "WorkspaceQuestionSuggestionReviewScope":
+        if self.kind == "field":
+            if self.question_id is None:
+                raise ValueError("field scope requires question_id")
+            if self.section is not None or self.phase is not None:
+                raise ValueError("field scope accepts only question_id")
+            return self
+
+        if self.kind == "section":
+            if self.section is None:
+                raise ValueError("section scope requires section")
+            if self.question_id is not None or self.phase is not None:
+                raise ValueError("section scope accepts only section")
+            return self
+
+        if self.phase is None:
+            raise ValueError("phase scope requires phase")
+        if self.question_id is not None or self.section is not None:
+            raise ValueError("phase scope accepts only phase")
+        return self
+
+
+class WorkspaceQuestionSuggestionReviewRequest(BaseSchema):
+    action: Literal["accept", "reject"]
+    scope: WorkspaceQuestionSuggestionReviewScope
+
+
+class WorkspaceQuestionSuggestionReviewResponse(BaseSchema):
+    processed_count: int = Field(ge=0)
+    ignored_question_ids: list[str] = Field(default_factory=list)
+    workspace: WorkspaceHydrateResponse
 
 
 class WorkspaceConfirmProposalEditItem(BaseSchema):

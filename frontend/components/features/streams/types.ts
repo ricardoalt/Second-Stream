@@ -1,7 +1,4 @@
-import type {
-	DraftItemRow,
-	PersistedStreamRow,
-} from "@/lib/types/dashboard";
+import type { DraftItemRow, PersistedStreamRow } from "@/lib/types/dashboard";
 
 export type StreamPhase = 1 | 2 | 3 | 4;
 
@@ -51,6 +48,7 @@ export type StreamRow = {
 	status: StreamStatus;
 	processMethod?: string;
 	units?: string;
+	frequency?: string;
 	lastEdited?: string;
 	daysSinceLastActivity?: number;
 	missingFields?: string[];

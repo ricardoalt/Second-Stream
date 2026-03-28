@@ -1,7 +1,7 @@
 # Field-Agent Frontend Redesign — Canonical Implementation Plan
 
 **Date:** 2026-03-24  
-**Last updated:** 2026-03-25  
+**Last updated:** 2026-03-27  
 **Status:** Canonical frontend implementation plan (living, execution-ready)  
 **Scope:** Frontend `(agent)` field-agent experience (Stitch parity + quality uplift)  
 **Canonical baseline:** Stitch project `16271509822248673774` (SecondStream)
@@ -26,7 +26,7 @@ Rule: when in doubt, match Stitch behavior and flow intent, not ad-hoc implement
 
 ---
 
-## 3) Current implementation snapshot (2026-03-25)
+## 3) Current implementation snapshot (2026-03-27)
 
 This section is the operational status baseline for day-to-day SDD apply/verify work.
 
@@ -34,25 +34,38 @@ This section is the operational status baseline for day-to-day SDD apply/verify 
 
 - **Agent shell:** **Stable** (active global shell and provider composition)
 - **Dashboard:** **Partial / stabilized**, still mostly **mock-driven**
-- **Discovery family:** **Strongest implemented workflow**, active and **backend-connected**
-- **Waste Streams family:** **Active**, now consolidated under `/streams` with inline tabs; closer to Stitch, still needs refinement/parity verification
-- **Stream Detail Workspace:** **Active / partial**, core workspace present, still mostly mock/local-state driven
+- **Discovery family:** **Functionally real**, active and **backend-connected**
+- **Waste Streams family:** **Functionally real list/drafts flow** under `/streams` with inline tabs; backend-connected for list retrieval + draft confirmation, parity refinement still pending
+- **Stream Detail Workspace:** **Partial but materially upgraded** — real 4-phase questionnaire foundation, refined Stitch-like shell, dedicated Files/Contacts support routes, unified Quick Capture modal, and AI-assisted questionnaire prefill review with human Accept/Reject control are active; deeper lifecycle completeness is still pending
 - **Client Portfolio + Client Profile:** **Active UI coverage**, shifted toward operations-first, still mostly **mock-driven**
 - **Offers family (Pipeline/Detail/Archive):** **Active UI coverage**, naming aligned to **Offers**, still mostly **mock-driven**
 
 ### 3.2 Backend-connected vs mock-driven reality
 
-- **Backend-connected and active in UI:** Discovery Wizard flow
+- **Backend-connected and active in UI:** Discovery Wizard flow; Waste Streams `/streams` list buckets (`All`/`Drafts`/`Missing Information`) load from dashboard API; Draft confirmation executes via discovery draft decision API
 - **Deprecated legacy surface:** `DraftConfirmationSheet` (removed; centered confirmation modal is canonical)
-- **Mostly mock/local-state driven:** Dashboard, Streams, Stream Detail, Clients, Offers
+- **Partially backend-connected:**
+  - Quick Entry creates streams through project creation with required minimum input guardrails
+  - Stream Detail now hydrates workspace state from workspace API, autosaves questionnaire answers, and uses backend phase progress + first-incomplete-phase selection
+  - Stream Detail AI questionnaire prefill review is backend-connected through suggestion review API (`accept`/`reject`) with field, section, and phase scopes
+  - `/streams/[id]/files` uses real project file APIs for listing/upload-adjacent refresh/delete patterns
+  - `/streams/[id]/contacts` uses real project/location/company APIs for contact retrieval and prioritization
+  - Workspace Quick Capture uploads files/audio/text as project files and triggers workspace re-hydration
+- **Mostly mock/local-state driven:** Dashboard KPIs beyond available counts, end-to-end stream workspace lifecycle semantics, Clients, Offers
 
 ### 3.3 Important implementation truths (must remain explicit)
 
 - Use **Offers** as user-facing naming (not “Proposals”).
 - Dashboard is **stabilized**, not parity-complete.
 - Waste Streams family is consolidated under `/streams` with inline tabs (not separate routes per bucket).
+- Discovery + Waste Streams list/drafts is now the most operationally real day-to-day flow.
 - Discovery wizard is the canonical active discovery flow.
+- Quick Entry and Draft confirmation are aligned on minimum stream-shape fields (material/volume/frequency, with units preserved; Quick Entry additionally requires explicit location before create).
 - Client Portfolio has moved toward operations-first behavior, but parity vs Stitch is still tracked as incomplete.
+- Stream workspace now has one canonical 4-phase questionnaire foundation (single top stepper; no duplicate phase controls).
+- AI questionnaire prefill is assistive-only: suggested values are visible inline, and a human must explicitly Accept/Reject (field/section/phase).
+- Workspace right rail is intentionally narrowed to Quick Capture actions (upload/voice/paste) through a unified modal.
+- Files and Contacts are first-class support pages from workspace header actions, each with explicit “Back to workspace” navigation.
 
 ---
 
@@ -63,6 +76,8 @@ This section is the operational status baseline for day-to-day SDD apply/verify 
 - `/dashboard`
 - `/streams`
 - `/streams/[id]`
+- `/streams/[id]/files`
+- `/streams/[id]/contacts`
 - `/clients`
 - `/clients/[id]`
 - `/offers`
@@ -73,6 +88,7 @@ This section is the operational status baseline for day-to-day SDD apply/verify 
 
 - Discovery Wizard provider + real wizard
 - Quick Paste modal bridge into wizard
+- Stream Quick Capture modal (workspace-scoped: files/audio/raw text)
 - Add Client modal
 - Edit Client modal
 - Call Client modal
@@ -102,8 +118,8 @@ Verification claims must always distinguish these dimensions; do not collapse th
 | Family | Active route(s) | Current status | Backend integration status | Parity status | Next major work |
 |---|---|---|---|---|---|
 | Dashboard (command center) | `/dashboard` | Partial / stabilized | Mostly mock/local-state | Not parity-complete | Replace remaining mock signals with backend data contract; tighten triage zones/CTAs against Stitch intent |
-| Waste Streams family | `/streams` | Active, consolidated tabs (`All/Drafts/Missing Information`) | Mostly mock/local-state | Closer, still needs refinement | Validate tab parity details, finalize interaction fidelity, then wire backend list/filter actions |
-| Stream Detail Workspace | `/streams/[id]` | Active / partial | Mostly mock/local-state | Partial parity | Harden phase continuity, gating/next-step controls, and connect actions to backend lifecycle |
+| Waste Streams family | `/streams` | Active and functionally real for list/drafts | **Partially backend-connected** (dashboard bucket reads + draft confirmation decisions) | Closer, still needs refinement | Tighten parity details, finish remaining backend-backed metrics/actions, and verify end-to-end list behavior |
+| Stream Detail Workspace | `/streams/[id]` (+ `/streams/[id]/files`, `/streams/[id]/contacts`) | Active refined shell with real 4-phase questionnaire foundation, support pages, and AI prefill review controls | **Partially backend-connected** (hydrate + questionnaire autosave + suggestion review API + support-page data + quick-capture uploads) | Improved, still not parity-complete | Complete lifecycle depth: phase gating semantics, richer cross-phase coordination, and remaining backend action contracts |
 | Client Portfolio | `/clients` | Active, shifted operations-first | Mostly mock/local-state | Partial parity | Complete operations-first parity details and replace mock portfolio/list signals with backend data |
 | Client Profile | `/clients/[id]` | Active UI coverage | Mostly mock/local-state | Partial parity | Increase workflow depth (timeline/actions/context linkage) and connect profile actions/data |
 | Offers Pipeline | `/offers` | Active UI coverage | Mostly mock/local-state | Partial parity | Confirm stage semantics/copy and wire real pipeline data + transitions |
@@ -111,7 +127,7 @@ Verification claims must always distinguish these dimensions; do not collapse th
 | Offers Archive | `/offers/archive` | Active UI coverage | Mostly mock/local-state | Partial parity | Backend archive retrieval/filtering + final read semantics |
 | Discovery family (modal-first) | Global modal surfaces | Strongest flow, active canonical | Backend-connected (wizard + centered `DraftConfirmationModal`) | Closest to parity, still not closed | Keep modal flow canonical; complete orchestration and recovery parity checks |
 
-Summary: route/surface coverage is strong; the core execution gap is backend connectivity + parity depth verification.
+Summary: route/surface coverage is strong; Discovery + Waste Streams list/drafts remain the most mature operational loop, and Stream Detail now has AI-assisted prefill review + support-page routing but still needs lifecycle-depth completion.
 
 ---
 
@@ -299,8 +315,8 @@ Acceptance direction:
 | Family | Baseline intent (Stitch) | Current state summary | Gap type | Parity acceptance direction |
 |---|---|---|---|---|
 | Dashboard | Command center triage | Stabilized but still mostly mock-driven | Backend + workflow density | Priority triage + quick action command center using real signals |
-| Waste Streams family | Unified family with state variants | Consolidated tabs under `/streams`, refinement pending | Backend + fidelity | One family model; no variant overcount |
-| Stream Detail Workspace | One multi-phase workspace | Active partial workspace, coordination depth pending | Workflow depth + backend | End-to-end continuity in one workspace |
+| Waste Streams family | Unified family with state variants | Consolidated tabs under `/streams` with backend-backed list/drafts confirmation loop | Remaining fidelity + backend depth | One family model; no variant overcount |
+| Stream Detail Workspace | One multi-phase workspace | Active refined shell with real 4-phase questionnaire foundation, support pages, unified quick-capture modal, and human-reviewed AI prefill controls | Remaining lifecycle depth + backend contract completion | End-to-end continuity in one workspace without mock-dependent transitions |
 | Client Portfolio | Operations-first client list | Operations-first direction landed, still mock-driven | Backend + fidelity | Table-first operational portfolio with real data |
 | Client Profile | Client command context | Active UI coverage, mostly local/mock behavior | Workflow density + backend | Full account action context |
 | Offers Pipeline | Active commercial follow-up | Active coverage with Offers naming, mostly mock-driven | Backend + fidelity | Actionable stage UX with real transitions |
@@ -308,22 +324,23 @@ Acceptance direction:
 | Offers Archive | Historical retrieval | Active coverage, mostly mock-driven | Backend + fidelity | Fast archive retrieval and context |
 | Discovery family | Modal-first discovery workflow | Active backend-connected canonical flow | Parity hardening | Modal-first completion path with strong handoff and recovery |
 
-Summary: route coverage is broadly present; parity risk is mostly in depth, semantics, and operational flow quality.
+Summary: route coverage is broadly present; parity risk is now concentrated in lifecycle depth, semantics, and backend contract completion for remaining families.
 
 ---
 
 ## 10) Next implementation priorities (reality-based)
 
 Priority order for next SDD cycles:
-1. **Waste Streams + Stream Detail backend wiring** (largest daily workflow gap after discovery)
-2. **Dashboard data integration + triage fidelity hardening**
-3. **Clients family backend integration** (portfolio/profile)
-4. **Offers family backend integration** (pipeline/detail/archive)
-5. **Discovery parity hardening** (centered confirmation modal canonical; continue orchestration/recovery hardening)
+1. **Stream Detail lifecycle completion from the new foundation** (phase gating semantics, cross-phase continuity, unresolved workspace action contracts)
+2. **Waste Streams parity hardening from current functional baseline** (metrics/actions/contracts and list-to-workspace handoff quality)
+3. **Dashboard data integration + triage fidelity hardening**
+4. **Clients family backend integration** (portfolio/profile)
+5. **Offers family backend integration** (pipeline/detail/archive)
+6. **Discovery parity hardening** (centered confirmation modal canonical; continue orchestration/recovery hardening)
 
 Rationale:
-- Discovery already leads on real integration; highest value now is raising the rest of families from mock/local-state to backend-connected.
-- Waste Streams + Stream Detail are central throughput surfaces.
+- Stream Detail foundation/refinement work is now real (including AI prefill review controls and support pages); highest value is finishing lifecycle semantics and backend contract depth (not rebuilding shell structure again).
+- Waste Streams should focus on parity/contract hardening, not re-laying list foundations.
 - Dashboard/Clients/Offers must avoid overclaiming parity until real data and behavior are verified.
 
 ---
@@ -376,10 +393,10 @@ Exit criteria:
 - Team cannot overcount variants as pages in planning/review
 - P0 family acceptance criteria are explicit and testable
 
-## Phase B — Waste Streams + Stream Detail backend alignment
-- Move `/streams` and `/streams/[id]` from mock/local-state toward backend-connected behavior
-- Preserve consolidated tab model and parity semantics while wiring real data/actions
-- Validate end-to-end transitions from list triage to detail execution
+## Phase B — Stream Detail backend alignment from real list baseline
+- Keep `/streams` as the functional list baseline and continue from the now-landed Stream Detail foundation (4-phase shell + support pages + quick capture)
+- Close remaining `/streams/[id]` lifecycle backend gaps (phase semantics, state transitions, and coordination actions)
+- Validate end-to-end transitions from list triage to detail execution without mock fallback
 
 Exit criteria:
 - Daily triage flow is executable end-to-end without workaround paths
@@ -439,8 +456,8 @@ Use this as the decomposition baseline for `/sdd-propose` → `/sdd-spec` → `/
 
 ## 16) Execution order (current recommendation)
 
-1. FE-FA-2 Waste Streams family normalization (+ backend integration)
-2. FE-FA-5 Stream Detail workspace depth (+ backend lifecycle wiring)
+1. FE-FA-5 Stream Detail workspace depth (+ backend lifecycle wiring)
+2. FE-FA-2 Waste Streams family hardening from current functional baseline
 3. FE-FA-1 Dashboard command center hardening (real data + triage parity)
 4. FE-FA-3 Client Portfolio operations-first redesign completion (+ profile integration)
 5. FE-FA-6 Offers family consistency + backend integration
@@ -448,7 +465,7 @@ Use this as the decomposition baseline for `/sdd-propose` → `/sdd-spec` → `/
 7. Final cross-family parity audit against normalized matrix and Section 5 status definitions
 
 Dependency note:
-- Dashboard and Waste Streams should land before deep Stream Detail polishing so top-of-funnel triage aligns with downstream execution.
+- Dashboard and Waste Streams remain important inputs, but Stream Detail lifecycle completion is now unblocked because foundational shell/support surfaces are already active.
 
 ---
 
@@ -470,7 +487,8 @@ Dependency note:
 1. ~~Waste Streams taxonomy final decision: exact state naming/semantics for missing-information vs follow-up handling.~~ **RESOLVED: Use "Missing Information" as canonical taxonomy visible in Waste Streams.**
 2. ~~Discovery surface policy: finalize whether `DraftConfirmationSheet` is mounted as active flow or deprecated.~~ **RESOLVED: Keep centered `DraftConfirmationModal` as canonical; deprecate/remove `DraftConfirmationSheet`.**
 3. Offer status vocabulary alignment: confirm canonical wording for all field-agent-facing status chips/tooltips.
-4. Backend contract sequencing: confirm API delivery order for Streams/Clients/Offers to match Section 10 priority order.
+4. Stream Detail workspace contract sequencing: confirm hydrate/update/phase-transition endpoints and UI integration order for `/streams/[id]`, including AI suggestion review edge cases.
+5. Waste Streams KPI contract completion: confirm backend availability/timing for monthly volume + open offers metrics still marked unavailable.
 
 Blocking policy:
 - If any open question affects IA semantics, resolve before implementation of that family begins.

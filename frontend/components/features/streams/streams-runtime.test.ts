@@ -12,7 +12,6 @@ import {
 import {
 	applyDraftFieldUpdate,
 	type DraftEditorState,
-	shouldShowZeroLocationRecovery,
 	validateDraft,
 } from "@/components/features/streams/streams-drafts-table";
 import type { StreamRow } from "@/components/features/streams/types";
@@ -96,28 +95,41 @@ describe("/streams runtime hardening", () => {
 	it("validates draft confirmation with required units", () => {
 		const validDraft: DraftEditorState = {
 			wasteType: "Spent Solvent",
-			processMethod: "Distillation",
 			volume: "20",
+			frequency: "Weekly",
 			units: "tons/mo",
 			clientId: "company-1",
 			locationId: "location-1",
 		};
 		const invalidDraft: DraftEditorState = {
 			...validDraft,
-			locationId: "",
+			frequency: "",
 		};
 
 		expect(validateDraft(validDraft)).toEqual({});
 		expect(validateDraft(invalidDraft)).toEqual({
-			locationId: "Location is required",
+			frequency: "Frequency is required.",
 		});
+	});
+
+	it("does not require location to validate a draft row", () => {
+		const draftWithoutLocation: DraftEditorState = {
+			wasteType: "Spent Solvent",
+			volume: "20",
+			frequency: "Weekly",
+			units: "tons/mo",
+			clientId: "company-1",
+			locationId: "",
+		};
+
+		expect(validateDraft(draftWithoutLocation)).toEqual({});
 	});
 
 	it("resets location when draft client changes", () => {
 		const currentDraft: DraftEditorState = {
 			wasteType: "Spent Solvent",
-			processMethod: "Distillation",
 			volume: "20",
+			frequency: "Weekly",
 			units: "tons/mo",
 			clientId: "company-1",
 			locationId: "location-1",
@@ -136,32 +148,11 @@ describe("/streams runtime hardening", () => {
 		});
 	});
 
-	it("shows zero-location recovery only for selected client without locations", () => {
-		expect(
-			shouldShowZeroLocationRecovery({
-				clientId: "company-1",
-				availableLocationsCount: 0,
-			}),
-		).toBe(true);
-		expect(
-			shouldShowZeroLocationRecovery({
-				clientId: "",
-				availableLocationsCount: 0,
-			}),
-		).toBe(false);
-		expect(
-			shouldShowZeroLocationRecovery({
-				clientId: "company-1",
-				availableLocationsCount: 1,
-			}),
-		).toBe(false);
-	});
-
 	it("maps inline Draft editor state into confirmation candidate shape", () => {
 		const editorState: DraftEditorState = {
 			wasteType: "Spent Solvent",
-			processMethod: "Distillation",
 			volume: "20",
+			frequency: "Weekly",
 			units: "tons/mo",
 			clientId: "company-1",
 			locationId: "location-1",
@@ -176,7 +167,7 @@ describe("/streams runtime hardening", () => {
 			locationId: "location-1",
 			material: "Spent Solvent",
 			volume: "20",
-			frequency: null,
+			frequency: "Weekly",
 			units: "tons/mo",
 			locationLabel: null,
 			source: "Waste Streams Drafts",
@@ -188,8 +179,8 @@ describe("/streams runtime hardening", () => {
 	it("maps wasteType to material and units 1:1", () => {
 		const editorState: DraftEditorState = {
 			wasteType: "Used Oil",
-			processMethod: "Incineration",
 			volume: "8",
+			frequency: "Monthly",
 			units: "gal/mo",
 			clientId: "company-77",
 			locationId: "location-42",
@@ -207,8 +198,8 @@ describe("/streams runtime hardening", () => {
 	it("requires frequency during canonical confirmation when missing", () => {
 		const editorState: DraftEditorState = {
 			wasteType: "Coolant",
-			processMethod: "Neutralization",
 			volume: "10",
+			frequency: "",
 			units: "gal/mo",
 			clientId: "company-9",
 			locationId: "location-9",

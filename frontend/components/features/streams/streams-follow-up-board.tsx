@@ -114,9 +114,7 @@ export function StreamsFollowUpBoard({
 										{priorityLabel[priority]}
 									</Badge>
 								</div>
-								<p className="text-xs text-muted-foreground">
-									{phaseLabel}
-								</p>
+								<p className="text-xs text-muted-foreground">{phaseLabel}</p>
 								{missingFields.length > 0 && (
 									<div className="mt-1 flex flex-wrap gap-1">
 										{missingFields.map((field) => (

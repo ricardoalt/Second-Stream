@@ -2,7 +2,6 @@
 
 import {
 	AlertCircle,
-	Calendar,
 	CheckCircle,
 	CircleCheck,
 	FileSpreadsheet,
@@ -314,13 +313,20 @@ export function canSaveQuickEntry(params: {
 	clientId: string;
 	locationId: string;
 	material: string;
+	volume: string;
+	units: string;
+	frequency: string;
 	isSaving: boolean;
 }): boolean {
-	const { clientId, locationId, material, isSaving } = params;
+	const { clientId, locationId, material, volume, units, frequency, isSaving } =
+		params;
 	return (
 		clientId.trim().length > 0 &&
 		locationId.trim().length > 0 &&
 		material.trim().length > 0 &&
+		volume.trim().length > 0 &&
+		units.trim().length > 0 &&
+		frequency.trim().length > 0 &&
 		!isSaving
 	);
 }
@@ -1237,7 +1243,6 @@ export function DiscoveryWizard({
 							onLocationChange={setLocationId}
 							files={files}
 							audioFile={audioFile}
-							text={text}
 							onTextChange={setText}
 							dragActive={dragActive}
 							canDiscover={canDiscover}
@@ -1354,7 +1359,6 @@ function IdleView({
 	onLocationChange,
 	files,
 	audioFile,
-	text,
 	onTextChange,
 	dragActive,
 	canDiscover,
@@ -1381,7 +1385,6 @@ function IdleView({
 	onLocationChange: (id: string) => void;
 	files: File[];
 	audioFile: File | null;
-	text: string;
 	onTextChange: (text: string) => void;
 	dragActive: boolean;
 	canDiscover: boolean;
@@ -1405,12 +1408,9 @@ function IdleView({
 		client: "",
 		locationId: "",
 		material: "",
-		process: "",
 		volume: "",
 		units: "Gallons",
 		frequency: "Weekly",
-		packaging: "Bulk Tanker",
-		firstLift: "",
 	});
 	const [quickEntryError, setQuickEntryError] = useState<string | null>(null);
 	const [isSavingQuickEntry, setIsSavingQuickEntry] = useState(false);
@@ -1438,6 +1438,9 @@ function IdleView({
 		clientId: qe.client,
 		locationId: qe.locationId,
 		material: qe.material,
+		volume: qe.volume,
+		units: qe.units,
+		frequency: qe.frequency,
 		isSaving: isSavingQuickEntry,
 	});
 
@@ -1447,17 +1450,20 @@ function IdleView({
 			client: "",
 			locationId: "",
 			material: "",
-			process: "",
 			volume: "",
 			units: "Gallons",
 			frequency: "Weekly",
-			packaging: "Bulk Tanker",
-			firstLift: "",
 		});
 	}, []);
 
 	const handleQuickEntrySave = useCallback(async () => {
-		if (!qe.client || !qe.material.trim()) {
+		if (
+			!qe.client ||
+			!qe.material.trim() ||
+			!qe.volume.trim() ||
+			!qe.units.trim() ||
+			!qe.frequency.trim()
+		) {
 			return;
 		}
 
@@ -1485,7 +1491,16 @@ function IdleView({
 		} finally {
 			setIsSavingQuickEntry(false);
 		}
-	}, [onClose, qe.client, qe.locationId, qe.material, resetQuickEntry]);
+	}, [
+		onClose,
+		qe.client,
+		qe.frequency,
+		qe.locationId,
+		qe.material,
+		qe.units,
+		qe.volume,
+		resetQuickEntry,
+	]);
 
 	return (
 		<div className="flex flex-col flex-1">
@@ -1530,220 +1545,155 @@ function IdleView({
 				/* ── Quick Entry Form ── */
 				<div className="flex flex-col flex-1">
 					<div className="flex-1 overflow-auto px-6 py-4">
-						<div className="grid gap-4 lg:grid-cols-2">
-							{/* Material Identity */}
-							<div className="rounded-xl bg-surface-container-low/50 p-4">
-								<div className="flex items-center gap-2 mb-3">
-									<Package className="size-4 text-primary" />
-									<h4 className="text-sm font-semibold">Material Identity</h4>
-								</div>
-								<div className="space-y-3">
-									<div>
-										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-											Client Selection
-										</span>
-										<CompanyCombobox
-											value={qe.client}
-											onValueChange={(v) => {
+						<div className="mx-auto w-full max-w-3xl space-y-4">
+							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+								<div className="mb-2 flex items-center justify-between">
+									<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+										Client
+									</span>
+									<CreateCompanyDialog
+										onSuccess={(company) => {
+											if (company) {
 												setQuickEntryError(null);
-												setQe({ ...qe, client: v, locationId: "" });
-											}}
-											placeholder="Select an existing client..."
-											showCreate={true}
-										/>
-									</div>
+												setQe({
+													...qe,
+													client: company.id,
+													locationId: "",
+												});
+											}
+										}}
+										trigger={
+											<button
+												type="button"
+												className="text-[0.6875rem] font-semibold text-primary hover:underline"
+											>
+												⊕ Add New Client
+											</button>
+										}
+									/>
+								</div>
+								<CompanyCombobox
+									value={qe.client}
+									onValueChange={(value) => {
+										setQuickEntryError(null);
+										setQe({ ...qe, client: value, locationId: "" });
+									}}
+									placeholder="Select Existing Client"
+									showCreate={true}
+								/>
+							</section>
+
+							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+									Location
+								</span>
+								<div className="space-y-1.5">
+									<LocationCombobox
+										companyId={qe.client}
+										value={qe.locationId}
+										onValueChange={(value) => {
+											setQuickEntryError(null);
+											setQe({ ...qe, locationId: value });
+										}}
+										placeholder={
+											qe.client ? "Select Location" : "Select Client first"
+										}
+										className="h-12"
+									/>
+									{qe.client && quickEntryLocations.length === 0 ? (
+										<div className="text-xs text-muted-foreground">
+											No locations —{" "}
+											<CreateLocationDialog
+												companyId={qe.client}
+												onSuccess={(location) => {
+													if (!location) {
+														return;
+													}
+													void loadLocationsByCompany(qe.client);
+													setQe({ ...qe, locationId: location.id });
+												}}
+												trigger={
+													<button
+														type="button"
+														className="font-medium text-primary hover:underline"
+													>
+														[+ Add location]
+													</button>
+												}
+											/>
+										</div>
+									) : null}
+								</div>
+							</section>
+
+							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+									Material / Stream Name
+								</span>
+								<input
+									type="text"
+									placeholder="e.g. Spent Solvent"
+									value={qe.material}
+									onChange={(event) =>
+										setQe({ ...qe, material: event.target.value })
+									}
+									className="w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+								/>
+							</section>
+
+							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+								<div className="grid gap-3 md:grid-cols-3">
 									<div>
 										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-											Material Name
+											Volume
 										</span>
 										<input
 											type="text"
-											placeholder="e.g. Toluene"
-											value={qe.material}
-											onChange={(e) =>
-												setQe({ ...qe, material: e.target.value })
+											placeholder="5,000"
+											value={qe.volume}
+											onChange={(event) =>
+												setQe({ ...qe, volume: event.target.value })
 											}
 											className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
 										/>
 									</div>
 									<div>
 										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-											Generating Process
+											Units
 										</span>
-										<input
-											type="text"
-											placeholder="e.g. Reactor Cleaning"
-											value={qe.process}
-											onChange={(e) =>
-												setQe({ ...qe, process: e.target.value })
-											}
-											className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-										/>
-									</div>
-								</div>
-							</div>
-							{/* Frequency & Volume + Timeline */}
-							<div className="flex flex-col gap-4">
-								<div className="rounded-xl bg-surface-container-low/50 p-4">
-									<div className="flex items-center gap-2 mb-3">
-										<Waves className="size-4 text-primary" />
-										<h4 className="text-sm font-semibold">
-											Frequency &amp; Volume
-										</h4>
-									</div>
-									<div className="space-y-3">
-										<div className="grid grid-cols-2 gap-2">
-											<div>
-												<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-													Volume / Weight
-												</span>
-												<input
-													type="text"
-													placeholder="5,000"
-													value={qe.volume}
-													onChange={(e) =>
-														setQe({ ...qe, volume: e.target.value })
-													}
-													className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-												/>
-											</div>
-											<div>
-												<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-													&nbsp;
-												</span>
-												<select
-													value={qe.units}
-													onChange={(e) =>
-														setQe({ ...qe, units: e.target.value })
-													}
-													className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-												>
-													<option>Gallons</option>
-													<option>Tons</option>
-													<option>Barrels</option>
-													<option>Pounds</option>
-												</select>
-											</div>
-										</div>
-										<div>
-											<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-												Primary Location
-											</span>
-											<div className="mt-1 space-y-1.5">
-												<LocationCombobox
-													companyId={qe.client}
-													value={qe.locationId}
-													onValueChange={(value) => {
-														setQuickEntryError(null);
-														setQe({ ...qe, locationId: value });
-													}}
-													placeholder={
-														qe.client
-															? "Select Location"
-															: "Select Client first"
-													}
-												/>
-												{qe.client && quickEntryLocations.length === 0 ? (
-													<div className="text-xs text-muted-foreground">
-														No locations —{" "}
-														<CreateLocationDialog
-															companyId={qe.client}
-															onSuccess={(location) => {
-																if (!location) {
-																	return;
-																}
-																void loadLocationsByCompany(qe.client);
-																setQe({ ...qe, locationId: location.id });
-															}}
-															trigger={
-																<button
-																	type="button"
-																	className="font-medium text-primary hover:underline"
-																>
-																	[+ Add location]
-																</button>
-															}
-														/>
-													</div>
-												) : null}
-											</div>
-										</div>
-										<div className="grid grid-cols-2 gap-2">
-											<div>
-												<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-													Frequency
-												</span>
-												<select
-													value={qe.frequency}
-													onChange={(e) =>
-														setQe({ ...qe, frequency: e.target.value })
-													}
-													className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-												>
-													<option>Weekly</option>
-													<option>Bi-Weekly</option>
-													<option>Monthly</option>
-													<option>Quarterly</option>
-													<option>Ad-hoc</option>
-												</select>
-											</div>
-											<div>
-												<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-													Packaging Type
-												</span>
-												<select
-													value={qe.packaging}
-													onChange={(e) =>
-														setQe({ ...qe, packaging: e.target.value })
-													}
-													className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-												>
-													<option>Bulk Tanker</option>
-													<option>Drums</option>
-													<option>Totes</option>
-													<option>Containers</option>
-												</select>
-											</div>
-										</div>
-									</div>
-								</div>
-								{/* Timeline */}
-								<div className="rounded-xl bg-surface-container-low/50 p-4">
-									<div className="flex items-center gap-2 mb-3">
-										<Calendar className="size-4 text-primary" />
-										<h4 className="text-sm font-semibold">Timeline</h4>
-									</div>
-									<div>
-										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-											Expected First Lift
-										</span>
-										<input
-											type="date"
-											value={qe.firstLift}
-											onChange={(e) =>
-												setQe({ ...qe, firstLift: e.target.value })
+										<select
+											value={qe.units}
+											onChange={(event) =>
+												setQe({ ...qe, units: event.target.value })
 											}
 											className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-										/>
+										>
+											<option>Gallons</option>
+											<option>Tons</option>
+											<option>Barrels</option>
+											<option>Pounds</option>
+										</select>
+									</div>
+									<div>
+										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+											Frequency
+										</span>
+										<select
+											value={qe.frequency}
+											onChange={(event) =>
+												setQe({ ...qe, frequency: event.target.value })
+											}
+											className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+										>
+											<option>Weekly</option>
+											<option>Bi-Weekly</option>
+											<option>Monthly</option>
+											<option>Quarterly</option>
+											<option>Ad-hoc</option>
+										</select>
 									</div>
 								</div>
-							</div>
-						</div>
-						{/* Entry Guidelines */}
-						<div className="mt-4 rounded-lg bg-primary/5 px-4 py-3">
-							<p className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-primary mb-1">
-								Entry Guidelines
-							</p>
-							<ul className="space-y-1">
-								<li className="flex items-center gap-2 text-xs text-muted-foreground">
-									<span className="size-1.5 rounded-full bg-primary" />
-									Ensure MSDS are available.
-								</li>
-								<li className="flex items-center gap-2 text-xs text-muted-foreground">
-									<span className="size-1.5 rounded-full bg-primary" />
-									Verify packaging compatibility.
-								</li>
-							</ul>
+							</section>
 						</div>
 					</div>
 					{/* Quick Entry Footer */}
@@ -1780,251 +1730,239 @@ function IdleView({
 				</div>
 			) : (
 				<div className="flex flex-col flex-1">
-					<div className="flex-1 overflow-auto px-6 py-4 space-y-5">
-						{/* CLIENT INFORMATION */}
-						<div>
-							<div className="flex items-center justify-between mb-2">
-								<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-									Client Information
-								</span>
-								<CreateCompanyDialog
-									onSuccess={(company) => {
-										if (company) {
-											onCompanyChange(company.id);
-										}
-									}}
-									trigger={
-										<button
-											type="button"
-											className="text-[0.6875rem] font-semibold text-primary hover:underline"
-										>
-											⊕ Add New Client
-										</button>
-									}
-								/>
-							</div>
-							{defaultCompanyId ? (
-								<div className="rounded-lg border border-border/30 bg-surface-container-lowest px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
-									<Package className="size-4 text-muted-foreground" />
-									Company pre-selected
-								</div>
-							) : (
-								<CompanyCombobox
-									value={companyId}
-									onValueChange={(value) => {
-										onCompanyChange(value);
-										onLocationChange("");
-									}}
-									placeholder="Select Existing Client"
-									showCreate={true}
-								/>
-							)}
-						</div>
-
-						<div>
-							<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary block mb-2">
-								Paste or Type Discovery Notes
-							</span>
-							<textarea
-								value={text}
-								onChange={(e) => onTextChange(e.target.value)}
-								placeholder="Paste waste manifest, notes, or any text…"
-								rows={5}
-								className="w-full rounded-lg border border-border/30 bg-surface-container-lowest px-3 py-2.5 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-								disabled={isSubmitting}
-							/>
-							<p className="mt-1 text-xs text-muted-foreground">
-								{text.length} characters • minimum {MIN_DISCOVERY_TEXT_LENGTH}
-							</p>
-						</div>
-
-						{/* LOCATION SELECTION */}
-						<div>
-							<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary block mb-2">
-								Location Selection
-							</span>
-							<div className="space-y-1.5">
-								<LocationCombobox
-									companyId={companyId}
-									value={locationId}
-									onValueChange={onLocationChange}
-									placeholder={
-										companyId ? "Select Location" : "Select Client first"
-									}
-									className="h-12"
-								/>
-								{companyId && aiLocations.length === 0 ? (
-									<div className="text-xs text-muted-foreground">
-										No locations —{" "}
-										<CreateLocationDialog
-											companyId={companyId}
-											onSuccess={(location) => {
-												if (!location) {
-													return;
-												}
-												void loadLocationsByCompany(companyId);
-												onLocationChange(location.id);
-											}}
-											trigger={
-												<button
-													type="button"
-													className="font-medium text-primary hover:underline"
-												>
-													[+ Add location]
-												</button>
+					<div className="flex-1 overflow-auto px-6 py-5">
+						<div className="mx-auto w-full max-w-3xl space-y-4">
+							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+								<div className="mb-2 flex items-center justify-between">
+									<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+										Client
+									</span>
+									<CreateCompanyDialog
+										onSuccess={(company) => {
+											if (company) {
+												onCompanyChange(company.id);
 											}
-										/>
+										}}
+										trigger={
+											<button
+												type="button"
+												className="text-[0.6875rem] font-semibold text-primary hover:underline"
+											>
+												⊕ Add New Client
+											</button>
+										}
+									/>
+								</div>
+								{defaultCompanyId ? (
+									<div className="flex items-center gap-2 rounded-lg border border-border/30 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+										<Package className="size-4 text-muted-foreground" />
+										Company pre-selected
 									</div>
-								) : null}
-							</div>
-							<p className="text-xs text-muted-foreground mt-1.5">
-								Select a location before upload/analysis.
-							</p>
-						</div>
-
-						{/* UPLOAD CLIENT FILES OR EMAILS */}
-						<div>
-							<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary block mb-2">
-								Upload Client Files or Emails
-							</span>
-							<section
-								aria-label={dragActive ? "Drop files here" : "File upload area"}
-								className={cn(
-									"relative rounded-xl border-2 border-dashed transition-all duration-300",
-									dragActive
-										? "border-primary/40 bg-primary/[0.06] shadow-glow ring-2 ring-primary/20"
-										: "border-border/30 bg-surface-container-lowest",
+								) : (
+									<CompanyCombobox
+										value={companyId}
+										onValueChange={(value) => {
+											onCompanyChange(value);
+											onLocationChange("");
+										}}
+										placeholder="Select Existing Client"
+										showCreate={true}
+									/>
 								)}
-								onDragEnter={onDragEnter}
-								onDragOver={onDragOver}
-								onDragLeave={onDragLeave}
-								onDrop={onDrop}
-							>
-								{hasAttachments ? (
-									<div className="p-4 space-y-3">
-										<div className="flex flex-wrap gap-2">
-											{files.map((file, index) => {
-												const Icon = fileIcon(file.name);
-												return (
-													<div
-														key={`${file.name}-${file.size}`}
-														className="group/chip flex items-center gap-1.5 rounded-lg border border-border/40 bg-card px-3 py-2 text-sm shadow-sm hover:shadow-md hover:border-border/60 transition-all"
+							</section>
+
+							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+									Location
+								</span>
+								<div className="space-y-1.5">
+									<LocationCombobox
+										companyId={companyId}
+										value={locationId}
+										onValueChange={onLocationChange}
+										placeholder={
+											companyId ? "Select Location" : "Select Client first"
+										}
+										className="h-12"
+									/>
+									{companyId && aiLocations.length === 0 ? (
+										<div className="text-xs text-muted-foreground">
+											No locations —{" "}
+											<CreateLocationDialog
+												companyId={companyId}
+												onSuccess={(location) => {
+													if (!location) {
+														return;
+													}
+													void loadLocationsByCompany(companyId);
+													onLocationChange(location.id);
+												}}
+												trigger={
+													<button
+														type="button"
+														className="font-medium text-primary hover:underline"
 													>
-														<Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-														<span className="truncate max-w-[140px]">
-															{file.name}
+														[+ Add location]
+													</button>
+												}
+											/>
+										</div>
+									) : null}
+								</div>
+								<p className="mt-1.5 text-xs text-muted-foreground">
+									Select a location before upload/analysis.
+								</p>
+							</section>
+
+							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+								<div className="mb-2">
+									<span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+										Upload files/emails
+									</span>
+									<p className="mt-1 text-xs text-muted-foreground">
+										PDF, XLSX, EML and image files supported.
+									</p>
+								</div>
+								<section
+									aria-label={
+										dragActive ? "Drop files here" : "File upload area"
+									}
+									className={cn(
+										"relative rounded-xl border-2 border-dashed transition-all duration-300",
+										dragActive
+											? "border-primary/40 bg-primary/[0.06] shadow-glow ring-2 ring-primary/20"
+											: "border-border/30 bg-background/70",
+									)}
+									onDragEnter={onDragEnter}
+									onDragOver={onDragOver}
+									onDragLeave={onDragLeave}
+									onDrop={onDrop}
+								>
+									{hasAttachments ? (
+										<div className="space-y-3 p-4">
+											<div className="flex flex-wrap gap-2">
+												{files.map((file, index) => {
+													const Icon = fileIcon(file.name);
+													return (
+														<div
+															key={`${file.name}-${file.size}`}
+															className="group/chip flex items-center gap-1.5 rounded-lg border border-border/40 bg-card px-3 py-2 text-sm shadow-sm transition-all hover:border-border/60 hover:shadow-md"
+														>
+															<Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+															<span className="max-w-[140px] truncate">
+																{file.name}
+															</span>
+															<span className="text-xs text-muted-foreground">
+																{formatSize(file.size)}
+															</span>
+															<button
+																type="button"
+																aria-label={`Remove ${file.name}`}
+																onClick={() => onRemoveFile(index)}
+																className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-sm hover:bg-muted transition-opacity"
+															>
+																<X className="h-3 w-3" />
+															</button>
+														</div>
+													);
+												})}
+												{audioFile && (
+													<div className="group/chip flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-sm shadow-sm">
+														<Mic className="h-3.5 w-3.5 shrink-0 text-primary" />
+														<span className="max-w-[140px] truncate">
+															{audioFile.name}
 														</span>
 														<span className="text-xs text-muted-foreground">
-															{formatSize(file.size)}
+															{formatSize(audioFile.size)}
 														</span>
 														<button
 															type="button"
-															aria-label={`Remove ${file.name}`}
-															onClick={() => onRemoveFile(index)}
-															className="ml-0.5 h-5 w-5 flex items-center justify-center rounded-sm hover:bg-muted transition-opacity"
+															aria-label={`Remove ${audioFile.name}`}
+															onClick={onRemoveAudio}
+															className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-sm hover:bg-muted transition-opacity"
 														>
 															<X className="h-3 w-3" />
 														</button>
 													</div>
-												);
-											})}
-											{audioFile && (
-												<div className="group/chip flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-sm shadow-sm">
-													<Mic className="h-3.5 w-3.5 text-primary shrink-0" />
-													<span className="truncate max-w-[140px]">
-														{audioFile.name}
-													</span>
-													<span className="text-xs text-muted-foreground">
-														{formatSize(audioFile.size)}
-													</span>
-													<button
-														type="button"
-														aria-label={`Remove ${audioFile.name}`}
-														onClick={onRemoveAudio}
-														className="ml-0.5 h-5 w-5 flex items-center justify-center rounded-sm hover:bg-muted transition-opacity"
-													>
-														<X className="h-3 w-3" />
-													</button>
-												</div>
-											)}
-											{files.length < MAX_FILES && (
-												<Button
-													variant="outline"
-													size="icon"
-													className="h-9 w-9 border-dashed"
-													onClick={() => fileInputRef.current?.click()}
-													disabled={isSubmitting}
-												>
-													<Plus className="h-4 w-4" />
-													<span className="sr-only">Add files</span>
-												</Button>
-											)}
-										</div>
-									</div>
-								) : (
-									<button
-										type="button"
-										className="flex w-full flex-col items-center gap-3 px-6 py-10 text-center"
-										onClick={() => fileInputRef.current?.click()}
-										disabled={isSubmitting}
-									>
-										<div className="flex items-center gap-3">
-											<FileSpreadsheet className="h-5 w-5 text-primary/60" />
-											<FileText className="h-5 w-5 text-primary/60" />
-											<Image className="h-5 w-5 text-primary/60" />
-										</div>
-										<div>
-											<p
-												className={cn(
-													"font-medium text-sm",
-													dragActive ? "text-primary" : "text-foreground",
 												)}
-											>
-												{dragActive
-													? "Drop files here"
-													: "Drag and drop discovery assets here"}
-											</p>
-											<p className="text-xs text-muted-foreground/60 mt-0.5">
-												PDF, XLSX, or EML files supported (Max 50MB)
+												{files.length < MAX_FILES && (
+													<Button
+														variant="outline"
+														size="icon"
+														className="h-9 w-9 border-dashed"
+														onClick={() => fileInputRef.current?.click()}
+														disabled={isSubmitting}
+													>
+														<Plus className="h-4 w-4" />
+														<span className="sr-only">Add files</span>
+													</Button>
+												)}
+											</div>
+										</div>
+									) : (
+										<button
+											type="button"
+											className="flex w-full flex-col items-center gap-3 px-6 py-10 text-center"
+											onClick={() => fileInputRef.current?.click()}
+											disabled={isSubmitting}
+										>
+											<div className="flex items-center gap-3">
+												<FileSpreadsheet className="h-5 w-5 text-primary/60" />
+												<FileText className="h-5 w-5 text-primary/60" />
+												<Image className="h-5 w-5 text-primary/60" />
+											</div>
+											<div>
+												<p
+													className={cn(
+														"text-sm font-medium",
+														dragActive ? "text-primary" : "text-foreground",
+													)}
+												>
+													{dragActive
+														? "Drop files here"
+														: "Drag and drop discovery assets here"}
+												</p>
+												<p className="mt-0.5 text-xs text-muted-foreground/60">
+													Max 10 files · 50MB total upload budget
+												</p>
+											</div>
+										</button>
+									)}
+								</section>
+							</section>
+
+							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+									Dictate voice note
+								</span>
+								<button
+									type="button"
+									className="flex w-full items-center justify-between rounded-xl border border-border/30 bg-background/70 px-4 py-4 transition-colors hover:border-border/50"
+									onClick={() => audioInputRef.current?.click()}
+									disabled={audioFile !== null || isSubmitting}
+								>
+									<div className="flex items-center gap-3">
+										<div className="flex size-10 items-center justify-center rounded-full bg-primary">
+											<Mic className="size-5 text-primary-foreground" />
+										</div>
+										<div className="text-left">
+											<p className="text-sm font-semibold">Record Voice Note</p>
+											<p className="text-xs text-muted-foreground">
+												AI transcription will process clinical nuances
 											</p>
 										</div>
-									</button>
-								)}
+									</div>
+									<div className="flex h-6 items-end gap-[2px]">
+										{VOICE_WAVE_BARS.map((bar) => (
+											<div
+												key={bar.id}
+												className="w-1 rounded-full bg-muted-foreground/20"
+												style={{ height: `${bar.height * 4}px` }}
+											/>
+										))}
+									</div>
+								</button>
 							</section>
-						</div>
-
-						{/* DICTATE DISCOVERY NOTES */}
-						<div>
-							<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary block mb-2">
-								Dictate Discovery Notes
-							</span>
-							<button
-								type="button"
-								className="w-full rounded-xl border border-border/30 bg-surface-container-lowest px-4 py-4 flex items-center justify-between hover:border-border/50 transition-colors"
-								onClick={() => audioInputRef.current?.click()}
-								disabled={audioFile !== null || isSubmitting}
-							>
-								<div className="flex items-center gap-3">
-									<div className="size-10 rounded-full bg-primary flex items-center justify-center">
-										<Mic className="size-5 text-primary-foreground" />
-									</div>
-									<div className="text-left">
-										<p className="text-sm font-semibold">Record Voice Note</p>
-										<p className="text-xs text-muted-foreground">
-											AI-transcription will process clinical nuances
-										</p>
-									</div>
-								</div>
-								<div className="flex items-end gap-[2px] h-6">
-									{VOICE_WAVE_BARS.map((bar) => (
-										<div
-											key={bar.id}
-											className="w-1 rounded-full bg-muted-foreground/20"
-											style={{ height: `${bar.height * 4}px` }}
-										/>
-									))}
-								</div>
-							</button>
 						</div>
 					</div>
 
