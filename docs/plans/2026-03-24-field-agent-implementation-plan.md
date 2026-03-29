@@ -1,7 +1,7 @@
 # Field-Agent Frontend Redesign — Canonical Implementation Plan
 
 **Date:** 2026-03-24  
-**Last updated:** 2026-03-27  
+**Last updated:** 2026-03-29  
 **Status:** Canonical frontend implementation plan (living, execution-ready)  
 **Scope:** Frontend `(agent)` field-agent experience (Stitch parity + quality uplift)  
 **Canonical baseline:** Stitch project `16271509822248673774` (SecondStream)
@@ -38,7 +38,7 @@ This section is the operational status baseline for day-to-day SDD apply/verify 
 - **Waste Streams family:** **Functionally real list/drafts flow** under `/streams` with inline tabs; backend-connected for list retrieval + draft confirmation, parity refinement still pending
 - **Stream Detail Workspace:** **Partial but materially upgraded** — real 4-phase questionnaire foundation, refined Stitch-like shell, dedicated Files/Contacts support routes, unified Quick Capture modal, and AI-assisted questionnaire prefill review with human Accept/Reject control are active; deeper lifecycle completeness is still pending
 - **Client Portfolio + Client Profile:** **Active UI coverage**, shifted toward operations-first, still mostly **mock-driven**
-- **Offers family (Pipeline/Detail/Archive):** **Active UI coverage**, naming aligned to **Offers**, still mostly **mock-driven**
+- **Offers family (Pipeline/Detail/Archive):** **Backend foundation materially real** — Workspace now hands off directly into Offer detail; active Pipeline + Detail are backend-connected; Archive foundation is implemented and runtime-verified for its scoped v1 goal
 
 ### 3.2 Backend-connected vs mock-driven reality
 
@@ -51,7 +51,11 @@ This section is the operational status baseline for day-to-day SDD apply/verify 
   - `/streams/[id]/files` uses real project file APIs for listing/upload-adjacent refresh/delete patterns
   - `/streams/[id]/contacts` uses real project/location/company APIs for contact retrieval and prioritization
   - Workspace Quick Capture uploads files/audio/text as project files and triggers workspace re-hydration
-- **Mostly mock/local-state driven:** Dashboard KPIs beyond available counts, end-to-end stream workspace lifecycle semantics, Clients, Offers
+  - Workspace completion (`complete-discovery`) now creates/reuses the Offer draft artifact and returns immediate Offer-detail navigation context
+  - Offers Pipeline now loads from real project-scoped backend projection data
+  - Offer Detail now resolves by `/offers/[projectId]`, hydrates from real project/proposal context, and persists follow-up-state transitions through backend actions
+  - Offers Archive now loads from a real archive projection limited to backend-grounded terminal states (`accepted`, `declined`) and is runtime-verified for Archive v1 behavior
+- **Mostly mock/local-state driven:** Dashboard KPIs beyond available counts, end-to-end stream workspace lifecycle semantics, Clients
 
 ### 3.3 Important implementation truths (must remain explicit)
 
@@ -66,6 +70,8 @@ This section is the operational status baseline for day-to-day SDD apply/verify 
 - AI questionnaire prefill is assistive-only: suggested values are visible inline, and a human must explicitly Accept/Reject (field/section/phase).
 - Workspace right rail is intentionally narrowed to Quick Capture actions (upload/voice/paste) through a unified modal.
 - Files and Contacts are first-class support pages from workspace header actions, each with explicit “Back to workspace” navigation.
+- Offer detail routing is now project-scoped (`/offers/[projectId]`), not proposal-id-scoped.
+- `Project.proposal_follow_up_state` is the canonical commercial follow-up source of truth for active Offers behavior.
 
 ---
 
@@ -81,7 +87,7 @@ This section is the operational status baseline for day-to-day SDD apply/verify 
 - `/clients`
 - `/clients/[id]`
 - `/offers`
-- `/offers/[id]`
+- `/offers/[projectId]`
 - `/offers/archive`
 
 ### 4.2 Active major global surfaces / modals
@@ -122,9 +128,9 @@ Verification claims must always distinguish these dimensions; do not collapse th
 | Stream Detail Workspace | `/streams/[id]` (+ `/streams/[id]/files`, `/streams/[id]/contacts`) | Active refined shell with real 4-phase questionnaire foundation, support pages, and AI prefill review controls | **Partially backend-connected** (hydrate + questionnaire autosave + suggestion review API + support-page data + quick-capture uploads) | Improved, still not parity-complete | Complete lifecycle depth: phase gating semantics, richer cross-phase coordination, and remaining backend action contracts |
 | Client Portfolio | `/clients` | Active, shifted operations-first | Mostly mock/local-state | Partial parity | Complete operations-first parity details and replace mock portfolio/list signals with backend data |
 | Client Profile | `/clients/[id]` | Active UI coverage | Mostly mock/local-state | Partial parity | Increase workflow depth (timeline/actions/context linkage) and connect profile actions/data |
-| Offers Pipeline | `/offers` | Active UI coverage | Mostly mock/local-state | Partial parity | Confirm stage semantics/copy and wire real pipeline data + transitions |
-| Offer Detail | `/offers/[id]` | Active UI coverage | Mostly mock/local-state | Partial parity | Connect status transitions/activity context to backend model |
-| Offers Archive | `/offers/archive` | Active UI coverage | Mostly mock/local-state | Partial parity | Backend archive retrieval/filtering + final read semantics |
+| Offers Pipeline | `/offers` | Active backend-connected active follow-up surface | **Backend-connected** (project-scoped pipeline projection) | Improved, still not parity-complete | Tighten fidelity, polish labels, and deepen transition/error coverage |
+| Offer Detail | `/offers/[projectId]` | Active backend-connected execution surface | **Backend-connected** (project/proposal hydration + follow-up transition mutation) | Improved, still not parity-complete | Deepen activity/history fidelity and remaining UI-level interaction coverage |
+| Offers Archive | `/offers/archive` | Active backend-connected historical surface | **Backend-connected and runtime-verified** (archive projection + read-only UI) | Improved, still not parity-complete | Deepen historical fidelity, polish UX, and add stronger UI-level coverage |
 | Discovery family (modal-first) | Global modal surfaces | Strongest flow, active canonical | Backend-connected (wizard + centered `DraftConfirmationModal`) | Closest to parity, still not closed | Keep modal flow canonical; complete orchestration and recovery parity checks |
 
 Summary: route/surface coverage is strong; Discovery + Waste Streams list/drafts remain the most mature operational loop, and Stream Detail now has AI-assisted prefill review + support-page routing but still needs lifecycle-depth completion.
@@ -320,8 +326,9 @@ Acceptance direction:
 | Client Portfolio | Operations-first client list | Operations-first direction landed, still mock-driven | Backend + fidelity | Table-first operational portfolio with real data |
 | Client Profile | Client command context | Active UI coverage, mostly local/mock behavior | Workflow density + backend | Full account action context |
 | Offers Pipeline | Active commercial follow-up | Active coverage with Offers naming, mostly mock-driven | Backend + fidelity | Actionable stage UX with real transitions |
-| Offer Detail | Single-offer execution | Active coverage, mostly mock-driven | Backend + workflow | Full next-step control in-place |
-| Offers Archive | Historical retrieval | Active coverage, mostly mock-driven | Backend + fidelity | Fast archive retrieval and context |
+| Offers Pipeline | Active commercial follow-up | Backend-connected active pipeline with real open-state projection | Remaining fidelity + test depth | Actionable stage UX with real transitions |
+| Offer Detail | Single-offer execution | Backend-connected execution surface with persisted follow-up transitions | Remaining history fidelity + UI interaction depth | Full next-step control in-place |
+| Offers Archive | Historical retrieval | Backend-connected read-only archive foundation, runtime-verified for v1 | Remaining fidelity + test depth | Fast archive retrieval and context |
 | Discovery family | Modal-first discovery workflow | Active backend-connected canonical flow | Parity hardening | Modal-first completion path with strong handoff and recovery |
 
 Summary: route coverage is broadly present; parity risk is now concentrated in lifecycle depth, semantics, and backend contract completion for remaining families.
@@ -335,13 +342,14 @@ Priority order for next SDD cycles:
 2. **Waste Streams parity hardening from current functional baseline** (metrics/actions/contracts and list-to-workspace handoff quality)
 3. **Dashboard data integration + triage fidelity hardening**
 4. **Clients family backend integration** (portfolio/profile)
-5. **Offers family backend integration** (pipeline/detail/archive)
+5. **Offers family parity/fidelity hardening** (activity/history depth, archive/detail UI interaction coverage, remaining historical polish)
 6. **Discovery parity hardening** (centered confirmation modal canonical; continue orchestration/recovery hardening)
 
 Rationale:
 - Stream Detail foundation/refinement work is now real (including AI prefill review controls and support pages); highest value is finishing lifecycle semantics and backend contract depth (not rebuilding shell structure again).
 - Waste Streams should focus on parity/contract hardening, not re-laying list foundations.
-- Dashboard/Clients/Offers must avoid overclaiming parity until real data and behavior are verified.
+- Dashboard/Clients must avoid overclaiming parity until real data and behavior are verified.
+- Offers now has a real backend-connected foundation; remaining work is parity/fidelity hardening rather than first-pass backend integration.
 
 ---
 

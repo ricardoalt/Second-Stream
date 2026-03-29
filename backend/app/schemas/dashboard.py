@@ -35,6 +35,8 @@ OfferPipelineState = Literal[
     "under_negotiation",
 ]
 
+OfferArchiveState = Literal["accepted", "declined"]
+
 
 class DashboardCountsResponse(BaseSchema):
     # Global cross-bucket totals for the current filter set.
@@ -172,3 +174,32 @@ class OfferPipelineRow(BaseSchema):
 class OfferPipelineResponse(BaseSchema):
     counts: OfferPipelineCountsResponse
     items: list[OfferPipelineRow]
+
+
+class OfferArchiveCountsResponse(BaseSchema):
+    total: int
+    accepted: int
+    declined: int
+
+
+class OfferArchiveRow(BaseSchema):
+    project_id: UUID
+    stream_name: str
+    company_label: str | None = None
+    location_label: str | None = None
+    proposal_follow_up_state: OfferArchiveState
+    latest_proposal_id: UUID | None = None
+    latest_proposal_version: str | None = None
+    latest_proposal_title: str | None = None
+    value_usd: float | None = None
+    last_activity_at: datetime
+    archived_at: datetime
+
+    @field_serializer("last_activity_at", "archived_at")
+    def serialize_last_activity(self, value: datetime, _info) -> str:
+        return value.isoformat()
+
+
+class OfferArchiveResponse(BaseSchema):
+    counts: OfferArchiveCountsResponse
+    items: list[OfferArchiveRow]

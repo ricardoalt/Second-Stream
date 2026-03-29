@@ -13,6 +13,9 @@
 - Workspace v1 backend hangs off `project.project_data["workspace_v1"]` for fixed base fields, persisted custom fields, derived insights; evidence stays in `ProjectFile`, context note stays in `IntakeNote`.
 - Workspace evidence AI path is single-stage: each `ProjectFile.ai_analysis` stores `summary` + `proposals[]` (base/custom target, answer, confidence, evidence refs); workspace refresh reads those proposals directly (no second workspace-insights agent layer).
 - Dashboard triage is a dedicated projection layered on top of `Project` plus staging drafts from `ImportRun`/`ImportItem`; stream-level commercial follow-up lives on `Project.proposal_follow_up_state`, while `Proposal.status` remains version lifecycle only.
+- Workspace completion handoff is now real: `POST /api/v1/projects/{id}/workspace/complete-discovery` persists completion, creates/reuses the current proposal artifact when appropriate, and returns immediate Offer-detail navigation context (`projectId`, `proposalId`).
+- Offers are backed by existing `Project` + `Proposal` truth, not a separate backend entity: active pipeline/detail read from project-scoped projections and `ProjectDetail`; detail transitions persist through `PATCH /api/v1/projects/{id}/proposal-follow-up-state`.
+- Offers Archive is a separate read-only projection over archived projects plus terminal follow-up semantics. Public archive labels are `accepted` / `declined`, with legacy backend `rejected` normalized at the contract boundary.
 - Discovery wizard orchestration uses `DiscoverySession` + `DiscoverySource` as lightweight intake fan-out, then hands off to existing `ImportRun`/`ImportItem` draft pipeline for `Needs Confirmation`.
 
 ### Discovery wizard semantics

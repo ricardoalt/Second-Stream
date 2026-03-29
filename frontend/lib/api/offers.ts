@@ -13,6 +13,9 @@ type OfferPipelineBackendState =
 	| "waiting_response"
 	| "under_negotiation";
 
+type OfferArchiveBackendState = "accepted" | "declined";
+type OfferArchivePossiblyLegacyState = OfferArchiveBackendState | "rejected";
+
 export interface OfferPipelineRowDTO {
 	projectId: string;
 	streamName: string;
@@ -37,6 +40,58 @@ export interface OfferPipelineResponseDTO {
 	items: OfferPipelineRowDTO[];
 }
 
+export interface OfferArchiveRowDTO {
+	projectId: string;
+	streamName: string;
+	companyLabel: string | null;
+	locationLabel: string | null;
+	proposalFollowUpState: OfferArchiveBackendState;
+	latestProposalId: string | null;
+	latestProposalVersion: string | null;
+	latestProposalTitle: string | null;
+	valueUsd: number | null;
+	lastActivityAt: string;
+	archivedAt: string;
+}
+
+interface OfferArchiveBackendRowDTO {
+	projectId: string;
+	streamName: string;
+	companyLabel: string | null;
+	locationLabel: string | null;
+	proposalFollowUpState: OfferArchivePossiblyLegacyState;
+	latestProposalId: string | null;
+	latestProposalVersion: string | null;
+	latestProposalTitle: string | null;
+	valueUsd: number | null;
+	lastActivityAt: string;
+	archivedAt: string;
+}
+
+interface OfferArchiveBackendResponseDTO {
+	counts: {
+		total: number;
+		accepted: number;
+		declined: number;
+	};
+	items: OfferArchiveBackendRowDTO[];
+}
+
+export interface OfferArchiveResponseDTO {
+	counts: {
+		total: number;
+		accepted: number;
+		declined: number;
+	};
+	items: OfferArchiveRowDTO[];
+}
+
+export function normalizeOfferArchiveState(
+	state: OfferArchivePossiblyLegacyState,
+): OfferArchiveBackendState {
+	return state === "rejected" ? "declined" : state;
+}
+
 export interface OfferDetailDTO {
 	projectId: string;
 	projectName: string;
@@ -55,6 +110,34 @@ export interface OfferFollowUpStateUpdateResponse {
 export const offersAPI = {
 	async getPipeline(): Promise<OfferPipelineResponseDTO> {
 		return apiClient.get<OfferPipelineResponseDTO>("/projects/offers/pipeline");
+	},
+
+	async getArchive(params?: {
+		search?: string;
+		status?: OfferArchiveBackendState;
+	}): Promise<OfferArchiveResponseDTO> {
+		const query = new URLSearchParams();
+		if (params?.search && params.search.trim().length > 0) {
+			query.set("search", params.search.trim());
+		}
+		if (params?.status) {
+			query.set("status", params.status);
+		}
+
+		const suffix = query.size > 0 ? `?${query.toString()}` : "";
+		const response = await apiClient.get<OfferArchiveBackendResponseDTO>(
+			`/projects/offers/archive${suffix}`,
+		);
+
+		return {
+			counts: response.counts,
+			items: response.items.map((item) => ({
+				...item,
+				proposalFollowUpState: normalizeOfferArchiveState(
+					item.proposalFollowUpState,
+				),
+			})),
+		};
 	},
 
 	async getOfferDetail(projectId: string): Promise<OfferDetailDTO> {

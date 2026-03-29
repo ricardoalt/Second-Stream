@@ -1,4 +1,4 @@
-import { Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,12 +9,35 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import type { OfferArchiveRowDTO } from "@/lib/api/offers";
 import { routes } from "@/lib/routes";
-import { formatCurrency } from "../mock-data";
-import type { OfferRecord } from "../types";
 import { OfferStatusBadge } from "./offer-status-badge";
 
-export function OffersArchiveTable({ offers }: { offers: OfferRecord[] }) {
+function formatCurrency(value: number | null) {
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		maximumFractionDigits: 0,
+	}).format(value ?? 0);
+}
+
+function formatDate(value: string) {
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) {
+		return "N/A";
+	}
+	return new Intl.DateTimeFormat("en-US", {
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+	}).format(parsed);
+}
+
+export function OffersArchiveTable({
+	offers,
+}: {
+	offers: OfferArchiveRowDTO[];
+}) {
 	return (
 		<Table>
 			<TableHeader>
@@ -36,7 +59,7 @@ export function OffersArchiveTable({ offers }: { offers: OfferRecord[] }) {
 			<TableBody>
 				{offers.map((offer, index) => (
 					<TableRow
-						key={offer.id}
+						key={offer.projectId}
 						className={
 							index % 2 === 0 ? "bg-surface" : "bg-surface-container-low"
 						}
@@ -46,19 +69,21 @@ export function OffersArchiveTable({ offers }: { offers: OfferRecord[] }) {
 								<p className="font-medium text-foreground">
 									{offer.streamName}
 								</p>
-								<p className="text-xs text-muted-foreground">
-									{offer.reference}
-								</p>
+								{offer.latestProposalVersion ? (
+									<p className="text-xs text-muted-foreground">
+										{offer.latestProposalVersion}
+									</p>
+								) : null}
 							</div>
 						</TableCell>
 						<TableCell className="px-4 py-3 text-muted-foreground">
-							{offer.clientName}
+							{offer.companyLabel ?? "Unknown client"}
 						</TableCell>
 						<TableCell className="px-4 py-3">
-							<OfferStatusBadge stage={offer.stage} />
+							<OfferStatusBadge stage={offer.proposalFollowUpState} />
 						</TableCell>
 						<TableCell className="px-4 py-3 text-muted-foreground">
-							{offer.updatedAt}
+							{formatDate(offer.archivedAt)}
 						</TableCell>
 						<TableCell className="px-4 py-3 font-medium text-foreground">
 							{formatCurrency(offer.valueUsd)}
@@ -70,10 +95,6 @@ export function OffersArchiveTable({ offers }: { offers: OfferRecord[] }) {
 										<Eye data-icon="inline-start" aria-hidden />
 										View
 									</Link>
-								</Button>
-								<Button variant="ghost" size="sm">
-									<Download data-icon="inline-start" aria-hidden />
-									Export
 								</Button>
 							</div>
 						</TableCell>

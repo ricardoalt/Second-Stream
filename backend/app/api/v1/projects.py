@@ -52,6 +52,10 @@ from app.schemas.dashboard import (
     DashboardListResponse,
     DraftItemDashboardRow,
     DraftTargetResponse,
+    OfferArchiveCountsResponse,
+    OfferArchiveResponse,
+    OfferArchiveRow,
+    OfferArchiveState,
     OfferPipelineCountsResponse,
     OfferPipelineResponse,
     OfferPipelineRow,
@@ -127,6 +131,11 @@ OPEN_OFFER_PIPELINE_STATES: tuple[OfferPipelineState, ...] = (
     "waiting_response",
     "under_negotiation",
 )
+
+TERMINAL_OFFER_ARCHIVE_STATE_MAP: dict[str, OfferArchiveState] = {
+    "accepted": "accepted",
+    "rejected": "declined",
+}
 
 
 def _extract_volume_summary(payload: dict[str, Any] | None) -> str | None:
@@ -1321,6 +1330,119 @@ async def get_offers_pipeline_projection(
 
     return OfferPipelineResponse(
         counts=OfferPipelineCountsResponse(total=len(rows), **counts),
+        items=rows,
+    )
+
+
+@router.get(
+    "/offers/archive",
+    summary="Get archived Offers projection",
+    description=(
+        "Read-only archived Offers projection from archived projects with terminal "
+        "proposal follow-up states."
+    ),
+)
+async def get_offers_archive_projection(
+    current_user: CurrentUser,
+    db: AsyncDB,
+    org: OrganizationContext,
+    _rate_limit: RateLimitUser300,
+    search: SearchQuery = None,
+    status_filter: Annotated[
+        OfferArchiveState | None,
+        Query(alias="status", description="Filter by final archived state"),
+    ] = None,
+) -> OfferArchiveResponse:
+    from app.models.company import Company
+    from app.models.location import Location
+
+    require_permission(current_user, permissions.PROJECT_READ)
+
+    query = (
+        select(
+            Project,
+            Company.name.label("company_label"),
+            Location.name.label("location_label"),
+        )
+        .options(selectinload(Project.proposals))
+        .outerjoin(
+            Location,
+            and_(
+                Project.location_id == Location.id,
+                Project.organization_id == Location.organization_id,
+            ),
+        )
+        .outerjoin(
+            Company,
+            and_(
+                Location.company_id == Company.id,
+                Company.organization_id == Project.organization_id,
+            ),
+        )
+        .where(
+            Project.organization_id == org.id,
+            Project.archived_at.isnot(None),
+        )
+    )
+
+    if not has_any_scope_access(current_user, permissions.PROJECT_READ):
+        query = query.where(Project.user_id == current_user.id)
+
+    result = await db.execute(query.order_by(Project.updated_at.desc()))
+
+    counts: dict[OfferArchiveState, int] = {
+        "accepted": 0,
+        "declined": 0,
+    }
+    rows: list[OfferArchiveRow] = []
+
+    for project, company_label, location_label in result.all():
+        assert isinstance(project, Project)
+        proposal_count = len(project.proposals)
+        effective_state = _effective_proposal_follow_up_state(
+            stored_state=project.proposal_follow_up_state,
+            proposal_count=proposal_count,
+        )
+        if effective_state not in TERMINAL_OFFER_ARCHIVE_STATE_MAP:
+            continue
+
+        archive_state = TERMINAL_OFFER_ARCHIVE_STATE_MAP[effective_state]
+        if status_filter is not None and archive_state != status_filter:
+            continue
+
+        resolved_company_label = company_label or project.company_name
+        resolved_location_label = location_label or project.location_name
+        if not _matches_search(
+            search=search,
+            stream_name=project.name,
+            company_label=resolved_company_label,
+            location_label=resolved_location_label,
+        ):
+            continue
+
+        selected_proposal = _deterministic_offer_proposal(project.proposals)
+        archived_at = project.archived_at
+        if archived_at is None:
+            continue
+        counts[archive_state] += 1
+        rows.append(
+            OfferArchiveRow(
+                project_id=project.id,
+                stream_name=project.name,
+                company_label=resolved_company_label,
+                location_label=resolved_location_label,
+                proposal_follow_up_state=archive_state,
+                latest_proposal_id=getattr(selected_proposal, "id", None),
+                latest_proposal_version=getattr(selected_proposal, "version", None),
+                latest_proposal_title=getattr(selected_proposal, "title", None),
+                value_usd=getattr(selected_proposal, "capex", None),
+                last_activity_at=project.updated_at,
+                archived_at=archived_at,
+            )
+        )
+
+    return OfferArchiveResponse(
+        counts=OfferArchiveCountsResponse(total=len(rows), **counts),
         items=rows,
     )
 

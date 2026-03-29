@@ -1750,3 +1750,252 @@ async def test_offers_pipeline_projection_supports_search(client: AsyncClient, d
     assert no_match.status_code == 200
     assert no_match.json()["counts"]["total"] == 0
     assert no_match.json()["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_offers_archive_projection_returns_archived_terminal_states_and_counts(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Offers Archive", "org-offers-archive")
+    user = await create_user(
+        db_session,
+        email=f"offers-archive-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Archive Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Archive Plant",
+    )
+
+    accepted_archived = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Accepted Archived Stream",
+    )
+    accepted_archived.archived_at = datetime.now(UTC)
+    accepted_archived.proposal_follow_up_state = "accepted"
+    db_session.add(
+        Proposal(
+            organization_id=org.id,
+            project_id=accepted_archived.id,
+            version="v1.0",
+            title="Accepted archived offer",
+            proposal_type="Technical",
+            status="Current",
+            capex=510_000,
+            ai_metadata={"proposal": {"headline": "accepted archived"}},
+        )
+    )
+
+    declined_archived = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Declined Archived Stream",
+    )
+    declined_archived.archived_at = datetime.now(UTC)
+    declined_archived.proposal_follow_up_state = "rejected"
+    db_session.add(
+        Proposal(
+            organization_id=org.id,
+            project_id=declined_archived.id,
+            version="v2.0",
+            title="Declined archived offer",
+            proposal_type="Technical",
+            status="Current",
+            capex=275_000,
+            ai_metadata={"proposal": {"headline": "declined archived"}},
+        )
+    )
+
+    active_terminal = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Active Accepted Stream",
+    )
+    active_terminal.proposal_follow_up_state = "accepted"
+    db_session.add(
+        Proposal(
+            organization_id=org.id,
+            project_id=active_terminal.id,
+            version="v1.0",
+            title="Active accepted offer",
+            proposal_type="Technical",
+            status="Current",
+            capex=99_000,
+            ai_metadata={"proposal": {"headline": "active accepted"}},
+        )
+    )
+
+    archived_non_terminal = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Archived Waiting Stream",
+    )
+    archived_non_terminal.archived_at = datetime.now(UTC)
+    archived_non_terminal.proposal_follow_up_state = "waiting_response"
+    db_session.add(
+        Proposal(
+            organization_id=org.id,
+            project_id=archived_non_terminal.id,
+            version="v1.0",
+            title="Archived waiting offer",
+            proposal_type="Technical",
+            status="Current",
+            capex=10_000,
+            ai_metadata={"proposal": {"headline": "archived waiting"}},
+        )
+    )
+
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.get("/api/v1/projects/offers/archive")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["counts"] == {
+        "total": 2,
+        "accepted": 1,
+        "declined": 1,
+    }
+
+    rows_by_project = {row["projectId"]: row for row in payload["items"]}
+    accepted_row = rows_by_project[str(accepted_archived.id)]
+    assert accepted_row["proposalFollowUpState"] == "accepted"
+    assert accepted_row["valueUsd"] == 510000
+    assert accepted_row["archivedAt"] is not None
+
+    declined_row = rows_by_project[str(declined_archived.id)]
+    assert declined_row["proposalFollowUpState"] == "declined"
+    assert declined_row["valueUsd"] == 275000
+    assert declined_row["archivedAt"] is not None
+
+    assert str(active_terminal.id) not in rows_by_project
+    assert str(archived_non_terminal.id) not in rows_by_project
+
+
+@pytest.mark.asyncio
+async def test_offers_archive_projection_supports_search_status_and_rejects_expired_filter(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Offers Archive Filters",
+        "org-offers-archive-filters",
+    )
+    user = await create_user(
+        db_session,
+        email=f"offers-archive-filters-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Catalyst Company")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Catalyst Site",
+    )
+
+    accepted = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Catalyst Accepted Stream",
+    )
+    accepted.archived_at = datetime.now(UTC)
+    accepted.proposal_follow_up_state = "accepted"
+    db_session.add(
+        Proposal(
+            organization_id=org.id,
+            project_id=accepted.id,
+            version="v1.0",
+            title="Accepted",
+            proposal_type="Technical",
+            status="Current",
+            capex=100_000,
+            ai_metadata={"proposal": {"headline": "accepted"}},
+        )
+    )
+
+    declined_company = await create_company(
+        db_session,
+        org_id=org.id,
+        name="Archive Declined Company",
+    )
+    declined_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=declined_company.id,
+        name="Archive Declined Site",
+    )
+
+    declined = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=declined_location.id,
+        name="Other Declined Stream",
+    )
+    declined.archived_at = datetime.now(UTC)
+    declined.proposal_follow_up_state = "rejected"
+    db_session.add(
+        Proposal(
+            organization_id=org.id,
+            project_id=declined.id,
+            version="v1.0",
+            title="Declined",
+            proposal_type="Technical",
+            status="Current",
+            capex=200_000,
+            ai_metadata={"proposal": {"headline": "declined"}},
+        )
+    )
+
+    await db_session.commit()
+
+    set_current_user(user)
+
+    search_response = await client.get("/api/v1/projects/offers/archive?search=Catalyst")
+    assert search_response.status_code == 200
+    search_payload = search_response.json()
+    assert search_payload["counts"] == {
+        "total": 1,
+        "accepted": 1,
+        "declined": 0,
+    }
+    assert search_payload["items"][0]["projectId"] == str(accepted.id)
+
+    status_response = await client.get("/api/v1/projects/offers/archive?status=declined")
+    assert status_response.status_code == 200
+    status_payload = status_response.json()
+    assert status_payload["counts"] == {
+        "total": 1,
+        "accepted": 0,
+        "declined": 1,
+    }
+    assert status_payload["items"][0]["projectId"] == str(declined.id)
+
+    expired_response = await client.get("/api/v1/projects/offers/archive?status=expired")
+    assert expired_response.status_code == 422
