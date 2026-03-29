@@ -66,7 +66,7 @@ export type ProjectFileUploadResponse = {
 	file_size: number;
 	file_type: string;
 	category: string;
-	processing_status: string;
+	processing_status: "queued" | "processing" | "completed" | "failed";
 	uploaded_at: string;
 	is_deduplicated?: boolean;
 	cached_from_date?: string;

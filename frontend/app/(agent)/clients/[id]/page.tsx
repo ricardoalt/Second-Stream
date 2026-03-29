@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	AlertTriangle,
 	CircleAlert,
 	Factory,
 	FileText,
@@ -10,6 +11,8 @@ import {
 	PenSquare,
 	Phone,
 	Shapes,
+	Sparkles,
+	Target,
 	TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
@@ -33,6 +36,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
 	Table,
 	TableBody,
@@ -49,69 +53,13 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
 });
 
 function getStreamStatusBadge(status: "active" | "draft" | "missing_info") {
-	if (status === "active") {
-		return (
-			<Badge variant="success" className="rounded-full border-0">
-				Active
-			</Badge>
-		);
-	}
-
-	if (status === "draft") {
-		return (
-			<Badge variant="muted" className="rounded-full border-0">
-				Draft
-			</Badge>
-		);
-	}
-
-	return (
-		<Badge variant="warning" className="rounded-full border-0">
-			Missing info
-		</Badge>
-	);
+	return <StatusBadge status={status} className="text-[0.65rem]" />;
 }
 
 function getOfferStatusBadge(
 	status: "draft" | "sent" | "negotiation" | "won" | "pending",
 ) {
-	if (status === "won") {
-		return (
-			<Badge variant="success" className="rounded-full border-0">
-				Won
-			</Badge>
-		);
-	}
-
-	if (status === "negotiation") {
-		return (
-			<Badge variant="warning" className="rounded-full border-0">
-				Negotiation
-			</Badge>
-		);
-	}
-
-	if (status === "pending") {
-		return (
-			<Badge variant="secondary" className="rounded-full border-0">
-				Pending
-			</Badge>
-		);
-	}
-
-	if (status === "sent") {
-		return (
-			<Badge variant="outline" className="rounded-full">
-				Sent
-			</Badge>
-		);
-	}
-
-	return (
-		<Badge variant="muted" className="rounded-full border-0">
-			Draft
-		</Badge>
-	);
+	return <StatusBadge status={status} className="text-[0.65rem]" />;
 }
 
 export default function ClientDetailPage() {
@@ -225,6 +173,85 @@ export default function ClientDetailPage() {
 					subtitle="Trailing 12 months"
 					icon={TrendingUp}
 				/>
+			</section>
+
+			{/* Stitch pattern: Strategic Intelligence section */}
+			<section className="grid gap-4 xl:grid-cols-3">
+				<div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-5 shadow-sm">
+					<div className="mb-3 flex items-center gap-2">
+						<AlertTriangle className="h-5 w-5 text-destructive" aria-hidden />
+						<h3 className="font-display text-lg font-semibold text-foreground">
+							Critical Alerts
+						</h3>
+					</div>
+					<div className="space-y-3">
+						<div className="rounded-xl bg-surface-container-lowest p-3 shadow-sm">
+							<p className="text-sm font-medium text-foreground">
+								Infectious Solid Waste — Compliance Blocked
+							</p>
+							<p className="text-xs text-muted-foreground mt-1">
+								Updated transport manifest required by EOD
+							</p>
+							<Button size="sm" variant="destructive" className="mt-2 w-full">
+								Resolve Now
+							</Button>
+						</div>
+					</div>
+				</div>
+
+				<div className="rounded-2xl bg-primary/5 p-5 shadow-sm border border-primary/20">
+					<div className="mb-3 flex items-center gap-2">
+						<Target className="h-5 w-5 text-primary" aria-hidden />
+						<h3 className="font-display text-lg font-semibold text-foreground">
+							Strategic Next Steps
+						</h3>
+					</div>
+					<div className="space-y-2">
+						<div className="flex items-start gap-2">
+							<div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+							<div>
+								<p className="text-sm text-foreground">
+									Schedule site visit for Catalyst Slurry assessment
+								</p>
+								<p className="text-xs text-muted-foreground">
+									Priority: High • Due: This week
+								</p>
+							</div>
+						</div>
+						<div className="flex items-start gap-2">
+							<div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+							<div>
+								<p className="text-sm text-foreground">
+									Present solvent recovery ROI to operations team
+								</p>
+								<p className="text-xs text-muted-foreground">
+									Priority: Medium • Awaiting approval
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div className="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
+					<div className="mb-3 flex items-center gap-2">
+						<Sparkles className="h-5 w-5 text-warning" aria-hidden />
+						<h3 className="font-display text-lg font-semibold text-foreground">
+							Account Intelligence
+						</h3>
+					</div>
+					<div className="rounded-xl bg-warning/5 p-3 border border-warning/20">
+						<p className="text-xs font-medium text-warning uppercase tracking-wide">
+							AI Insight
+						</p>
+						<p className="text-sm text-foreground mt-2">
+							{client.name} has 2 additional facilities in the region with
+							similar waste profiles. Expansion opportunity detected.
+						</p>
+						<Button size="sm" variant="outline" className="mt-3 w-full">
+							Explore Expansion
+						</Button>
+					</div>
+				</div>
 			</section>
 
 			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">

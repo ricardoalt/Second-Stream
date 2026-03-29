@@ -2,7 +2,10 @@ import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { useShallow } from "zustand/react/shallow";
 import type { StreamRow } from "@/components/features/streams/types";
-import { adaptDraftItem, adaptPersistedStream } from "@/lib/adapters/streams-adapter";
+import {
+	adaptDraftItem,
+	adaptPersistedStream,
+} from "@/lib/adapters/streams-adapter";
 import { dashboardAPI } from "@/lib/api/dashboard";
 import type {
 	DashboardCounts,

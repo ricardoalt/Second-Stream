@@ -13,12 +13,12 @@ export function OffersSummaryStatCard({
 	icon: LucideIcon;
 }) {
 	return (
-		<Card className="bg-surface-container-lowest shadow-sm">
+		<Card className="border-0 bg-surface-container-lowest shadow-xs card-lift">
 			<CardHeader className="flex-row items-start justify-between gap-3 pb-2">
 				<CardTitle className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
 					{label}
 				</CardTitle>
-				<div className="flex size-8 items-center justify-center rounded-lg bg-surface-container-low text-primary">
+				<div className="flex size-8 items-center justify-center rounded-lg kpi-icon-gradient">
 					<Icon aria-hidden className="size-4" />
 				</div>
 			</CardHeader>

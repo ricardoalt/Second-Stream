@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import Field, field_serializer
 
 from app.schemas.common import BaseSchema
+from app.schemas.dashboard import ProposalFollowUpState
 from app.schemas.proposal import ProposalResponse
 
 
@@ -112,6 +113,7 @@ class ProjectSummary(BaseSchema):
     # Status & progress
     status: str
     progress: Annotated[int, Field(ge=0, le=100)]
+    proposal_follow_up_state: ProposalFollowUpState | None = None
 
     # Timestamps
     created_at: datetime

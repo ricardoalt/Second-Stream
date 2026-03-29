@@ -23,7 +23,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 
-const archiveStatuses: OfferStage[] = ["accepted", "rejected", "expired"];
+const archiveStatuses: OfferStage[] = ["accepted", "declined", "expired"];
 
 const monthLookup: Record<string, number> = {
 	Jan: 0,
@@ -120,7 +120,7 @@ export default function OffersArchivePage() {
 			: Math.round((acceptedOffers.length / filteredOffers.length) * 100);
 
 	const declinedValue = filteredOffers
-		.filter((offer) => offer.stage === "rejected")
+		.filter((offer) => offer.stage === "declined")
 		.reduce((sum, offer) => sum + offer.valueUsd, 0);
 
 	return (
@@ -215,7 +215,7 @@ export default function OffersArchivePage() {
 								<SelectGroup>
 									<SelectItem value="all">All statuses</SelectItem>
 									<SelectItem value="accepted">Accepted</SelectItem>
-									<SelectItem value="rejected">Rejected</SelectItem>
+									<SelectItem value="declined">Declined</SelectItem>
 									<SelectItem value="expired">Expired</SelectItem>
 								</SelectGroup>
 							</SelectContent>

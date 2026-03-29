@@ -9,19 +9,19 @@ const QUICK_CAPTURE_ACTIONS = [
 	{
 		key: "upload",
 		label: "Upload",
-		description: "Drop files to prep workspace context",
+		description: "Upload files and refresh workspace evidence",
 		icon: Paperclip,
 	},
 	{
 		key: "voice",
 		label: "Voice",
-		description: "Capture field notes from voice",
+		description: "Capture field notes from audio recordings",
 		icon: Mic,
 	},
 	{
 		key: "paste",
 		label: "Paste",
-		description: "Paste copied notes or snippets",
+		description: "Paste raw text and convert it into evidence",
 		icon: PenSquare,
 	},
 ] as const;
@@ -43,7 +43,7 @@ export function StreamQuickCaptureCard({
 					</Badge>
 				</div>
 				<p className="text-xs text-muted-foreground">
-					Capture files, audio, and notes from one unified modal.
+					Capture files, audio, and raw text in one unified flow.
 				</p>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-2 pt-0">

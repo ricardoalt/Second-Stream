@@ -219,7 +219,7 @@ export default function AgentStreamsPage() {
 	}
 
 	return (
-		<div className="flex flex-col gap-6">
+		<div className="flex flex-col gap-8">
 			<StreamsFamilyHeader
 				breadcrumb="Waste Streams"
 				title="Waste Stream Management"
@@ -228,35 +228,42 @@ export default function AgentStreamsPage() {
 			/>
 
 			{/* KPI rail — page-level, tab-invariant */}
-			<div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-				<KpiCard label="Active Streams" value={formatKpi(kpis.activeStreams)} />
-				<KpiCard
-					label="Critical Alerts"
-					value={formatKpi(kpis.criticalAlerts)}
-					badge="Action Needed"
-					badgeType="destructive"
-				/>
-				<KpiCard
-					label="Monthly Volume"
-					value={formatKpi(kpis.monthlyVolume)}
-					{...(kpis.monthlyVolume !== null ? { subValue: "Gallons" } : {})}
-				/>
-				<KpiCard
-					label="Open Offers"
-					value={formatKpi(kpis.openOffers)}
-					hasAction
-				/>
-			</div>
+			{/* KPI unified tonal band */}
+			<section className="rounded-2xl bg-surface-container-low/60 p-5">
+				<div className="animate-stagger grid grid-cols-2 gap-4 lg:grid-cols-4">
+					<KpiCard
+						label="Active Streams"
+						value={formatKpi(kpis.activeStreams)}
+						isPrimary
+					/>
+					<KpiCard
+						label="Critical Alerts"
+						value={formatKpi(kpis.criticalAlerts)}
+						badge="Action Needed"
+						badgeType="destructive"
+					/>
+					<KpiCard
+						label="Monthly Volume"
+						value={formatKpi(kpis.monthlyVolume)}
+						{...(kpis.monthlyVolume !== null ? { subValue: "Gallons" } : {})}
+					/>
+					<KpiCard
+						label="Open Offers"
+						value={formatKpi(kpis.openOffers)}
+						hasAction
+					/>
+				</div>
+			</section>
 
 			{loading && !isInitialized ? (
-				<div className="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 text-sm text-muted-foreground">
+				<div className="flex items-center gap-2 rounded-lg bg-surface-container-low px-4 py-3 text-sm text-muted-foreground">
 					<Loader2 aria-hidden className="size-4 animate-spin" />
 					Loading streams…
 				</div>
 			) : null}
 
 			{error ? (
-				<div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+				<div className="rounded-lg bg-destructive/5 px-4 py-3 text-sm text-destructive">
 					{error}
 				</div>
 			) : null}
@@ -267,7 +274,7 @@ export default function AgentStreamsPage() {
 				onValueChange={(value) => setActiveTab(value as StreamsTab)}
 			>
 				<div className="flex items-center justify-between gap-4">
-					<TabsList className="bg-surface-container-lowest">
+					<TabsList className="bg-transparent">
 						<TabsTrigger value="all" className="gap-2">
 							All Streams
 						</TabsTrigger>
@@ -292,11 +299,11 @@ export default function AgentStreamsPage() {
 				</div>
 
 				{/* ── Tab: All Active ── */}
-				<TabsContent value="all" className="mt-4">
+				<TabsContent value="all" className="mt-6">
 					<div className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm">
 						{/* Search / Filters */}
 						{activeTab === "all" && (
-							<div className="grid gap-3 border-b border-outline-variant/20 p-4 lg:grid-cols-[1.4fr_repeat(2,minmax(0,1fr))]">
+							<div className="grid gap-3 p-4 lg:grid-cols-[1.4fr_repeat(2,minmax(0,1fr))]">
 								<div className="relative">
 									<Search
 										aria-hidden
@@ -371,13 +378,16 @@ export default function AgentStreamsPage() {
 											setClientFilter("all");
 											setStatusFilter("all");
 										},
+										variant: "outline",
 									}}
+									severity="info"
+									compact
 								/>
 							</div>
 						)}
 
 						{/* Pagination Footer */}
-						<div className="flex items-center justify-between border-t border-outline-variant/20 px-4 py-3">
+						<div className="flex items-center justify-between px-4 py-3">
 							<p className="text-xs text-muted-foreground">
 								Showing {filteredStreams.length} of {operationalStreams.length}{" "}
 								active streams
@@ -403,7 +413,7 @@ export default function AgentStreamsPage() {
 					</div>
 
 					{/* ── Insight Card ── */}
-					<div className="mt-4 flex items-start gap-4 rounded-xl bg-primary/8 p-4">
+					<div className="mt-4 flex items-start gap-4 rounded-xl border border-primary/10 bg-gradient-to-br from-primary/8 to-primary/3 p-5 shadow-sm backdrop-blur-sm">
 						<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15">
 							<Sparkles aria-hidden className="size-4 text-primary" />
 						</div>
@@ -435,7 +445,7 @@ export default function AgentStreamsPage() {
 				</TabsContent>
 
 				{/* ── Tab: Drafts ── */}
-				<TabsContent value="drafts" className="mt-4">
+				<TabsContent value="drafts" className="mt-6">
 					<div className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm">
 						<div className="p-4">
 							<h2 className="font-display text-xl font-semibold text-foreground">
@@ -454,7 +464,7 @@ export default function AgentStreamsPage() {
 						/>
 
 						{/* Pagination Footer */}
-						<div className="flex items-center justify-between border-t border-outline-variant/20 px-4 py-3">
+						<div className="flex items-center justify-between px-4 py-3">
 							<p className="text-xs text-muted-foreground">
 								Showing {filteredDrafts.length} of {draftStreams.length} pending
 								drafts
@@ -481,7 +491,7 @@ export default function AgentStreamsPage() {
 				</TabsContent>
 
 				{/* ── Tab: Missing Information ── */}
-				<TabsContent value="missing-info" className="mt-4">
+				<TabsContent value="missing-info" className="mt-6">
 					<StreamsFollowUpBoard
 						items={filteredFollowUps}
 						selectedId={selectedFollowUpId}
@@ -510,6 +520,7 @@ function KpiCard({
 	badgeType,
 	subValue,
 	hasAction,
+	isPrimary,
 }: {
 	label: string;
 	value: string | null;
@@ -517,9 +528,10 @@ function KpiCard({
 	badgeType?: "success" | "destructive";
 	subValue?: string;
 	hasAction?: boolean;
+	isPrimary?: boolean;
 }) {
 	return (
-		<div className="rounded-xl bg-surface-container-lowest p-4 shadow-xs">
+		<div className="rounded-xl bg-surface-container-lowest p-4 shadow-xs card-lift">
 			<p className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 				{label}
 			</p>
@@ -532,7 +544,14 @@ function KpiCard({
 						—
 					</span>
 				) : (
-					<span className="font-display text-2xl font-bold text-foreground">
+					<span
+						className={cn(
+							"font-display text-2xl font-bold",
+							isPrimary
+								? "bg-gradient-to-r from-primary to-primary-container bg-clip-text text-transparent"
+								: "text-foreground",
+						)}
+					>
 						{value}
 					</span>
 				)}

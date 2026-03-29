@@ -9,17 +9,19 @@ from uuid import uuid4
 
 import structlog
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.file import ProjectFile
 from app.models.intake_note import IntakeNote
 from app.models.project import Project
+from app.models.proposal import Proposal
 from app.models.user import User
 from app.schemas.workspace import (
     WORKSPACE_PROPOSAL_BATCH_MAX_ITEMS,
     WorkspaceBaseFieldItem,
     WorkspaceBaseFieldUpdateItem,
+    WorkspaceCompleteDiscoveryResponse,
     WorkspaceConfirmProposalRequest,
     WorkspaceCustomFieldItem,
     WorkspaceCustomFieldUpdateItem,
@@ -27,6 +29,7 @@ from app.schemas.workspace import (
     WorkspaceEvidenceItem,
     WorkspaceEvidenceRef,
     WorkspaceHydrateResponse,
+    WorkspaceOfferNavigationTarget,
     WorkspaceProposalBatch,
     WorkspaceProposalItem,
     WorkspaceQuestionAnswerUpdateItem,
@@ -765,7 +768,12 @@ class WorkspaceService:
         db: AsyncSession,
         project: Project,
         current_user: User,
-    ) -> None:
+    ) -> WorkspaceCompleteDiscoveryResponse:
+        proposal = await WorkspaceService._get_or_create_completion_proposal(
+            db=db,
+            project=project,
+        )
+
         await WorkspaceService._persist_workspace_patch(
             db=db,
             project=project,
@@ -774,6 +782,90 @@ class WorkspaceService:
                 WORKSPACE_DISCOVERY_COMPLETED_AT_KEY: datetime.now(UTC).isoformat(),
             },
         )
+
+        return WorkspaceCompleteDiscoveryResponse(
+            message="Discovery marked complete",
+            offer=WorkspaceOfferNavigationTarget(
+                project_id=project.id,
+                proposal_id=proposal.id,
+            ),
+        )
+
+    @staticmethod
+    async def _get_or_create_completion_proposal(
+        *,
+        db: AsyncSession,
+        project: Project,
+    ) -> Proposal:
+        active_count = await db.scalar(
+            select(func.count(Proposal.id)).where(
+                Proposal.project_id == project.id,
+                Proposal.organization_id == project.organization_id,
+                Proposal.status.in_(["Draft", "Current"]),
+            )
+        )
+        active_count_int = int(active_count or 0)
+
+        if active_count_int > 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Multiple active proposals found for project",
+                    "code": "WORKSPACE_ACTIVE_PROPOSAL_AMBIGUOUS",
+                    "details": {
+                        "activeProposalCount": active_count_int,
+                    },
+                },
+            )
+
+        if active_count_int == 1:
+            reusable_result = await db.execute(
+                select(Proposal)
+                .where(
+                    Proposal.project_id == project.id,
+                    Proposal.organization_id == project.organization_id,
+                    Proposal.status.in_(["Draft", "Current"]),
+                )
+                .order_by(Proposal.created_at.desc())
+                .limit(1)
+            )
+            reusable = reusable_result.scalar_one_or_none()
+            if reusable is not None:
+                return reusable
+
+        count = await db.scalar(
+            select(func.count(Proposal.id)).where(
+                Proposal.project_id == project.id,
+                Proposal.organization_id == project.organization_id,
+            )
+        )
+        next_version = f"v{int(count or 0) + 1}.0"
+        ai_metadata = {
+            "proposal": {
+                "headline": "Offer draft created from completed discovery.",
+            },
+            "transparency": {
+                "generatedAt": datetime.now(UTC).isoformat(),
+                "reportType": "workspace_completion_handoff",
+            },
+        }
+        created = Proposal(
+            organization_id=project.organization_id,
+            project_id=project.id,
+            version=next_version,
+            title=f"Offer Draft - {project.name}",
+            proposal_type="Technical",
+            status="Draft",
+            author="AI",
+            capex=0.0,
+            opex=0.0,
+            executive_summary="Offer draft created after workspace discovery completion.",
+            technical_approach="Complete discovery to generate the detailed offer report.",
+            ai_metadata=ai_metadata,
+        )
+        db.add(created)
+        await db.flush()
+        return created
 
     @staticmethod
     def _build_base_field_items(project: Project) -> list[WorkspaceBaseFieldItem]:

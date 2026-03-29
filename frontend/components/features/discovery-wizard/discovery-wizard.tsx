@@ -1504,24 +1504,25 @@ function IdleView({
 
 	return (
 		<div className="flex flex-col flex-1">
-			{/* Header */}
-			<div className="px-6 pt-6 pb-2">
-				<h2 className="font-display text-lg font-semibold tracking-tight">
+			{/* Header with accent strip */}
+			<div className="relative overflow-hidden px-6 pt-8 pb-3">
+				<div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-container" />
+				<h2 className="font-display text-xl font-semibold tracking-tight">
 					Discovery Wizard
 				</h2>
-				<p className="text-sm text-muted-foreground/80 mt-0.5">
+				<p className="text-sm text-muted-foreground/80 mt-1">
 					Select a method to identify and ingest waste stream data
 				</p>
-				{/* Tab bar */}
-				<div className="mt-3 flex gap-1 border-b border-border/20">
+				{/* Tab bar — editorial underline style */}
+				<div className="mt-5 flex gap-0">
 					<button
 						type="button"
 						onClick={() => onWizardTabChange("ai")}
 						className={cn(
-							"px-4 py-2 text-xs font-semibold uppercase tracking-[0.05em] border-b-2 transition-colors",
+							"px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] border-b-2 transition-all",
 							wizardTab === "ai"
 								? "border-primary text-primary"
-								: "border-transparent text-muted-foreground hover:text-foreground",
+								: "border-transparent text-muted-foreground hover:text-foreground hover:border-border/40",
 						)}
 					>
 						AI Discovery
@@ -1530,10 +1531,10 @@ function IdleView({
 						type="button"
 						onClick={() => onWizardTabChange("quick")}
 						className={cn(
-							"px-4 py-2 text-xs font-semibold uppercase tracking-[0.05em] border-b-2 transition-colors",
+							"px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] border-b-2 transition-all",
 							wizardTab === "quick"
 								? "border-primary text-primary"
-								: "border-transparent text-muted-foreground hover:text-foreground",
+								: "border-transparent text-muted-foreground hover:text-foreground hover:border-border/40",
 						)}
 					>
 						Quick Entry
@@ -1546,7 +1547,7 @@ function IdleView({
 				<div className="flex flex-col flex-1">
 					<div className="flex-1 overflow-auto px-6 py-4">
 						<div className="mx-auto w-full max-w-3xl space-y-4">
-							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
 								<div className="mb-2 flex items-center justify-between">
 									<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 										Client
@@ -1583,7 +1584,7 @@ function IdleView({
 								/>
 							</section>
 
-							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
 								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 									Location
 								</span>
@@ -1626,7 +1627,7 @@ function IdleView({
 								</div>
 							</section>
 
-							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
 								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 									Material / Stream Name
 								</span>
@@ -1641,7 +1642,7 @@ function IdleView({
 								/>
 							</section>
 
-							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
 								<div className="grid gap-3 md:grid-cols-3">
 									<div>
 										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
@@ -1730,9 +1731,9 @@ function IdleView({
 				</div>
 			) : (
 				<div className="flex flex-col flex-1">
-					<div className="flex-1 overflow-auto px-6 py-5">
-						<div className="mx-auto w-full max-w-3xl space-y-4">
-							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+					<div className="flex-1 overflow-auto px-6 py-6">
+						<div className="mx-auto w-full max-w-3xl space-y-5">
+							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
 								<div className="mb-2 flex items-center justify-between">
 									<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 										Client
@@ -1771,7 +1772,7 @@ function IdleView({
 								)}
 							</section>
 
-							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
 								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 									Location
 								</span>
@@ -1814,7 +1815,7 @@ function IdleView({
 								</p>
 							</section>
 
-							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
 								<div className="mb-2">
 									<span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 										Upload files/emails
@@ -1830,8 +1831,8 @@ function IdleView({
 									className={cn(
 										"relative rounded-xl border-2 border-dashed transition-all duration-300",
 										dragActive
-											? "border-primary/40 bg-primary/[0.06] shadow-glow ring-2 ring-primary/20"
-											: "border-border/30 bg-background/70",
+											? "border-primary/50 bg-primary/[0.08] shadow-glow ring-2 ring-primary/20"
+											: "border-primary/20 bg-surface-container-low/40",
 									)}
 									onDragEnter={onDragEnter}
 									onDragOver={onDragOver}
@@ -1902,14 +1903,20 @@ function IdleView({
 									) : (
 										<button
 											type="button"
-											className="flex w-full flex-col items-center gap-3 px-6 py-10 text-center"
+											className="flex w-full flex-col items-center gap-4 px-6 py-12 text-center"
 											onClick={() => fileInputRef.current?.click()}
 											disabled={isSubmitting}
 										>
-											<div className="flex items-center gap-3">
-												<FileSpreadsheet className="h-5 w-5 text-primary/60" />
-												<FileText className="h-5 w-5 text-primary/60" />
-												<Image className="h-5 w-5 text-primary/60" />
+											<div className="flex items-center gap-4">
+												<div className="rounded-lg bg-primary/8 p-2.5">
+													<FileSpreadsheet className="h-6 w-6 text-primary/70" />
+												</div>
+												<div className="rounded-lg bg-primary/8 p-2.5">
+													<FileText className="h-6 w-6 text-primary/70" />
+												</div>
+												<div className="rounded-lg bg-primary/8 p-2.5">
+													<Image className="h-6 w-6 text-primary/70" />
+												</div>
 											</div>
 											<div>
 												<p
@@ -1931,13 +1938,13 @@ function IdleView({
 								</section>
 							</section>
 
-							<section className="rounded-xl border border-border/30 bg-surface-container-lowest/70 p-4">
+							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
 								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
 									Dictate voice note
 								</span>
 								<button
 									type="button"
-									className="flex w-full items-center justify-between rounded-xl border border-border/30 bg-background/70 px-4 py-4 transition-colors hover:border-border/50"
+									className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 px-4 py-4 transition-all hover:bg-surface-container-low hover:shadow-xs"
 									onClick={() => audioInputRef.current?.click()}
 									disabled={audioFile !== null || isSubmitting}
 								>
@@ -2339,9 +2346,10 @@ export function ReviewView({
 								<tr
 									key={candidate.itemId}
 									className={cn(
-										"transition-colors",
-										isConfirmed && "bg-emerald-500/5",
-										isSkipped && "opacity-60",
+										"transition-colors border-l-[3px]",
+										isConfirmed && "border-l-emerald-500 bg-emerald-500/5",
+										isSkipped && "border-l-muted-foreground/30 opacity-60",
+										!isConfirmed && !isSkipped && "border-l-primary",
 									)}
 								>
 									<td className="py-3 pr-3">
@@ -2425,7 +2433,7 @@ export function ReviewView({
 			</div>
 
 			{/* Footer */}
-			<div className="flex items-center justify-between border-t border-border/20 bg-muted/20 px-6 py-4">
+			<div className="flex items-center justify-between border-t border-border/10 bg-surface-container-low/40 px-6 py-5">
 				<div className="flex items-center gap-2">
 					<span className="inline-flex items-center justify-center size-6 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">
 						{counts.confirmed}

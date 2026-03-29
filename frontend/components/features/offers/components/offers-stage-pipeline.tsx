@@ -4,14 +4,15 @@ import {
 	OFFER_STAGE_LABELS,
 } from "@/components/features/offers/mock-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { OfferRecord, OfferStage } from "../types";
+import { routes } from "@/lib/routes";
+import type { OfferPipelineRecord, OfferStage } from "../types";
 
 function StageColumn({
 	stage,
 	offers,
 }: {
 	stage: OfferStage;
-	offers: OfferRecord[];
+	offers: OfferPipelineRecord[];
 }) {
 	const totalValue = offers.reduce((sum, offer) => sum + offer.valueUsd, 0);
 
@@ -31,8 +32,8 @@ function StageColumn({
 			<div className="mt-3 flex flex-col gap-2">
 				{offers.slice(0, 3).map((offer) => (
 					<Link
-						key={offer.id}
-						href={`/offers/${offer.id}`}
+						key={`${offer.projectId}-${offer.reference}`}
+						href={routes.offers.detail(offer.projectId)}
 						className="rounded-lg bg-surface-container-lowest p-2 transition-colors hover:bg-surface"
 					>
 						<p className="truncate text-sm font-medium text-foreground">
@@ -57,10 +58,10 @@ function StageColumn({
 export function OffersStagePipeline({
 	stages,
 }: {
-	stages: Array<{ stage: OfferStage; offers: OfferRecord[] }>;
+	stages: Array<{ stage: OfferStage; offers: OfferPipelineRecord[] }>;
 }) {
 	return (
-		<Card className="bg-surface-container-lowest shadow-sm">
+		<Card className="border-0 bg-surface-container-lowest shadow-xs">
 			<CardHeader>
 				<CardTitle className="font-display text-xl font-semibold text-foreground">
 					Offer pipeline summary

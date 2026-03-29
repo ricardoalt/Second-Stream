@@ -31,7 +31,7 @@ export function AgentDashboardKpiCard({
 	const isNegative = trend.direction === "down";
 
 	return (
-		<Card className="bg-surface-container-lowest shadow-sm">
+		<Card className="border-0 bg-surface-container-lowest shadow-xs card-lift">
 			<CardHeader className="flex-row items-start justify-between gap-3 pb-3">
 				<div className="flex flex-col gap-1">
 					<CardDescription className="text-[0.7rem] uppercase tracking-[0.08em] text-secondary">
@@ -41,8 +41,8 @@ export function AgentDashboardKpiCard({
 						{value}
 					</CardTitle>
 				</div>
-				<div className="flex size-10 items-center justify-center rounded-xl bg-surface-container-low text-primary">
-					<Icon aria-hidden="true" />
+				<div className="flex size-10 items-center justify-center rounded-xl kpi-icon-gradient">
+					<Icon aria-hidden="true" className="size-5" />
 				</div>
 			</CardHeader>
 			<CardContent className="flex items-center justify-between gap-2 pt-0">

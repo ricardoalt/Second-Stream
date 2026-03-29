@@ -52,6 +52,10 @@ from app.schemas.dashboard import (
     DashboardListResponse,
     DraftItemDashboardRow,
     DraftTargetResponse,
+    OfferPipelineCountsResponse,
+    OfferPipelineResponse,
+    OfferPipelineRow,
+    OfferPipelineState,
     PersistedStreamDashboardRow,
     ProposalFollowUpState,
     ProposalFollowUpStateResponse,
@@ -116,6 +120,13 @@ PROPOSAL_FOLLOW_UP_TRANSITIONS: dict[str | None, set[str]] = {
     "accepted": set(),
     "rejected": set(),
 }
+
+OPEN_OFFER_PIPELINE_STATES: tuple[OfferPipelineState, ...] = (
+    "uploaded",
+    "waiting_to_send",
+    "waiting_response",
+    "under_negotiation",
+)
 
 
 def _extract_volume_summary(payload: dict[str, Any] | None) -> str | None:
@@ -304,6 +315,34 @@ def _effective_proposal_follow_up_state(
     if stored_state is not None:
         return cast(ProposalFollowUpState, stored_state)
     return "uploaded"
+
+
+def _is_open_offer_pipeline_state(
+    proposal_follow_up_state: ProposalFollowUpState | None,
+) -> bool:
+    return proposal_follow_up_state in OPEN_OFFER_PIPELINE_STATES
+
+
+def _deterministic_offer_proposal(proposals: list[Any]) -> Any | None:
+    non_archived: list[Any] = []
+    for proposal in proposals:
+        status = getattr(proposal, "status", None)
+        if status == "Archived":
+            continue
+        non_archived.append(proposal)
+
+    if not non_archived:
+        return None
+
+    current = [proposal for proposal in non_archived if getattr(proposal, "status", None) == "Current"]
+    candidates = current if current else non_archived
+    return max(
+        candidates,
+        key=lambda proposal: (
+            getattr(proposal, "created_at", datetime.min.replace(tzinfo=UTC)),
+            str(getattr(proposal, "id", "")),
+        ),
+    )
 
 
 async def _build_persisted_dashboard_rows(
@@ -1180,6 +1219,109 @@ async def get_dashboard_projection(
         pages=pages,
         draft_preview=draft_preview,
         secondary_draft_rows=secondary_draft_rows,
+    )
+
+
+@router.get(
+    "/offers/pipeline",
+    summary="Get active Offers pipeline projection",
+    description=(
+        "Project-scoped Offers projection backed by proposal_follow_up_state with "
+        "deterministic latest proposal selection."
+    ),
+)
+async def get_offers_pipeline_projection(
+    current_user: CurrentUser,
+    db: AsyncDB,
+    org: OrganizationContext,
+    _rate_limit: RateLimitUser300,
+    search: SearchQuery = None,
+) -> OfferPipelineResponse:
+    from app.models.company import Company
+    from app.models.location import Location
+
+    require_permission(current_user, permissions.PROJECT_READ)
+
+    query = (
+        select(
+            Project,
+            Company.name.label("company_label"),
+            Location.name.label("location_label"),
+        )
+        .options(selectinload(Project.proposals))
+        .outerjoin(
+            Location,
+            and_(
+                Project.location_id == Location.id,
+                Project.organization_id == Location.organization_id,
+            ),
+        )
+        .outerjoin(
+            Company,
+            and_(
+                Location.company_id == Company.id,
+                Company.organization_id == Project.organization_id,
+            ),
+        )
+        .where(
+            Project.organization_id == org.id,
+            Project.archived_at.is_(None),
+        )
+    )
+
+    if not has_any_scope_access(current_user, permissions.PROJECT_READ):
+        query = query.where(Project.user_id == current_user.id)
+
+    result = await db.execute(query.order_by(Project.updated_at.desc()))
+    counts: dict[str, int] = {
+        "uploaded": 0,
+        "waiting_to_send": 0,
+        "waiting_response": 0,
+        "under_negotiation": 0,
+    }
+    rows: list[OfferPipelineRow] = []
+
+    for project, company_label, location_label in result.all():
+        assert isinstance(project, Project)
+        proposal_count = len(project.proposals)
+        effective_state = _effective_proposal_follow_up_state(
+            stored_state=project.proposal_follow_up_state,
+            proposal_count=proposal_count,
+        )
+        if not _is_open_offer_pipeline_state(effective_state):
+            continue
+
+        resolved_company_label = company_label or project.company_name
+        resolved_location_label = location_label or project.location_name
+        if not _matches_search(
+            search=search,
+            stream_name=project.name,
+            company_label=resolved_company_label,
+            location_label=resolved_location_label,
+        ):
+            continue
+
+        selected_proposal = _deterministic_offer_proposal(project.proposals)
+        state = cast(OfferPipelineState, effective_state)
+        counts[state] += 1
+        rows.append(
+            OfferPipelineRow(
+                project_id=project.id,
+                stream_name=project.name,
+                company_label=resolved_company_label,
+                location_label=resolved_location_label,
+                proposal_follow_up_state=state,
+                latest_proposal_id=getattr(selected_proposal, "id", None),
+                latest_proposal_version=getattr(selected_proposal, "version", None),
+                latest_proposal_title=getattr(selected_proposal, "title", None),
+                value_usd=getattr(selected_proposal, "capex", None),
+                last_activity_at=project.updated_at,
+            )
+        )
+
+    return OfferPipelineResponse(
+        counts=OfferPipelineCountsResponse(total=len(rows), **counts),
+        items=rows,
     )
 
 

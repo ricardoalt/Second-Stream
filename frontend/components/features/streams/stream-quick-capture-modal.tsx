@@ -2,6 +2,7 @@
 
 import { Loader2, Mic, Paperclip, PenSquare, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,8 +18,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { projectsAPI } from "@/lib/api/projects";
 import { useToast } from "@/lib/hooks/use-toast";
-
-type ProcessingState = "idle" | "processing" | "done";
+import {
+	useWorkspaceActions,
+	useWorkspaceStore,
+} from "@/lib/stores/workspace-store";
+import type { WorkspaceQuickCaptureStatus } from "@/lib/types/workspace";
 
 interface StreamQuickCaptureModalProps {
 	projectId: string;
@@ -28,10 +32,89 @@ interface StreamQuickCaptureModalProps {
 	initialAction?: "upload" | "voice" | "paste";
 }
 
-function createTextCaptureFile(rawText: string): File {
+export function createTextCaptureFile(rawText: string): File {
 	return new File([rawText], `quick-capture-${Date.now()}.txt`, {
 		type: "text/plain",
 	});
+}
+
+type UploadQuickCaptureBatchOptions = {
+	projectId: string;
+	items: File[];
+	uploadFile: typeof projectsAPI.uploadFile;
+	registerUploadedFile: (fileId: string) => void;
+	hydrate: (projectId: string) => Promise<void>;
+};
+
+export async function uploadQuickCaptureBatch({
+	projectId,
+	items,
+	uploadFile,
+	registerUploadedFile,
+	hydrate,
+}: UploadQuickCaptureBatchOptions): Promise<void> {
+	const uploads = await Promise.all(
+		items.map(async (file) => {
+			const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+			const isImage =
+				extension === "jpg" || extension === "jpeg" || extension === "png";
+			return uploadFile(projectId, file, {
+				category: isImage ? "photos" : "general",
+				process_with_ai: true,
+			});
+		}),
+	);
+
+	for (const upload of uploads) {
+		registerUploadedFile(upload.id);
+	}
+
+	await hydrate(projectId);
+}
+
+export function resolveQuickCaptureModalStatusMessage({
+	quickCaptureStatus,
+	backgroundHydrateError,
+	uploadSessionFileCount,
+}: {
+	quickCaptureStatus: WorkspaceQuickCaptureStatus;
+	backgroundHydrateError: string | null;
+	uploadSessionFileCount: number;
+}) {
+	if (quickCaptureStatus === "retry_required") {
+		return {
+			variant: "error" as const,
+			text:
+				backgroundHydrateError ??
+				"Quick Capture could not finish automatically. Retry analysis manually.",
+		};
+	}
+
+	if (quickCaptureStatus === "completed") {
+		return {
+			variant: "success" as const,
+			text: "Quick Capture complete. Workspace evidence and suggestions were refreshed.",
+		};
+	}
+
+	if (quickCaptureStatus === "analyzing") {
+		return {
+			variant: "pending" as const,
+			text: "Evidence is visible. Refreshing workspace suggestions now...",
+		};
+	}
+
+	if (quickCaptureStatus === "pending") {
+		return {
+			variant: "pending" as const,
+			text:
+				uploadSessionFileCount > 0
+					? `Waiting for ${uploadSessionFileCount} captured file(s) to appear in workspace evidence...`
+					: "Waiting for captured evidence to appear in workspace...",
+		};
+	}
+
+	return null;
 }
 
 export function StreamQuickCaptureModal({
@@ -42,17 +125,23 @@ export function StreamQuickCaptureModal({
 	initialAction,
 }: StreamQuickCaptureModalProps) {
 	const { toast } = useToast();
+	const { hydrate, registerUploadedFile, clearBackgroundHydrateError } =
+		useWorkspaceActions();
+	const { quickCaptureStatus, backgroundHydrateError, uploadSessionFileIds } =
+		useWorkspaceStore(
+			useShallow((state) => ({
+				quickCaptureStatus: state.quickCaptureStatus,
+				backgroundHydrateError: state.backgroundHydrateError,
+				uploadSessionFileIds: state.uploadSessionFileIds,
+			})),
+		);
+
 	const [files, setFiles] = useState<File[]>([]);
 	const [audioFiles, setAudioFiles] = useState<File[]>([]);
 	const [rawText, setRawText] = useState("");
-	const [filesState, setFilesState] = useState<ProcessingState>("idle");
-	const [audioState, setAudioState] = useState<ProcessingState>("idle");
-	const [textState, setTextState] = useState<ProcessingState>("idle");
+	const [submitting, setSubmitting] = useState(false);
 
-	const isAnyProcessing =
-		filesState === "processing" ||
-		audioState === "processing" ||
-		textState === "processing";
+	const isAnyProcessing = submitting;
 
 	const autoFocusTarget = useMemo(() => {
 		if (initialAction === "paste") return "text";
@@ -60,36 +149,30 @@ export function StreamQuickCaptureModal({
 		return "files";
 	}, [initialAction]);
 
-	const processFileBatch = async (items: File[]) => {
-		await Promise.all(
-			items.map(async (file) => {
-				const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
-				const isImage =
-					extension === "jpg" || extension === "jpeg" || extension === "png";
-				await projectsAPI.uploadFile(projectId, file, {
-					category: isImage ? "photos" : "general",
-					process_with_ai: true,
-				});
-			}),
-		);
+	const uploadCaptureBatch = async (items: File[]) => {
+		setSubmitting(true);
+		try {
+			await uploadQuickCaptureBatch({
+				projectId,
+				items,
+				uploadFile: projectsAPI.uploadFile,
+				registerUploadedFile,
+				hydrate,
+			});
+			onCaptured?.();
+		} finally {
+			setSubmitting(false);
+		}
 	};
 
 	const handleProcessFiles = async () => {
 		if (files.length === 0) {
 			return;
 		}
-		setFilesState("processing");
 		try {
-			await processFileBatch(files);
+			await uploadCaptureBatch(files);
 			setFiles([]);
-			setFilesState("done");
-			onCaptured?.();
-			toast({
-				title: "Files captured",
-				description: `${files.length} file(s) queued for processing.`,
-			});
 		} catch (error) {
-			setFilesState("idle");
 			toast({
 				title: "File capture failed",
 				description:
@@ -99,51 +182,15 @@ export function StreamQuickCaptureModal({
 		}
 	};
 
-	const handleProcessAudio = async () => {
-		if (audioFiles.length === 0) {
-			return;
-		}
-		setAudioState("processing");
-		try {
-			await processFileBatch(audioFiles);
-			setAudioFiles([]);
-			setAudioState("done");
-			onCaptured?.();
-			toast({
-				title: "Audio captured",
-				description: `${audioFiles.length} audio file(s) queued for processing.`,
-			});
-		} catch (error) {
-			setAudioState("idle");
-			toast({
-				title: "Audio capture failed",
-				description:
-					error instanceof Error ? error.message : "Could not process audio.",
-				variant: "destructive",
-			});
-		}
-	};
-
 	const handleProcessText = async () => {
 		if (!rawText.trim()) {
 			return;
 		}
-		setTextState("processing");
 		try {
 			const textFile = createTextCaptureFile(rawText.trim());
-			await projectsAPI.uploadFile(projectId, textFile, {
-				category: "general",
-				process_with_ai: true,
-			});
+			await uploadCaptureBatch([textFile]);
 			setRawText("");
-			setTextState("done");
-			onCaptured?.();
-			toast({
-				title: "Text captured",
-				description: "Raw notes were converted into a workspace file.",
-			});
 		} catch (error) {
-			setTextState("idle");
 			toast({
 				title: "Text capture failed",
 				description:
@@ -153,11 +200,32 @@ export function StreamQuickCaptureModal({
 		}
 	};
 
-	const resetProcessingStates = () => {
-		setFilesState("idle");
-		setAudioState("idle");
-		setTextState("idle");
+	const handleProcessAudio = async () => {
+		if (audioFiles.length === 0) {
+			return;
+		}
+		try {
+			await uploadCaptureBatch(audioFiles);
+			setAudioFiles([]);
+		} catch (error) {
+			toast({
+				title: "Audio capture failed",
+				description:
+					error instanceof Error ? error.message : "Could not process audio.",
+				variant: "destructive",
+			});
+		}
 	};
+
+	const captureStatusMessage = useMemo(
+		() =>
+			resolveQuickCaptureModalStatusMessage({
+				quickCaptureStatus,
+				backgroundHydrateError,
+				uploadSessionFileCount: uploadSessionFileIds.length,
+			}),
+		[backgroundHydrateError, quickCaptureStatus, uploadSessionFileIds.length],
+	);
 
 	return (
 		<Dialog
@@ -165,7 +233,7 @@ export function StreamQuickCaptureModal({
 			onOpenChange={(nextOpen) => {
 				onOpenChange(nextOpen);
 				if (!nextOpen) {
-					resetProcessingStates();
+					clearBackgroundHydrateError();
 				}
 			}}
 		>
@@ -178,12 +246,26 @@ export function StreamQuickCaptureModal({
 						</Badge>
 					</div>
 					<DialogDescription>
-						Capture files, audio, and raw text in one place. Each input is
-						processed independently.
+						Capture files, audio, and raw text in one place. Completion is
+						confirmed after evidence appears and workspace suggestions refresh.
 					</DialogDescription>
 				</DialogHeader>
 
 				<div className="space-y-5">
+					{captureStatusMessage ? (
+						<div
+							className={
+								captureStatusMessage.variant === "error"
+									? "rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+									: captureStatusMessage.variant === "success"
+										? "rounded-lg border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-800"
+										: "rounded-lg border border-secondary/20 bg-secondary/10 px-3 py-2 text-xs text-secondary"
+							}
+						>
+							{captureStatusMessage.text}
+						</div>
+					) : null}
+
 					<section className="space-y-3 rounded-lg border bg-surface-container-lowest p-4">
 						<div className="flex items-center gap-2">
 							<Paperclip className="size-4 text-muted-foreground" />
@@ -197,7 +279,6 @@ export function StreamQuickCaptureModal({
 							autoFocus={autoFocusTarget === "files"}
 							onChange={(event) => {
 								setFiles(Array.from(event.target.files ?? []));
-								setFilesState("idle");
 							}}
 						/>
 						<p className="text-xs text-muted-foreground">
@@ -211,9 +292,9 @@ export function StreamQuickCaptureModal({
 							onClick={() => {
 								void handleProcessFiles();
 							}}
-							disabled={files.length === 0 || filesState === "processing"}
+							disabled={files.length === 0 || submitting}
 						>
-							{filesState === "processing" ? (
+							{submitting ? (
 								<Loader2 data-icon="inline-start" className="animate-spin" />
 							) : (
 								<Upload data-icon="inline-start" />
@@ -236,7 +317,6 @@ export function StreamQuickCaptureModal({
 							autoFocus={autoFocusTarget === "audio"}
 							onChange={(event) => {
 								setAudioFiles(Array.from(event.target.files ?? []));
-								setAudioState("idle");
 							}}
 						/>
 						<p className="text-xs text-muted-foreground">
@@ -250,9 +330,9 @@ export function StreamQuickCaptureModal({
 							onClick={() => {
 								void handleProcessAudio();
 							}}
-							disabled={audioFiles.length === 0 || audioState === "processing"}
+							disabled={audioFiles.length === 0 || submitting}
 						>
-							{audioState === "processing" ? (
+							{submitting ? (
 								<Loader2 data-icon="inline-start" className="animate-spin" />
 							) : (
 								<Upload data-icon="inline-start" />
@@ -273,7 +353,6 @@ export function StreamQuickCaptureModal({
 							autoFocus={autoFocusTarget === "text"}
 							onChange={(event) => {
 								setRawText(event.target.value);
-								setTextState("idle");
 							}}
 							rows={6}
 							placeholder="Paste meeting notes, field observations, or copied snippets..."
@@ -284,9 +363,9 @@ export function StreamQuickCaptureModal({
 							onClick={() => {
 								void handleProcessText();
 							}}
-							disabled={!rawText.trim() || textState === "processing"}
+							disabled={!rawText.trim() || submitting}
 						>
-							{textState === "processing" ? (
+							{submitting ? (
 								<Loader2 data-icon="inline-start" className="animate-spin" />
 							) : (
 								<Upload data-icon="inline-start" />

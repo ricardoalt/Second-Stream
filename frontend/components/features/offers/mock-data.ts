@@ -1,30 +1,33 @@
 import type { OfferRecord, OfferStage } from "./types";
 
 export const OFFER_STAGE_LABELS: Record<OfferStage, string> = {
-	draft: "Draft",
-	submitted: "Submitted",
-	under_review: "Under review",
+	requires_data: "Requires data",
+	proposal_ready: "Proposal ready",
+	offer_sent: "Offer sent",
+	in_negotiation: "In negotiation",
 	accepted: "Accepted",
-	rejected: "Rejected",
+	declined: "Declined",
 	expired: "Expired",
 };
 
 export const stageOrder: OfferStage[] = [
-	"draft",
-	"submitted",
-	"under_review",
+	"requires_data",
+	"proposal_ready",
+	"offer_sent",
+	"in_negotiation",
 	"accepted",
-	"rejected",
+	"declined",
 ];
 
 export const offers: OfferRecord[] = [
 	{
+		projectId: "project-442",
 		id: "ofr-442",
 		reference: "OFR-442-B",
 		clientName: "BASF Mid-Atlantic Division",
 		streamName: "Petrochemical Stream #442",
 		location: "Houston, TX",
-		stage: "under_review",
+		stage: "in_negotiation",
 		valueUsd: 142500,
 		createdAt: "May 11, 2026",
 		updatedAt: "May 14, 2026",
@@ -82,12 +85,13 @@ export const offers: OfferRecord[] = [
 		],
 	},
 	{
+		projectId: "project-518",
 		id: "ofr-518",
 		reference: "OFR-518-A",
 		clientName: "Solvay Group",
 		streamName: "Propylene Recovery",
 		location: "Lake Charles, LA",
-		stage: "submitted",
+		stage: "offer_sent",
 		valueUsd: 890200,
 		createdAt: "May 03, 2026",
 		updatedAt: "May 13, 2026",
@@ -127,12 +131,13 @@ export const offers: OfferRecord[] = [
 		],
 	},
 	{
+		projectId: "project-620",
 		id: "ofr-620",
 		reference: "OFR-620-C",
 		clientName: "Indorama Ventures",
 		streamName: "Mixed Alcohol Stream",
 		location: "Freeport, TX",
-		stage: "draft",
+		stage: "requires_data",
 		valueUsd: 45000,
 		createdAt: "May 13, 2026",
 		updatedAt: "May 14, 2026",
@@ -171,12 +176,13 @@ export const offers: OfferRecord[] = [
 		],
 	},
 	{
+		projectId: "project-735",
 		id: "ofr-735",
 		reference: "OFR-735-A",
 		clientName: "Nexa Manufacturing",
 		streamName: "Heavy Metal Sludge",
 		location: "Corpus Christi, TX",
-		stage: "rejected",
+		stage: "declined",
 		valueUsd: 112800,
 		createdAt: "Apr 08, 2026",
 		updatedAt: "Apr 29, 2026",
@@ -215,6 +221,7 @@ export const offers: OfferRecord[] = [
 		],
 	},
 	{
+		projectId: "project-801",
 		id: "ofr-801",
 		reference: "OFR-801-D",
 		clientName: "Stellar Refineries Co.",
@@ -257,6 +264,7 @@ export const offers: OfferRecord[] = [
 		],
 	},
 	{
+		projectId: "project-910",
 		id: "ofr-910",
 		reference: "OFR-910-A",
 		clientName: "BioPharma Labs Inc.",

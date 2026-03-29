@@ -1,24 +1,13 @@
 "use client";
 
-import {
-	BarChart3,
-	FilePlus2,
-	Filter,
-	Search,
-	Target,
-	Wallet,
-} from "lucide-react";
-import { useMemo, useState } from "react";
+import { BarChart3, Filter, Search, Wallet } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { OffersPipelineTable } from "@/components/features/offers/components/offers-pipeline-table";
 import { OffersStagePipeline } from "@/components/features/offers/components/offers-stage-pipeline";
 import { OffersSummaryStatCard } from "@/components/features/offers/components/offers-summary-stat-card";
-import {
-	formatCurrency,
-	offers,
-	stageOrder,
-} from "@/components/features/offers/mock-data";
-import type { OfferStage } from "@/components/features/offers/types";
-import { Button } from "@/components/ui/button";
+import { formatCurrency, stageOrder } from "@/components/features/offers/mock-data";
+import type { OfferPipelineRecord, OfferStage } from "@/components/features/offers/types";
+import { mapProjectFollowUpToOfferStage } from "@/components/features/offers/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,31 +18,88 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { offersAPI } from "@/lib/api/offers";
+import { getErrorMessage } from "@/lib/utils/logger";
 
-const activeStages: OfferStage[] = ["draft", "submitted", "under_review"];
+const ACTIVE_STAGE_SET = new Set<OfferStage>([
+	"requires_data",
+	"proposal_ready",
+	"offer_sent",
+	"in_negotiation",
+]);
+
+function formatDate(value: string) {
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) {
+		return "N/A";
+	}
+	return new Intl.DateTimeFormat("en-US", {
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+	}).format(parsed);
+}
 
 export default function OffersPage() {
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+	const [offers, setOffers] = useState<OfferPipelineRecord[]>([]);
 	const [query, setQuery] = useState("");
 	const [selectedStage, setSelectedStage] = useState<OfferStage | "all">("all");
+	const [selectedClient, setSelectedClient] = useState<string>("all");
 
-	const activeOffers = useMemo(
-		() => offers.filter((offer) => activeStages.includes(offer.stage)),
-		[],
-	);
+	useEffect(() => {
+		let cancelled = false;
+		setLoading(true);
+		setError(null);
+
+		void offersAPI
+			.getPipeline()
+			.then((response) => {
+				if (cancelled) return;
+				setOffers(
+					response.items.map((item) => ({
+						projectId: item.projectId,
+						reference: item.latestProposalVersion ?? "No version",
+						clientName: item.companyLabel ?? "Unknown client",
+						streamName: item.streamName,
+						stage: mapProjectFollowUpToOfferStage(item.proposalFollowUpState),
+						valueUsd: item.valueUsd ?? 0,
+						updatedAt: formatDate(item.lastActivityAt),
+					})),
+				);
+			})
+			.catch((requestError) => {
+				if (cancelled) return;
+				setError(
+					getErrorMessage(
+						requestError,
+						"Could not load active Offers pipeline.",
+					),
+				);
+			})
+			.finally(() => {
+				if (!cancelled) {
+					setLoading(false);
+				}
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const clients = useMemo(
 		() =>
-			Array.from(new Set(activeOffers.map((offer) => offer.clientName))).sort(
-				(a, b) => a.localeCompare(b),
+			Array.from(new Set(offers.map((offer) => offer.clientName))).sort((a, b) =>
+				a.localeCompare(b),
 			),
-		[activeOffers],
+		[offers],
 	);
-
-	const [selectedClient, setSelectedClient] = useState<string>("all");
 
 	const filteredOffers = useMemo(
 		() =>
-			activeOffers.filter((offer) => {
+			offers.filter((offer) => {
 				const matchesQuery =
 					offer.streamName.toLowerCase().includes(query.toLowerCase()) ||
 					offer.clientName.toLowerCase().includes(query.toLowerCase()) ||
@@ -64,100 +110,104 @@ export default function OffersPage() {
 				const matchesClient =
 					selectedClient === "all" || offer.clientName === selectedClient;
 
-				return matchesQuery && matchesStage && matchesClient;
+				return (
+					ACTIVE_STAGE_SET.has(offer.stage) &&
+					matchesQuery &&
+					matchesStage &&
+					matchesClient
+				);
 			}),
-		[activeOffers, query, selectedStage, selectedClient],
+		[offers, query, selectedStage, selectedClient],
 	);
 
 	const pipelineByStage = useMemo(
 		() =>
-			stageOrder.map((stage) => ({
-				stage,
-				offers: activeOffers.filter((offer) => offer.stage === stage),
-			})),
-		[activeOffers],
+			stageOrder
+				.filter((stage) => ACTIVE_STAGE_SET.has(stage))
+				.map((stage) => ({
+					stage,
+					offers: filteredOffers.filter((offer) => offer.stage === stage),
+				})),
+		[filteredOffers],
 	);
 
-	const totalValue = filteredOffers.reduce(
-		(sum, offer) => sum + offer.valueUsd,
-		0,
-	);
-	const wonThisQuarter = offers.filter((offer) => offer.stage === "accepted");
-	const conversionRate =
-		offers.filter((offer) =>
-			["accepted", "rejected", "expired"].includes(offer.stage),
-		).length === 0
-			? 0
-			: Math.round(
-					(wonThisQuarter.length /
-						offers.filter((offer) =>
-							["accepted", "rejected", "expired"].includes(offer.stage),
-						).length) *
-						100,
-				);
+	const totalValue = filteredOffers.reduce((sum, offer) => sum + offer.valueUsd, 0);
+
+	if (loading) {
+		return (
+			<div className="rounded-2xl bg-surface-container-lowest p-8 shadow-xs">
+				<h1 className="font-display text-2xl font-semibold text-foreground">
+					Loading Offers pipeline...
+				</h1>
+			</div>
+		);
+	}
 
 	return (
-		<div className="flex flex-col gap-8">
-			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
-				<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-					<div className="flex flex-col gap-1">
-						<p className="text-xs uppercase tracking-[0.08em] text-secondary">
-							Offers
-						</p>
-						<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-							Offers pipeline
-						</h1>
-						<p className="text-sm text-muted-foreground">
-							Review active offers across draft, submitted, and review stages.
-						</p>
-					</div>
-					<Button>
-						<FilePlus2 data-icon="inline-start" aria-hidden />
-						Create Offer
-					</Button>
+		<div className="flex flex-col gap-10">
+			<section className="animate-fade-in-up relative overflow-hidden rounded-2xl bg-surface-container-lowest p-6 shadow-xs">
+				<div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-container" />
+				<div className="flex flex-col gap-1">
+					<p className="text-xs uppercase tracking-[0.08em] text-secondary">Offers</p>
+					<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
+						Offers pipeline
+					</h1>
+					<p className="text-sm text-muted-foreground">
+						Manage active commercial follow-up with real backend pipeline states.
+					</p>
 				</div>
 			</section>
 
-			<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<OffersSummaryStatCard
-					label="Total active offers"
-					value={String(filteredOffers.length)}
-					subtitle="Draft + submitted + under review"
-					icon={BarChart3}
-				/>
-				<OffersSummaryStatCard
-					label="Pipeline value"
-					value={formatCurrency(totalValue)}
-					subtitle="Current weighted offer total"
-					icon={Wallet}
-				/>
-				<OffersSummaryStatCard
-					label="Under review"
-					value={String(
-						activeOffers.filter((offer) => offer.stage === "under_review")
-							.length,
-					)}
-					subtitle="Needs follow-up coordination"
-					icon={Filter}
-				/>
-				<OffersSummaryStatCard
-					label="Conversion rate"
-					value={`${conversionRate}%`}
-					subtitle="Accepted vs closed outcomes"
-					icon={Target}
-				/>
+			{error ? (
+				<Card className="border-0 bg-destructive/5 shadow-xs">
+					<CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
+				</Card>
+			) : null}
+
+			<section className="rounded-2xl bg-surface-container-low/60 p-5">
+				<div className="animate-stagger grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+					<OffersSummaryStatCard
+						label="Total active offers"
+						value={String(filteredOffers.length)}
+						subtitle="Open commercial follow-up states"
+						icon={BarChart3}
+					/>
+					<OffersSummaryStatCard
+						label="Pipeline value"
+						value={formatCurrency(totalValue)}
+						subtitle="Selected latest proposal CAPEX"
+						icon={Wallet}
+					/>
+					<OffersSummaryStatCard
+						label="In negotiation"
+						value={String(
+							filteredOffers.filter((offer) => offer.stage === "in_negotiation")
+								.length,
+						)}
+						subtitle="Needs follow-up coordination"
+						icon={Filter}
+					/>
+					<OffersSummaryStatCard
+						label="Offer sent"
+						value={String(
+							filteredOffers.filter((offer) => offer.stage === "offer_sent").length,
+						)}
+						subtitle="Pending client response"
+						icon={Filter}
+					/>
+				</div>
 			</section>
 
 			<OffersStagePipeline stages={pipelineByStage} />
 
-			<Card className="bg-surface-container-lowest shadow-sm">
+			<Card className="border-0 bg-surface-container-lowest shadow-xs">
 				<CardHeader className="flex flex-col gap-4">
 					<div className="flex flex-col gap-1">
 						<CardTitle className="font-display text-xl font-semibold text-foreground">
 							Active offers
 						</CardTitle>
 						<p className="text-sm text-muted-foreground">
-							Search and filter by client and stage.
+							Search and filter by client and active stage.
 						</p>
 					</div>
 					<div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
@@ -169,7 +219,7 @@ export default function OffersPage() {
 							<Input
 								value={query}
 								onChange={(event) => setQuery(event.target.value)}
-								placeholder="Search offers, streams, or references"
+								placeholder="Search offers or streams"
 								className="pl-9"
 							/>
 						</div>
@@ -190,19 +240,18 @@ export default function OffersPage() {
 						</Select>
 						<Select
 							value={selectedStage}
-							onValueChange={(value) =>
-								setSelectedStage(value as OfferStage | "all")
-							}
+							onValueChange={(value) => setSelectedStage(value as OfferStage | "all")}
 						>
-							<SelectTrigger className="w-full md:w-[180px]">
+							<SelectTrigger className="w-full md:w-[220px]">
 								<SelectValue placeholder="Filter stage" />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectGroup>
 									<SelectItem value="all">All stages</SelectItem>
-									<SelectItem value="draft">Draft</SelectItem>
-									<SelectItem value="submitted">Submitted</SelectItem>
-									<SelectItem value="under_review">Under review</SelectItem>
+									<SelectItem value="requires_data">Requires data</SelectItem>
+									<SelectItem value="proposal_ready">Proposal ready</SelectItem>
+									<SelectItem value="offer_sent">Offer sent</SelectItem>
+									<SelectItem value="in_negotiation">In negotiation</SelectItem>
 								</SelectGroup>
 							</SelectContent>
 						</Select>

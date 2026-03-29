@@ -152,7 +152,7 @@ export function StreamWorkspaceForm({
 	return (
 		<div className="flex flex-col gap-4">
 			{phasePendingSuggestionCount > 0 ? (
-				<div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+				<div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-primary/5 p-3">
 					<div className="flex items-center gap-2 text-sm text-foreground">
 						<Badge variant="secondary" className="rounded-full">
 							AI suggestions pending
@@ -210,7 +210,7 @@ export function StreamWorkspaceForm({
 				return (
 					<section
 						key={section.section}
-						className="rounded-xl border bg-surface-container-lowest"
+						className="rounded-xl bg-surface-container-lowest shadow-xs"
 					>
 						<div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
 							<button
@@ -288,7 +288,7 @@ export function StreamWorkspaceForm({
 						</div>
 
 						{isExpanded ? (
-							<div className="grid gap-4 border-t px-4 py-4 md:grid-cols-2">
+							<div className="grid gap-4 px-4 py-4 md:grid-cols-2">
 								{section.questions.map((question) => (
 									<QuestionField
 										key={question.id}
@@ -431,7 +431,7 @@ function QuestionField({
 			</div>
 			{control}
 			{suggestion ? (
-				<div className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-2">
+				<div className="space-y-2 rounded-md bg-primary/5 p-2">
 					{suggestion.hasConflict ? (
 						<p className="text-xs text-muted-foreground">
 							Current confirmed answer kept. AI alternative:

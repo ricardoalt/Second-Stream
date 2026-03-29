@@ -199,8 +199,8 @@ export function StreamsDraftsTable({
 							key={row.id}
 							className={[
 								index % 2 === 0
-									? "border-b-0 bg-surface-container-lowest"
-									: "border-b-0 bg-surface",
+									? "border-b-0 bg-surface-container-lowest transition-all hover:bg-surface-container-high/50"
+									: "border-b-0 bg-surface transition-all hover:bg-surface-container-high/50",
 								highlightedId === row.id ? "ring-2 ring-primary" : "",
 							].join(" ")}
 						>

@@ -17,7 +17,7 @@ export function AgentShellLayout({ children }: AgentShellLayoutProps) {
 
 	return (
 		<DiscoveryWizardProvider>
-			<div className="flex min-h-screen bg-surface-container-low">
+			<div className="flex min-h-screen bg-surface-container">
 				<AppSidebar userName={fullName} userEmail={userEmail} />
 				<div className="flex min-w-0 flex-1 flex-col">
 					<TopBar user={user} onLogout={logout} />

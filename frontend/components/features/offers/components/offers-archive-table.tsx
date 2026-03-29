@@ -9,6 +9,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { routes } from "@/lib/routes";
 import { formatCurrency } from "../mock-data";
 import type { OfferRecord } from "../types";
 import { OfferStatusBadge } from "./offer-status-badge";
@@ -65,7 +66,7 @@ export function OffersArchiveTable({ offers }: { offers: OfferRecord[] }) {
 						<TableCell className="px-4 py-3">
 							<div className="flex items-center justify-end gap-2">
 								<Button variant="ghost" size="sm" asChild>
-									<Link href={`/offers/${offer.id}`}>
+									<Link href={routes.offers.detail(offer.projectId)}>
 										<Eye data-icon="inline-start" aria-hidden />
 										View
 									</Link>

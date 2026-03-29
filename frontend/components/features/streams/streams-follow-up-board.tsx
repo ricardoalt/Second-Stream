@@ -94,7 +94,7 @@ export function StreamsFollowUpBoard({
 							key={item.id}
 							onClick={() => onSelect(item.id)}
 							className={cn(
-								"flex w-full items-center justify-between gap-4 rounded-lg border-l-[3px] bg-surface-container-lowest px-4 py-3 text-left shadow-xs transition-colors hover:bg-surface-container-high/40",
+								"flex w-full items-center justify-between gap-4 rounded-lg border-l-[3px] bg-surface-container-lowest px-4 py-3 text-left transition-all hover:bg-surface-container-high/40 hover:shadow-xs",
 								stalenessClass[priority],
 								isSelected && "ring-2 ring-primary",
 							)}
@@ -148,15 +148,22 @@ export function StreamsFollowUpBoard({
 
 			{/* ── Right: Info Rail ── */}
 			<aside className="flex flex-col gap-4">
-				<div className="rounded-xl bg-surface-container-lowest p-4 shadow-xs">
+				<div
+					className={cn(
+						"rounded-xl p-4 shadow-sm transition-colors",
+						selectedItem
+							? "bg-inverse-surface text-inverse-on-surface"
+							: "bg-surface-container-lowest",
+					)}
+				>
 					{selectedItem ? (
 						<>
 							<div className="flex items-start justify-between gap-3">
 								<div>
-									<p className="text-sm font-semibold text-foreground">
+									<p className="text-sm font-semibold text-inverse-on-surface">
 										{selectedItem.name}
 									</p>
-									<p className="text-xs text-muted-foreground">
+									<p className="text-xs text-inverse-on-surface/60">
 										{selectedPhaseLabel}
 									</p>
 								</div>
@@ -172,32 +179,38 @@ export function StreamsFollowUpBoard({
 							</div>
 
 							<div className="mt-4 space-y-2">
-								<p className="text-xs text-muted-foreground">
+								<p className="text-xs text-inverse-on-surface/60">
 									Status: {formatStreamStatus(selectedItem.status)}
 								</p>
-								<p className="text-xs text-muted-foreground">
+								<p className="text-xs text-inverse-on-surface/60">
 									Last activity: {selectedItem.daysSinceLastActivity ?? 0} days
 									ago
 								</p>
-								<p className="text-xs font-medium uppercase tracking-[0.05em] text-secondary">
+								<p className="text-xs font-medium uppercase tracking-[0.05em] text-inverse-primary">
 									Still missing
 								</p>
 								<ul className="space-y-2">
 									{(selectedItem.missingFields ?? []).map((field) => (
 										<li key={field} className="flex items-center gap-2">
 											<Checkbox checked disabled aria-hidden />
-											<span className="text-xs text-foreground">{field}</span>
+											<span className="text-xs text-inverse-on-surface">
+												{field}
+											</span>
 										</li>
 									))}
 									{(selectedItem.missingFields ?? []).length === 0 ? (
-										<li className="text-xs text-muted-foreground">
+										<li className="text-xs text-inverse-on-surface/60">
 											No missing fields listed.
 										</li>
 									) : null}
 								</ul>
 							</div>
 
-							<Button asChild className="mt-4 w-full" size="sm">
+							<Button
+								asChild
+								className="mt-4 w-full bg-inverse-on-surface text-inverse-surface hover:bg-inverse-on-surface/90"
+								size="sm"
+							>
 								<Link href={getFollowUpOpenHref(selectedItem.id)}>
 									Open
 									<ArrowUpRight

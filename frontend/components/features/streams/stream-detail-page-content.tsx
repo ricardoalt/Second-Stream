@@ -2,6 +2,7 @@
 
 import { FolderOpen, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { StreamPhaseStepper } from "@/components/features/streams/stream-phase-stepper";
@@ -11,17 +12,37 @@ import { StreamWorkspaceForm } from "@/components/features/streams/stream-worksp
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { STREAM_WORKSPACE_PHASES } from "@/config/stream-questionnaire";
+import { workspaceAPI } from "@/lib/api/workspace";
 import {
 	useWorkspaceActions,
 	useWorkspaceError,
 	useWorkspaceLoading,
 	useWorkspaceStore,
 } from "@/lib/stores/workspace-store";
-import type { WorkspaceQuestionId } from "@/lib/types/workspace";
+import type {
+	WorkspaceQuestionId,
+	WorkspaceQuickCaptureStatus,
+} from "@/lib/types/workspace";
+import { getErrorMessage } from "@/lib/utils/logger";
 import type { StreamPhase } from "./types";
 
 const QUESTIONNAIRE_AUTOSAVE_DELAY_MS = 500;
+type CompleteDiscoveryStatus = "idle" | "submitting" | "error";
+
+export function buildOfferDetailHref({
+	projectId,
+}: {
+	projectId: string;
+}) {
+	return `/offers/${projectId}`;
+}
 
 export function buildPhaseCompletion(
 	phaseProgress: Record<string, boolean>,
@@ -56,7 +77,55 @@ export function resolveWorkspaceActivePhase({
 	return firstIncompletePhase;
 }
 
+export function resolveWorkspaceQuickCaptureFeedback({
+	quickCaptureStatus,
+	backgroundHydrateError,
+}: {
+	quickCaptureStatus: WorkspaceQuickCaptureStatus;
+	backgroundHydrateError: string | null;
+}) {
+	if (quickCaptureStatus === "completed") {
+		return {
+			tone: "success" as const,
+			title: "Capture completed",
+			description:
+				"Workspace evidence is visible and suggestions are up to date.",
+		};
+	}
+
+	if (quickCaptureStatus === "analyzing") {
+		return {
+			tone: "pending" as const,
+			title: "Capture in progress",
+			description:
+				"Evidence is visible. Refreshing workspace suggestions now...",
+		};
+	}
+
+	if (quickCaptureStatus === "pending") {
+		return {
+			tone: "pending" as const,
+			title: "Capture pending",
+			description: "Waiting for captured evidence to appear in workspace.",
+		};
+	}
+
+	if (quickCaptureStatus === "retry_required") {
+		return {
+			tone: "error" as const,
+			title: "Manual retry needed",
+			description:
+				backgroundHydrateError ??
+				"Quick Capture needs manual retry. Evidence is still processing.",
+			actionLabel: "Open Quick Capture",
+		};
+	}
+
+	return null;
+}
+
 export function StreamDetailPageContent({ id }: { id: string }) {
+	const router = useRouter();
 	const {
 		hydrate,
 		reset,
@@ -75,6 +144,8 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		phaseProgress,
 		firstIncompletePhase,
 		baseFields,
+		quickCaptureStatus,
+		backgroundHydrateError,
 	} = useWorkspaceStore(
 		useShallow((state) => ({
 			questionnaireAnswers: state.questionnaireAnswers,
@@ -85,6 +156,8 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 			phaseProgress: state.phaseProgress,
 			firstIncompletePhase: state.firstIncompletePhase,
 			baseFields: state.baseFields,
+			quickCaptureStatus: state.quickCaptureStatus,
+			backgroundHydrateError: state.backgroundHydrateError,
 		})),
 	);
 
@@ -92,8 +165,15 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 	const [phaseManuallySelected, setPhaseManuallySelected] =
 		useState<boolean>(false);
 	const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
+	const [completeDiscoveryModalOpen, setCompleteDiscoveryModalOpen] =
+		useState(false);
+	const [completeDiscoveryStatus, setCompleteDiscoveryStatus] =
+		useState<CompleteDiscoveryStatus>("idle");
+	const [completeDiscoveryError, setCompleteDiscoveryError] = useState<
+		string | null
+	>(null);
 	const [quickCaptureInitialAction, setQuickCaptureInitialAction] = useState<
-		"upload" | "voice" | "paste"
+		"upload" | "paste" | "voice"
 	>("upload");
 
 	useEffect(() => {
@@ -166,7 +246,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		void reviewQuestionnaireSuggestions(id, action, scope);
 	};
 
-	const handleOpenQuickCapture = (action: "upload" | "voice" | "paste") => {
+	const handleOpenQuickCapture = (action: "upload" | "paste" | "voice") => {
 		setQuickCaptureInitialAction(action);
 		setQuickCaptureOpen(true);
 	};
@@ -174,14 +254,49 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 	const filesHref = `/streams/${id}/files`;
 	const contactsHref = `/streams/${id}/contacts`;
 
+	const workspaceQuickCaptureFeedback = useMemo(
+		() =>
+			resolveWorkspaceQuickCaptureFeedback({
+				quickCaptureStatus,
+				backgroundHydrateError,
+			}),
+		[backgroundHydrateError, quickCaptureStatus],
+	);
+
 	const handleWorkspaceEvidenceChanged = () => {
 		void hydrate(id);
 	};
 
+	const handleSubmitCompleteDiscovery = async () => {
+		setCompleteDiscoveryStatus("submitting");
+		setCompleteDiscoveryError(null);
+		try {
+			const response = await workspaceAPI.completeDiscovery(id);
+			const href = buildOfferDetailHref({
+				projectId: response.offer.projectId,
+			});
+			setCompleteDiscoveryModalOpen(false);
+			router.push(href);
+		} catch (error) {
+			setCompleteDiscoveryStatus("error");
+			setCompleteDiscoveryError(
+				getErrorMessage(
+					error,
+					"Could not complete discovery. Please try again.",
+				),
+			);
+		}
+	};
+
+	const completeDiscoveryDisabled =
+		completeDiscoveryStatus === "submitting" ||
+		questionnaireAnswersDirty ||
+		questionnaireSaveStatus === "saving";
+
 	return (
 		<>
-			<div className="flex flex-col gap-6">
-				<header className="rounded-xl bg-surface-container-lowest p-6 shadow-sm">
+			<div className="flex flex-col gap-8">
+				<header className="animate-fade-in-up rounded-xl bg-surface-container-lowest p-6 shadow-xs">
 					<p className="text-xs uppercase tracking-[0.08em] text-secondary">
 						Streams / Workspace / {id}
 					</p>
@@ -216,6 +331,19 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 									Contacts
 								</Link>
 							</Button>
+							{activePhase === 4 ? (
+								<Button
+									size="sm"
+									onClick={() => {
+										setCompleteDiscoveryError(null);
+										setCompleteDiscoveryStatus("idle");
+										setCompleteDiscoveryModalOpen(true);
+									}}
+									disabled={completeDiscoveryDisabled}
+								>
+									Complete Discovery
+								</Button>
+							) : null}
 						</div>
 					</div>
 				</header>
@@ -227,7 +355,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 				/>
 
 				{error ? (
-					<Card className="border-destructive/30 bg-destructive/5 shadow-sm">
+					<Card className="border-0 bg-destructive/5 shadow-xs">
 						<CardContent className="py-4 text-sm text-destructive">
 							Failed to hydrate workspace detail: {error}
 						</CardContent>
@@ -236,7 +364,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 
 				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
 					<div className="flex flex-col gap-6">
-						<Card className="bg-surface-container-lowest shadow-sm">
+						<Card className="border-0 bg-surface-container-lowest shadow-xs">
 							<CardHeader>
 								<CardTitle className="font-display text-xl">
 									Questionnaire workspace
@@ -279,6 +407,36 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 						<StreamQuickCaptureCard
 							onOpenQuickCapture={handleOpenQuickCapture}
 						/>
+						{workspaceQuickCaptureFeedback ? (
+							<Card
+								className={
+									workspaceQuickCaptureFeedback.tone === "error"
+										? "border-destructive/30 bg-destructive/5 shadow-xs"
+										: workspaceQuickCaptureFeedback.tone === "success"
+											? "border-emerald-300/40 bg-emerald-500/10 shadow-xs"
+											: "border-0 bg-surface-container-lowest shadow-xs"
+								}
+							>
+								<CardContent className="flex flex-col gap-2 py-3">
+									<p className="text-xs font-semibold text-foreground">
+										{workspaceQuickCaptureFeedback.title}
+									</p>
+									<p className="text-xs text-muted-foreground">
+										{workspaceQuickCaptureFeedback.description}
+									</p>
+									{workspaceQuickCaptureFeedback.actionLabel ? (
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											onClick={() => handleOpenQuickCapture("upload")}
+										>
+											{workspaceQuickCaptureFeedback.actionLabel}
+										</Button>
+									) : null}
+								</CardContent>
+							</Card>
+						) : null}
 					</aside>
 				</div>
 			</div>
@@ -290,6 +448,60 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 				onCaptured={handleWorkspaceEvidenceChanged}
 				initialAction={quickCaptureInitialAction}
 			/>
+			<Dialog
+				open={completeDiscoveryModalOpen}
+				onOpenChange={(open) => {
+					if (completeDiscoveryStatus === "submitting") {
+						return;
+					}
+					setCompleteDiscoveryModalOpen(open);
+				}}
+			>
+				<DialogContent className="glass-popover w-[min(92vw,560px)] max-w-none rounded-2xl p-0">
+					<DialogTitle className="sr-only">Complete Discovery</DialogTitle>
+					<DialogDescription className="sr-only">
+						Finalize this stream discovery and open the Offer detail.
+					</DialogDescription>
+					<div className="space-y-2 border-b border-border/30 bg-surface-container-low px-6 py-5 text-center">
+						<p className="text-xs uppercase tracking-[0.08em] text-secondary">
+							Phase 4 handoff
+						</p>
+						<h2 className="font-display text-2xl font-semibold text-foreground">
+							Complete Discovery?
+						</h2>
+						<p className="text-sm text-muted-foreground">
+							This confirms discovery and opens the Offer detail for next-step
+							action.
+						</p>
+					</div>
+					<div className="space-y-3 px-6 py-5">
+						{completeDiscoveryError ? (
+							<p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+								{completeDiscoveryError}
+							</p>
+						) : null}
+						<div className="flex justify-center gap-2">
+							<Button
+								variant="outline"
+								onClick={() => setCompleteDiscoveryModalOpen(false)}
+								disabled={completeDiscoveryStatus === "submitting"}
+							>
+								Not yet
+							</Button>
+							<Button
+								onClick={() => {
+									void handleSubmitCompleteDiscovery();
+								}}
+								disabled={completeDiscoveryStatus === "submitting"}
+							>
+								{completeDiscoveryStatus === "submitting"
+									? "Completing..."
+									: "Complete Discovery"}
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 }

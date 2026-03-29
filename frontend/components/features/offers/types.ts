@@ -1,10 +1,17 @@
 export type OfferStage =
-	| "draft"
-	| "submitted"
-	| "under_review"
+	| "requires_data"
+	| "proposal_ready"
+	| "offer_sent"
+	| "in_negotiation"
 	| "accepted"
-	| "rejected"
+	| "declined"
 	| "expired";
+
+export type ActiveOfferStage =
+	| "requires_data"
+	| "proposal_ready"
+	| "offer_sent"
+	| "in_negotiation";
 
 export type OfferTimelineEvent = {
 	id: string;
@@ -14,7 +21,18 @@ export type OfferTimelineEvent = {
 	type: "system" | "client" | "agent";
 };
 
+export type OfferPipelineRecord = {
+	projectId: string;
+	reference: string;
+	clientName: string;
+	streamName: string;
+	stage: OfferStage;
+	valueUsd: number;
+	updatedAt: string;
+};
+
 export type OfferRecord = {
+	projectId: string;
 	id: string;
 	reference: string;
 	clientName: string;

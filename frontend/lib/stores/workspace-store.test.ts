@@ -2,11 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { workspaceAPI } from "@/lib/api/workspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import type {
+	WorkspaceEvidenceItem,
 	WorkspaceHydrateResponse,
 	WorkspaceQuestionAnswerUpdate,
 	WorkspaceQuestionSuggestion,
+	WorkspaceRefreshInsightsResponse,
 } from "@/lib/types/workspace";
 
+const originalHydrate = workspaceAPI.hydrate;
+const originalRefreshInsights = workspaceAPI.refreshInsights;
 const originalUpdateQuestionnaireAnswers =
 	workspaceAPI.updateQuestionnaireAnswers;
 const originalReviewQuestionnaireSuggestions =
@@ -15,12 +19,13 @@ const originalReviewQuestionnaireSuggestions =
 function buildHydrateResponse(
 	answers: Record<string, string>,
 	suggestions: WorkspaceQuestionSuggestion[] = [],
+	options?: { evidenceItems?: WorkspaceEvidenceItem[] },
 ): WorkspaceHydrateResponse {
 	return {
 		projectId: "project-1",
 		baseFields: [],
 		customFields: [],
-		evidenceItems: [],
+		evidenceItems: options?.evidenceItems ?? [],
 		contextNote: null,
 		questionnaireAnswers: answers,
 		questionnaireSuggestions: suggestions,
@@ -39,6 +44,25 @@ function buildHydrateResponse(
 			readiness: { isReady: false, missingBaseFields: [] },
 			lastRefreshedAt: null,
 		},
+	};
+}
+
+function buildRefreshResponse(): WorkspaceRefreshInsightsResponse {
+	return {
+		derived: {
+			summary: "Updated",
+			facts: [],
+			missingInformation: [],
+			informationCoverage: 12,
+			readiness: { isReady: false, missingBaseFields: [] },
+			lastRefreshedAt: "2026-03-27T00:00:00.000Z",
+		},
+		proposalBatch: {
+			batchId: "batch-1",
+			generatedAt: "2026-03-27T00:00:00.000Z",
+			proposals: [],
+		},
+		questionnaireSuggestions: [],
 	};
 }
 
@@ -67,6 +91,8 @@ function buildSuggestion(
 describe("workspace questionnaire persistence", () => {
 	beforeEach(() => {
 		useWorkspaceStore.getState().reset();
+		workspaceAPI.hydrate = originalHydrate;
+		workspaceAPI.refreshInsights = originalRefreshInsights;
 		workspaceAPI.updateQuestionnaireAnswers =
 			originalUpdateQuestionnaireAnswers;
 		workspaceAPI.reviewQuestionnaireSuggestions =
@@ -74,6 +100,8 @@ describe("workspace questionnaire persistence", () => {
 	});
 
 	afterEach(() => {
+		workspaceAPI.hydrate = originalHydrate;
+		workspaceAPI.refreshInsights = originalRefreshInsights;
 		workspaceAPI.updateQuestionnaireAnswers =
 			originalUpdateQuestionnaireAnswers;
 		workspaceAPI.reviewQuestionnaireSuggestions =
@@ -420,5 +448,86 @@ describe("workspace questionnaire persistence", () => {
 		expect(state.questionnaireAnswers.q1).toBe("Manual");
 		expect(state.questionnaireSuggestions).toEqual([q1]);
 		expect(state.reviewSuggestionsStatus).toBe("saved");
+	});
+
+	it("runs deterministic quick-capture completion when all session files become visible", async () => {
+		const refreshMock = mock(async () => buildRefreshResponse());
+		workspaceAPI.refreshInsights = refreshMock;
+
+		useWorkspaceStore.getState().registerUploadedFile("file-1");
+		useWorkspaceStore.getState().applyHydrateData(
+			buildHydrateResponse({}, [], {
+				evidenceItems: [
+					{
+						id: "file-1",
+						filename: "capture.txt",
+						category: "general",
+						processingStatus: "completed",
+						uploadedAt: "2026-03-27T00:00:00.000Z",
+						summary: null,
+						facts: [],
+						processingError: null,
+					},
+				],
+			}),
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(refreshMock).toHaveBeenCalledTimes(1);
+		const state = useWorkspaceStore.getState();
+		expect(state.uploadSessionFileIds).toEqual([]);
+		expect(state.quickCaptureStatus).toBe("completed");
+		expect(state.autoAnalysisGuard).toBe("idle");
+		expect(state.sessionHydrateNeeded).toBe(false);
+	});
+
+	it("keeps session incomplete when only part of a capture batch is visible", () => {
+		const refreshMock = mock(async () => buildRefreshResponse());
+		workspaceAPI.refreshInsights = refreshMock;
+
+		useWorkspaceStore.getState().registerUploadedFile("file-1");
+		useWorkspaceStore.getState().registerUploadedFile("file-2");
+		useWorkspaceStore.getState().applyHydrateData(
+			buildHydrateResponse({}, [], {
+				evidenceItems: [
+					{
+						id: "file-1",
+						filename: "capture-a.txt",
+						category: "general",
+						processingStatus: "completed",
+						uploadedAt: "2026-03-27T00:00:00.000Z",
+						summary: null,
+						facts: [],
+						processingError: null,
+					},
+				],
+			}),
+		);
+
+		const state = useWorkspaceStore.getState();
+		expect(refreshMock).toHaveBeenCalledTimes(0);
+		expect(state.uploadSessionFileIds).toEqual(["file-1", "file-2"]);
+		expect(state.sessionHydrateNeeded).toBe(true);
+		expect(state.quickCaptureStatus).toBe("pending");
+	});
+
+	it("sets bounded-retry recovery status when hydrate retries are exhausted", async () => {
+		workspaceAPI.hydrate = mock(async () => {
+			throw new Error("hydrate failed");
+		});
+
+		useWorkspaceStore.getState().registerUploadedFile("file-1");
+		useWorkspaceStore.setState({ sessionHydrateRetries: 5 });
+
+		await useWorkspaceStore.getState().hydrate("project-1");
+
+		const state = useWorkspaceStore.getState();
+		expect(state.quickCaptureStatus).toBe("retry_required");
+		expect(state.uploadSessionFileIds).toEqual([]);
+		expect(state.sessionHydrateNeeded).toBe(false);
+		expect(state.backgroundHydrateError).toBe(
+			"Evidence is still processing or not yet visible. Retry analysis manually.",
+		);
 	});
 });

@@ -17,7 +17,7 @@ export function StreamPhaseStepper({
 	const phases = STREAM_WORKSPACE_PHASES;
 
 	return (
-		<ol className="grid gap-3 rounded-xl bg-surface-container-low p-3 md:grid-cols-4">
+		<ol className="grid gap-3 rounded-xl bg-surface-container-low p-3 shadow-xs md:grid-cols-4">
 			{phases.map((phaseMeta) => {
 				const phase = phaseMeta.phase;
 				const isCompleted = Boolean(phaseProgress[phase]);
@@ -34,7 +34,7 @@ export function StreamPhaseStepper({
 						<button
 							type="button"
 							onClick={() => onPhaseSelect?.(phase)}
-							className="flex w-full items-center gap-2 px-3 py-2 text-left"
+							className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-container-lowest/60"
 						>
 							<span
 								className={cn(

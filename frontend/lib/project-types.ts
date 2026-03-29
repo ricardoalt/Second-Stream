@@ -1,5 +1,6 @@
 import type { DataSource } from "@/lib/constants";
 import type { Sector } from "@/lib/sectors-config";
+import type { ProposalFollowUpState } from "@/lib/types/dashboard";
 import type { ProposalDTO } from "@/lib/types/proposal-dto";
 import type { TableSection } from "@/lib/types/technical-data";
 
@@ -38,6 +39,7 @@ export interface ProjectSummary {
 	// Standard fields
 	status: ProjectStatus;
 	progress: number;
+	proposalFollowUpState?: ProposalFollowUpState | null;
 	createdAt: string;
 	updatedAt: string;
 	// Ownership

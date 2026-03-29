@@ -14,6 +14,7 @@ import {
 	portfolioClients,
 } from "@/components/features/clients/mock-data";
 import { AddNewClientModal } from "@/components/features/modals/add-new-client-modal";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,9 +51,36 @@ const statusLabel: Record<ClientStatus, string> = {
 
 const statusClass: Record<ClientStatus, string> = {
 	active: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-	prospect: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+	prospect: "bg-amber-500/15 text-amber-700 dark:text-emerald-400",
 	inactive: "bg-muted text-muted-foreground",
 };
+
+// Avatar color palette for client initials (Stitch pattern)
+const AVATAR_COLORS = [
+	"bg-primary/15 text-primary",
+	"bg-success/15 text-success",
+	"bg-warning/15 text-warning",
+	"bg-destructive/15 text-destructive",
+	"bg-info/15 text-info",
+	"bg-accent/15 text-accent",
+] as const;
+
+function getInitials(name: string): string {
+	return name
+		.split(" ")
+		.map((n) => n[0])
+		.join("")
+		.slice(0, 2)
+		.toUpperCase();
+}
+
+function getAvatarColor(name: string): string {
+	if (!name || name.length === 0) {
+		return AVATAR_COLORS[0];
+	}
+	const index = name.charCodeAt(0) % AVATAR_COLORS.length;
+	return AVATAR_COLORS[index] ?? AVATAR_COLORS[0];
+}
 
 const sortOptions = {
 	"name-asc": "Name (A-Z)",
@@ -153,11 +181,12 @@ export default function ClientsPage() {
 	);
 
 	return (
-		<div className="flex flex-col gap-8">
+		<div className="flex flex-col gap-10">
 			<AddNewClientModal open={addClientOpen} onOpenChange={setAddClientOpen} />
 
 			{/* ── Header ── */}
-			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
+			<section className="animate-fade-in-up relative overflow-hidden rounded-2xl bg-surface-container-lowest p-6 shadow-xs">
+				<div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-container" />
 				<div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
 					<div className="flex flex-col gap-2">
 						<div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-secondary">
@@ -179,7 +208,7 @@ export default function ClientsPage() {
 				</div>
 
 				{/* ── KPI row ── */}
-				<div className="mt-6 grid gap-3 md:grid-cols-3">
+				<div className="animate-stagger mt-6 grid gap-3 md:grid-cols-3">
 					<div className="rounded-xl bg-surface-container-low p-4">
 						<p className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
 							Visible clients
@@ -208,7 +237,7 @@ export default function ClientsPage() {
 			</section>
 
 			{/* ── Filter bar ── */}
-			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
+			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-xs">
 				<div className="flex flex-col gap-3 lg:flex-row lg:items-center">
 					<div className="relative flex-1">
 						<Search
@@ -284,7 +313,7 @@ export default function ClientsPage() {
 			</section>
 
 			{/* ── Operations table ── */}
-			<section className="overflow-hidden rounded-2xl bg-surface-container-lowest shadow-sm">
+			<section className="overflow-hidden rounded-2xl bg-surface-container-lowest shadow-xs">
 				<Table>
 					<TableHeader>
 						<TableRow className="bg-surface-container-low">
@@ -325,13 +354,25 @@ export default function ClientsPage() {
 								)}
 							>
 								<TableCell className="px-4 py-3">
-									<div className="flex flex-col gap-0.5">
-										<span className="font-medium text-foreground">
-											{client.name}
-										</span>
-										<span className="text-xs text-muted-foreground">
-											{client.contactName} · {client.contactRole}
-										</span>
+									<div className="flex items-center gap-3">
+										<Avatar className="h-9 w-9 shrink-0">
+											<AvatarFallback
+												className={cn(
+													"text-xs font-semibold",
+													getAvatarColor(client.name),
+												)}
+											>
+												{getInitials(client.name)}
+											</AvatarFallback>
+										</Avatar>
+										<div className="flex flex-col gap-0.5">
+											<span className="font-medium text-foreground">
+												{client.name}
+											</span>
+											<span className="text-xs text-muted-foreground">
+												{client.contactName} · {client.contactRole}
+											</span>
+										</div>
 									</div>
 								</TableCell>
 								<TableCell className="px-4 py-3 text-sm text-muted-foreground">

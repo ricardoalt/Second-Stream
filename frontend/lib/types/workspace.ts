@@ -11,6 +11,13 @@ export type BaseFieldId =
 
 export type WorkspaceQuestionId = `q${number}`;
 
+export type WorkspaceQuickCaptureStatus =
+	| "idle"
+	| "pending"
+	| "analyzing"
+	| "completed"
+	| "retry_required";
+
 export type WorkspacePhaseProgress = {
 	"1": boolean;
 	"2": boolean;
@@ -177,4 +184,14 @@ export interface WorkspaceConfirmResponse {
 export interface WorkspaceContextNoteResponse {
 	text: string;
 	updatedAt: string;
+}
+
+export interface WorkspaceOfferNavigationTarget {
+	projectId: string;
+	proposalId: string;
+}
+
+export interface WorkspaceCompleteDiscoveryResponse {
+	message: string;
+	offer: WorkspaceOfferNavigationTarget;
 }

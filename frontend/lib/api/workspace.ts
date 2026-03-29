@@ -1,6 +1,6 @@
-import type { SuccessResponse } from "@/lib/types/api";
 import type {
 	WorkspaceBaseFieldUpdate,
+	WorkspaceCompleteDiscoveryResponse,
 	WorkspaceConfirmProposalEditItem,
 	WorkspaceConfirmResponse,
 	WorkspaceContextNoteResponse,
@@ -90,8 +90,10 @@ export const workspaceAPI = {
 		);
 	},
 
-	async completeDiscovery(projectId: string): Promise<SuccessResponse> {
-		return apiClient.post<SuccessResponse>(
+	async completeDiscovery(
+		projectId: string,
+	): Promise<WorkspaceCompleteDiscoveryResponse> {
+		return apiClient.post<WorkspaceCompleteDiscoveryResponse>(
 			`/projects/${projectId}/workspace/complete-discovery`,
 		);
 	},

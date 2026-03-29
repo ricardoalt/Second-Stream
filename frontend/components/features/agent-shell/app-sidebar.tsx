@@ -103,8 +103,8 @@ export function AppSidebar({ userName, userEmail }: AppSidebarProps) {
 									"flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
 									collapsed && "justify-center px-0",
 									active
-										? "bg-sidebar-accent text-primary"
-										: "text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
+										? "border-l-[3px] border-l-primary bg-sidebar-accent text-primary"
+										: "border-l-[3px] border-l-transparent text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
 								)}
 							>
 								<Icon className="shrink-0" />

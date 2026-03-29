@@ -4,8 +4,10 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from conftest import create_company, create_location, create_org, create_project, create_user
 from httpx import AsyncClient
+from sqlalchemy import func, select
 
 from app.models.file import ProjectFile
+from app.models.proposal import Proposal
 from app.models.user import UserRole
 from app.schemas.workspace import (
     WORKSPACE_PROPOSAL_BATCH_MAX_ITEMS,
@@ -1559,7 +1561,7 @@ async def test_workspace_hydrate_returns_seeded_values(
 
 
 @pytest.mark.asyncio
-async def test_workspace_complete_discovery_writes_completion_flag(
+async def test_workspace_complete_discovery_with_zero_active_proposals_creates_offer(
     client: AsyncClient, db_session, set_current_user
 ):
     uid = uuid.uuid4().hex[:8]
@@ -1587,7 +1589,20 @@ async def test_workspace_complete_discovery_writes_completion_flag(
     response = await client.post(f"/api/v1/projects/{project.id}/workspace/complete-discovery")
     assert response.status_code == 200
     payload = response.json()
-    assert payload["success"] is True
+    assert payload["message"] == "Discovery marked complete"
+    assert payload["offer"]["projectId"] == str(project.id)
+    assert isinstance(payload["offer"]["proposalId"], str)
+
+    created_proposal_id = payload["offer"]["proposalId"]
+    proposal_result = await db_session.execute(
+        select(Proposal).where(Proposal.id == created_proposal_id)
+    )
+    created_proposal = proposal_result.scalar_one_or_none()
+    assert created_proposal is not None
+    assert created_proposal.project_id == project.id
+    assert created_proposal.organization_id == org.id
+    assert created_proposal.status == "Draft"
+    assert created_proposal.ai_metadata is not None
 
     await db_session.refresh(project)
     project_data = _project_data_dict(project)
@@ -1596,6 +1611,155 @@ async def test_workspace_complete_discovery_writes_completion_flag(
     assert isinstance(completed_at, str)
     parsed = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
     assert parsed.tzinfo is not None
+
+
+@pytest.mark.asyncio
+async def test_workspace_complete_discovery_reuses_existing_active_proposal(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Workspace Complete Reuse",
+        f"org-workspace-complete-reuse-{uid}",
+    )
+    user = await create_user(
+        db_session,
+        email=f"workspace-complete-reuse-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Workspace Complete Reuse Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Workspace Complete Reuse Loc",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Workspace Complete Reuse Project",
+    )
+    existing = Proposal(
+        organization_id=org.id,
+        project_id=project.id,
+        version="v1.0",
+        title="Existing proposal",
+        proposal_type="Technical",
+        status="Draft",
+        author="AI",
+        capex=0.0,
+        opex=0.0,
+        executive_summary="Existing executive summary",
+        technical_approach="Existing technical approach",
+        ai_metadata={"proposal": {"headline": "Existing proposal"}},
+    )
+    db_session.add(existing)
+    await db_session.commit()
+    await db_session.refresh(existing)
+
+    set_current_user(user)
+    response = await client.post(f"/api/v1/projects/{project.id}/workspace/complete-discovery")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["offer"]["proposalId"] == str(existing.id)
+
+    proposal_count = await db_session.scalar(
+        select(func.count(Proposal.id)).where(
+            Proposal.project_id == project.id,
+            Proposal.organization_id == org.id,
+        )
+    )
+    assert proposal_count == 1
+
+
+@pytest.mark.asyncio
+async def test_workspace_complete_discovery_with_multiple_active_proposals_returns_ambiguity(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Workspace Complete Ambiguous",
+        f"org-workspace-complete-ambiguous-{uid}",
+    )
+    user = await create_user(
+        db_session,
+        email=f"workspace-complete-ambiguous-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Workspace Complete Ambiguous Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Workspace Complete Ambiguous Loc",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Workspace Complete Ambiguous Project",
+    )
+    first_active = Proposal(
+        organization_id=org.id,
+        project_id=project.id,
+        version="v1.0",
+        title="First active proposal",
+        proposal_type="Technical",
+        status="Draft",
+        author="AI",
+        capex=0.0,
+        opex=0.0,
+        executive_summary="First active executive summary",
+        technical_approach="First active technical approach",
+        ai_metadata={"proposal": {"headline": "First active proposal"}},
+    )
+    second_active = Proposal(
+        organization_id=org.id,
+        project_id=project.id,
+        version="v2.0",
+        title="Second active proposal",
+        proposal_type="Technical",
+        status="Current",
+        author="AI",
+        capex=0.0,
+        opex=0.0,
+        executive_summary="Second active executive summary",
+        technical_approach="Second active technical approach",
+        ai_metadata={"proposal": {"headline": "Second active proposal"}},
+    )
+    db_session.add_all([first_active, second_active])
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.post(f"/api/v1/projects/{project.id}/workspace/complete-discovery")
+    assert response.status_code == 409
+    payload = response.json()
+    assert payload["code"] == "WORKSPACE_ACTIVE_PROPOSAL_AMBIGUOUS"
+    assert payload["details"]["activeProposalCount"] == 2
+
+    proposal_count = await db_session.scalar(
+        select(func.count(Proposal.id)).where(
+            Proposal.project_id == project.id,
+            Proposal.organization_id == org.id,
+        )
+    )
+    assert proposal_count == 2
+
+    await db_session.refresh(project)
+    project_data = _project_data_dict(project)
+    workspace_data = project_data.get("workspace_v1")
+    if workspace_data is not None:
+        workspace_dict = _require_dict(workspace_data)
+        assert "discovery_completed_at" not in workspace_dict
 
 
 def test_questionnaire_phase_progress_marks_completion_by_phase_requirements():

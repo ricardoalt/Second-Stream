@@ -3,6 +3,7 @@ import {
 	Clock3,
 	FileEdit,
 	Hourglass,
+	Send,
 	XCircle,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -18,15 +19,19 @@ const statusConfig: Record<
 		className: string;
 	}
 > = {
-	draft: {
+	requires_data: {
 		icon: FileEdit,
 		className: "bg-muted text-muted-foreground border-transparent",
 	},
-	submitted: {
+	proposal_ready: {
 		icon: Hourglass,
 		className: "bg-info/20 text-info-foreground border-transparent",
 	},
-	under_review: {
+	offer_sent: {
+		icon: Send,
+		className: "bg-info/20 text-info-foreground border-transparent",
+	},
+	in_negotiation: {
 		icon: Clock3,
 		className: "bg-warning/20 text-warning-foreground border-transparent",
 	},
@@ -34,7 +39,7 @@ const statusConfig: Record<
 		icon: CheckCircle2,
 		className: "bg-success/20 text-success-foreground border-transparent",
 	},
-	rejected: {
+	declined: {
 		icon: XCircle,
 		className: "bg-destructive/15 text-destructive border-transparent",
 	},

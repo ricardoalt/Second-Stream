@@ -323,6 +323,16 @@ class WorkspaceConfirmProposalResponse(BaseSchema):
     workspace: WorkspaceHydrateResponse
 
 
+class WorkspaceOfferNavigationTarget(BaseSchema):
+    project_id: UUID
+    proposal_id: UUID
+
+
+class WorkspaceCompleteDiscoveryResponse(BaseSchema):
+    message: str
+    offer: WorkspaceOfferNavigationTarget
+
+
 def _serialize_canonical_datetime(dt: datetime) -> str:
     dt_utc = dt.astimezone(UTC)
     ms = dt_utc.microsecond // 1000

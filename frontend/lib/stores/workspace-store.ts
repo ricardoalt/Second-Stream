@@ -19,6 +19,7 @@ import type {
 	WorkspaceQuestionId,
 	WorkspaceQuestionSuggestion,
 	WorkspaceQuestionSuggestionReviewScope,
+	WorkspaceQuickCaptureStatus,
 } from "@/lib/types/workspace";
 import { getErrorMessage, logger } from "@/lib/utils/logger";
 
@@ -67,6 +68,7 @@ interface WorkspaceState {
 	reviewSuggestionsStatus: SaveStatus;
 	error: string | null;
 	backgroundHydrateError: string | null;
+	quickCaptureStatus: WorkspaceQuickCaptureStatus;
 
 	// Upload session — tracks files from current upload batch for auto-analysis
 	uploadSessionFileIds: string[];
@@ -108,6 +110,7 @@ interface WorkspaceState {
 	registerUploadedFile: (fileId: string) => void;
 	clearUploadSession: () => void;
 	clearUploadSessionSubset: (ids: string[]) => void;
+	clearQuickCaptureStatus: () => void;
 	clearBackgroundHydrateError: () => void;
 	reset: () => void;
 }
@@ -155,6 +158,7 @@ const createInitialState = () => ({
 	reviewSuggestionsStatus: "idle" as SaveStatus,
 	error: null as string | null,
 	backgroundHydrateError: null as string | null,
+	quickCaptureStatus: "idle" as WorkspaceQuickCaptureStatus,
 	uploadSessionFileIds: [] as string[],
 	autoAnalysisGuard: "idle" as AutoAnalysisGuard,
 	sessionHydrateNeeded: false,
@@ -279,6 +283,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 						set((s) => {
 							s.backgroundHydrateError =
 								"Evidence is still processing or not yet visible. Retry analysis manually.";
+							s.quickCaptureStatus = "retry_required";
 							s.uploadSessionFileIds = [];
 							s.autoAnalysisGuard = "idle";
 							s.sessionHydrateNeeded = false;
@@ -292,6 +297,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 		applyHydrateData: (data: WorkspaceHydrateResponse) => {
 			let hasPendingHydrate = false;
 			let sessionStillNeeded = false;
+			let shouldRunSessionAnalysis = false;
+			let sessionFileIdsForAnalysis: string[] = [];
+			let analysisProjectId: string | null = null;
 			set((s) => {
 				const isInitialHydrateForProject =
 					s.hydratedProjectId !== data.projectId;
@@ -374,6 +382,16 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 				if (allSessionFilesVisible) {
 					s.sessionHydrateNeeded = false;
 					s.sessionHydrateRetries = 0;
+					if (
+						s.uploadSessionFileIds.length > 0 &&
+						s.autoAnalysisGuard === "waiting"
+					) {
+						s.autoAnalysisGuard = "ran";
+						s.quickCaptureStatus = "analyzing";
+						shouldRunSessionAnalysis = true;
+						sessionFileIdsForAnalysis = [...s.uploadSessionFileIds];
+						analysisProjectId = data.projectId;
+					}
 				}
 				sessionStillNeeded = s.sessionHydrateNeeded;
 				hasPendingHydrate = s.pendingHydrate;
@@ -383,6 +401,34 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 				// Concurrent-call guard — retry immediately (one-shot)
 				const projectId = get().projectId;
 				if (projectId) get().hydrate(projectId);
+			} else if (shouldRunSessionAnalysis && analysisProjectId) {
+				void get()
+					.runAnalysis(analysisProjectId)
+					.then(() => {
+						get().clearUploadSessionSubset(sessionFileIdsForAnalysis);
+						set((s) => {
+							if (s.uploadSessionFileIds.length === 0) {
+								s.quickCaptureStatus = "completed";
+								s.backgroundHydrateError = null;
+							}
+						});
+					})
+					.catch((error) => {
+						logger.error(
+							"Quick Capture analysis failed",
+							error,
+							"WorkspaceStore",
+						);
+						set((s) => {
+							s.backgroundHydrateError =
+								"Quick Capture analysis could not complete. Retry analysis manually.";
+							s.quickCaptureStatus = "retry_required";
+							s.uploadSessionFileIds = [];
+							s.autoAnalysisGuard = "idle";
+							s.sessionHydrateNeeded = false;
+							s.sessionHydrateRetries = 0;
+						});
+					});
 			} else if (sessionStillNeeded) {
 				// Session files still missing — use same delayed/bounded path as error
 				const retries = get().sessionHydrateRetries;
@@ -403,6 +449,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 					set((s) => {
 						s.backgroundHydrateError =
 							"Evidence is still processing or not yet visible. Retry analysis manually.";
+						s.quickCaptureStatus = "retry_required";
 						s.uploadSessionFileIds = [];
 						s.autoAnalysisGuard = "idle";
 						s.sessionHydrateNeeded = false;
@@ -809,6 +856,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 				}
 				s.sessionHydrateNeeded = true;
 				s.sessionHydrateRetries = 0;
+				s.quickCaptureStatus = "pending";
+				s.backgroundHydrateError = null;
 			});
 		},
 
@@ -818,6 +867,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 				s.autoAnalysisGuard = "idle";
 				s.sessionHydrateNeeded = false;
 				s.sessionHydrateRetries = 0;
+				s.quickCaptureStatus = "idle";
 			});
 		},
 
@@ -833,7 +883,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 				} else {
 					// Newer files were added during analysis — re-arm for next cycle
 					s.autoAnalysisGuard = "waiting";
+					s.quickCaptureStatus = "pending";
 				}
+			});
+		},
+
+		clearQuickCaptureStatus: () => {
+			set((s) => {
+				s.quickCaptureStatus = "idle";
 			});
 		},
 
@@ -906,6 +963,7 @@ export const useWorkspaceActions = () =>
 			registerUploadedFile: s.registerUploadedFile,
 			clearUploadSession: s.clearUploadSession,
 			clearUploadSessionSubset: s.clearUploadSessionSubset,
+			clearQuickCaptureStatus: s.clearQuickCaptureStatus,
 			clearBackgroundHydrateError: s.clearBackgroundHydrateError,
 			reset: s.reset,
 		})),

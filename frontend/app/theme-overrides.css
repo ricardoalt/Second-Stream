@@ -156,3 +156,54 @@ body {
 	box-shadow: var(--shadow-md);
 	border-color: transparent;
 }
+
+/* ── KPI Gradient Icon Background ── */
+.kpi-icon-gradient {
+	background: linear-gradient(
+		135deg,
+		color-mix(in srgb, var(--primary) 15%, transparent),
+		color-mix(in srgb, var(--primary) 8%, transparent)
+	);
+	color: var(--primary);
+}
+
+/* ── Borderless Tonal Sections ─── */
+.section-tonal {
+	background-color: var(--surface-container-lowest);
+	border-radius: 1rem;
+	box-shadow: var(--shadow-xs);
+}
+
+/* ── Skeleton Pulse ── */
+@keyframes skeleton-pulse {
+	0%,
+	100% {
+		opacity: 0.5;
+	}
+	50% {
+		opacity: 0.8;
+	}
+}
+
+.skeleton {
+	animation: skeleton-pulse 1.8s ease-in-out infinite;
+	background-color: var(--surface-container-low);
+	border-radius: 0.375rem;
+}
+
+/* ── Subtle row hover ── */
+.row-hover {
+	transition: background-color 150ms var(--transition-easing);
+}
+
+/* ── Card lift on hover ── */
+.card-lift {
+	transition:
+		transform 200ms var(--transition-easing),
+		box-shadow 200ms var(--transition-easing);
+}
+
+.card-lift:hover {
+	transform: translateY(-2px);
+	box-shadow: var(--shadow);
+}

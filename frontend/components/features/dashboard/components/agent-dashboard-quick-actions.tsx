@@ -37,7 +37,7 @@ export function AgentDashboardQuickActions({
 }) {
 	return (
 		<div className="flex flex-col gap-6">
-			<Card className="bg-surface-container-lowest shadow-sm">
+			<Card className="border-0 bg-surface-container-lowest shadow-xs">
 				<CardHeader className="flex flex-col gap-3">
 					<div className="flex items-center justify-between gap-3">
 						<CardTitle className="font-display text-xl font-semibold">
@@ -70,8 +70,8 @@ export function AgentDashboardQuickActions({
 						<Button
 							key={action.id}
 							type="button"
-							variant="outline"
-							className="h-auto w-full justify-between rounded-xl px-3 py-3"
+							variant="ghost"
+							className="h-auto w-full justify-between rounded-xl bg-surface-container-low/50 px-3 py-3 hover:bg-surface-container-high/40"
 							onClick={() => onActionClick?.(action)}
 						>
 							<span className="flex min-w-0 items-start gap-2 text-left">
@@ -98,7 +98,7 @@ export function AgentDashboardQuickActions({
 				</CardContent>
 			</Card>
 
-			<Card className="bg-surface-container-lowest shadow-sm">
+			<Card className="border-0 bg-surface-container-lowest shadow-xs">
 				<CardHeader className="flex-row items-start justify-between gap-3">
 					<div className="flex flex-col gap-1">
 						<CardTitle className="font-display text-xl font-semibold">

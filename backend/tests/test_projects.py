@@ -1551,3 +1551,202 @@ async def test_dashboard_stats(client: AsyncClient, db_session, set_current_user
     data = response.json()
     assert "totalProjects" in data
     assert data["totalProjects"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_offers_pipeline_projection_returns_open_states_and_counts(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Offers Pipeline", "org-offers-pipeline")
+    user = await create_user(
+        db_session,
+        email=f"offers-pipeline-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Offer Co")
+    location = await create_location(db_session, org_id=org.id, company_id=company.id, name="Offer Loc")
+
+    implicit_uploaded = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Implicit Uploaded Stream",
+    )
+    current_latest = Proposal(
+        organization_id=org.id,
+        project_id=implicit_uploaded.id,
+        version="v1.0",
+        title="Current Offer",
+        proposal_type="Technical",
+        status="Current",
+        capex=111_000,
+        ai_metadata={"proposal": {"headline": "current"}},
+        created_at=datetime(2026, 3, 20, tzinfo=UTC),
+    )
+    db_session.add(current_latest)
+
+    waiting_response = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Waiting Response Stream",
+    )
+    waiting_response.proposal_follow_up_state = "waiting_response"
+    archived_newer = Proposal(
+        organization_id=org.id,
+        project_id=waiting_response.id,
+        version="v3.0",
+        title="Archived newer",
+        proposal_type="Technical",
+        status="Archived",
+        capex=999_000,
+        ai_metadata={"proposal": {"headline": "archived"}},
+        created_at=datetime(2026, 3, 24, tzinfo=UTC),
+    )
+    draft_newest = Proposal(
+        organization_id=org.id,
+        project_id=waiting_response.id,
+        version="v2.0",
+        title="Draft newest",
+        proposal_type="Technical",
+        status="Draft",
+        capex=222_000,
+        ai_metadata={"proposal": {"headline": "draft"}},
+        created_at=datetime(2026, 3, 23, tzinfo=UTC),
+    )
+    current_preferred = Proposal(
+        organization_id=org.id,
+        project_id=waiting_response.id,
+        version="v1.0",
+        title="Current preferred",
+        proposal_type="Technical",
+        status="Current",
+        capex=333_000,
+        ai_metadata={"proposal": {"headline": "current"}},
+        created_at=datetime(2026, 3, 22, tzinfo=UTC),
+    )
+    db_session.add_all([archived_newer, draft_newest, current_preferred])
+
+    terminal = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Accepted Stream",
+    )
+    terminal.proposal_follow_up_state = "accepted"
+    db_session.add(
+        Proposal(
+            organization_id=org.id,
+            project_id=terminal.id,
+            version="v1.0",
+            title="Accepted offer",
+            proposal_type="Technical",
+            status="Current",
+            capex=444_000,
+            ai_metadata={"proposal": {"headline": "accepted"}},
+        )
+    )
+
+    archived_project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Archived Project",
+    )
+    archived_project.archived_at = datetime.now(UTC)
+    archived_project.proposal_follow_up_state = "waiting_to_send"
+    db_session.add(
+        Proposal(
+            organization_id=org.id,
+            project_id=archived_project.id,
+            version="v1.0",
+            title="Archived project offer",
+            proposal_type="Technical",
+            status="Current",
+            capex=555_000,
+            ai_metadata={"proposal": {"headline": "archived project"}},
+        )
+    )
+
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.get("/api/v1/projects/offers/pipeline")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["counts"] == {
+        "total": 2,
+        "uploaded": 1,
+        "waitingToSend": 0,
+        "waitingResponse": 1,
+        "underNegotiation": 0,
+    }
+
+    rows_by_project = {row["projectId"]: row for row in payload["items"]}
+    implicit_row = rows_by_project[str(implicit_uploaded.id)]
+    assert implicit_row["proposalFollowUpState"] == "uploaded"
+    assert implicit_row["latestProposalId"] == str(current_latest.id)
+
+    waiting_row = rows_by_project[str(waiting_response.id)]
+    assert waiting_row["proposalFollowUpState"] == "waiting_response"
+    assert waiting_row["latestProposalId"] == str(current_preferred.id)
+    assert waiting_row["latestProposalTitle"] == "Current preferred"
+    assert waiting_row["valueUsd"] == 333000
+
+
+@pytest.mark.asyncio
+async def test_offers_pipeline_projection_supports_search(client: AsyncClient, db_session, set_current_user):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Offers Search", "org-offers-search")
+    user = await create_user(
+        db_session,
+        email=f"offers-search-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Search Offer Company")
+    location = await create_location(db_session, org_id=org.id, company_id=company.id, name="Search Offer Location")
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Catalyst Stream",
+    )
+    project.proposal_follow_up_state = "waiting_to_send"
+    db_session.add(
+        Proposal(
+            organization_id=org.id,
+            project_id=project.id,
+            version="v1.0",
+            title="Searchable offer",
+            proposal_type="Technical",
+            status="Current",
+            capex=12_000,
+            ai_metadata={"proposal": {"headline": "search"}},
+        )
+    )
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.get("/api/v1/projects/offers/pipeline?search=Catalyst")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["counts"]["total"] == 1
+    assert payload["items"][0]["streamName"] == "Catalyst Stream"
+
+    no_match = await client.get("/api/v1/projects/offers/pipeline?search=Nope")
+    assert no_match.status_code == 200
+    assert no_match.json()["counts"]["total"] == 0
+    assert no_match.json()["items"] == []

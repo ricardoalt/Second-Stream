@@ -33,6 +33,17 @@ const quickCaptureModalSource = readFileSync(
 	"utf8",
 );
 
+const quickCaptureCardSource = readFileSync(
+	join(
+		process.cwd(),
+		"components",
+		"features",
+		"streams",
+		"stream-quick-capture-card.tsx",
+	),
+	"utf8",
+);
+
 const filesPageSource = readFileSync(
 	join(
 		process.cwd(),
@@ -154,5 +165,56 @@ describe("stream workspace foundation verification", () => {
 		expect(/>\s*Files\s*</.test(quickCaptureModalSource)).toBe(true);
 		expect(/>\s*Audio\s*</.test(quickCaptureModalSource)).toBe(true);
 		expect(/>\s*Raw text\s*</.test(quickCaptureModalSource)).toBe(true);
+	});
+
+	it("keeps workspace quick capture actions scoped to supported modes", () => {
+		expect(quickCaptureCardSource.includes('label: "Upload"')).toBe(true);
+		expect(quickCaptureCardSource.includes('label: "Voice"')).toBe(true);
+		expect(quickCaptureCardSource.includes('label: "Paste"')).toBe(true);
+		expect(quickCaptureCardSource.includes("audio")).toBe(true);
+	});
+
+	it("surfaces capture completion/recovery feedback in workspace shell", () => {
+		expect(
+			streamDetailModule.resolveWorkspaceQuickCaptureFeedback({
+				quickCaptureStatus: "completed",
+				backgroundHydrateError: null,
+			}),
+		).toEqual({
+			tone: "success",
+			title: "Capture completed",
+			description:
+				"Workspace evidence is visible and suggestions are up to date.",
+		});
+
+		expect(
+			streamDetailModule.resolveWorkspaceQuickCaptureFeedback({
+				quickCaptureStatus: "retry_required",
+				backgroundHydrateError: "Retry now",
+			}),
+		).toEqual({
+			tone: "error",
+			title: "Manual retry needed",
+			description: "Retry now",
+			actionLabel: "Open Quick Capture",
+		});
+	});
+
+	it("shows Complete Discovery CTA only in workspace shell", () => {
+		expect(workspaceShellSource.includes("Complete Discovery")).toBe(true);
+		expect(workspaceShellSource.includes("Complete Discovery?")).toBe(true);
+		expect(
+			workspaceShellSource.includes(
+				"This confirms discovery and opens the Offer detail",
+			),
+		).toBe(true);
+	});
+
+	it("builds Offer detail href with project context", () => {
+		expect(
+			streamDetailModule.buildOfferDetailHref({
+				projectId: "project-123",
+			}),
+		).toBe("/offers/project-123");
 	});
 });

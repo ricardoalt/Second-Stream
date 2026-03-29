@@ -8,11 +8,16 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { routes } from "@/lib/routes";
 import { formatCurrency } from "../mock-data";
-import type { OfferRecord } from "../types";
+import type { OfferPipelineRecord } from "../types";
 import { OfferStatusBadge } from "./offer-status-badge";
 
-export function OffersPipelineTable({ offers }: { offers: OfferRecord[] }) {
+export function OffersPipelineTable({
+	offers,
+}: {
+	offers: OfferPipelineRecord[];
+}) {
 	return (
 		<Table>
 			<TableHeader>
@@ -32,7 +37,7 @@ export function OffersPipelineTable({ offers }: { offers: OfferRecord[] }) {
 			<TableBody>
 				{offers.map((offer, index) => (
 					<TableRow
-						key={offer.id}
+						key={`${offer.projectId}-${offer.reference}`}
 						className={
 							index % 2 === 0 ? "bg-surface" : "bg-surface-container-low"
 						}
@@ -40,7 +45,7 @@ export function OffersPipelineTable({ offers }: { offers: OfferRecord[] }) {
 						<TableCell className="px-4 py-3">
 							<div className="flex flex-col gap-0.5">
 								<Link
-									href={`/offers/${offer.id}`}
+									href={routes.offers.detail(offer.projectId)}
 									className="font-medium text-foreground hover:text-primary"
 								>
 									{offer.streamName}

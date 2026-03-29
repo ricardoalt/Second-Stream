@@ -13,6 +13,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { getAllStreamsPrimaryActionLabel } from "./runtime-helpers";
 import { StreamStatusBadge } from "./stream-status-badge";
 import { isDraftStream, type StreamRow } from "./types";
@@ -95,8 +96,8 @@ export function StreamsAllTable({
 							onClick={openRowWorkspace}
 							className={
 								index % 2 === 0
-									? "border-b-0 bg-surface-container-lowest transition-colors hover:bg-surface-container-high/50"
-									: "border-b-0 bg-surface transition-colors hover:bg-surface-container-high/50"
+									? "border-b-0 bg-surface-container-lowest transition-all hover:bg-surface-container-high/50"
+									: "border-b-0 bg-surface transition-all hover:bg-surface-container-high/50"
 							}
 						>
 							<TableCell className="w-12 px-4 py-3.5">
@@ -110,13 +111,25 @@ export function StreamsAllTable({
 								/>
 							</TableCell>
 							<TableCell className="px-4 py-3.5">
-								<div className="flex flex-col gap-0.5">
-									<span className="font-medium text-foreground">
-										{row.name}
-									</span>
-									<span className="text-xs text-muted-foreground">
-										{row.client}
-									</span>
+								<div className="flex items-center gap-3">
+									<span
+										className={cn(
+											"size-2 shrink-0 rounded-full",
+											row.status === "active" && "bg-success",
+											row.status === "draft" && "bg-primary",
+											row.status === "missing_info" && "bg-destructive",
+											row.status === "blocked" && "bg-warning",
+											row.status === "ready_for_offer" && "bg-info",
+										)}
+									/>
+									<div className="flex flex-col gap-0.5">
+										<span className="font-medium text-foreground">
+											{row.name}
+										</span>
+										<span className="text-xs text-muted-foreground">
+											{row.client}
+										</span>
+									</div>
 								</div>
 							</TableCell>
 							<TableCell className="px-4 py-3.5">
