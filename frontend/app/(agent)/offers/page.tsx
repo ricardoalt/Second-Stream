@@ -5,8 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import { OffersPipelineTable } from "@/components/features/offers/components/offers-pipeline-table";
 import { OffersStagePipeline } from "@/components/features/offers/components/offers-stage-pipeline";
 import { OffersSummaryStatCard } from "@/components/features/offers/components/offers-summary-stat-card";
-import { formatCurrency, stageOrder } from "@/components/features/offers/mock-data";
-import type { OfferPipelineRecord, OfferStage } from "@/components/features/offers/types";
+import {
+	formatCurrency,
+	stageOrder,
+} from "@/components/features/offers/mock-data";
+import type {
+	OfferPipelineRecord,
+	OfferStage,
+} from "@/components/features/offers/types";
 import { mapProjectFollowUpToOfferStage } from "@/components/features/offers/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -91,8 +97,8 @@ export default function OffersPage() {
 
 	const clients = useMemo(
 		() =>
-			Array.from(new Set(offers.map((offer) => offer.clientName))).sort((a, b) =>
-				a.localeCompare(b),
+			Array.from(new Set(offers.map((offer) => offer.clientName))).sort(
+				(a, b) => a.localeCompare(b),
 			),
 		[offers],
 	);
@@ -131,7 +137,10 @@ export default function OffersPage() {
 		[filteredOffers],
 	);
 
-	const totalValue = filteredOffers.reduce((sum, offer) => sum + offer.valueUsd, 0);
+	const totalValue = filteredOffers.reduce(
+		(sum, offer) => sum + offer.valueUsd,
+		0,
+	);
 
 	if (loading) {
 		return (
@@ -148,19 +157,24 @@ export default function OffersPage() {
 			<section className="animate-fade-in-up relative overflow-hidden rounded-2xl bg-surface-container-lowest p-6 shadow-xs">
 				<div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-container" />
 				<div className="flex flex-col gap-1">
-					<p className="text-xs uppercase tracking-[0.08em] text-secondary">Offers</p>
+					<p className="text-xs uppercase tracking-[0.08em] text-secondary">
+						Offers
+					</p>
 					<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
 						Offers pipeline
 					</h1>
 					<p className="text-sm text-muted-foreground">
-						Manage active commercial follow-up with real backend pipeline states.
+						Manage active commercial follow-up with real backend pipeline
+						states.
 					</p>
 				</div>
 			</section>
 
 			{error ? (
 				<Card className="border-0 bg-destructive/5 shadow-xs">
-					<CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
+					<CardContent className="py-4 text-sm text-destructive">
+						{error}
+					</CardContent>
 				</Card>
 			) : null}
 
@@ -190,7 +204,8 @@ export default function OffersPage() {
 					<OffersSummaryStatCard
 						label="Offer sent"
 						value={String(
-							filteredOffers.filter((offer) => offer.stage === "offer_sent").length,
+							filteredOffers.filter((offer) => offer.stage === "offer_sent")
+								.length,
 						)}
 						subtitle="Pending client response"
 						icon={Filter}
@@ -240,7 +255,9 @@ export default function OffersPage() {
 						</Select>
 						<Select
 							value={selectedStage}
-							onValueChange={(value) => setSelectedStage(value as OfferStage | "all")}
+							onValueChange={(value) =>
+								setSelectedStage(value as OfferStage | "all")
+							}
 						>
 							<SelectTrigger className="w-full md:w-[220px]">
 								<SelectValue placeholder="Filter stage" />

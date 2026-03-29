@@ -2,7 +2,9 @@
 
 import {
 	AlertCircle,
+	Building2,
 	CheckCircle,
+	CheckCircle2,
 	CircleCheck,
 	FileSpreadsheet,
 	FileText,
@@ -12,7 +14,9 @@ import {
 	Mic,
 	Package,
 	Plus,
+	PlusCircle,
 	Trash2,
+	Truck,
 	Waves,
 	X,
 } from "lucide-react";
@@ -1224,13 +1228,13 @@ export function DiscoveryWizard({
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
-				className="glass-popover discovery-wizard-dialog w-[min(92vw,960px)] max-w-none min-h-[640px] p-0 gap-0 overflow-hidden rounded-2xl shadow-water-lg"
+				className="glass-popover discovery-wizard-dialog w-[min(92vw,850px)] max-w-none h-auto max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl shadow-water-lg"
 				showCloseButton={!isBlocking}
 			>
 				<div
 					key={phase}
 					aria-live="polite"
-					className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col min-h-[640px]"
+					className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col h-full max-h-[90vh]"
 				>
 					{(phase === "idle" || phase === "submitting") && (
 						<IdleView
@@ -1505,7 +1509,7 @@ function IdleView({
 	return (
 		<div className="flex flex-col flex-1">
 			{/* Header with accent strip */}
-			<div className="relative overflow-hidden px-6 pt-8 pb-3">
+			<div className="relative overflow-hidden px-8 pt-5 pb-2 shrink-0">
 				<div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-container" />
 				<h2 className="font-display text-xl font-semibold tracking-tight">
 					Discovery Wizard
@@ -1514,12 +1518,12 @@ function IdleView({
 					Select a method to identify and ingest waste stream data
 				</p>
 				{/* Tab bar — editorial underline style */}
-				<div className="mt-5 flex gap-0">
+				<div className="mt-4 flex gap-0">
 					<button
 						type="button"
 						onClick={() => onWizardTabChange("ai")}
 						className={cn(
-							"px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] border-b-2 transition-all",
+							"px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] border-b-2 transition-all",
 							wizardTab === "ai"
 								? "border-primary text-primary"
 								: "border-transparent text-muted-foreground hover:text-foreground hover:border-border/40",
@@ -1531,7 +1535,7 @@ function IdleView({
 						type="button"
 						onClick={() => onWizardTabChange("quick")}
 						className={cn(
-							"px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] border-b-2 transition-all",
+							"px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] border-b-2 transition-all",
 							wizardTab === "quick"
 								? "border-primary text-primary"
 								: "border-transparent text-muted-foreground hover:text-foreground hover:border-border/40",
@@ -1545,164 +1549,203 @@ function IdleView({
 			{wizardTab === "quick" ? (
 				/* ── Quick Entry Form ── */
 				<div className="flex flex-col flex-1">
-					<div className="flex-1 overflow-auto px-6 py-4">
-						<div className="mx-auto w-full max-w-3xl space-y-4">
-							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
-								<div className="mb-2 flex items-center justify-between">
-									<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-										Client
-									</span>
-									<CreateCompanyDialog
-										onSuccess={(company) => {
-											if (company) {
-												setQuickEntryError(null);
-												setQe({
-													...qe,
-													client: company.id,
-													locationId: "",
-												});
-											}
-										}}
-										trigger={
-											<button
-												type="button"
-												className="text-[0.6875rem] font-semibold text-primary hover:underline"
-											>
-												⊕ Add New Client
-											</button>
-										}
-									/>
-								</div>
-								<CompanyCombobox
-									value={qe.client}
-									onValueChange={(value) => {
-										setQuickEntryError(null);
-										setQe({ ...qe, client: value, locationId: "" });
-									}}
-									placeholder="Select Existing Client"
-									showCreate={true}
-								/>
-							</section>
+					<div className="flex-1 overflow-auto px-8 py-5">
+						<div className="mx-auto w-full space-y-4">
+							{/* Two Column Layout */}
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+								{/* Left Column: Material Identity */}
+								<section className="rounded-xl bg-blue-50/60 p-6 border border-blue-100/50">
+									<div className="flex items-center gap-3 mb-5">
+										<div className="p-2.5 bg-primary/10 rounded-lg">
+											<Building2 className="size-5 text-primary" />
+										</div>
+										<h3 className="text-base font-semibold text-foreground">
+											Material Identity
+										</h3>
+									</div>
 
-							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
-								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-									Location
-								</span>
-								<div className="space-y-1.5">
-									<LocationCombobox
-										companyId={qe.client}
-										value={qe.locationId}
-										onValueChange={(value) => {
-											setQuickEntryError(null);
-											setQe({ ...qe, locationId: value });
-										}}
-										placeholder={
-											qe.client ? "Select Location" : "Select Client first"
-										}
-										className="h-12"
-									/>
-									{qe.client && quickEntryLocations.length === 0 ? (
-										<div className="text-xs text-muted-foreground">
-											No locations —{" "}
-											<CreateLocationDialog
-												companyId={qe.client}
-												onSuccess={(location) => {
-													if (!location) {
-														return;
+									<div className="space-y-5">
+										<div>
+											<div className="mb-3 flex items-center justify-between">
+												<span className="text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+													Client Selection
+												</span>
+												<CreateCompanyDialog
+													onSuccess={(company) => {
+														if (company) {
+															setQuickEntryError(null);
+															setQe({
+																...qe,
+																client: company.id,
+																locationId: "",
+															});
+														}
+													}}
+													trigger={
+														<button
+															type="button"
+															className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+														>
+															<PlusCircle className="size-3.5" />
+															Add New Client
+														</button>
 													}
-													void loadLocationsByCompany(qe.client);
-													setQe({ ...qe, locationId: location.id });
+												/>
+											</div>
+											<CompanyCombobox
+												value={qe.client}
+												onValueChange={(value) => {
+													setQuickEntryError(null);
+													setQe({ ...qe, client: value, locationId: "" });
 												}}
-												trigger={
-													<button
-														type="button"
-														className="font-medium text-primary hover:underline"
-													>
-														[+ Add location]
-													</button>
-												}
+												placeholder="Select an existing client..."
+												showCreate={false}
 											/>
 										</div>
-									) : null}
-								</div>
-							</section>
 
-							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
-								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-									Material / Stream Name
+										<div>
+											<span className="mb-3 block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+												Material / Stream Name
+											</span>
+											<input
+												type="text"
+												placeholder="e.g. Toluene"
+												value={qe.material}
+												onChange={(event) =>
+													setQe({ ...qe, material: event.target.value })
+												}
+												className="w-full rounded-lg bg-white px-3 py-3 text-sm border border-input placeholder:text-muted-foreground/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+											/>
+										</div>
+									</div>
+								</section>
+
+								{/* Right Column: Logistics & Volume */}
+								<section className="rounded-xl bg-blue-50/60 p-6 border border-blue-100/50">
+									<div className="flex items-center gap-3 mb-5">
+										<div className="p-2.5 bg-primary/10 rounded-lg">
+											<Truck className="size-5 text-primary" />
+										</div>
+										<h3 className="text-base font-semibold text-foreground">
+											Logistics & Volume
+										</h3>
+									</div>
+
+									<div className="space-y-5">
+										<div>
+											<span className="mb-3 block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+												Primary Location
+											</span>
+											<LocationCombobox
+												companyId={qe.client}
+												value={qe.locationId}
+												onValueChange={(value) => {
+													setQuickEntryError(null);
+													setQe({ ...qe, locationId: value });
+												}}
+												placeholder="City, State"
+												className="h-12"
+											/>
+											{qe.client && quickEntryLocations.length === 0 ? (
+												<div className="text-xs text-muted-foreground mt-2">
+													No locations —{" "}
+													<CreateLocationDialog
+														companyId={qe.client}
+														onSuccess={(location) => {
+															if (!location) {
+																return;
+															}
+															void loadLocationsByCompany(qe.client);
+															setQe({ ...qe, locationId: location.id });
+														}}
+														trigger={
+															<button
+																type="button"
+																className="font-medium text-primary hover:underline"
+															>
+																[+ Add location]
+															</button>
+														}
+													/>
+												</div>
+											) : null}
+										</div>
+
+										<div>
+											<span className="mb-3 block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+												Volume / Weight
+											</span>
+											<div className="grid grid-cols-[1fr_auto] gap-2">
+												<input
+													type="text"
+													placeholder="5,000"
+													value={qe.volume}
+													onChange={(event) =>
+														setQe({ ...qe, volume: event.target.value })
+													}
+													className="w-full rounded-lg bg-white px-3 py-3 text-sm border border-input placeholder:text-muted-foreground/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+												/>
+												<select
+													value={qe.units}
+													onChange={(event) =>
+														setQe({ ...qe, units: event.target.value })
+													}
+													className="rounded-lg bg-white px-3 py-3 text-sm border border-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 min-w-[100px]"
+												>
+													<option>Gallons</option>
+													<option>Tons</option>
+													<option>Barrels</option>
+													<option>Pounds</option>
+												</select>
+											</div>
+										</div>
+
+										<div>
+											<span className="mb-3 block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+												Frequency
+											</span>
+											<select
+												value={qe.frequency}
+												onChange={(event) =>
+													setQe({ ...qe, frequency: event.target.value })
+												}
+												className="w-full rounded-lg bg-white px-3 py-3 text-sm border border-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+											>
+												<option>Weekly</option>
+												<option>Bi-Weekly</option>
+												<option>Monthly</option>
+												<option>Quarterly</option>
+												<option>Ad-hoc</option>
+											</select>
+										</div>
+									</div>
+								</section>
+							</div>
+
+							{/* Safety Guidelines Banner */}
+							<div className="rounded-lg border-l-4 border-l-primary bg-emerald-50/60 px-6 py-3 flex items-center gap-5">
+								<span className="text-sm font-semibold text-primary uppercase tracking-wide">
+									Safety Guidelines:
 								</span>
-								<input
-									type="text"
-									placeholder="e.g. Spent Solvent"
-									value={qe.material}
-									onChange={(event) =>
-										setQe({ ...qe, material: event.target.value })
-									}
-									className="w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-								/>
-							</section>
-
-							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
-								<div className="grid gap-3 md:grid-cols-3">
-									<div>
-										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-											Volume
-										</span>
-										<input
-											type="text"
-											placeholder="5,000"
-											value={qe.volume}
-											onChange={(event) =>
-												setQe({ ...qe, volume: event.target.value })
-											}
-											className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-										/>
-									</div>
-									<div>
-										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-											Units
-										</span>
-										<select
-											value={qe.units}
-											onChange={(event) =>
-												setQe({ ...qe, units: event.target.value })
-											}
-											className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-										>
-											<option>Gallons</option>
-											<option>Tons</option>
-											<option>Barrels</option>
-											<option>Pounds</option>
-										</select>
-									</div>
-									<div>
-										<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-											Frequency
-										</span>
-										<select
-											value={qe.frequency}
-											onChange={(event) =>
-												setQe({ ...qe, frequency: event.target.value })
-											}
-											className="mt-1 w-full rounded-lg bg-surface-container-high/60 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-										>
-											<option>Weekly</option>
-											<option>Bi-Weekly</option>
-											<option>Monthly</option>
-											<option>Quarterly</option>
-											<option>Ad-hoc</option>
-										</select>
-									</div>
+								<div className="flex items-center gap-5 text-sm text-muted-foreground">
+									<span className="flex items-center gap-2">
+										<CheckCircle2 className="size-4 text-emerald-600" />
+										Ensure MSDS are available.
+									</span>
+									<span className="flex items-center gap-2">
+										<CheckCircle2 className="size-4 text-emerald-600" />
+										Verify packaging compatibility.
+									</span>
 								</div>
-							</section>
+							</div>
 						</div>
 					</div>
 					{/* Quick Entry Footer */}
-					<div className="flex items-center justify-between border-t border-border/20 bg-muted/20 px-6 py-4">
+					<div className="flex items-center justify-between border-t border-border/20 bg-blue-50/50 px-8 py-3 shrink-0">
 						<button
 							type="button"
 							onClick={resetQuickEntry}
-							className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground hover:text-foreground transition-colors"
+							className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground transition-colors"
 						>
 							Clear All
 						</button>
@@ -1722,7 +1765,7 @@ function IdleView({
 							<Button
 								onClick={handleQuickEntrySave}
 								disabled={!canSaveQuickEntryDraft}
-								className="bg-gradient-to-r from-primary to-primary/90 shadow-water"
+								className="bg-primary hover:bg-primary/90 shadow-water"
 							>
 								{isSavingQuickEntry ? "Saving…" : "Save Stream"}
 							</Button>
@@ -1731,12 +1774,12 @@ function IdleView({
 				</div>
 			) : (
 				<div className="flex flex-col flex-1">
-					<div className="flex-1 overflow-auto px-6 py-6">
-						<div className="mx-auto w-full max-w-3xl space-y-5">
-							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
+					<div className="flex-1 overflow-auto px-8 py-5">
+						<div className="mx-auto w-full max-w-3xl space-y-4">
+							<section className="rounded-xl bg-blue-50/40 p-5 border border-blue-100/50">
 								<div className="mb-2 flex items-center justify-between">
-									<span className="text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-										Client
+									<span className="text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+										Client Information
 									</span>
 									<CreateCompanyDialog
 										onSuccess={(company) => {
@@ -1747,9 +1790,10 @@ function IdleView({
 										trigger={
 											<button
 												type="button"
-												className="text-[0.6875rem] font-semibold text-primary hover:underline"
+												className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5"
 											>
-												⊕ Add New Client
+												<PlusCircle className="size-3.5" />
+												Add New Client
 											</button>
 										}
 									/>
@@ -1772,17 +1816,19 @@ function IdleView({
 								)}
 							</section>
 
-							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
-								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-									Location
+							<section className="rounded-xl bg-blue-50/40 p-5 border border-blue-100/50">
+								<span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+									Assign Default Location to All Streams
 								</span>
-								<div className="space-y-1.5">
+								<div className="space-y-2">
 									<LocationCombobox
 										companyId={companyId}
 										value={locationId}
 										onValueChange={onLocationChange}
 										placeholder={
-											companyId ? "Select Location" : "Select Client first"
+											companyId
+												? "e.g. Houston Facility, TX"
+												: "Select Client first"
 										}
 										className="h-12"
 									/>
@@ -1810,19 +1856,16 @@ function IdleView({
 										</div>
 									) : null}
 								</div>
-								<p className="mt-1.5 text-xs text-muted-foreground">
+								<p className="mt-1 text-xs text-muted-foreground">
 									Select a location before upload/analysis.
 								</p>
 							</section>
 
-							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
-								<div className="mb-2">
-									<span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-										Upload files/emails
+							<section className="rounded-xl bg-blue-50/40 p-5 border border-blue-100/50">
+								<div className="mb-3">
+									<span className="block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+										Upload Client Files or Emails
 									</span>
-									<p className="mt-1 text-xs text-muted-foreground">
-										PDF, XLSX, EML and image files supported.
-									</p>
 								</div>
 								<section
 									aria-label={
@@ -1903,19 +1946,19 @@ function IdleView({
 									) : (
 										<button
 											type="button"
-											className="flex w-full flex-col items-center gap-4 px-6 py-12 text-center"
+											className="flex w-full flex-col items-center gap-3 px-6 py-8 text-center"
 											onClick={() => fileInputRef.current?.click()}
 											disabled={isSubmitting}
 										>
-											<div className="flex items-center gap-4">
-												<div className="rounded-lg bg-primary/8 p-2.5">
-													<FileSpreadsheet className="h-6 w-6 text-primary/70" />
+											<div className="flex items-center gap-3">
+												<div className="rounded-lg bg-primary/8 p-2">
+													<FileSpreadsheet className="h-5 w-5 text-primary/70" />
 												</div>
-												<div className="rounded-lg bg-primary/8 p-2.5">
-													<FileText className="h-6 w-6 text-primary/70" />
+												<div className="rounded-lg bg-primary/8 p-2">
+													<FileText className="h-5 w-5 text-primary/70" />
 												</div>
-												<div className="rounded-lg bg-primary/8 p-2.5">
-													<Image className="h-6 w-6 text-primary/70" />
+												<div className="rounded-lg bg-primary/8 p-2">
+													<Image className="h-5 w-5 text-primary/70" />
 												</div>
 											</div>
 											<div>
@@ -1938,13 +1981,13 @@ function IdleView({
 								</section>
 							</section>
 
-							<section className="rounded-xl bg-surface-container-lowest/80 p-5 shadow-xs">
-								<span className="mb-2 block text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-									Dictate voice note
+							<section className="rounded-xl bg-blue-50/40 p-5 border border-blue-100/50">
+								<span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+									Dictate Discovery Notes
 								</span>
 								<button
 									type="button"
-									className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 px-4 py-4 transition-all hover:bg-surface-container-low hover:shadow-xs"
+									className="flex w-full items-center justify-between rounded-xl bg-surface-container-low/60 px-4 py-3.5 transition-all hover:bg-surface-container-low hover:shadow-xs"
 									onClick={() => audioInputRef.current?.click()}
 									disabled={audioFile !== null || isSubmitting}
 								>
@@ -1999,7 +2042,7 @@ function IdleView({
 					/>
 
 					{/* AI Discovery Footer */}
-					<div className="flex items-center justify-between border-t border-border/20 bg-muted/20 px-6 py-4">
+					<div className="flex items-center justify-between border-t border-border/20 bg-blue-50/50 px-8 py-3 shrink-0">
 						<button
 							type="button"
 							onClick={() => {

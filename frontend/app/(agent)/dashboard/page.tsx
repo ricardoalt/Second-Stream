@@ -345,10 +345,10 @@ export default function AgentDashboardPage() {
 						<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
 							{greeting}, Alex
 						</h1>
-					<p className="text-sm text-muted-foreground mt-1">
-						Here&apos;s what needs your attention today across{" "}
-						{executiveKpis[0]?.value ?? "$640K"} in active pipeline.
-					</p>
+						<p className="text-sm text-muted-foreground mt-1">
+							Here&apos;s what needs your attention today across{" "}
+							{executiveKpis[0]?.value ?? "$640K"} in active pipeline.
+						</p>
 					</div>
 					<Button onClick={() => discoveryWizard.open()}>
 						<Plus className="mr-2 h-4 w-4" />

@@ -36,11 +36,7 @@ import type { StreamPhase } from "./types";
 const QUESTIONNAIRE_AUTOSAVE_DELAY_MS = 500;
 type CompleteDiscoveryStatus = "idle" | "submitting" | "error";
 
-export function buildOfferDetailHref({
-	projectId,
-}: {
-	projectId: string;
-}) {
+export function buildOfferDetailHref({ projectId }: { projectId: string }) {
 	return `/offers/${projectId}`;
 }
 
