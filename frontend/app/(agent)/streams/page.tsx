@@ -11,13 +11,13 @@ import {
 	Sparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
 import {
 	resolveOpenDraftState,
 	type StreamsTab,
 } from "@/components/features/streams/runtime-helpers";
 import { StreamsAllTable } from "@/components/features/streams/streams-all-table";
-import { StreamsDraftConfirmation } from "@/components/features/streams/streams-draft-confirmation";
 import {
 	type DraftEditorState,
 	StreamsDraftsTable,
@@ -38,6 +38,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { bulkImportAPI } from "@/lib/api/bulk-import";
 import {
 	useStreamsActions,
 	useStreamsAll,
@@ -49,7 +50,6 @@ import {
 	useStreamsLoading,
 	useStreamsMissingInfo,
 } from "@/lib/stores/streams-store";
-import type { DraftItemRow } from "@/lib/types/dashboard";
 import { cn } from "@/lib/utils";
 import { computeWasteStreamsKpis } from "@/lib/utils/compute-waste-streams-kpis";
 
@@ -73,17 +73,13 @@ export default function AgentStreamsPage() {
 	const error = useStreamsError();
 	const { loadStreams } = useStreamsActions();
 	const [activeTab, setActiveTab] = useState<StreamsTab>("all");
-	const [confirmTarget, setConfirmTarget] = useState<{
-		draftItemRow: DraftItemRow;
-		editorState: DraftEditorState;
-	} | null>(null);
+	const [confirmingDraftIds, setConfirmingDraftIds] = useState<Set<string>>(
+		new Set(),
+	);
 
 	const [highlightedDraftId, setHighlightedDraftId] = useState<string | null>(
 		null,
 	);
-
-	// ── All Streams state ──
-	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
 	// ── Missing Information state ──
 	const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(
@@ -152,13 +148,6 @@ export default function AgentStreamsPage() {
 	}, [isInitialized, loadStreams]);
 
 	useEffect(() => {
-		setSelectedIds((prev) => {
-			const validIds = new Set(operationalStreams.map((stream) => stream.id));
-			return new Set([...prev].filter((id) => validIds.has(id)));
-		});
-	}, [operationalStreams]);
-
-	useEffect(() => {
 		if (
 			selectedFollowUpId &&
 			!filteredFollowUps.some((row) => row.id === selectedFollowUpId)
@@ -168,46 +157,57 @@ export default function AgentStreamsPage() {
 	}, [filteredFollowUps, selectedFollowUpId]);
 
 	// ── Handlers ──
-	function handleConfirmDraft(id: string, editorState: DraftEditorState) {
+	async function handleConfirmDraft(id: string, editorState: DraftEditorState) {
 		const draft = draftRowsById[id];
 		if (!draft) {
 			return;
 		}
 
-		setConfirmTarget({ draftItemRow: draft, editorState });
+		// Inline confirmation — bypass modal and confirm directly via API
+		setConfirmingDraftIds((prev) => new Set(prev).add(id));
 		setHighlightedDraftId(null);
+
+		try {
+			const payload: Parameters<typeof bulkImportAPI.decideDiscoveryDraft>[1] =
+				{
+					action: "confirm",
+					normalizedData: {
+						name: editorState.wasteType.trim(),
+						volume: editorState.volume || undefined,
+						frequency: editorState.frequency || undefined,
+						units: editorState.units || undefined,
+					},
+					reviewNotes: `confirmed_via_streams_page; source=Waste Streams Drafts`,
+				};
+
+			if (editorState.locationId) {
+				payload.locationResolution = {
+					mode: "existing",
+					locationId: editorState.locationId,
+				};
+			}
+
+			await bulkImportAPI.decideDiscoveryDraft(draft.itemId, payload);
+			toast.success("Draft confirmed and converted to waste stream");
+			// Auto-refresh the streams list
+			void loadStreams();
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to confirm draft",
+			);
+		} finally {
+			setConfirmingDraftIds((prev) => {
+				const next = new Set(prev);
+				next.delete(id);
+				return next;
+			});
+		}
 	}
 
 	function handleOpenDraft(id: string) {
 		const next = resolveOpenDraftState(id);
 		setActiveTab(next.activeTab);
 		setHighlightedDraftId(next.highlightedDraftId);
-	}
-
-	function handleToggleSelection(id: string, isSelected: boolean) {
-		setSelectedIds((prev) => {
-			const next = new Set(prev);
-			if (isSelected) {
-				next.add(id);
-			} else {
-				next.delete(id);
-			}
-			return next;
-		});
-	}
-
-	function handleToggleAllVisible(isSelected: boolean) {
-		setSelectedIds((prev) => {
-			const next = new Set(prev);
-			for (const row of filteredStreams) {
-				if (isSelected) {
-					next.add(row.id);
-				} else {
-					next.delete(row.id);
-				}
-			}
-			return next;
-		});
 	}
 
 	function formatKpi(value: number | null): string | null {
@@ -300,10 +300,10 @@ export default function AgentStreamsPage() {
 
 				{/* ── Tab: All Active ── */}
 				<TabsContent value="all" className="mt-6">
-					<div className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm">
+					<div className="overflow-hidden rounded-xl border border-border/40 bg-surface-container-lowest/50 backdrop-blur-sm">
 						{/* Search / Filters */}
 						{activeTab === "all" && (
-							<div className="grid gap-3 p-4 lg:grid-cols-[1.4fr_repeat(2,minmax(0,1fr))]">
+							<div className="grid gap-3 border-b border-border/40 bg-surface-container/30 p-4 lg:grid-cols-[1.4fr_repeat(2,minmax(0,1fr))]">
 								<div className="relative">
 									<Search
 										aria-hidden
@@ -313,12 +313,12 @@ export default function AgentStreamsPage() {
 										value={search}
 										onChange={(event) => setSearch(event.target.value)}
 										placeholder="Search stream, client, waste type"
-										className="pl-9"
+										className="border-border/40 bg-surface-container-lowest pl-9 transition-colors focus:bg-surface"
 									/>
 								</div>
 
 								<Select value={clientFilter} onValueChange={setClientFilter}>
-									<SelectTrigger>
+									<SelectTrigger className="border-border/40 bg-surface-container-lowest">
 										<SelectValue placeholder="Client" />
 									</SelectTrigger>
 									<SelectContent>
@@ -338,7 +338,7 @@ export default function AgentStreamsPage() {
 								</Select>
 
 								<Select value={statusFilter} onValueChange={setStatusFilter}>
-									<SelectTrigger>
+									<SelectTrigger className="border-border/40 bg-surface-container-lowest">
 										<SelectValue placeholder="Status" />
 									</SelectTrigger>
 									<SelectContent>
@@ -360,9 +360,6 @@ export default function AgentStreamsPage() {
 						{filteredStreams.length > 0 ? (
 							<StreamsAllTable
 								rows={filteredStreams}
-								selectedIds={selectedIds}
-								onToggleSelection={handleToggleSelection}
-								onToggleAllVisible={handleToggleAllVisible}
 								onOpenDraft={handleOpenDraft}
 							/>
 						) : (
@@ -387,24 +384,31 @@ export default function AgentStreamsPage() {
 						)}
 
 						{/* Pagination Footer */}
-						<div className="flex items-center justify-between px-4 py-3">
-							<p className="text-xs text-muted-foreground">
-								Showing {filteredStreams.length} of {operationalStreams.length}{" "}
+						<div className="flex items-center justify-between border-t border-border/40 bg-surface-container/30 px-4 py-3">
+							<p className="text-xs text-secondary">
+								Showing{" "}
+								<span className="font-medium text-foreground">
+									{filteredStreams.length}
+								</span>{" "}
+								of{" "}
+								<span className="font-medium text-foreground">
+									{operationalStreams.length}
+								</span>{" "}
 								active streams
 							</p>
 							<div className="flex items-center gap-1">
 								<button
 									type="button"
-									className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-surface-container hover:text-foreground"
+									className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-surface-container hover:text-foreground disabled:opacity-50"
 								>
 									<ChevronLeft aria-hidden className="size-4" />
 								</button>
-								<span className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground">
+								<span className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-medium text-primary-foreground">
 									1
 								</span>
 								<button
 									type="button"
-									className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-surface-container hover:text-foreground"
+									className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-surface-container hover:text-foreground disabled:opacity-50"
 								>
 									<ChevronRight aria-hidden className="size-4" />
 								</button>
@@ -461,6 +465,7 @@ export default function AgentStreamsPage() {
 							rows={filteredDrafts}
 							onConfirm={handleConfirmDraft}
 							highlightedId={highlightedDraftId}
+							confirmingIds={confirmingDraftIds}
 						/>
 
 						{/* Pagination Footer */}
@@ -499,15 +504,6 @@ export default function AgentStreamsPage() {
 					/>
 				</TabsContent>
 			</Tabs>
-
-			<StreamsDraftConfirmation
-				draftItemRow={confirmTarget?.draftItemRow ?? null}
-				editorState={confirmTarget?.editorState ?? null}
-				onClose={() => {
-					setConfirmTarget(null);
-					void loadStreams();
-				}}
-			/>
 		</div>
 	);
 }

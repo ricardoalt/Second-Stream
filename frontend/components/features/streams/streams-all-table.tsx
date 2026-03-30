@@ -1,10 +1,16 @@
 "use client";
 
-import { AlertTriangle, ArrowUpRight, ChevronRight } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+	AlertTriangle,
+	CheckCircle2,
+	ChevronRight,
+	Clock,
+	FileWarning,
+	MoreHorizontal,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Table,
 	TableBody,
@@ -14,179 +20,259 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { getAllStreamsPrimaryActionLabel } from "./runtime-helpers";
-import { StreamStatusBadge } from "./stream-status-badge";
-import { isDraftStream, type StreamRow } from "./types";
+import { isDraftStream, type StreamRow, type StreamStatus } from "./types";
 
 type StreamsAllTableProps = {
 	rows: StreamRow[];
-	selectedIds: Set<string>;
-	onToggleSelection: (id: string, isSelected: boolean) => void;
-	onToggleAllVisible: (isSelected: boolean) => void;
 	onOpenDraft: (id: string) => void;
 };
 
-function getAlertForRow(row: StreamRow) {
-	if (row.status === "missing_info") {
-		return { label: "CRITICAL: SDS required", variant: "destructive" as const };
-	}
-	if (row.status === "blocked") {
-		return { label: "Blocked: Pending review", variant: "warning" as const };
-	}
-	return null;
+const statusConfig: Record<
+	StreamStatus,
+	{ bg: string; text: string; border: string; label: string }
+> = {
+	active: {
+		bg: "bg-emerald-50/80",
+		text: "text-emerald-700",
+		border: "border-emerald-200",
+		label: "Active",
+	},
+	draft: {
+		bg: "bg-slate-100",
+		text: "text-slate-700",
+		border: "border-slate-200",
+		label: "Draft",
+	},
+	in_review: {
+		bg: "bg-blue-50/80",
+		text: "text-blue-700",
+		border: "border-blue-200",
+		label: "In review",
+	},
+	missing_info: {
+		bg: "bg-rose-50/80",
+		text: "text-rose-700",
+		border: "border-rose-200",
+		label: "Missing info",
+	},
+	blocked: {
+		bg: "bg-red-50/80",
+		text: "text-red-700",
+		border: "border-red-200",
+		label: "Blocked",
+	},
+	ready_for_offer: {
+		bg: "bg-indigo-50/80",
+		text: "text-indigo-700",
+		border: "border-indigo-200",
+		label: "Ready",
+	},
+	completed: {
+		bg: "bg-slate-50",
+		text: "text-slate-600",
+		border: "border-slate-200",
+		label: "Completed",
+	},
+};
+
+function StatusPill({ status }: { status: StreamStatus }) {
+	const config = statusConfig[status];
+
+	return (
+		<span
+			className={cn(
+				"inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium",
+				config.bg,
+				config.text,
+				config.border,
+			)}
+		>
+			{config.label}
+		</span>
+	);
 }
 
-export function StreamsAllTable({
-	rows,
-	selectedIds,
-	onToggleSelection,
-	onToggleAllVisible,
-	onOpenDraft,
-}: StreamsAllTableProps) {
+function AlertBadge({ 
+	status, 
+	alertText 
+}: { 
+	status: StreamStatus; 
+	alertText: string | undefined 
+}) {
+	if (status === "draft") {
+		return (
+			<span className="inline-flex items-center gap-1.5 rounded-lg bg-teal-100 px-3 py-1.5 text-xs font-medium text-teal-700">
+				<CheckCircle2 className="size-3.5" />
+				Go Confirm
+			</span>
+		);
+	}
+
+	if (status === "missing_info") {
+		return (
+			<span className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700">
+				<AlertTriangle className="size-3.5" />
+				{alertText || "CRITICAL: Info required"}
+			</span>
+		);
+	}
+
+	if (status === "blocked") {
+		return (
+			<span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
+				<Clock className="size-3.5" />
+				Pending review
+			</span>
+		);
+	}
+
+	if (status === "ready_for_offer") {
+		return (
+			<span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700">
+				<FileWarning className="size-3.5" />
+				Ready to offer
+			</span>
+		);
+	}
+
+	return (
+		<span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+			<CheckCircle2 className="size-3.5" />
+			No issues
+		</span>
+	);
+}
+
+export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 	const router = useRouter();
-	const areAllVisibleSelected =
-		rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
 
 	return (
 		<Table>
 			<TableHeader>
-				<TableRow className="border-b-0 bg-surface-container">
-					<TableHead className="w-12 px-4 py-3">
-						<Checkbox
-							checked={areAllVisibleSelected}
-							onCheckedChange={(checked) =>
-								onToggleAllVisible(checked === true)
-							}
-							aria-label="Select all visible streams"
-						/>
-					</TableHead>
-					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+				<TableRow className="border-b border-border/40 hover:bg-transparent">
+					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
 						Material &amp; Client
 					</TableHead>
-					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
 						Status
 					</TableHead>
-					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
 						Volume
 					</TableHead>
-					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
 						Alerts
 					</TableHead>
-					<TableHead className="px-4 py-3 text-right text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-						Actions
-					</TableHead>
+					<TableHead className="w-16 px-6 py-4 text-right" />
 				</TableRow>
 			</TableHeader>
 			<TableBody>
 				{rows.map((row, index) => {
-					const alert = getAlertForRow(row);
 					const isDraft = isDraftStream(row);
-					const isSelected = selectedIds.has(row.id);
+					const alertText =
+						row.status === "missing_info"
+							? row.missingFields?.[0]
+								? `CRITICAL: ${row.missingFields[0]} required`
+								: "CRITICAL: SDS required"
+							: undefined;
 
-					function openRowWorkspace() {
+					function handleRowClick() {
 						if (isDraft) {
-							return;
+							onOpenDraft(row.id);
+						} else {
+							router.push(`/streams/${row.id}`);
 						}
-						router.push(`/streams/${row.id}`);
 					}
 
 					return (
-						<TableRow
+						<motion.tr
 							key={row.id}
-							onClick={openRowWorkspace}
-							className={
-								index % 2 === 0
-									? "border-b-0 bg-surface-container-lowest transition-all hover:bg-surface-container-high/50"
-									: "border-b-0 bg-surface transition-all hover:bg-surface-container-high/50"
-							}
+							initial={{ opacity: 0, y: 4 }}
+							animate={{ opacity: 1, y: 0 }}
+							transition={{
+								duration: 0.2,
+								delay: index * 0.03,
+								ease: [0.25, 0.1, 0.25, 1],
+							}}
+							whileTap={{ scale: 0.998 }}
+							onClick={handleRowClick}
+							className={cn(
+								"group cursor-pointer border-b border-border/20",
+								"transition-all duration-200 ease-out",
+								"hover:bg-surface-container-high/30",
+								"last:border-b-0",
+							)}
+							tabIndex={0}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									handleRowClick();
+								}
+							}}
 						>
-							<TableCell className="w-12 px-4 py-3.5">
-								<Checkbox
-									checked={isSelected}
-									onCheckedChange={(checked) => {
-										onToggleSelection(row.id, checked === true);
-									}}
-									onClick={(event) => event.stopPropagation()}
-									aria-label={`Select ${row.name}`}
-								/>
-							</TableCell>
-							<TableCell className="px-4 py-3.5">
-								<div className="flex items-center gap-3">
-									<span
-										className={cn(
-											"size-2 shrink-0 rounded-full",
-											row.status === "active" && "bg-success",
-											row.status === "draft" && "bg-primary",
-											row.status === "missing_info" && "bg-destructive",
-											row.status === "blocked" && "bg-warning",
-											row.status === "ready_for_offer" && "bg-info",
-										)}
-									/>
-									<div className="flex flex-col gap-0.5">
-										<span className="font-medium text-foreground">
-											{row.name}
-										</span>
-										<span className="text-xs text-muted-foreground">
-											{row.client}
-										</span>
-									</div>
+							{/* Material & Client */}
+							<TableCell className="px-6 py-5">
+								<div className="flex flex-col gap-1">
+									<span className="text-sm font-semibold text-foreground transition-colors duration-200 group-hover:text-primary">
+										{row.name}
+									</span>
+									<span className="text-xs text-muted-foreground">
+										{row.client}
+									</span>
 								</div>
 							</TableCell>
-							<TableCell className="px-4 py-3.5">
-								<StreamStatusBadge status={row.status} />
+
+							{/* Status */}
+							<TableCell className="px-6 py-5">
+								<StatusPill status={row.status} />
 							</TableCell>
-							<TableCell className="px-4 py-3.5 tabular-nums text-muted-foreground">
-								{row.volume}
+
+							{/* Volume */}
+							<TableCell className="px-6 py-5">
+								<span className="text-sm tabular-nums font-medium text-foreground">
+									{row.volume}
+								</span>
 							</TableCell>
-							<TableCell className="px-4 py-3.5">
-								{alert ? (
-									<Badge
-										variant="secondary"
-										className="rounded-full border-0 bg-error-container text-on-error-container"
-									>
-										<AlertTriangle aria-hidden className="mr-1 size-3" />
-										{alert.label}
-									</Badge>
-								) : (
-									<span className="text-xs text-muted-foreground">—</span>
-								)}
+
+							{/* Alerts */}
+							<TableCell className="px-6 py-5">
+								<AlertBadge status={row.status} alertText={alertText} />
 							</TableCell>
-							<TableCell className="px-4 py-3.5 text-right">
-								{isDraft ? (
-									<Button
-										variant="default"
-										size="sm"
-										onClick={(event) => {
-											event.stopPropagation();
-											onOpenDraft(row.id);
-										}}
-									>
-										{getAllStreamsPrimaryActionLabel(row)}
-										<ChevronRight
-											data-icon="inline-end"
-											aria-hidden
-											className="size-3"
-										/>
-									</Button>
-								) : (
-									<Button
-										variant="secondary"
-										size="sm"
-										onClick={(event) => {
-											event.stopPropagation();
-											openRowWorkspace();
-										}}
-									>
-										{getAllStreamsPrimaryActionLabel(row)}
-										<ArrowUpRight
-											data-icon="inline-end"
-											aria-hidden
-											className="size-3"
-										/>
-									</Button>
-								)}
+
+							{/* Actions */}
+							<TableCell className="px-6 py-5 text-right">
+								<div className="flex items-center justify-end gap-1">
+									{isDraft ? (
+										<Button
+											variant="ghost"
+											size="sm"
+											className="h-8 gap-1 px-3 text-xs font-medium text-teal-700 hover:bg-teal-50 hover:text-teal-800"
+											onClick={(e) => {
+												e.stopPropagation();
+												onOpenDraft(row.id);
+											}}
+										>
+											Go Confirm
+											<ChevronRight className="size-4" />
+										</Button>
+									) : (
+										<>
+											<Button
+												variant="ghost"
+												size="icon"
+												className="size-8 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+												onClick={(e) => {
+													e.stopPropagation();
+													// TODO: Open menu
+												}}
+											>
+												<MoreHorizontal className="size-4" />
+											</Button>
+											<ChevronRight className="size-4 text-muted-foreground/30 transition-all duration-200 group-hover:text-muted-foreground/60 group-hover:translate-x-0.5" />
+										</>
+									)}
+								</div>
 							</TableCell>
-						</TableRow>
+						</motion.tr>
 					);
 				})}
 			</TableBody>

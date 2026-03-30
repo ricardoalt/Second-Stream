@@ -45,11 +45,15 @@ export function validateCandidateForConfirmation(
 export function toDiscoveryNormalizedData(
 	candidate: DraftCandidate,
 ): Record<string, unknown> {
+	const material = candidate.material.trim();
+	const volume = (candidate.volume ?? "").trim();
+	const frequency = (candidate.frequency ?? "").trim();
+
 	return {
-		material_name: candidate.material.trim(),
-		estimated_volume: (candidate.volume ?? "").trim(),
-		frequency: (candidate.frequency ?? "").trim(),
-		location_name: candidate.locationLabel?.trim() || null,
+		name: material,
+		estimated_volume: volume,
+		volume,
+		frequency,
 	};
 }
 

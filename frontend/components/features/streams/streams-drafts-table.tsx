@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Trash2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { ChevronRight, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import type { StreamRow } from "./types";
 
 const FREQUENCY_OPTIONS = [
@@ -36,6 +38,7 @@ type StreamsDraftsTableProps = {
 	onConfirm?: (id: string, draft: DraftEditorState) => void;
 	onDelete?: (id: string) => void;
 	highlightedId?: string | null;
+	confirmingIds?: Set<string>;
 };
 
 export type DraftEditorState = {
@@ -57,15 +60,7 @@ export function validateDraft(
 	if (draftRow.wasteType.trim().length === 0) {
 		errors.wasteType = "Material name is required.";
 	}
-	if (draftRow.volume.trim().length === 0) {
-		errors.volume = "Volume is required.";
-	}
-	if (draftRow.frequency.trim().length === 0) {
-		errors.frequency = "Frequency is required.";
-	}
-	if (draftRow.units.trim().length === 0) {
-		errors.units = "Units are required.";
-	}
+	// Note: volume, frequency, and units are now optional — user can fill them later in workspace
 
 	return errors;
 }
@@ -90,11 +85,34 @@ export function applyDraftFieldUpdate<
 	return nextDraft;
 }
 
+// Componente para campos de draft con estilo "pill" azul
+function DraftField({
+	children,
+	className,
+}: {
+	children: React.ReactNode;
+	className?: string;
+}) {
+	return (
+		<div
+			className={cn(
+				"relative rounded-lg border border-sky-100 bg-sky-50/80 px-3 py-2 transition-all",
+				"hover:border-sky-200 hover:bg-sky-50",
+				"focus-within:border-sky-300 focus-within:bg-sky-50 focus-within:ring-2 focus-within:ring-sky-100",
+				className,
+			)}
+		>
+			{children}
+		</div>
+	);
+}
+
 export function StreamsDraftsTable({
 	rows,
 	onConfirm,
 	onDelete,
 	highlightedId,
+	confirmingIds = new Set(),
 }: StreamsDraftsTableProps) {
 	const [draft, setDraft] = useState<Record<string, DraftEditorState>>({});
 	const [errorsByRow, setErrorsByRow] = useState<
@@ -168,168 +186,233 @@ export function StreamsDraftsTable({
 	return (
 		<Table>
 			<TableHeader>
-				<TableRow className="border-b-0 bg-surface-container">
-					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+				<TableRow className="border-b border-border/40 hover:bg-transparent">
+					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
 						Company
 					</TableHead>
-					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
 						Material Name
 					</TableHead>
-					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
 						Volume
 					</TableHead>
-					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-						Units
-					</TableHead>
-					<TableHead className="px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
+					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
 						Frequency
 					</TableHead>
-					<TableHead className="px-4 py-3 text-right text-[0.6875rem] font-semibold uppercase tracking-[0.05em] text-secondary">
-						Actions
+					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+						Units
 					</TableHead>
+					<TableHead className="w-32 px-6 py-4 text-right" />
 				</TableRow>
 			</TableHeader>
 			<TableBody>
 				{rows.map((row, index) => {
 					const rowDraft = getDraftState(row);
 					const rowErrors = errorsByRow[row.id] ?? {};
+					const isHighlighted = highlightedId === row.id;
 
 					return (
-						<TableRow
+						<motion.tr
 							key={row.id}
-							className={[
-								index % 2 === 0
-									? "border-b-0 bg-surface-container-lowest transition-all hover:bg-surface-container-high/50"
-									: "border-b-0 bg-surface transition-all hover:bg-surface-container-high/50",
-								highlightedId === row.id ? "ring-2 ring-primary" : "",
-							].join(" ")}
+							initial={{ opacity: 0, y: 4 }}
+							animate={{ opacity: 1, y: 0 }}
+							transition={{
+								duration: 0.2,
+								delay: index * 0.03,
+								ease: [0.25, 0.1, 0.25, 1],
+							}}
+							className={cn(
+								"group border-b border-border/20 transition-all duration-200",
+								"hover:bg-surface-container-high/30",
+								"last:border-b-0",
+								isHighlighted && "bg-primary/5 ring-2 ring-primary/20",
+							)}
 						>
-							<TableCell className="px-4 py-3">
-								<p className="text-sm font-medium text-foreground">
-									{row.client || "—"}
-								</p>
-								{row.location ? (
-									<p className="mt-0.5 text-xs text-muted-foreground">
-										{row.location}
-									</p>
-								) : null}
+							{/* Company */}
+							<TableCell className="px-6 py-5">
+								<div className="flex flex-col gap-0.5">
+									<span className="text-sm font-semibold text-foreground">
+										{row.client || "—"}
+									</span>
+									{row.location ? (
+										<span className="text-xs text-muted-foreground">
+											{row.location}
+										</span>
+									) : null}
+								</div>
 							</TableCell>
-							<TableCell className="px-4 py-3">
-								<Input
-									value={rowDraft.wasteType}
-									onChange={(event) =>
-										updateDraft(
-											row.id,
-											rowDraft,
-											"wasteType",
-											event.target.value,
-										)
-									}
-									className="bg-surface-container-high/60"
-									aria-invalid={Boolean(rowErrors.wasteType)}
-								/>
+
+							{/* Material Name */}
+							<TableCell className="px-6 py-5">
+								<DraftField
+									className={cn(
+										rowErrors.wasteType && "border-red-200 bg-red-50/50",
+									)}
+								>
+									<Input
+										value={rowDraft.wasteType}
+										onChange={(event) =>
+											updateDraft(
+												row.id,
+												rowDraft,
+												"wasteType",
+												event.target.value,
+											)
+										}
+										className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-slate-700 shadow-none focus-visible:ring-0"
+										placeholder="Material name"
+									/>
+								</DraftField>
 								{rowErrors.wasteType ? (
-									<p className="mt-1 text-xs text-destructive">
+									<p className="mt-1.5 text-xs text-red-600">
 										{rowErrors.wasteType}
 									</p>
 								) : null}
 							</TableCell>
-							<TableCell className="px-4 py-3">
-								<Input
-									value={rowDraft.volume}
-									onChange={(event) =>
-										updateDraft(row.id, rowDraft, "volume", event.target.value)
-									}
-									className="w-20 bg-surface-container-high/60 text-center tabular-nums"
-									aria-invalid={Boolean(rowErrors.volume)}
-								/>
+
+							{/* Volume */}
+							<TableCell className="px-6 py-5">
+								<DraftField
+									className={cn(
+										"w-28",
+										rowErrors.volume && "border-red-200 bg-red-50/50",
+									)}
+								>
+									<div className="flex items-center gap-1">
+										<Input
+											value={rowDraft.volume}
+											onChange={(event) =>
+												updateDraft(
+													row.id,
+													rowDraft,
+													"volume",
+													event.target.value,
+												)
+											}
+											className="h-7 w-full border-0 bg-transparent px-0 text-sm font-medium tabular-nums text-slate-700 shadow-none focus-visible:ring-0"
+											placeholder="0.0"
+										/>
+									</div>
+								</DraftField>
 								{rowErrors.volume ? (
-									<p className="mt-1 text-xs text-destructive">
+									<p className="mt-1.5 text-xs text-red-600">
 										{rowErrors.volume}
 									</p>
 								) : null}
 							</TableCell>
-							<TableCell className="px-4 py-3">
-								<Select
-									value={rowDraft.units}
-									onValueChange={(value) =>
-										updateDraft(row.id, rowDraft, "units", value)
-									}
+
+							{/* Frequency */}
+							<TableCell className="px-6 py-5">
+								<DraftField
+									className={cn(
+										"w-32",
+										rowErrors.frequency && "border-red-200 bg-red-50/50",
+									)}
 								>
-									<SelectTrigger className="bg-surface-container-high/60">
-										<SelectValue placeholder="Select units" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectGroup>
-											<SelectItem value="gal/mo">gal/mo</SelectItem>
-											<SelectItem value="tons/mo">tons/mo</SelectItem>
-											<SelectItem value="tons/once">tons/once</SelectItem>
-											<SelectItem value="pallets/mo">pallets/mo</SelectItem>
-										</SelectGroup>
-									</SelectContent>
-								</Select>
-								{rowErrors.units ? (
-									<p className="mt-1 text-xs text-destructive">
-										{rowErrors.units}
-									</p>
-								) : null}
-							</TableCell>
-							<TableCell className="px-4 py-3">
-								<Select
-									value={rowDraft.frequency}
-									onValueChange={(value) =>
-										updateDraft(row.id, rowDraft, "frequency", value)
-									}
-								>
-									<SelectTrigger
-										className="bg-surface-container-high/60"
-										aria-invalid={Boolean(rowErrors.frequency)}
+									<Select
+										value={rowDraft.frequency}
+										onValueChange={(value) =>
+											updateDraft(row.id, rowDraft, "frequency", value)
+										}
 									>
-										<SelectValue placeholder="Select frequency" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectGroup>
-											{FREQUENCY_OPTIONS.map((option) => (
-												<SelectItem key={option} value={option}>
-													{option}
-												</SelectItem>
-											))}
-										</SelectGroup>
-									</SelectContent>
-								</Select>
+										<SelectTrigger className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-slate-700 shadow-none focus:ring-0 [&>svg]:size-4 [&>svg]:text-sky-400">
+											<SelectValue placeholder="Select" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectGroup>
+												{FREQUENCY_OPTIONS.map((option) => (
+													<SelectItem key={option} value={option}>
+														{option}
+													</SelectItem>
+												))}
+											</SelectGroup>
+										</SelectContent>
+									</Select>
+								</DraftField>
 								{rowErrors.frequency ? (
-									<p className="mt-1 text-xs text-destructive">
+									<p className="mt-1.5 text-xs text-red-600">
 										{rowErrors.frequency}
 									</p>
 								) : null}
 							</TableCell>
-							<TableCell className="px-4 py-3">
-								<div className="flex items-center justify-end gap-1.5">
-									<button
-										type="button"
-										onClick={() => handleConfirm(row)}
-										className="rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary-container"
+
+							{/* Units */}
+							<TableCell className="px-6 py-5">
+								<DraftField
+									className={cn(
+										"w-28",
+										rowErrors.units && "border-red-200 bg-red-50/50",
+									)}
+								>
+									<Select
+										value={rowDraft.units}
+										onValueChange={(value) =>
+											updateDraft(row.id, rowDraft, "units", value)
+										}
 									>
-										<Check
-											data-icon="inline-start"
-											aria-hidden
-											className="size-3"
-										/>
-										Confirm
-									</button>
+										<SelectTrigger className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-slate-700 shadow-none focus:ring-0 [&>svg]:size-4 [&>svg]:text-sky-400">
+											<SelectValue placeholder="Units" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectGroup>
+												<SelectItem value="Tons">Tons</SelectItem>
+												<SelectItem value="Kg">Kg</SelectItem>
+												<SelectItem value="Gallons">Gallons</SelectItem>
+												<SelectItem value="Liters">Liters</SelectItem>
+												<SelectItem value="Pallets">Pallets</SelectItem>
+											</SelectGroup>
+										</SelectContent>
+									</Select>
+								</DraftField>
+								{rowErrors.units ? (
+									<p className="mt-1.5 text-xs text-red-600">
+										{rowErrors.units}
+									</p>
+								) : null}
+							</TableCell>
+
+							{/* Actions */}
+							<TableCell className="px-6 py-5">
+								<div className="flex items-center justify-end gap-2">
+									<Button
+										onClick={() => handleConfirm(row)}
+										disabled={confirmingIds.has(row.id)}
+										className="h-8 gap-1.5 rounded-full bg-teal-600 px-4 text-xs font-semibold text-white shadow-sm transition-all hover:bg-teal-700 hover:shadow-md active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+									>
+										{confirmingIds.has(row.id) ? (
+											<>
+												<Loader2 className="size-3.5 animate-spin" />
+												Confirming...
+											</>
+										) : (
+											<>
+												Confirm
+												<ChevronRight className="size-3.5" />
+											</>
+										)}
+									</Button>
 									{onDelete ? (
 										<Button
 											variant="ghost"
-											size="icon-sm"
+											size="icon"
+											className="size-8 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
 											aria-label="Discard draft"
 											onClick={() => onDelete(row.id)}
 										>
-											<Trash2 aria-hidden className="size-4" />
+											<Trash2 className="size-4" />
 										</Button>
-									) : null}
+									) : (
+										<Button
+											variant="ghost"
+											size="icon"
+											className="size-8 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+										>
+											<MoreHorizontal className="size-4" />
+										</Button>
+									)}
 								</div>
 							</TableCell>
-						</TableRow>
+						</motion.tr>
 					);
 				})}
 			</TableBody>

@@ -54,6 +54,7 @@ import {
 } from "@/lib/discovery-confirmation-utils";
 import { routes } from "@/lib/routes";
 import { useLocationStore } from "@/lib/stores/location-store";
+import { useStreamsStore } from "@/lib/stores/streams-store";
 import type { DraftItemRow } from "@/lib/types/dashboard";
 import type {
 	DiscoverySessionResult,
@@ -1064,11 +1065,13 @@ export function DiscoveryWizard({
 
 	const handleGoToStreams = useCallback(() => {
 		onOpenChange(false);
+		useStreamsStore.getState().resetStore();
 		router.push(routes.streams.all);
 	}, [onOpenChange, router]);
 
 	const handleGoToDrafts = useCallback(() => {
 		onOpenChange(false);
+		useStreamsStore.getState().resetStore();
 		router.push(routes.streams.all);
 	}, [onOpenChange, router]);
 
