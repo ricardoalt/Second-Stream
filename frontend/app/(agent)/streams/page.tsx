@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
 import {
+	mapEditorStateToDraftCandidate,
 	resolveOpenDraftState,
 	type StreamsTab,
 } from "@/components/features/streams/runtime-helpers";
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { bulkImportAPI } from "@/lib/api/bulk-import";
+import { toDiscoveryNormalizedData } from "@/lib/discovery-confirmation-utils";
 import {
 	useStreamsActions,
 	useStreamsAll,
@@ -168,15 +170,15 @@ export default function AgentStreamsPage() {
 		setHighlightedDraftId(null);
 
 		try {
+			const candidate = mapEditorStateToDraftCandidate(
+				draft.itemId,
+				draft.runId,
+				editorState,
+			);
 			const payload: Parameters<typeof bulkImportAPI.decideDiscoveryDraft>[1] =
 				{
 					action: "confirm",
-					normalizedData: {
-						name: editorState.wasteType.trim(),
-						volume: editorState.volume || undefined,
-						frequency: editorState.frequency || undefined,
-						units: editorState.units || undefined,
-					},
+					normalizedData: toDiscoveryNormalizedData(candidate),
 					reviewNotes: `confirmed_via_streams_page; source=Waste Streams Drafts`,
 				};
 
