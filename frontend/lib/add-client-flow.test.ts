@@ -165,4 +165,51 @@ describe("add-client flow", () => {
 			"/clients/abc?create=success",
 		);
 	});
+
+	it("sends only mapped fields to backend payloads", async () => {
+		const createCompany = mock(async () => ({
+			id: "company-1",
+			name: "Northstar",
+		}));
+		const createCompanyContact = mock(async () => ({ id: "contact-1" }));
+		const createLocation = mock(async () => ({ id: "location-1" }));
+
+		await runAddClientFlow(
+			{
+				...baseData,
+				companyNotes: "  Important account  ",
+				contactName: "",
+				contactTitle: "",
+				locationAddress: "",
+			},
+			{
+				createCompany: createCompany as never,
+				createCompanyContact: createCompanyContact as never,
+				createLocation: createLocation as never,
+			},
+		);
+
+		expect(createCompany.mock.calls[0]?.[0]).toEqual({
+			name: "Northstar",
+			industry: "Metal Fabrication",
+			sector: "manufacturing_industrial",
+			subsector: "metal_fabrication",
+			customerType: "generator",
+			accountStatus: "prospect",
+			notes: "Important account",
+		});
+		expect(createCompanyContact.mock.calls[0]?.[1]).toEqual({
+			email: "avery@example.com",
+			phone: "+1 555 000 1234",
+			isPrimary: true,
+		});
+		expect(createLocation.mock.calls[0]?.[1]).toEqual({
+			companyId: "company-1",
+			name: "Primary Facility",
+			city: "Austin",
+			state: "TX",
+			zipCode: "78701",
+			addressType: "headquarters",
+		});
+	});
 });

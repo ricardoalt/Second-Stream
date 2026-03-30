@@ -14,6 +14,8 @@
 - Fixed location create ZIP validation path so missing ZIP is rejected at schema level and invalid ZIP errors serialize without runtime crashes.
 - Enforced Add Client taxonomy at schema + payload boundaries so `sector` must be a known taxonomy sector and `subsector` must belong to that selected sector.
 - Added focused taxonomy tests for strict `sector/subsector` validation and payload derivation behavior.
+- Added narrow handoff integration proof from submit orchestration to handoff URL to profile banner rendering for `success` and `partial-contact` outcomes.
+- Replaced manual payload cleanliness checklist with automated proof asserting only mapped backend fields are sent across Company/Contact/Location payloads.
 
 ## Verification run in this environment
 - ✅ `bun test ./lib/add-client-flow.test.ts` (frontend)
@@ -35,5 +37,10 @@
 - ✅ `bunx biome check "lib/add-client-flow.ts" "lib/add-client-flow.test.ts" "lib/forms/schemas.ts" "lib/forms/schemas.add-client.test.ts" "lib/sectors-config.ts"` (frontend targeted files)
 - ✅ `bun test "lib/add-client-flow.test.ts" "lib/forms/schemas.add-client.test.ts"` (frontend taxonomy-focused tests)
 
+## Follow-up verification (final narrow pass)
+- ✅ `bunx biome check "components/features/clients/add-client-dialog.tsx" "components/features/clients/client-create-banner.tsx" "app/(agent)/clients/[id]/page.tsx" "lib/add-client-submit.ts" "lib/add-client-submit.integration.test.tsx" "lib/add-client-flow.test.ts" "docs/sdd/clients-add-client-foundation/tasks.md" "docs/sdd/clients-add-client-foundation/apply-progress.md"` (format/lint for touched files)
+- ✅ `bun test "lib/add-client-submit.integration.test.tsx" "lib/add-client-flow.test.ts"` (targeted handoff + payload cleanliness verification)
+- ✅ `bunx tsc --noEmit --pretty false` (frontend typecheck)
+
 ## Remaining verification
-- Perform manual browser network verification for unmapped-field payload checks.
+- None for `clients-add-client-foundation` in this narrow pass.

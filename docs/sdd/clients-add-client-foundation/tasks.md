@@ -29,4 +29,4 @@
 - [x] Verify that `account_status` successfully saves as `active` or `prospect` on creation.
 - [x] Verify that the `addressType` payload for the created location strictly passes `headquarters` regardless of `customerType` selection (`buyer`, `generator`, or `both`).
 - [x] Verify that partial failure correctly interrupts the submission loop and routes to the profile with the right parameter.
-- [ ] Check console and network tab to confirm that no un-mapped fields are sent to the backend.
+- [x] Add automated payload cleanliness proof that no un-mapped fields are sent to the backend payloads.

@@ -9,13 +9,12 @@ import {
 	PenSquare,
 	Phone,
 	Shapes,
-	TriangleAlert,
 } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { ClientCreateBanner } from "@/components/features/clients/client-create-banner";
 import { ClientSummaryStatCard } from "@/components/features/clients/components/client-summary-stat-card";
 import { EditClientModal } from "@/components/features/modals/edit-client-modal";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -110,36 +109,7 @@ export default function ClientDetailPage() {
 
 	return (
 		<div className="flex flex-col gap-8">
-			{createState === "success" && (
-				<Alert>
-					<AlertTitle>Client created</AlertTitle>
-					<AlertDescription>
-						Client created. Primary contact and first location are ready.
-					</AlertDescription>
-				</Alert>
-			)}
-			{createState === "partial-contact" && (
-				<Alert variant="warning">
-					<TriangleAlert className="h-4 w-4" />
-					<AlertTitle>Client created with follow-up needed</AlertTitle>
-					<AlertDescription>
-						Client created, but we couldn&apos;t save the primary contact. The
-						first location was not created. Add the primary contact on this
-						client before continuing.
-					</AlertDescription>
-				</Alert>
-			)}
-			{createState === "partial-location" && (
-				<Alert variant="warning">
-					<TriangleAlert className="h-4 w-4" />
-					<AlertTitle>Client created with follow-up needed</AlertTitle>
-					<AlertDescription>
-						Client and primary contact created, but we couldn&apos;t save the
-						first location. Add the first location on this client before
-						continuing.
-					</AlertDescription>
-				</Alert>
-			)}
+			<ClientCreateBanner createState={createState} />
 
 			<EditClientModal
 				profile={profile}

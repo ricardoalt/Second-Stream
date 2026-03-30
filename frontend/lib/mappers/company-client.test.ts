@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import type { CompanyContact, CompanyDetail, CompanySummary } from "@/lib/types/company";
 import {
 	extractPrimaryContact,
 	formatOffersCountSignal,
@@ -7,6 +6,11 @@ import {
 	toPortfolioRow,
 	toPortfolioRowWithContact,
 } from "@/lib/mappers/company-client";
+import type {
+	CompanyContact,
+	CompanyDetail,
+	CompanySummary,
+} from "@/lib/types/company";
 
 const baseContact = (overrides?: Partial<CompanyContact>): CompanyContact => ({
 	id: overrides?.id ?? "contact-1",
