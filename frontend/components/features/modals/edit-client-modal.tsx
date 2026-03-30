@@ -1,11 +1,7 @@
 "use client";
 
-import { Building2, MapPin } from "lucide-react";
+import { Building2, Loader2, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
-import type {
-	ClientDetail,
-	ClientStatus,
-} from "@/components/features/clients/mock-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,58 +14,90 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { companiesAPI } from "@/lib/api/companies";
+import type { ClientProfile } from "@/lib/mappers/company-client";
 
 type EditClientModalProps = {
-	client: ClientDetail;
+	profile: ClientProfile;
 	open: boolean;
 	onClose: () => void;
+	onSaved?: () => void;
 };
-
-const statuses: ClientStatus[] = ["active", "prospect", "inactive"];
 
 type FormState = {
 	companyName: string;
 	industry: string;
-	status: ClientStatus;
 	contactName: string;
-	email: string;
-	phone: string;
+	contactTitle: string;
+	contactEmail: string;
+	contactPhone: string;
 };
 
-function getInitialForm(client: ClientDetail): FormState {
+function getInitialForm(profile: ClientProfile): FormState {
 	return {
-		companyName: client.name,
-		industry: client.industry,
-		status: client.status,
-		contactName: client.contactName,
-		email: client.contactEmail,
-		phone: client.contactPhone,
+		companyName: profile.name,
+		industry: profile.industry,
+		contactName: profile.primaryContact?.name ?? "",
+		contactTitle: profile.primaryContact?.title ?? "",
+		contactEmail: profile.primaryContact?.email ?? "",
+		contactPhone: profile.primaryContact?.phone ?? "",
 	};
 }
 
 export function EditClientModal({
-	client,
+	profile,
 	open,
 	onClose,
+	onSaved,
 }: EditClientModalProps) {
-	const [form, setForm] = useState<FormState>(() => getInitialForm(client));
+	const [form, setForm] = useState<FormState>(() => getInitialForm(profile));
+	const [saving, setSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (open) {
-			setForm(getInitialForm(client));
+			setForm(getInitialForm(profile));
+			setError(null);
 		}
-	}, [client, open]);
+	}, [profile, open]);
 
 	function updateField(field: keyof FormState, value: string) {
 		setForm((current) => ({ ...current, [field]: value }));
+	}
+
+	async function handleSave() {
+		try {
+			setSaving(true);
+			setError(null);
+
+			// Update company fields
+			await companiesAPI.update(profile.id, {
+				name: form.companyName,
+				industry: form.industry,
+			});
+
+			// Update primary contact if one exists
+			if (profile.primaryContact) {
+				const contactPayload: Record<string, string> = {};
+				if (form.contactName) contactPayload.name = form.contactName;
+				if (form.contactTitle) contactPayload.title = form.contactTitle;
+				if (form.contactEmail) contactPayload.email = form.contactEmail;
+				if (form.contactPhone) contactPayload.phone = form.contactPhone;
+
+				await companiesAPI.updateContact(
+					profile.id,
+					profile.primaryContact.id,
+					contactPayload,
+				);
+			}
+
+			onClose();
+			onSaved?.();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to save changes");
+		} finally {
+			setSaving(false);
+		}
 	}
 
 	return (
@@ -86,11 +114,12 @@ export function EditClientModal({
 						Edit Client Profile
 					</DialogTitle>
 					<DialogDescription>
-						Update account profile fields and review registered locations.
+						Update company information and primary contact details.
 					</DialogDescription>
 				</DialogHeader>
 
 				<div className="flex flex-col gap-4 bg-surface-container-lowest px-6 py-5">
+					{/* Company fields */}
 					<div className="grid gap-4 md:grid-cols-2">
 						<div className="flex flex-col gap-2">
 							<Label htmlFor="edit-client-company">Company Name</Label>
@@ -116,97 +145,117 @@ export function EditClientModal({
 						</div>
 					</div>
 
-					<div className="grid gap-4 md:grid-cols-3">
-						<div className="flex flex-col gap-2 md:col-span-1">
-							<Label>Status</Label>
-							<Select
-								value={form.status}
-								onValueChange={(value) => updateField("status", value)}
-							>
-								<SelectTrigger className="bg-surface">
-									<SelectValue placeholder="Select status" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectGroup>
-										{statuses.map((status) => (
-											<SelectItem key={status} value={status}>
-												{status[0]?.toUpperCase()}
-												{status.slice(1)}
-											</SelectItem>
-										))}
-									</SelectGroup>
-								</SelectContent>
-							</Select>
-						</div>
-						<div className="flex flex-col gap-2 md:col-span-2">
-							<Label htmlFor="edit-client-contact-name">Contact Name</Label>
-							<Input
-								id="edit-client-contact-name"
-								value={form.contactName}
-								onChange={(event) =>
-									updateField("contactName", event.target.value)
-								}
-								className="bg-surface"
-							/>
-						</div>
-					</div>
+					{/* Primary contact fields */}
+					{profile.primaryContact ? (
+						<>
+							<p className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary mt-2">
+								Primary contact
+							</p>
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="flex flex-col gap-2">
+									<Label htmlFor="edit-client-contact-name">Name</Label>
+									<Input
+										id="edit-client-contact-name"
+										value={form.contactName}
+										onChange={(event) =>
+											updateField("contactName", event.target.value)
+										}
+										className="bg-surface"
+									/>
+								</div>
+								<div className="flex flex-col gap-2">
+									<Label htmlFor="edit-client-contact-title">Title</Label>
+									<Input
+										id="edit-client-contact-title"
+										value={form.contactTitle}
+										onChange={(event) =>
+											updateField("contactTitle", event.target.value)
+										}
+										className="bg-surface"
+									/>
+								</div>
+							</div>
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="flex flex-col gap-2">
+									<Label htmlFor="edit-client-email">Email</Label>
+									<Input
+										id="edit-client-email"
+										type="email"
+										value={form.contactEmail}
+										onChange={(event) =>
+											updateField("contactEmail", event.target.value)
+										}
+										className="bg-surface"
+									/>
+								</div>
+								<div className="flex flex-col gap-2">
+									<Label htmlFor="edit-client-phone">Phone</Label>
+									<Input
+										id="edit-client-phone"
+										value={form.contactPhone}
+										onChange={(event) =>
+											updateField("contactPhone", event.target.value)
+										}
+										className="bg-surface"
+									/>
+								</div>
+							</div>
+						</>
+					) : (
+						<p className="rounded-xl bg-surface p-4 text-sm text-muted-foreground">
+							No primary contact to edit. Assign a primary contact from the
+							admin panel.
+						</p>
+					)}
 
-					<div className="grid gap-4 md:grid-cols-2">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="edit-client-email">Email</Label>
-							<Input
-								id="edit-client-email"
-								type="email"
-								value={form.email}
-								onChange={(event) => updateField("email", event.target.value)}
-								className="bg-surface"
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="edit-client-phone">Phone</Label>
-							<Input
-								id="edit-client-phone"
-								value={form.phone}
-								onChange={(event) => updateField("phone", event.target.value)}
-								className="bg-surface"
-							/>
-						</div>
-					</div>
-
+					{/* Locations (read-only) */}
 					<div className="rounded-xl bg-surface p-4">
 						<div className="mb-3 flex items-center gap-2">
 							<MapPin aria-hidden className="size-4 text-primary" />
 							<p className="text-sm font-semibold text-foreground">Locations</p>
 						</div>
 						<div className="flex flex-col gap-2">
-							{client.locations.map((location) => (
-								<div
-									key={location.id}
-									className="flex items-start justify-between gap-3 rounded-lg bg-surface-container-low px-3 py-2"
-								>
-									<div>
-										<p className="text-sm font-medium text-foreground">
-											{location.name}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{location.address} · {location.city}, {location.state}
-										</p>
+							{profile.locations.length === 0 ? (
+								<p className="text-xs text-muted-foreground">
+									No locations registered.
+								</p>
+							) : (
+								profile.locations.map((location) => (
+									<div
+										key={location.id}
+										className="flex items-start justify-between gap-3 rounded-lg bg-surface-container-low px-3 py-2"
+									>
+										<div>
+											<p className="text-sm font-medium text-foreground">
+												{location.name}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												{location.address ? `${location.address} · ` : ""}
+												{location.city}, {location.state}
+											</p>
+										</div>
+										<Badge variant="outline" className="rounded-full text-xs">
+											{location.projectCount} project
+											{location.projectCount !== 1 ? "s" : ""}
+										</Badge>
 									</div>
-									<Badge variant="outline" className="rounded-full text-xs">
-										{location.streamCount} streams
-									</Badge>
-								</div>
-							))}
+								))
+							)}
 						</div>
 					</div>
+
+					{error && <p className="text-sm text-destructive">{error}</p>}
 				</div>
 
 				<DialogFooter className="bg-surface-container-low px-6 py-4 sm:flex-row sm:justify-end">
 					<div className="flex items-center gap-2">
-						<Button variant="ghost" onClick={onClose}>
+						<Button variant="ghost" onClick={onClose} disabled={saving}>
 							Cancel
 						</Button>
-						<Button type="button">Save Changes</Button>
+						<Button type="button" onClick={handleSave} disabled={saving}>
+							{saving && <Loader2 className="mr-2 size-4 animate-spin" />}
+							Save Changes
+						</Button>
 					</div>
 				</DialogFooter>
 			</DialogContent>

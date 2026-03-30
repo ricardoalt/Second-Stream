@@ -1,31 +1,21 @@
 "use client";
 
 import {
-	AlertTriangle,
-	CircleAlert,
+	Building2,
 	Factory,
-	FileText,
-	Globe,
+	Loader2,
 	Mail,
 	MapPin,
 	PenSquare,
 	Phone,
 	Shapes,
-	Sparkles,
-	Target,
-	TrendingUp,
+	TriangleAlert,
 } from "lucide-react";
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
-import { ClientActivityTimeline } from "@/components/features/clients/components/client-activity-timeline";
-import { ClientStatusBadge } from "@/components/features/clients/components/client-status-badge";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { ClientSummaryStatCard } from "@/components/features/clients/components/client-summary-stat-card";
-import { getClientDetail } from "@/components/features/clients/mock-data";
-import { CallClientModal } from "@/components/features/modals/call-client-modal";
 import { EditClientModal } from "@/components/features/modals/edit-client-modal";
-import { LogActivityModal } from "@/components/features/modals/log-activity-modal";
-import { SendEmailModal } from "@/components/features/modals/send-email-modal";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +26,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { StatusBadge } from "@/components/ui/status-badge";
 import {
 	Table,
 	TableBody,
@@ -45,86 +34,151 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-	style: "currency",
-	currency: "USD",
-	maximumFractionDigits: 0,
-});
-
-function getStreamStatusBadge(status: "active" | "draft" | "missing_info") {
-	return <StatusBadge status={status} className="text-[0.65rem]" />;
-}
-
-function getOfferStatusBadge(
-	status: "draft" | "sent" | "negotiation" | "won" | "pending",
-) {
-	return <StatusBadge status={status} className="text-[0.65rem]" />;
-}
+import { companiesAPI } from "@/lib/api/companies";
+import { projectsAPI } from "@/lib/api/projects";
+import type { ClientProfile } from "@/lib/mappers/company-client";
+import {
+	formatOffersCountSignal,
+	toClientProfile,
+} from "@/lib/mappers/company-client";
+import type { ProjectSummary } from "@/lib/project-types";
 
 export default function ClientDetailPage() {
 	const params = useParams<{ id: string }>();
 	const router = useRouter();
-	const clientId = Array.isArray(params.id) ? params.id[0] : params.id;
-	const client = getClientDetail(clientId);
-	const [callOpen, setCallOpen] = useState<boolean>(false);
-	const [emailOpen, setEmailOpen] = useState<boolean>(false);
-	const [logOpen, setLogOpen] = useState<boolean>(false);
+	const searchParams = useSearchParams();
+	const companyId = Array.isArray(params.id) ? params.id[0] : params.id;
+	const createState = searchParams.get("create");
+
+	const [profile, setProfile] = useState<ClientProfile | null>(null);
+	const [projects, setProjects] = useState<ProjectSummary[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
 	const [editModalOpen, setEditModalOpen] = useState(false);
 
-	const callContacts = client.keyContacts.map((contact) => ({
-		id: contact.id,
-		name: contact.name,
-		role: contact.role,
-		phone: contact.phone,
-	}));
+	const fetchProfile = useCallback(async () => {
+		if (!companyId) return;
+		try {
+			setLoading(true);
+			setError(null);
 
-	const relatedStreams = client.streams.map((stream) => ({
-		id: stream.id,
-		label: `${stream.material} (${stream.id})`,
-	}));
+			const [companyDetail, projectsResponse] = await Promise.all([
+				companiesAPI.get(companyId),
+				projectsAPI.getProjects({ companyId, size: 100 }),
+			]);
+
+			setProfile(toClientProfile(companyDetail));
+			setProjects(projectsResponse.items ?? []);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to load client");
+		} finally {
+			setLoading(false);
+		}
+	}, [companyId]);
+
+	useEffect(() => {
+		fetchProfile();
+	}, [fetchProfile]);
+
+	if (loading) {
+		return (
+			<div className="flex items-center justify-center gap-3 px-6 py-24">
+				<Loader2 className="size-5 animate-spin text-primary" />
+				<p className="text-sm text-muted-foreground">Loading client…</p>
+			</div>
+		);
+	}
+
+	if (error || !profile) {
+		return (
+			<div className="flex flex-col items-center gap-3 px-6 py-24">
+				<p className="text-sm text-destructive">
+					{error ?? "Client not found"}
+				</p>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => router.push("/clients")}
+				>
+					Back to portfolio
+				</Button>
+			</div>
+		);
+	}
+
+	const primaryContact = profile.primaryContact;
 
 	return (
 		<div className="flex flex-col gap-8">
-			<CallClientModal
-				open={callOpen}
-				onOpenChange={setCallOpen}
-				contacts={callContacts}
-			/>
-			<SendEmailModal
-				open={emailOpen}
-				onOpenChange={setEmailOpen}
-				defaultTo={client.contactEmail}
-			/>
-			<LogActivityModal
-				open={logOpen}
-				onOpenChange={setLogOpen}
-				relatedStreams={relatedStreams}
-			/>
+			{createState === "success" && (
+				<Alert>
+					<AlertTitle>Client created</AlertTitle>
+					<AlertDescription>
+						Client created. Primary contact and first location are ready.
+					</AlertDescription>
+				</Alert>
+			)}
+			{createState === "partial-contact" && (
+				<Alert variant="warning">
+					<TriangleAlert className="h-4 w-4" />
+					<AlertTitle>Client created with follow-up needed</AlertTitle>
+					<AlertDescription>
+						Client created, but we couldn&apos;t save the primary contact. The
+						first location was not created. Add the primary contact on this
+						client before continuing.
+					</AlertDescription>
+				</Alert>
+			)}
+			{createState === "partial-location" && (
+				<Alert variant="warning">
+					<TriangleAlert className="h-4 w-4" />
+					<AlertTitle>Client created with follow-up needed</AlertTitle>
+					<AlertDescription>
+						Client and primary contact created, but we couldn&apos;t save the
+						first location. Add the first location on this client before
+						continuing.
+					</AlertDescription>
+				</Alert>
+			)}
+
 			<EditClientModal
-				client={client}
+				profile={profile}
 				open={editModalOpen}
 				onClose={() => setEditModalOpen(false)}
+				onSaved={fetchProfile}
 			/>
+
+			{/* ── Header ── */}
 			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
 				<div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
 					<div className="flex flex-col gap-2">
 						<p className="text-xs uppercase tracking-[0.08em] text-secondary">
-							Clients · {client.accountId}
+							Clients
 						</p>
 						<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-							{client.name}
+							{profile.name}
 						</h1>
 						<div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-							<span className="inline-flex items-center gap-1">
-								<Factory aria-hidden="true" className="size-3.5" />
-								{client.industry}
-							</span>
-							<ClientStatusBadge status={client.status} />
+							{profile.industry && (
+								<span className="inline-flex items-center gap-1">
+									<Factory aria-hidden="true" className="size-3.5" />
+									{profile.industry}
+								</span>
+							)}
+							{profile.sector && (
+								<Badge
+									variant="secondary"
+									className="rounded-full text-[0.68rem]"
+								>
+									{profile.sector}
+								</Badge>
+							)}
 						</div>
-						<p className="max-w-3xl text-sm text-muted-foreground">
-							{client.summary}
-						</p>
+						{profile.notes && (
+							<p className="max-w-3xl text-sm text-muted-foreground">
+								{profile.notes}
+							</p>
+						)}
 					</div>
 
 					<div className="flex flex-wrap gap-2">
@@ -132,237 +186,51 @@ export default function ClientDetailPage() {
 							<PenSquare data-icon="inline-start" aria-hidden="true" />
 							Edit Profile
 						</Button>
-						<Button variant="secondary" onClick={() => setCallOpen(true)}>
-							<Phone data-icon="inline-start" aria-hidden="true" />
-							Call
-						</Button>
-						<Button variant="secondary" onClick={() => setEmailOpen(true)}>
-							<Mail data-icon="inline-start" aria-hidden="true" />
-							Email
-						</Button>
-						<Button onClick={() => setLogOpen(true)}>
-							<FileText data-icon="inline-start" aria-hidden="true" />
-							Log Activity
-						</Button>
 					</div>
 				</div>
 			</section>
 
-			<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+			{/* ── Summary stats ── */}
+			<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 				<ClientSummaryStatCard
-					label="Total streams"
-					value={`${client.stats.totalStreams}`}
-					subtitle="Across all facilities"
+					label="Locations"
+					value={`${profile.locationCount}`}
+					subtitle="Registered facilities"
+					icon={MapPin}
+				/>
+				<ClientSummaryStatCard
+					label="Waste streams"
+					value={`${projects.length}`}
+					subtitle="Associated projects"
 					icon={Shapes}
 				/>
 				<ClientSummaryStatCard
-					label="Active offers"
-					value={`${client.stats.activeOffers}`}
-					subtitle="In pending or negotiation"
-					icon={FileText}
-				/>
-				<ClientSummaryStatCard
-					label="Open issues"
-					value={`${client.stats.openIssues}`}
-					subtitle="Documentation and stale drafts"
-					icon={CircleAlert}
-				/>
-				<ClientSummaryStatCard
-					label="Win rate"
-					value={`${client.stats.winRate}%`}
-					subtitle="Trailing 12 months"
-					icon={TrendingUp}
+					label="Contacts"
+					value={`${profile.contacts.length}`}
+					subtitle="Company contacts"
+					icon={Building2}
 				/>
 			</section>
 
-			{/* Stitch pattern: Strategic Intelligence section */}
-			<section className="grid gap-4 xl:grid-cols-3">
-				<div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-5 shadow-sm">
-					<div className="mb-3 flex items-center gap-2">
-						<AlertTriangle className="h-5 w-5 text-destructive" aria-hidden />
-						<h3 className="font-display text-lg font-semibold text-foreground">
-							Critical Alerts
-						</h3>
-					</div>
-					<div className="space-y-3">
-						<div className="rounded-xl bg-surface-container-lowest p-3 shadow-sm">
-							<p className="text-sm font-medium text-foreground">
-								Infectious Solid Waste — Compliance Blocked
-							</p>
-							<p className="text-xs text-muted-foreground mt-1">
-								Updated transport manifest required by EOD
-							</p>
-							<Button size="sm" variant="destructive" className="mt-2 w-full">
-								Resolve Now
-							</Button>
-						</div>
-					</div>
-				</div>
-
-				<div className="rounded-2xl bg-primary/5 p-5 shadow-sm border border-primary/20">
-					<div className="mb-3 flex items-center gap-2">
-						<Target className="h-5 w-5 text-primary" aria-hidden />
-						<h3 className="font-display text-lg font-semibold text-foreground">
-							Strategic Next Steps
-						</h3>
-					</div>
-					<div className="space-y-2">
-						<div className="flex items-start gap-2">
-							<div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-							<div>
-								<p className="text-sm text-foreground">
-									Schedule site visit for Catalyst Slurry assessment
-								</p>
-								<p className="text-xs text-muted-foreground">
-									Priority: High • Due: This week
-								</p>
-							</div>
-						</div>
-						<div className="flex items-start gap-2">
-							<div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-							<div>
-								<p className="text-sm text-foreground">
-									Present solvent recovery ROI to operations team
-								</p>
-								<p className="text-xs text-muted-foreground">
-									Priority: Medium • Awaiting approval
-								</p>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<div className="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
-					<div className="mb-3 flex items-center gap-2">
-						<Sparkles className="h-5 w-5 text-warning" aria-hidden />
-						<h3 className="font-display text-lg font-semibold text-foreground">
-							Account Intelligence
-						</h3>
-					</div>
-					<div className="rounded-xl bg-warning/5 p-3 border border-warning/20">
-						<p className="text-xs font-medium text-warning uppercase tracking-wide">
-							AI Insight
-						</p>
-						<p className="text-sm text-foreground mt-2">
-							{client.name} has 2 additional facilities in the region with
-							similar waste profiles. Expansion opportunity detected.
-						</p>
-						<Button size="sm" variant="outline" className="mt-3 w-full">
-							Explore Expansion
-						</Button>
-					</div>
-				</div>
-			</section>
-
-			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
-				<div className="mb-4 flex items-center gap-2">
-					<MapPin aria-hidden className="size-5 text-primary" />
-					<h2 className="font-display text-xl font-semibold tracking-tight text-foreground">
-						Locations
-					</h2>
-				</div>
-				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-					{client.locations.map((location) => (
-						<div
-							key={location.id}
-							className="rounded-xl bg-surface-container-lowest p-4 shadow-sm"
-						>
-							<div className="flex items-start justify-between gap-3">
-								<div className="min-w-0">
-									<p className="text-sm font-semibold text-foreground">
-										{location.name}
-									</p>
-									<p className="mt-1 text-xs text-muted-foreground">
-										{location.address}
-									</p>
-									<p className="text-xs text-muted-foreground">
-										{location.city}, {location.state}
-									</p>
-								</div>
-								<Badge variant="outline" className="rounded-full">
-									{location.streamCount} streams
-								</Badge>
-							</div>
-						</div>
-					))}
-				</div>
-			</section>
-
+			{/* ── Contact + Locations ── */}
 			<section className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
+				{/* Contact information */}
 				<Card className="bg-surface-container-lowest shadow-sm">
 					<CardHeader>
 						<CardTitle className="font-display text-xl font-semibold">
-							Contact information
+							Primary contact
 						</CardTitle>
 						<CardDescription>
-							Primary account details and communication channels.
+							Main point of contact for this account.
 						</CardDescription>
 					</CardHeader>
-					<CardContent className="grid gap-3 pt-0 sm:grid-cols-2">
-						<div className="rounded-xl bg-surface p-4">
-							<p className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
-								Address
-							</p>
-							<p className="mt-2 inline-flex items-start gap-2 text-sm text-foreground">
-								<MapPin aria-hidden="true" className="mt-0.5 size-4" />
-								{client.address}
-							</p>
-						</div>
-						<div className="rounded-xl bg-surface p-4">
-							<p className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
-								Primary contact
-							</p>
-							<p className="mt-2 text-sm font-semibold text-foreground">
-								{client.contactName}
-							</p>
-							<p className="text-xs text-muted-foreground">
-								{client.contactRole}
-							</p>
-							<p className="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground">
-								<Phone aria-hidden="true" className="size-3.5" />
-								{client.contactPhone}
-							</p>
-							<p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-								<Mail aria-hidden="true" className="size-3.5" />
-								{client.contactEmail}
-							</p>
-							<p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-								<Globe aria-hidden="true" className="size-3.5" />
-								<Link
-									href={client.website}
-									target="_blank"
-									className="text-primary hover:underline"
-								>
-									{client.website}
-								</Link>
-							</p>
-						</div>
-					</CardContent>
-				</Card>
-
-				<Card className="bg-surface-container-lowest shadow-sm">
-					<CardHeader>
-						<CardTitle className="font-display text-xl font-semibold">
-							Key people
-						</CardTitle>
-						<CardDescription>
-							Stakeholders and on-site contacts for account execution.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="flex flex-col gap-2 pt-0">
-						{client.keyContacts.map((contact, index) => (
-							<div
-								key={contact.id}
-								className={
-									index % 2 === 0
-										? "rounded-xl bg-surface p-3"
-										: "rounded-xl bg-surface-container-low p-3"
-								}
-							>
+					<CardContent className="pt-0">
+						{primaryContact ? (
+							<div className="rounded-xl bg-surface p-4">
 								<div className="flex items-start gap-3">
 									<Avatar className="size-9">
 										<AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-											{contact.name
+											{primaryContact.name
 												.split(" ")
 												.map((part) => part[0])
 												.join("")
@@ -372,61 +240,124 @@ export default function ClientDetailPage() {
 									</Avatar>
 									<div className="flex min-w-0 flex-1 flex-col gap-1">
 										<p className="text-sm font-semibold text-foreground">
-											{contact.name}
+											{primaryContact.name || "—"}
 										</p>
-										<p className="text-xs text-muted-foreground">
-											{contact.role}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{contact.email}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{contact.phone}
-										</p>
+										{primaryContact.title && (
+											<p className="text-xs text-muted-foreground">
+												{primaryContact.title}
+											</p>
+										)}
+										{primaryContact.phone && (
+											<p className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
+												<Phone aria-hidden="true" className="size-3.5" />
+												{primaryContact.phone}
+											</p>
+										)}
+										{primaryContact.email && (
+											<p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+												<Mail aria-hidden="true" className="size-3.5" />
+												{primaryContact.email}
+											</p>
+										)}
 									</div>
 								</div>
 							</div>
-						))}
+						) : (
+							<p className="rounded-xl bg-surface p-4 text-sm text-muted-foreground">
+								No primary contact assigned. Edit the profile to assign one.
+							</p>
+						)}
+					</CardContent>
+				</Card>
+
+				{/* Locations */}
+				<Card className="bg-surface-container-lowest shadow-sm">
+					<CardHeader>
+						<CardTitle className="font-display text-xl font-semibold">
+							Locations
+						</CardTitle>
+						<CardDescription>
+							Registered facilities for this company.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="flex flex-col gap-2 pt-0">
+						{profile.locations.length === 0 ? (
+							<p className="rounded-xl bg-surface p-4 text-sm text-muted-foreground">
+								No locations registered yet.
+							</p>
+						) : (
+							profile.locations.map((location, index) => (
+								<div
+									key={location.id}
+									className={
+										index % 2 === 0
+											? "rounded-xl bg-surface p-3"
+											: "rounded-xl bg-surface-container-low p-3"
+									}
+								>
+									<div className="flex items-start justify-between gap-3">
+										<div className="min-w-0">
+											<p className="text-sm font-semibold text-foreground">
+												{location.name}
+											</p>
+											{location.address && (
+												<p className="mt-1 text-xs text-muted-foreground">
+													{location.address}
+												</p>
+											)}
+											<p className="text-xs text-muted-foreground">
+												{location.city}, {location.state}
+											</p>
+										</div>
+										<Badge variant="outline" className="rounded-full">
+											{location.projectCount} project
+											{location.projectCount !== 1 ? "s" : ""}
+										</Badge>
+									</div>
+								</div>
+							))
+						)}
 					</CardContent>
 				</Card>
 			</section>
 
-			<section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-				<Card className="bg-surface-container-lowest shadow-sm">
-					<CardHeader>
-						<CardTitle className="font-display text-xl font-semibold">
-							Associated waste streams
-						</CardTitle>
-						<CardDescription>
-							Material lines currently tracked for this account.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="pt-0">
+			{/* ── Associated waste streams (from Projects) ── */}
+			<Card className="bg-surface-container-lowest shadow-sm">
+				<CardHeader>
+					<CardTitle className="font-display text-xl font-semibold">
+						Associated waste streams
+					</CardTitle>
+					<CardDescription>Projects tracked for this account.</CardDescription>
+				</CardHeader>
+				<CardContent className="pt-0">
+					{projects.length === 0 ? (
+						<p className="rounded-xl bg-surface p-4 text-sm text-muted-foreground">
+							No waste streams associated with this client yet. Use the
+							Discovery Wizard to add new streams.
+						</p>
+					) : (
 						<Table>
 							<TableHeader>
 								<TableRow className="bg-surface-container-low">
 									<TableHead className="px-4 py-3 text-[0.68rem]">
-										Material
+										Name
 									</TableHead>
 									<TableHead className="px-4 py-3 text-[0.68rem]">
 										Location
 									</TableHead>
 									<TableHead className="px-4 py-3 text-[0.68rem]">
-										Status
-									</TableHead>
-									<TableHead className="px-4 py-3 text-[0.68rem]">
-										Volume
+										Offers
 									</TableHead>
 									<TableHead className="px-4 py-3 text-right text-[0.68rem]">
-										Last updated
+										Updated
 									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{client.streams.map((stream, index) => (
+								{projects.map((project, index) => (
 									<TableRow
-										key={stream.id}
-										onClick={() => router.push(`/streams/${stream.id}`)}
+										key={project.id}
+										onClick={() => router.push(`/streams/${project.id}`)}
 										className={
 											index % 2 === 0
 												? "cursor-pointer bg-surface transition-colors hover:bg-surface-container"
@@ -435,76 +366,33 @@ export default function ClientDetailPage() {
 									>
 										<TableCell className="px-4 py-3">
 											<p className="text-sm font-medium text-foreground">
-												{stream.material}
+												{project.name}
 											</p>
 											<p className="text-xs text-muted-foreground">
-												{stream.id}
+												{project.id.slice(0, 8)}
 											</p>
 										</TableCell>
 										<TableCell className="px-4 py-3 text-sm text-muted-foreground">
-											{stream.location}
+											{project.locationName ?? project.location ?? "—"}
 										</TableCell>
 										<TableCell className="px-4 py-3">
-											{getStreamStatusBadge(stream.status)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-sm text-muted-foreground">
-											{stream.volume} · {stream.frequency}
+											<Badge
+												variant="outline"
+												className="rounded-full text-[0.65rem]"
+											>
+												{formatOffersCountSignal(project.proposalsCount)}
+											</Badge>
 										</TableCell>
 										<TableCell className="px-4 py-3 text-right text-sm text-muted-foreground">
-											{stream.lastUpdated}
+											{new Date(project.updatedAt).toLocaleDateString()}
 										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
 						</Table>
-					</CardContent>
-				</Card>
-
-				<Card className="bg-surface-container-lowest shadow-sm">
-					<CardHeader>
-						<CardTitle className="font-display text-xl font-semibold">
-							Offers
-						</CardTitle>
-						<CardDescription>
-							Commercial opportunities linked to this account.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="flex flex-col gap-2 pt-0">
-						{client.offers.map((offer, index) => (
-							<div
-								key={offer.id}
-								className={
-									index % 2 === 0
-										? "rounded-xl bg-surface p-3"
-										: "rounded-xl bg-surface-container-low p-3"
-								}
-							>
-								<div className="flex items-start justify-between gap-3">
-									<div className="flex min-w-0 flex-1 flex-col gap-1">
-										<p className="text-sm font-semibold text-foreground">
-											{offer.title}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{offer.id} · {offer.stage}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											Updated {offer.updatedAt}
-										</p>
-									</div>
-									<div className="flex flex-col items-end gap-2">
-										{getOfferStatusBadge(offer.status)}
-										<p className="text-sm font-semibold text-foreground">
-											{currencyFormatter.format(offer.value)}
-										</p>
-									</div>
-								</div>
-							</div>
-						))}
-					</CardContent>
-				</Card>
-			</section>
-
-			<ClientActivityTimeline items={client.activityTimeline} />
+					)}
+				</CardContent>
+			</Card>
 		</div>
 	);
 }

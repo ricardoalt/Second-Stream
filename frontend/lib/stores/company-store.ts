@@ -4,12 +4,19 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { type ArchivedFilter, companiesAPI } from "@/lib/api/companies";
+import {
+	type ArchivedFilter,
+	companiesAPI,
+	locationsAPI,
+} from "@/lib/api/companies";
 import type {
+	CompanyContact,
 	CompanyCreate,
 	CompanyDetail,
 	CompanySummary,
 	CompanyUpdate,
+	LocationCreate,
+	LocationSummary,
 } from "@/lib/types/company";
 import { getErrorMessage, logger } from "@/lib/utils/logger";
 
@@ -28,6 +35,21 @@ interface CompanyState {
 	loadCompanies: (archived?: ArchivedFilter) => Promise<void>;
 	loadCompany: (id: string) => Promise<void>;
 	createCompany: (data: CompanyCreate) => Promise<CompanyDetail>;
+	createCompanyContact: (
+		companyId: string,
+		data: {
+			name?: string;
+			email?: string;
+			phone?: string;
+			title?: string;
+			notes?: string;
+			isPrimary: true;
+		},
+	) => Promise<CompanyContact>;
+	createLocation: (
+		companyId: string,
+		data: LocationCreate,
+	) => Promise<LocationSummary>;
 	updateCompany: (id: string, data: CompanyUpdate) => Promise<CompanyDetail>;
 	deleteCompany: (id: string) => Promise<void>;
 	archiveCompany: (id: string) => Promise<void>;
@@ -136,6 +158,44 @@ export const useCompanyStore = create<CompanyState>()(
 					set((state) => {
 						state.error = message;
 						state.loading = false;
+					});
+					throw error;
+				}
+			},
+
+			// Update company
+			createCompanyContact: async (companyId, data) => {
+				try {
+					return await companiesAPI.createContact(companyId, data);
+				} catch (error) {
+					const message = getErrorMessage(
+						error,
+						"Failed to create company contact",
+					);
+					logger.error(
+						`Failed to create company contact for ${companyId}`,
+						error,
+						"CompanyStore",
+					);
+					set((state) => {
+						state.error = message;
+					});
+					throw error;
+				}
+			},
+
+			createLocation: async (companyId, data) => {
+				try {
+					return await locationsAPI.create(companyId, data);
+				} catch (error) {
+					const message = getErrorMessage(error, "Failed to create location");
+					logger.error(
+						`Failed to create location for ${companyId}`,
+						error,
+						"CompanyStore",
+					);
+					set((state) => {
+						state.error = message;
 					});
 					throw error;
 				}

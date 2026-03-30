@@ -164,6 +164,7 @@ services:
     environment:
       - POSTGRES_SERVER=postgres
       - REDIS_HOST=redis
+      - RUN_MIGRATIONS=true
       - PYTHONPATH=/app
       - PYTEST_ADDOPTS=--ignore=tests/test_intelligent_case_filter_v2.py --ignore=tests/test_v1_improvements.py
     depends_on:

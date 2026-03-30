@@ -30,9 +30,12 @@ async def test_list_companies(client: AsyncClient, db_session, set_current_user)
     assert "Company A" in names
     assert "Company B" in names
     allowed_customer_types = {"buyer", "generator", "both"}
+    allowed_account_statuses = {"active", "prospect"}
     for company in data:
         assert "customerType" in company
         assert company["customerType"] in allowed_customer_types
+        assert "accountStatus" in company
+        assert company["accountStatus"] in allowed_account_statuses
 
 
 @pytest.mark.asyncio
@@ -63,7 +66,41 @@ async def test_create_company_success(client: AsyncClient, db_session, set_curre
     assert data["name"] == "New Company"
     assert data["industry"] == "Technology"
     assert data["customerType"] == "buyer"
+    assert data["accountStatus"] == "active"
     assert "id" in data
+
+
+@pytest.mark.asyncio
+async def test_create_company_with_prospect_account_status(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Prospect Account", "org-prospect-account")
+    user = await create_user(
+        db_session,
+        email=f"prospect-account-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    set_current_user(user)
+    response = await client.post(
+        "/api/v1/companies/",
+        json={
+            "name": "Prospect Company",
+            "industry": "Technology",
+            "sector": "industrial",
+            "subsector": "other",
+            "customerType": "generator",
+            "accountStatus": "prospect",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "Prospect Company"
+    assert data["accountStatus"] == "prospect"
 
 
 @pytest.mark.asyncio
@@ -271,6 +308,9 @@ async def test_create_location_missing_zip(client: AsyncClient, db_session, set_
         },
     )
     assert response.status_code == 422
+    data = response.json()
+    assert data["code"] == "VALIDATION_ERROR"
+    assert any(error.get("loc")[-1] == "zipCode" for error in data["details"]["errors"])
 
 
 @pytest.mark.asyncio
@@ -299,6 +339,9 @@ async def test_create_location_invalid_zip(client: AsyncClient, db_session, set_
         },
     )
     assert response.status_code == 422
+    data = response.json()
+    assert data["code"] == "VALIDATION_ERROR"
+    assert any(error.get("loc")[-1] == "zipCode" for error in data["details"]["errors"])
 
 
 @pytest.mark.asyncio

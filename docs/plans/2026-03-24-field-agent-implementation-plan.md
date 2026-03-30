@@ -265,6 +265,13 @@ Must-have requirements:
 Acceptance direction:
 - Agent can answer “what is happening with this client and what do I do next?” at a glance.
 
+**Add Client follow-up (must remain explicit):**
+- Add Client parity is **not** complete yet.
+- Product Engineering has now confirmed that the Stitch **"Shipping Location & Logistics Hub"** block should persist as the client/company's **first real `Location`**.
+- This first Location is valid onboarding data, but it does **not** change the rule that Discovery Wizard remains the only waste-stream creation path.
+- Add Client can now be implemented as a real sequential flow: `Company` → primary `CompanyContact` → first `Location`.
+- Remaining work is implementation detail and partial-failure UX, not domain ambiguity.
+
 ## 8.6 Offers Pipeline
 
 Intent: active commercial pipeline view for field agents.
@@ -343,7 +350,8 @@ Priority order for next SDD cycles:
 3. **Dashboard data integration + triage fidelity hardening**
 4. **Clients family backend integration** (portfolio/profile)
 5. **Offers family parity/fidelity hardening** (activity/history depth, archive/detail UI interaction coverage, remaining historical polish)
-6. **Discovery parity hardening** (centered confirmation modal canonical; continue orchestration/recovery hardening)
+6. **Clients Add Client follow-up** (real Company + primary contact + first Location creation flow, with partial-failure handling)
+7. **Discovery parity hardening** (centered confirmation modal canonical; continue orchestration/recovery hardening)
 
 Rationale:
 - Stream Detail foundation/refinement work is now real (including AI prefill review controls and support pages); highest value is finishing lifecycle semantics and backend contract depth (not rebuilding shell structure again).

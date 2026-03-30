@@ -6,13 +6,11 @@ import {
 	Building2,
 	CheckCircle2,
 	Clock,
-	FileText,
 	Layers3,
 	MoreHorizontal,
 	Plus,
 	RefreshCw,
 	Sparkles,
-	TrendingUp,
 	Zap,
 } from "lucide-react";
 import Link from "next/link";

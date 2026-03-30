@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from pydantic import Field, field_validator
+from pydantic_core import PydanticCustomError
 
 from app.schemas.common import BaseSchema
 from app.schemas.incoming_material import IncomingMaterialRead
@@ -29,9 +30,9 @@ def _validate_zip_code(value: str | None, *, empty_as_none: bool) -> str | None:
     if not trimmed:
         if empty_as_none:
             return None
-        raise ValueError("Invalid ZIP format")
+        raise PydanticCustomError("zip_code_format", "Invalid ZIP format")
     if not ZIP_CODE_REGEX.fullmatch(trimmed):
-        raise ValueError("Invalid ZIP format")
+        raise PydanticCustomError("zip_code_format", "Invalid ZIP format")
     return trimmed
 
 
@@ -67,13 +68,15 @@ class LocationCreate(LocationBase):
     """Schema for creating a new location."""
 
     company_id: UUID
+    zip_code: str = Field(..., max_length=10)
 
     @field_validator("zip_code")
     @classmethod
-    def require_zip_code(cls, value: str | None) -> str:
-        if value is None:
-            raise ValueError("ZIP code is required")
-        return value
+    def validate_zip_code(cls, value: str) -> str:
+        validated = _validate_zip_code(value, empty_as_none=False)
+        if validated is None:
+            raise PydanticCustomError("zip_code_required", "ZIP code is required")
+        return validated
 
 
 class LocationUpdate(BaseSchema):

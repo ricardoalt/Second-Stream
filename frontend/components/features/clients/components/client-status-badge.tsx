@@ -1,5 +1,6 @@
-import type { ClientStatus } from "@/components/features/clients/mock-data";
 import { Badge } from "@/components/ui/badge";
+
+export type ClientStatus = "active" | "prospect" | "inactive";
 
 const statusLabel: Record<ClientStatus, string> = {
 	active: "Active",

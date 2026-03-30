@@ -549,12 +549,29 @@ export const getSectorConfig = (sectorId: Sector): SectorConfig | undefined => {
 	return sectorsConfig.find((sector) => sector.id === sectorId);
 };
 
+export function isSectorId(value: string): value is Sector {
+	return sectorsConfig.some((sector) => sector.id === value);
+}
+
 export const getSubsectors = (
 	sectorId: Sector,
 ): { id: KnownSubsector; label: string }[] => {
 	const sector = getSectorConfig(sectorId);
 	return sector?.subsectors || [];
 };
+
+export function isSubsectorInSector(
+	sectorId: string,
+	subsectorId: string,
+): boolean {
+	if (!isSectorId(sectorId)) {
+		return false;
+	}
+
+	return getSubsectors(sectorId).some(
+		(subsector) => subsector.id === subsectorId,
+	);
+}
 
 export const getSectorBySubsector = (
 	subsectorId: KnownSubsector,

@@ -5,7 +5,6 @@ import {
 	Phone,
 	Workflow,
 } from "lucide-react";
-import type { ClientDetail } from "@/components/features/clients/mock-data";
 import {
 	Card,
 	CardContent,
@@ -14,6 +13,14 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+export type ActivityTimelineItem = {
+	id: string;
+	title: string;
+	description: string;
+	at: string;
+	type: "call" | "email" | "proposal" | "stream" | "note";
+};
 
 const timelineIcon = {
 	call: Phone,
@@ -26,7 +33,7 @@ const timelineIcon = {
 export function ClientActivityTimeline({
 	items,
 }: {
-	items: ClientDetail["activityTimeline"];
+	items: ActivityTimelineItem[];
 }) {
 	return (
 		<Card className="bg-surface-container-lowest shadow-sm">

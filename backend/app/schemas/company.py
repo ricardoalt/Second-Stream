@@ -35,6 +35,7 @@ class CompanyBase(BaseSchema):
     notes: str | None = None
     tags: list[str] = Field(default_factory=list)
     customer_type: Literal["buyer", "generator", "both"] = "both"
+    account_status: Literal["active", "prospect"] = "active"
 
 
 class CompanyCreate(CompanyBase):
@@ -53,6 +54,7 @@ class CompanyUpdate(BaseSchema):
     notes: str | None = None
     tags: list[str] | None = None
     customer_type: Literal["buyer", "generator", "both"] | None = None
+    account_status: Literal["active", "prospect"] | None = None
 
 
 class CompanySummary(CompanyBase):

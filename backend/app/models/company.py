@@ -80,6 +80,18 @@ class Company(BaseModel):
         server_default="both",
         index=True,
     )
+    account_status: Mapped[str] = mapped_column(
+        Enum(
+            "active",
+            "prospect",
+            name="account_status",
+            validate_strings=True,
+            create_type=False,
+        ),
+        nullable=False,
+        server_default="active",
+        index=True,
+    )
 
     created_by_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id"),

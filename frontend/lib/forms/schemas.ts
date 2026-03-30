@@ -3,7 +3,12 @@
  * Single source of truth for form validation
  */
 import { z } from "zod";
-import { ADDRESS_TYPES, CUSTOMER_TYPES } from "@/lib/types/company";
+import { isSectorId, isSubsectorInSector } from "@/lib/sectors-config";
+import {
+	ACCOUNT_STATUSES,
+	ADDRESS_TYPES,
+	CUSTOMER_TYPES,
+} from "@/lib/types/company";
 
 export const ZIP_CODE_REGEX = /^\d{5}(-\d{4})?$/;
 export const ZIP_CODE_REQUIRED_MESSAGE = "ZIP code is required";
@@ -57,6 +62,77 @@ export const companySchema = z.object({
 });
 
 export type CompanyFormData = z.infer<typeof companySchema>;
+
+export const addClientSchema = z
+	.object({
+		name: z.string().min(1, "Client name is required").max(255),
+		sector: z
+			.string()
+			.min(1, "Please select a sector")
+			.refine((value) => isSectorId(value.trim()), {
+				message: "Please select a valid sector",
+			}),
+		subsector: z.string().min(1, "Please select a subsector"),
+		customerType: z.enum(CUSTOMER_TYPES, {
+			required_error: "Please select a customer type",
+		}),
+		accountStatus: z.enum(ACCOUNT_STATUSES, {
+			required_error: "Please select an account status",
+		}),
+		companyNotes: z.string().optional(),
+		contactName: z.string().default(""),
+		contactTitle: z.string().default(""),
+		contactEmail: z.string().default(""),
+		contactPhone: z.string().default(""),
+		locationName: z.string().min(1, "Location name is required").max(255),
+		locationAddress: z.string().default(""),
+		locationCity: z.string().min(1, "City is required").max(100),
+		locationState: z.string().min(1, "State is required").max(100),
+		locationZipCode: z
+			.string()
+			.transform(parseZipCode)
+			.refine((value) => value.length > 0, {
+				message: ZIP_CODE_REQUIRED_MESSAGE,
+			})
+			.refine((value) => isValidZipCode(value), {
+				message: ZIP_CODE_FORMAT_MESSAGE,
+			}),
+	})
+	.refine(
+		(data) =>
+			data.contactEmail.trim().length > 0 ||
+			data.contactPhone.trim().length > 0,
+		{
+			message: "Provide at least an email or phone for the primary contact.",
+			path: ["contactEmail"],
+		},
+	)
+	.refine(
+		(data) => isSubsectorInSector(data.sector.trim(), data.subsector.trim()),
+		{
+			message: "Please select a valid subsector for the selected sector.",
+			path: ["subsector"],
+		},
+	)
+	.refine(
+		(data) => {
+			const email = data.contactEmail.trim();
+			return email.length === 0 || isValidEmail(email);
+		},
+		{ message: "Enter a valid email address.", path: ["contactEmail"] },
+	)
+	.refine(
+		(data) => {
+			const phone = data.contactPhone.trim();
+			return phone.length === 0 || isValidPhone(phone);
+		},
+		{
+			message: "Phone must be 3-50 characters and include at least one digit.",
+			path: ["contactPhone"],
+		},
+	);
+
+export type AddClientFormData = z.infer<typeof addClientSchema>;
 
 // Partial schema for step 1 only (basic info)
 export const companyBasicSchema = companySchema.pick({

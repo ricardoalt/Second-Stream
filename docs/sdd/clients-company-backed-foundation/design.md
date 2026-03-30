@@ -12,10 +12,10 @@ To satisfy the strict constraint of "Do not assume unsupported fields", we will 
 **Alternatives considered**: Introduce N+1 queries to fetch `/projects?company_id={id}` for every row to calculate counts and values.
 **Rationale**: `CompanySummary` does not include project/pipeline counts. Calling the projects API per row would degrade performance significantly. We will defer these fields until a native `GET /api/v1/companies/stats` endpoint is implemented.
 
-### Decision: Sequential Resource Creation
-**Choice**: The `AddNewClientModal` will issue sequential API requests: `POST /api/v1/companies`, then `POST /api/v1/companies/{id}/locations`, then `POST /api/v1/companies/{id}/contacts`.
-**Alternatives considered**: Update the backend to accept nested location and contact creation in a single transaction.
-**Rationale**: The backend schema (`CompanyCreate`) does not support nested relations. Sequential frontend calls align with existing contracts and avoid blocking the frontend on backend schema changes. If a sub-request fails, the user is navigated to the profile where they can retry adding the location/contact.
+### Decision: Decommission Add Client Modal Artifact
+**Choice**: Remove `frontend/components/features/modals/add-new-client-modal.tsx` as an inactive artifact.
+**Alternatives considered**: Keep the modal as dormant code for later reuse.
+**Rationale**: Add Client creation is explicitly out of scope for this change. Keeping an unmounted modal creates maintenance noise and warning debt without delivering user value.
 
 ### Decision: Profile Waste Streams and Offers
 **Choice**: Fetch `GET /api/v1/projects?company_id={id}` and use the result to populate both the "Associated waste streams" and "Offers" tables on the profile.
@@ -40,11 +40,8 @@ ClientDetailPage
  ├── GET /api/v1/companies/{id} ───────────────→ Hydrates CompanyDetail, Locations, Primary Contact
  └── GET /api/v1/projects?company_id={id} ─────→ Hydrates Streams & Offers tables
 
-# Creation Flow (AddNewClientModal)
-Submit 
- ├── 1. POST /api/v1/companies ────────────────→ Creates Company
- ├── 2. POST /api/v1/companies/{id}/locations  → (If location filled)
- └── 3. POST /api/v1/companies/{id}/contacts ──→ (If contact filled)
+# Add Client creation flow
+Out of scope in this change. Creation remains unimplemented in active Clients surfaces.
 ```
 
 ## File Changes
@@ -53,7 +50,10 @@ Submit
 |------|--------|-------------|
 | `frontend/app/(agent)/clients/page.tsx` | Modify | Remove mock data, integrate `GET /api/v1/companies`, remove unsupported columns (streams/pipeline/status). |
 | `frontend/app/(agent)/clients/[id]/page.tsx` | Modify | Replace mock calls with `GET /api/v1/companies/{id}` and `GET /api/v1/projects?company_id={id}`. Remove unsupported intelligence/timeline sections. |
-| `frontend/components/features/modals/add-new-client-modal.tsx` | Modify | Update submit handler to issue sequential creation calls. Map fields to `CompanyCreate`, `LocationCreate`, `CompanyContactCreate`. |
+| `frontend/components/features/modals/add-new-client-modal.tsx` | Delete | Decommission dead Add Client modal artifact (inactive and out of scope). |
+| `docs/sdd/clients-company-backed-foundation/proposal.md` | Create | Reconstructed proposal artifact for warning-cleanup pass traceability. |
+| `docs/sdd/clients-company-backed-foundation/spec.md` | Create | Reconstructed requirement/scenario artifact for archive-time verification. |
+| `docs/sdd/clients-company-backed-foundation/tasks.md` | Create | Reconstructed task checklist and completion evidence for this pass. |
 | `frontend/components/features/modals/edit-client-modal.tsx` | Modify | Wire to `PUT /api/v1/companies/{id}` and `PUT /api/v1/companies/{id}/contacts/{contact_id}`. Remove the mock `status` dropdown. |
 | `frontend/components/features/clients/mock-data.ts` | Delete | Remove all mock data files related to Clients. |
 | `frontend/lib/api/companies.ts` | Create | (If not exists) Add fetcher functions for company list, detail, create, and update. |
@@ -71,9 +71,9 @@ No new backend interfaces are introduced. The frontend will strictly consume:
 
 | Layer | What to Test | Approach |
 |-------|-------------|----------|
-| Unit | Sequential Client Creation | Mock `fetch` to ensure `POST /locations` and `POST /contacts` are only called if the `POST /companies` call succeeds. |
+| Unit | Removed dead modal safety | Ensure no stale import/usage references to deleted Add Client modal remain. |
 | Integration | Profile Hydration | Ensure both `companies/{id}` and `projects?company_id={id}` are fetched and correctly mapped to Streams and Offers tables. |
-| E2E | Client Creation Flow | Verify a new client can be created and the user is redirected to the active profile page with the real data visible. |
+| E2E | Client portfolio/profile continuity | Verify `/clients` and `/clients/[id]` render with backend-backed data after cleanup. |
 
 ## Migration / Rollout
 
@@ -81,4 +81,5 @@ No database migration required. The frontend will shift directly from local stat
 
 ## Open Questions
 
-- None. Scope is tightly bounded by existing contracts.
+- Follow-up now clarified by Product Engineering: Add Client parity is a later slice, and the **"Shipping Location & Logistics Hub"** block should persist as the client's first real `Location`.
+- This clarification does not change the scope of `clients-company-backed-foundation`; it only defines the correct domain model for the later Add Client slice.
