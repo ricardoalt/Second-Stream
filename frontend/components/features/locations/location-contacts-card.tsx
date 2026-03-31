@@ -5,7 +5,6 @@ import { useState } from "react";
 import { LocationContactDialog } from "@/components/features/locations/location-contact-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { isForbiddenError } from "@/lib/api/client";
 import { locationsAPI } from "@/lib/api/companies";
@@ -121,13 +120,15 @@ export function LocationContactsCard({
 	};
 
 	return (
-		<Card>
-			<CardHeader className="flex flex-row items-center justify-between">
-				<CardTitle className="text-xl font-semibold">Contacts</CardTitle>
+		<div className="flex flex-col gap-6 pt-4">
+			<header className="flex items-center justify-between border-b pb-4">
+				<h2 className="text-xl font-semibold tracking-tight">
+					Location Contacts
+				</h2>
 				{canWriteContacts && (
 					<LocationContactDialog
 						trigger={
-							<Button size="sm">
+							<Button size="sm" className="shrink-0">
 								<Plus className="mr-2 h-4 w-4" />
 								Add Contact
 							</Button>
@@ -135,79 +136,139 @@ export function LocationContactsCard({
 						onSubmit={handleCreate}
 					/>
 				)}
-			</CardHeader>
-			<CardContent className="space-y-4">
+			</header>
+			<div className="space-y-4">
 				{contacts.length === 0 ? (
-					<p className="text-sm text-muted-foreground">
-						No contacts for this location yet.
-					</p>
+					<div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-12 text-center">
+						<div className="rounded-full bg-muted/50 p-3 text-muted-foreground">
+							<User className="h-5 w-5" />
+						</div>
+						<div className="space-y-1">
+							<p className="text-sm font-medium text-foreground">
+								No site contacts
+							</p>
+							<p className="text-sm text-muted-foreground">
+								Add site managers, dispatchers, or operational contacts for this
+								specific site.
+							</p>
+						</div>
+						{canWriteContacts && (
+							<LocationContactDialog
+								trigger={
+									<Button
+										variant="outline"
+										size="sm"
+										className="mt-2"
+										disabled={loading}
+									>
+										<Plus className="mr-2 h-4 w-4" />
+										Add first contact
+									</Button>
+								}
+								onSubmit={handleCreate}
+							/>
+						)}
+					</div>
 				) : (
-					<div className="space-y-4">
+					<div className="flex flex-col divide-y">
 						{contacts.map((contact) => (
-							<div key={contact.id} className="border rounded-lg p-4 space-y-3">
-								<div className="flex items-start justify-between gap-3">
-									<div className="space-y-1">
-										<div className="flex items-center gap-2">
-											<User className="h-4 w-4 text-muted-foreground" />
-											<p className="text-sm font-semibold">{contact.name}</p>
-											{contact.title && (
-												<Badge variant="outline">{contact.title}</Badge>
-											)}
-										</div>
-										{contact.email && (
-											<div className="flex items-center gap-2 text-sm text-muted-foreground">
-												<Mail className="h-4 w-4" />
-												<span>{contact.email}</span>
-											</div>
-										)}
-										{contact.phone && (
-											<div className="flex items-center gap-2 text-sm text-muted-foreground">
-												<Phone className="h-4 w-4" />
-												<span>{contact.phone}</span>
-											</div>
-										)}
-										{contact.notes && (
-											<p className="text-sm text-muted-foreground whitespace-pre-wrap">
-												{contact.notes}
-											</p>
+							<div
+								key={contact.id}
+								className="group flex flex-col gap-4 py-5 sm:flex-row sm:items-start sm:justify-between"
+							>
+								<div className="flex flex-col items-start gap-1">
+									<div className="flex flex-wrap items-center gap-2">
+										<p className="font-semibold text-foreground">
+											{contact.name || "Unnamed"}
+										</p>
+										{contact.title && (
+											<Badge
+												variant="outline"
+												className="rounded-full px-2 py-0.5 text-[10px] font-normal tracking-wide"
+											>
+												{contact.title}
+											</Badge>
 										)}
 									</div>
-									{canWriteContacts && (
-										<div className="flex items-center gap-2">
-											<LocationContactDialog
-												contact={contact}
-												trigger={
-													<Button
-														size="icon"
-														variant="ghost"
-														aria-label={`Edit contact ${contact.name}`}
-													>
-														<Pencil className="h-4 w-4" />
-													</Button>
-												}
-												onSubmit={(data) => handleUpdate(contact.id, data)}
-											/>
-											{canDeleteContacts && (
+									<div className="mt-2.5 flex flex-wrap items-center gap-2">
+										{contact.email && (
+											<Button
+												variant="secondary"
+												size="sm"
+												className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground shadow-none max-w-full"
+												asChild
+											>
+												<a
+													href={`mailto:${contact.email}`}
+													className="flex items-center min-w-0"
+												>
+													<Mail className="mr-1.5 h-3 w-3 shrink-0" />
+													<span className="truncate">{contact.email}</span>
+												</a>
+											</Button>
+										)}
+										{contact.phone && (
+											<Button
+												variant="secondary"
+												size="sm"
+												className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground shadow-none max-w-full"
+												asChild
+											>
+												<a
+													href={`tel:${contact.phone}`}
+													className="flex items-center min-w-0"
+												>
+													<Phone className="mr-1.5 h-3 w-3 shrink-0" />
+													<span className="truncate">{contact.phone}</span>
+												</a>
+											</Button>
+										)}
+									</div>
+									{contact.notes && (
+										<p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed max-w-xl">
+											{contact.notes}
+										</p>
+									)}
+								</div>
+								{canWriteContacts && (
+									<div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
+										<LocationContactDialog
+											contact={contact}
+											trigger={
 												<Button
 													size="icon"
 													variant="ghost"
-													aria-label={`Delete contact ${contact.name}`}
-													onClick={() => {
-														setContactToDelete(contact);
-														setDeleteDialogOpen(true);
-													}}
+													className="h-8 w-8"
+													disabled={loading}
+													aria-label={`Edit contact ${contact.name}`}
 												>
-													<Trash2 className="h-4 w-4 text-destructive" />
+													<Pencil className="h-4 w-4" />
 												</Button>
-											)}
-										</div>
-									)}
-								</div>
+											}
+											onSubmit={(data) => handleUpdate(contact.id, data)}
+										/>
+										{canDeleteContacts && (
+											<Button
+												size="icon"
+												variant="ghost"
+												className="h-8 w-8 text-muted-foreground hover:text-destructive"
+												disabled={loading}
+												aria-label={`Delete contact ${contact.name}`}
+												onClick={() => {
+													setContactToDelete(contact);
+													setDeleteDialogOpen(true);
+												}}
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										)}
+									</div>
+								)}
 							</div>
 						))}
 					</div>
 				)}
-			</CardContent>
+			</div>
 			{canDeleteContacts && (
 				<ConfirmDeleteDialog
 					open={deleteDialogOpen}
@@ -222,6 +283,6 @@ export function LocationContactsCard({
 					loading={loading}
 				/>
 			)}
-		</Card>
+		</div>
 	);
 }

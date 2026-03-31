@@ -12,6 +12,10 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import {
+	DRAFT_FREQUENCY_OPTIONS,
+	DRAFT_UNITS_OPTIONS,
+} from "@/components/features/streams/draft-field-options";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -34,10 +38,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-	DRAFT_FREQUENCY_OPTIONS,
-	DRAFT_UNITS_OPTIONS,
-} from "@/components/features/streams/draft-field-options";
 import type {
 	CandidateEditableField,
 	CandidateValidationErrors,
@@ -284,7 +284,7 @@ export function DraftConfirmationModal({
 												)}
 											>
 												{/* Material Name */}
-											<div className="min-w-0 pl-2 pr-2">
+												<div className="min-w-0 pl-2 pr-2">
 													<p
 														className={cn(
 															"text-sm font-medium text-foreground",
@@ -492,8 +492,8 @@ export function DraftConfirmationModal({
 														className="overflow-hidden"
 													>
 														<div className="border-t border-border/40 bg-muted/20 px-6 py-4">
-												<div className="grid gap-4 sm:grid-cols-3">
-													<div className="space-y-1.5 sm:col-span-3">
+															<div className="grid gap-4 sm:grid-cols-3">
+																<div className="space-y-1.5 sm:col-span-3">
 																	<label
 																		htmlFor={`material-${candidate.itemId}`}
 																		className="text-xs font-medium text-muted-foreground"
@@ -557,81 +557,96 @@ export function DraftConfirmationModal({
 																	) : null}
 																</div>
 
-													<div className="space-y-1.5">
-														<label
-															htmlFor={`units-${candidate.itemId}`}
-															className="text-xs font-medium text-muted-foreground"
-														>
-															Units
-														</label>
-														<Select
-															value={candidate.units ?? ""}
-															onValueChange={(value) =>
-																onCandidateFieldChange(candidate.itemId, "units", value)
-															}
-															disabled={disableActions}
-														>
-															<SelectTrigger id={`units-${candidate.itemId}`} className="h-9 text-sm">
-																<SelectValue placeholder="Select units" />
-															</SelectTrigger>
-															<SelectContent>
-																<SelectGroup>
-																	{DRAFT_UNITS_OPTIONS.map((option) => (
-																		<SelectItem key={option} value={option}>
-																			{option}
-																		</SelectItem>
-																	))}
-																</SelectGroup>
-															</SelectContent>
-														</Select>
-													</div>
+																<div className="space-y-1.5">
+																	<label
+																		htmlFor={`units-${candidate.itemId}`}
+																		className="text-xs font-medium text-muted-foreground"
+																	>
+																		Units
+																	</label>
+																	<Select
+																		value={candidate.units ?? ""}
+																		onValueChange={(value) =>
+																			onCandidateFieldChange(
+																				candidate.itemId,
+																				"units",
+																				value,
+																			)
+																		}
+																		disabled={disableActions}
+																	>
+																		<SelectTrigger
+																			id={`units-${candidate.itemId}`}
+																			className="h-9 text-sm"
+																		>
+																			<SelectValue placeholder="Select units" />
+																		</SelectTrigger>
+																		<SelectContent>
+																			<SelectGroup>
+																				{DRAFT_UNITS_OPTIONS.map((option) => (
+																					<SelectItem
+																						key={option}
+																						value={option}
+																					>
+																						{option}
+																					</SelectItem>
+																				))}
+																			</SelectGroup>
+																		</SelectContent>
+																	</Select>
+																</div>
 
-													<div className="space-y-1.5">
-														<label
-															htmlFor={`frequency-${candidate.itemId}`}
-															className="text-xs font-medium text-muted-foreground"
-														>
-															Frequency
-														</label>
-														<Select
-															value={candidate.frequency ?? ""}
-															onValueChange={(value) =>
-																onCandidateFieldChange(
-																	candidate.itemId,
-																	"frequency",
-																	value,
-																)
-															}
-															disabled={disableActions}
-														>
-															<SelectTrigger
-																id={`frequency-${candidate.itemId}`}
-																className="h-9 text-sm"
-															>
-																<SelectValue placeholder="Select frequency" />
-															</SelectTrigger>
-															<SelectContent>
-																<SelectGroup>
-																	{DRAFT_FREQUENCY_OPTIONS.map((option) => (
-																		<SelectItem key={option} value={option}>
-																			{option}
-																		</SelectItem>
-																	))}
-																</SelectGroup>
-															</SelectContent>
-														</Select>
-														{errors?.frequency ? (
-															<motion.p
-																className="text-xs text-destructive"
-																initial={{ opacity: 0, y: -5 }}
-																animate={{ opacity: 1, y: 0 }}
-															>
-																{errors.frequency}
-															</motion.p>
-														) : null}
-													</div>
-												</div>
-											</div>
+																<div className="space-y-1.5">
+																	<label
+																		htmlFor={`frequency-${candidate.itemId}`}
+																		className="text-xs font-medium text-muted-foreground"
+																	>
+																		Frequency
+																	</label>
+																	<Select
+																		value={candidate.frequency ?? ""}
+																		onValueChange={(value) =>
+																			onCandidateFieldChange(
+																				candidate.itemId,
+																				"frequency",
+																				value,
+																			)
+																		}
+																		disabled={disableActions}
+																	>
+																		<SelectTrigger
+																			id={`frequency-${candidate.itemId}`}
+																			className="h-9 text-sm"
+																		>
+																			<SelectValue placeholder="Select frequency" />
+																		</SelectTrigger>
+																		<SelectContent>
+																			<SelectGroup>
+																				{DRAFT_FREQUENCY_OPTIONS.map(
+																					(option) => (
+																						<SelectItem
+																							key={option}
+																							value={option}
+																						>
+																							{option}
+																						</SelectItem>
+																					),
+																				)}
+																			</SelectGroup>
+																		</SelectContent>
+																	</Select>
+																	{errors?.frequency ? (
+																		<motion.p
+																			className="text-xs text-destructive"
+																			initial={{ opacity: 0, y: -5 }}
+																			animate={{ opacity: 1, y: 0 }}
+																		>
+																			{errors.frequency}
+																		</motion.p>
+																	) : null}
+																</div>
+															</div>
+														</div>
 													</motion.div>
 												)}
 											</AnimatePresence>

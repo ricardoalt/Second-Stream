@@ -322,11 +322,11 @@ export function StreamsDraftsTable({
 										</SelectTrigger>
 										<SelectContent>
 											<SelectGroup>
-											{DRAFT_FREQUENCY_OPTIONS.map((option) => (
-												<SelectItem key={option} value={option}>
-													{option}
-												</SelectItem>
-											))}
+												{DRAFT_FREQUENCY_OPTIONS.map((option) => (
+													<SelectItem key={option} value={option}>
+														{option}
+													</SelectItem>
+												))}
 											</SelectGroup>
 										</SelectContent>
 									</Select>
@@ -357,14 +357,14 @@ export function StreamsDraftsTable({
 										</SelectTrigger>
 										<SelectContent>
 											<SelectGroup>
-											{DRAFT_UNITS_OPTIONS.map((option) => (
-												<SelectItem key={option} value={option}>
-													{option}
-												</SelectItem>
-											))}
-										</SelectGroup>
-									</SelectContent>
-								</Select>
+												{DRAFT_UNITS_OPTIONS.map((option) => (
+													<SelectItem key={option} value={option}>
+														{option}
+													</SelectItem>
+												))}
+											</SelectGroup>
+										</SelectContent>
+									</Select>
 								</DraftField>
 								{rowErrors.units ? (
 									<p className="mt-1.5 text-xs text-red-600">

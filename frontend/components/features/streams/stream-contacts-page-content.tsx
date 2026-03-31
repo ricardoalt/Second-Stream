@@ -5,8 +5,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { companiesAPI, locationsAPI } from "@/lib/api/companies";
 import { projectsAPI } from "@/lib/api/projects";
 import type { CompanyContact, LocationContact } from "@/lib/types/company";
@@ -59,30 +57,52 @@ function ContactRow({
 	priority?: string | undefined;
 }) {
 	return (
-		<div className="rounded-lg border bg-surface-container-lowest p-3">
-			<div className="flex flex-wrap items-center gap-2">
-				<p className="text-sm font-semibold text-foreground">{name}</p>
-				{title ? <Badge variant="outline">{title}</Badge> : null}
-				{priority ? (
-					<Badge variant="secondary" className="rounded-full">
-						{priority}
+		<div className="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center">
+			<div className="flex flex-col items-start gap-1">
+				<div className="flex flex-wrap items-center gap-2">
+					<p className="font-semibold text-foreground">{name}</p>
+					{priority ? (
+						<Badge
+							variant="secondary"
+							className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+						>
+							{priority}
+						</Badge>
+					) : null}
+				</div>
+				{title ? (
+					<Badge
+						variant="outline"
+						className="rounded-full px-2 py-0.5 text-[10px] font-normal tracking-wide mt-1"
+					>
+						{title}
 					</Badge>
 				) : null}
 			</div>
-			<div className="mt-2 flex flex-wrap items-center gap-2">
+			<div className="flex flex-wrap items-center gap-2">
 				{email ? (
-					<Button variant="outline" size="sm" asChild>
-						<a href={`mailto:${email}`}>
-							<Mail data-icon="inline-start" aria-hidden />
-							{email}
+					<Button
+						variant="secondary"
+						size="sm"
+						className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground shadow-none max-w-full"
+						asChild
+					>
+						<a href={`mailto:${email}`} className="flex items-center min-w-0">
+							<Mail className="mr-1.5 h-3 w-3 shrink-0" aria-hidden />
+							<span className="truncate">{email}</span>
 						</a>
 					</Button>
 				) : null}
 				{phone ? (
-					<Button variant="outline" size="sm" asChild>
-						<a href={`tel:${phone}`}>
-							<Phone data-icon="inline-start" aria-hidden />
-							{phone}
+					<Button
+						variant="secondary"
+						size="sm"
+						className="h-7 text-xs px-2.5 text-muted-foreground hover:text-foreground shadow-none max-w-full"
+						asChild
+					>
+						<a href={`tel:${phone}`} className="flex items-center min-w-0">
+							<Phone className="mr-1.5 h-3 w-3 shrink-0" aria-hidden />
+							<span className="truncate">{phone}</span>
 						</a>
 					</Button>
 				) : null}
@@ -180,7 +200,8 @@ export function StreamContactsPageContent({
 					Contacts
 				</h1>
 				<p className="text-sm text-muted-foreground">
-					Prioritizing contacts at the current location first.
+					People responsible for operations at this site, backed by corporate
+					contacts.
 				</p>
 				<div className="flex flex-wrap items-center gap-2">
 					{contactsData.companyId ? (
@@ -204,30 +225,30 @@ export function StreamContactsPageContent({
 				</div>
 			</header>
 
-			<div className="flex-1 space-y-4 overflow-y-auto">
-				<Card className="bg-surface-container-lowest shadow-sm">
-					<CardHeader className="gap-2">
+			<div className="flex-1 space-y-8 overflow-y-auto pb-6">
+				<section className="space-y-4">
+					<header className="flex flex-col gap-1 border-b pb-4">
 						<div className="flex items-center gap-2">
-							<MapPin className="size-4 text-muted-foreground" />
-							<CardTitle className="text-base">
+							<MapPin className="h-5 w-5 text-primary" />
+							<h2 className="text-lg font-semibold tracking-tight text-foreground">
 								{contactsData.locationName || "Current location"}
-							</CardTitle>
+							</h2>
 						</div>
 						{contactsData.locationAddress ? (
-							<p className="text-xs text-muted-foreground">
+							<p className="text-sm text-muted-foreground ml-7">
 								{contactsData.locationAddress}
 							</p>
 						) : null}
-					</CardHeader>
-					<CardContent>
+					</header>
+					<div>
 						{isLoading ? (
-							<p className="text-sm text-muted-foreground">
+							<p className="py-4 text-sm text-muted-foreground">
 								Loading location contacts...
 							</p>
 						) : error ? (
-							<p className="text-sm text-destructive">{error}</p>
+							<p className="py-4 text-sm text-destructive">{error}</p>
 						) : hasLocationContacts ? (
-							<div className="space-y-3">
+							<div className="flex flex-col divide-y">
 								{contactsData.locationContacts.map((contact) => (
 									<ContactRow
 										key={contact.id}
@@ -240,34 +261,40 @@ export function StreamContactsPageContent({
 								))}
 							</div>
 						) : (
-							<p className="text-sm text-muted-foreground">
-								No contacts found at this location.
-							</p>
+							<div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-10 text-center">
+								<p className="text-sm font-medium text-foreground">
+									No location contacts
+								</p>
+								<p className="text-sm text-muted-foreground">
+									Contacts linked to this location will appear here.
+								</p>
+							</div>
 						)}
-					</CardContent>
-				</Card>
+					</div>
+				</section>
 
-				<Separator />
-
-				<Card className="bg-surface-container-lowest shadow-sm">
-					<CardHeader className="gap-2">
+				<section className="space-y-4">
+					<header className="flex flex-col gap-1 border-b pb-4">
 						<div className="flex items-center gap-2">
-							<Building2 className="size-4 text-muted-foreground" />
-							<CardTitle className="text-base">
+							<Building2 className="h-5 w-5 text-muted-foreground" />
+							<h2 className="text-lg font-semibold tracking-tight text-foreground">
 								{contactsData.companyName || "Company contacts"}
-							</CardTitle>
-							<Badge variant="outline" className="rounded-full">
-								Secondary
+							</h2>
+							<Badge
+								variant="secondary"
+								className="rounded-full px-2 py-0.5 text-[10px] font-normal tracking-wide text-muted-foreground uppercase"
+							>
+								Corporate backup
 							</Badge>
 						</div>
-					</CardHeader>
-					<CardContent>
+					</header>
+					<div>
 						{isLoading ? (
-							<p className="text-sm text-muted-foreground">
+							<p className="py-4 text-sm text-muted-foreground">
 								Loading company contacts...
 							</p>
 						) : companyContactsWithoutLocationDupes.length > 0 ? (
-							<div className="space-y-3">
+							<div className="flex flex-col divide-y">
 								{companyContactsWithoutLocationDupes.map((contact) => (
 									<ContactRow
 										key={contact.id}
@@ -279,13 +306,13 @@ export function StreamContactsPageContent({
 								))}
 							</div>
 						) : (
-							<div className="flex items-center gap-2 text-sm text-muted-foreground">
-								<Users className="size-4" />
+							<div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+								<Users className="h-4 w-4" />
 								<span>No additional company contacts to show.</span>
 							</div>
 						)}
-					</CardContent>
-				</Card>
+					</div>
+				</section>
 			</div>
 		</div>
 	);

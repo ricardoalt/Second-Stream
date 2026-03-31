@@ -3,22 +3,21 @@
 import { ChevronLeft, MapPin, Users } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyContactsCard } from "@/components/features/companies/company-contacts-card";
 import { LocationContactsManagerDialog } from "@/components/features/locations/location-contacts-manager-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PERMISSIONS } from "@/lib/authz/permissions";
+import { Card, CardContent } from "@/components/ui/card";
 import { companiesAPI, locationsAPI } from "@/lib/api/companies";
+import { PERMISSIONS } from "@/lib/authz/permissions";
 import { useAuth } from "@/lib/contexts/auth-context";
 import type { CompanyDetail, LocationDetail } from "@/lib/types/company";
 
-export default function ClientContactsPage({
-	params,
-}: {
-	params: { id: string };
+export default function ClientContactsPage(props: {
+	params: Promise<{ id: string }>;
 }) {
+	const params = use(props.params);
 	const companyId = Array.isArray(params.id) ? params.id[0] : params.id;
 	const searchParams = useSearchParams();
 	const { user } = useAuth();
@@ -28,7 +27,8 @@ export default function ClientContactsPage({
 	const [error, setError] = useState<string | null>(null);
 	const [selectedLocation, setSelectedLocation] =
 		useState<LocationDetail | null>(null);
-	const [hasConsumedLocationQuery, setHasConsumedLocationQuery] = useState(false);
+	const [hasConsumedLocationQuery, setHasConsumedLocationQuery] =
+		useState(false);
 
 	const canManageCompanyContacts = useMemo(
 		() =>
@@ -45,9 +45,14 @@ export default function ClientContactsPage({
 		setError(null);
 		try {
 			const companyDetail = await companiesAPI.get(companyId);
-			const locationSummaries = await locationsAPI.listByCompany(companyId, "active");
+			const locationSummaries = await locationsAPI.listByCompany(
+				companyId,
+				"active",
+			);
 			const locationDetails = await Promise.all(
-				locationSummaries.map((location) => locationsAPI.get(location.id, "active")),
+				locationSummaries.map((location) =>
+					locationsAPI.get(location.id, "active"),
+				),
 			);
 
 			setCompany(companyDetail);
@@ -102,12 +107,12 @@ export default function ClientContactsPage({
 				</Button>
 
 				<div className="flex flex-col gap-2">
-					<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
+					<h1 className="font-display text-4xl font-semibold tracking-tight text-foreground">
 						Client Contacts
 					</h1>
-					<p className="text-muted-foreground">
-						Company-wide contacts live here. Location-specific contacts stay tied
-						to each site, but you can manage them from this hub.
+					<p className="max-w-2xl text-lg text-muted-foreground">
+						Manage company-wide contacts and monitor coverage across all
+						operational locations.
 					</p>
 				</div>
 			</section>
@@ -138,91 +143,102 @@ export default function ClientContactsPage({
 						/>
 					</div>
 
-					<div className="flex flex-col gap-6">
-						<Card>
-							<CardHeader>
-								<CardTitle className="flex items-center gap-2 text-xl font-semibold">
-									<MapPin className="h-5 w-5 text-primary" />
-									Location contact coverage
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
+					<div className="flex flex-col gap-10 md:border-l md:pl-10">
+						<section className="flex flex-col gap-6">
+							<header className="flex items-center gap-2">
+								<MapPin className="h-5 w-5 text-primary" />
+								<h2 className="text-xl font-semibold text-foreground tracking-tight">
+									Location coverage
+								</h2>
+							</header>
+
+							<div className="flex flex-col divide-y">
 								{locations.length === 0 ? (
-									<p className="text-sm text-muted-foreground">
-										No active locations found for this client.
-									</p>
+									<div className="flex items-center justify-center rounded-xl border border-dashed py-12 px-6 text-center">
+										<p className="text-sm text-muted-foreground">
+											No active locations found for this client.
+										</p>
+									</div>
 								) : (
 									locations.map((location) => {
 										const contactsCount = location.contacts?.length ?? 0;
 										return (
 											<div
 												key={location.id}
-												className="rounded-lg border bg-surface-container-lowest p-4"
+												className="group flex flex-col gap-4 py-5 transition-colors hover:bg-muted/30 px-2 sm:px-4 -mx-2 sm:-mx-4 rounded-xl"
 											>
-												<div className="flex items-start justify-between gap-3">
-													<div className="space-y-2">
-														<div className="flex items-center gap-2">
-															<p className="font-medium text-foreground">
+												<div className="flex items-start justify-between gap-4">
+													<div className="space-y-1.5 min-w-0">
+														<div className="flex flex-wrap items-center gap-2">
+															<p className="truncate font-semibold text-foreground">
 																{location.name}
 															</p>
-															<Badge variant="outline" className="rounded-full">
-																{contactsCount} contact{contactsCount === 1 ? "" : "s"}
+															<Badge
+																variant="secondary"
+																className="rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wider uppercase"
+															>
+																{contactsCount} contact
+																{contactsCount === 1 ? "" : "s"}
 															</Badge>
 														</div>
-														<p className="text-sm text-muted-foreground">
+														<p className="truncate text-sm text-muted-foreground">
 															{location.fullAddress || "No address available"}
 														</p>
-														{contactsCount > 0 ? (
-															<div className="space-y-1 pt-1">
-																{location.contacts?.slice(0, 2).map((contact) => (
-																	<div
-																		key={contact.id}
-																		className="text-sm text-muted-foreground"
-																	>
-																		<span className="font-medium text-foreground">
-																			{contact.name}
-																		</span>
-																		{contact.title ? ` · ${contact.title}` : ""}
-																	</div>
-																))}
-															</div>
-														) : (
-															<p className="text-sm text-muted-foreground">
-																No location contacts yet.
-															</p>
-														)}
 													</div>
 
 													<Button
-														variant="outline"
+														variant="ghost"
 														size="sm"
+														className="shrink-0 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
 														onClick={() => setSelectedLocation(location)}
 													>
 														<Users className="mr-2 h-4 w-4" />
 														Manage
 													</Button>
 												</div>
+
+												{contactsCount > 0 ? (
+													<div className="flex flex-wrap gap-x-8 gap-y-3 pt-2">
+														{location.contacts?.slice(0, 4).map((contact) => (
+															<div
+																key={contact.id}
+																className="flex flex-col gap-0.5 text-sm"
+															>
+																<span className="truncate font-medium text-foreground">
+																	{contact.name}
+																</span>
+																{contact.title ? (
+																	<span className="truncate text-muted-foreground text-[10px] uppercase tracking-wider">
+																		{contact.title}
+																	</span>
+																) : null}
+															</div>
+														))}
+													</div>
+												) : null}
 											</div>
 										);
 									})
 								)}
-							</CardContent>
-						</Card>
+							</div>
+						</section>
 
-						<Card>
-							<CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
-								<p className="font-medium text-foreground">Recommended workflow</p>
+						<section className="rounded-xl bg-muted/40 p-6 text-sm text-muted-foreground">
+							<h3 className="mb-2 font-medium text-foreground">
+								How contacts work
+							</h3>
+							<div className="space-y-2 leading-relaxed">
 								<p>
-									Use this hub to manage company-wide contacts, then attach
-									operational contacts to each location where the work actually
-									happens.
+									Keep executive and corporate contacts at the company level.
+									Assign site-specific contacts directly to their operational
+									locations.
 								</p>
 								<p>
-									Waste stream screens should stay focused on finding the right
-									person fast, not editing the master contact records.
+									This ensures the right people are surfaced automatically when
+									managing waste streams for specific sites.
 								</p>
-							</CardContent>
-						</Card>
+							</div>
+						</section>
 					</div>
 				</div>
 			) : null}

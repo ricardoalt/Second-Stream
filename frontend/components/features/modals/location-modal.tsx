@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -9,7 +10,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,8 +24,8 @@ import { getFirstError, locationSchema } from "@/lib/forms/schemas";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useLocationStore } from "@/lib/stores/location-store";
 import {
-	type AddressType,
 	ADDRESS_TYPE_LABELS,
+	type AddressType,
 	type LocationDetail,
 	type LocationSummary,
 } from "@/lib/types/company";
@@ -69,9 +69,9 @@ export function LocationModal({
 	const { toast } = useToast();
 	const { createLocation, updateLocation } = useLocationStore();
 	const [form, setForm] = useState<LocationFormValues>(EMPTY_FORM);
-	const [errors, setErrors] = useState<Partial<Record<keyof LocationFormValues, string>>>(
-		{},
-	);
+	const [errors, setErrors] = useState<
+		Partial<Record<keyof LocationFormValues, string>>
+	>({});
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	useEffect(() => {
@@ -157,7 +157,9 @@ export function LocationModal({
 			onClose();
 		} catch (error) {
 			toast({
-				title: isEdit ? "Failed to update location" : "Failed to create location",
+				title: isEdit
+					? "Failed to update location"
+					: "Failed to create location",
 				description:
 					error instanceof Error ? error.message : "Please try again.",
 				variant: "destructive",
@@ -177,19 +179,26 @@ export function LocationModal({
 		<Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
 			<DialogContent className="max-w-2xl">
 				<form className="space-y-6" onSubmit={handleSubmit}>
-					<DialogHeader>
-						<DialogTitle>{title}</DialogTitle>
-						<DialogDescription>{description}</DialogDescription>
+					<DialogHeader className="space-y-3 pb-4 border-b">
+						<DialogTitle className="text-2xl font-semibold tracking-tight">
+							{title}
+						</DialogTitle>
+						<DialogDescription className="text-base">
+							{description}
+						</DialogDescription>
 					</DialogHeader>
 
-					<div className="grid gap-4 md:grid-cols-2">
+					<div className="grid gap-6 md:grid-cols-2 pt-2 pb-4">
 						<div className="space-y-2">
 							<Label htmlFor="location-name">Location Name</Label>
 							<Input
 								id="location-name"
 								value={form.name}
 								onChange={(event) =>
-									setForm((current) => ({ ...current, name: event.target.value }))
+									setForm((current) => ({
+										...current,
+										name: event.target.value,
+									}))
 								}
 								placeholder="e.g. Houston Main Plant"
 							/>
@@ -227,7 +236,10 @@ export function LocationModal({
 								id="location-address"
 								value={form.address}
 								onChange={(event) =>
-									setForm((current) => ({ ...current, address: event.target.value }))
+									setForm((current) => ({
+										...current,
+										address: event.target.value,
+									}))
 								}
 								placeholder="123 Industrial Blvd"
 							/>
@@ -240,7 +252,10 @@ export function LocationModal({
 								id="location-city"
 								value={form.city}
 								onChange={(event) =>
-									setForm((current) => ({ ...current, city: event.target.value }))
+									setForm((current) => ({
+										...current,
+										city: event.target.value,
+									}))
 								}
 								placeholder="Houston"
 							/>
@@ -253,7 +268,10 @@ export function LocationModal({
 								id="location-state"
 								value={form.state}
 								onChange={(event) =>
-									setForm((current) => ({ ...current, state: event.target.value }))
+									setForm((current) => ({
+										...current,
+										state: event.target.value,
+									}))
 								}
 								placeholder="TX"
 							/>
@@ -266,7 +284,10 @@ export function LocationModal({
 								id="location-zip-code"
 								value={form.zipCode}
 								onChange={(event) =>
-									setForm((current) => ({ ...current, zipCode: event.target.value }))
+									setForm((current) => ({
+										...current,
+										zipCode: event.target.value,
+									}))
 								}
 								placeholder="77002"
 							/>
@@ -279,7 +300,10 @@ export function LocationModal({
 								id="location-notes"
 								value={form.notes}
 								onChange={(event) =>
-									setForm((current) => ({ ...current, notes: event.target.value }))
+									setForm((current) => ({
+										...current,
+										notes: event.target.value,
+									}))
 								}
 								placeholder="Optional operational notes for this site"
 								rows={4}
@@ -288,11 +312,15 @@ export function LocationModal({
 						</div>
 					</div>
 
-					<DialogFooter>
+					<DialogFooter className="border-t pt-4 gap-2">
 						<Button type="button" variant="ghost" onClick={onClose}>
 							Cancel
 						</Button>
-						<Button type="submit" disabled={isSubmitting}>
+						<Button
+							type="submit"
+							disabled={isSubmitting}
+							className="bg-teal-700 text-white hover:bg-teal-800"
+						>
 							{isSubmitting
 								? isEdit
 									? "Saving..."

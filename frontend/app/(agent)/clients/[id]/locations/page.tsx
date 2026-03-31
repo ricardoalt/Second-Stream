@@ -1,23 +1,21 @@
 "use client";
 
-import { Building2, ChevronLeft, MapPin, Plus, Trash2, Users } from "lucide-react";
+import { Building2, ChevronLeft, Plus, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { LocationContactsManagerDialog } from "@/components/features/locations/location-contacts-manager-dialog";
 import { LocationModal } from "@/components/features/modals/location-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useLocationStore } from "@/lib/stores/location-store";
 import { ADDRESS_TYPE_LABELS, type LocationSummary } from "@/lib/types/company";
 
-export default function ClientLocationsPage({
-	params,
-}: {
-	params: { id: string };
+export default function ClientLocationsPage(props: {
+	params: Promise<{ id: string }>;
 }) {
+	const params = use(props.params);
 	const companyId = Array.isArray(params.id) ? params.id[0] : params.id;
 	const searchParams = useSearchParams();
 	const { toast } = useToast();
@@ -30,12 +28,12 @@ export default function ClientLocationsPage({
 		clearError,
 	} = useLocationStore();
 	const [isModalOpen, setIsModalOpen] = useState(false);
-	const [selectedLocation, setSelectedLocation] = useState<LocationSummary | null>(
-		null,
-	);
+	const [selectedLocation, setSelectedLocation] =
+		useState<LocationSummary | null>(null);
 	const [contactsLocation, setContactsLocation] =
 		useState<LocationSummary | null>(null);
-	const [hasConsumedLocationQuery, setHasConsumedLocationQuery] = useState(false);
+	const [hasConsumedLocationQuery, setHasConsumedLocationQuery] =
+		useState(false);
 
 	useEffect(() => {
 		void loadLocationsByCompany(companyId);
@@ -51,7 +49,11 @@ export default function ClientLocationsPage({
 	);
 
 	const totalProjects = useMemo(
-		() => companyLocations.reduce((sum, location) => sum + location.projectCount, 0),
+		() =>
+			companyLocations.reduce(
+				(sum, location) => sum + location.projectCount,
+				0,
+			),
 		[companyLocations],
 	);
 
@@ -129,21 +131,23 @@ export default function ClientLocationsPage({
 					</Link>
 				</Button>
 
-				<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					<div className="flex flex-col gap-2">
-						<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
+						<h1 className="font-display text-4xl font-semibold tracking-tight text-foreground">
 							Manage Locations
 						</h1>
-						<p className="text-muted-foreground">
-							Live company locations backed by the real locations API.
+						<p className="max-w-2xl text-lg text-muted-foreground">
+							Add and organize operational sites for this client, and track
+							associated projects.
 						</p>
 					</div>
 					<Button
 						onClick={handleCreate}
+						size="lg"
 						className="shrink-0 bg-teal-700 text-white hover:bg-teal-800"
 					>
-						<MapPin className="mr-2 h-4 w-4" />
-						Add New Location
+						<Plus className="mr-2 h-4 w-4" />
+						New Location
 					</Button>
 				</div>
 			</section>
@@ -155,154 +159,158 @@ export default function ClientLocationsPage({
 			) : null}
 
 			<div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-				<section className="flex flex-col gap-4">
-					<div className="hidden lg:grid grid-cols-[2fr_2.2fr_1fr_1fr_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-						<div>Location</div>
-						<div>Address</div>
+				<section className="flex flex-col">
+					<div className="hidden border-b pb-3 lg:grid grid-cols-[2fr_2fr_1fr_1fr_auto] gap-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+						<div>Location Details</div>
+						<div>Primary Address</div>
 						<div>Type</div>
-						<div>Projects</div>
-						<div className="text-right">Actions</div>
+						<div>Active Projects</div>
+						<div className="text-right pr-2">Actions</div>
 					</div>
 
 					{loading && companyLocations.length === 0 ? (
-						<Card>
-							<CardContent className="p-6 text-sm text-muted-foreground">
-								Loading locations...
-							</CardContent>
-						</Card>
+						<div className="py-10 text-center text-sm text-muted-foreground">
+							Loading locations...
+						</div>
 					) : null}
 
 					{!loading && companyLocations.length === 0 ? (
-						<Card>
-							<CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-								<div className="rounded-full bg-teal-50 p-3 text-teal-700">
-									<Building2 className="h-6 w-6" />
-								</div>
-								<div className="space-y-1">
-									<h2 className="font-semibold text-foreground">
-										No locations yet
-									</h2>
-									<p className="text-sm text-muted-foreground">
-										Create the first site for this client using the real backend
-										contract: name, city, state, ZIP, address type, and optional
-										address/notes.
-									</p>
-								</div>
-								<Button onClick={handleCreate}>
-									<Plus className="mr-2 h-4 w-4" />
-									Create first location
-								</Button>
-							</CardContent>
-						</Card>
+						<div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed py-20 text-center">
+							<div className="rounded-full bg-teal-50 p-4 text-teal-700">
+								<Building2 className="h-6 w-6" />
+							</div>
+							<div className="space-y-1 max-w-sm">
+								<h2 className="text-lg font-semibold tracking-tight text-foreground">
+									No locations recorded
+								</h2>
+								<p className="text-sm text-muted-foreground">
+									Add the first physical site for this client to start tracking
+									projects and assigning local contacts.
+								</p>
+							</div>
+							<Button onClick={handleCreate} className="mt-2" variant="outline">
+								<Plus className="mr-2 h-4 w-4" />
+								Add first location
+							</Button>
+						</div>
 					) : null}
 
-					<div className="flex flex-col gap-3">
+					<div className="flex flex-col divide-y">
 						{companyLocations.map((location) => (
-							<Card
+							<div
 								key={location.id}
-								className="group overflow-hidden transition-all hover:border-border/80 hover:shadow-sm"
+								className="group flex flex-col gap-4 py-5 lg:grid lg:grid-cols-[2fr_2fr_1fr_1fr_auto] lg:items-center transition-colors hover:bg-muted/30 px-2 sm:px-4 -mx-2 sm:-mx-4 rounded-xl"
 							>
-								<CardContent className="p-0">
-									<div className="grid gap-4 p-4 lg:grid-cols-[2fr_2.2fr_1fr_1fr_auto] lg:items-center">
-										<div className="flex min-w-0 flex-col gap-1">
-											<p className="truncate text-base font-semibold text-foreground">
-												{location.name}
-											</p>
-											<p className="truncate font-mono text-xs text-muted-foreground">
-												Ref: {location.id}
-											</p>
-										</div>
+								<div className="flex min-w-0 flex-col gap-1 pr-4">
+									<p className="truncate text-base font-semibold text-foreground">
+										{location.name}
+									</p>
+									<p className="truncate font-mono text-[10px] tracking-wider text-muted-foreground/50">
+										ID: {location.id.slice(-8)}
+									</p>
+								</div>
 
-										<div className="min-w-0 flex flex-col gap-1">
-											<p className="truncate text-sm text-foreground">
-												{location.address || "No street address provided"}
-											</p>
-											<p className="truncate text-sm text-muted-foreground">
-												{location.city}, {location.state} {location.zipCode ?? ""}
-											</p>
-										</div>
+								<div className="min-w-0 flex flex-col gap-1 pr-4">
+									<p className="truncate text-sm text-foreground">
+										{location.address || "No street address provided"}
+									</p>
+									<p className="truncate text-sm text-muted-foreground">
+										{location.city}, {location.state} {location.zipCode ?? ""}
+									</p>
+								</div>
 
-										<div>
-											<Badge variant="outline" className="rounded-full">
-												{ADDRESS_TYPE_LABELS[location.addressType]}
-											</Badge>
-										</div>
+								<div>
+									<Badge
+										variant="secondary"
+										className="rounded-full px-2.5 py-0.5 text-xs font-normal"
+									>
+										{ADDRESS_TYPE_LABELS[location.addressType]}
+									</Badge>
+								</div>
 
-										<div>
-											<Badge variant="secondary" className="rounded-full">
-												{location.projectCount} project
-												{location.projectCount === 1 ? "" : "s"}
-											</Badge>
-										</div>
+								<div>
+									<span className="text-sm font-medium text-foreground">
+										{location.projectCount}
+									</span>
+									<span className="text-sm text-muted-foreground ml-1.5">
+										project{location.projectCount === 1 ? "" : "s"}
+									</span>
+								</div>
 
-										<div className="flex items-center justify-end gap-2">
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => handleManageContacts(location)}
-											>
-												<Users className="mr-2 h-4 w-4" />
-												Contacts
-											</Button>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => handleEdit(location)}
-											>
-												Edit
-											</Button>
-											<Button
-												variant="ghost"
-												size="sm"
-												className="text-muted-foreground hover:text-destructive"
-												onClick={() => handleArchive(location)}
-											>
-												<Trash2 className="mr-2 h-4 w-4" />
-												Archive
-											</Button>
-										</div>
-									</div>
-								</CardContent>
-							</Card>
+								<div className="flex flex-wrap items-center justify-start lg:justify-end gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity mt-2 lg:mt-0">
+									<Button
+										variant="ghost"
+										size="sm"
+										className="h-8 shadow-sm lg:shadow-none bg-surface-container-lowest lg:bg-transparent border lg:border-transparent"
+										onClick={() => handleManageContacts(location)}
+									>
+										<Users className="mr-2 h-4 w-4" />
+										Contacts
+									</Button>
+									<Button
+										variant="ghost"
+										size="sm"
+										className="h-8 shadow-sm lg:shadow-none bg-surface-container-lowest lg:bg-transparent border lg:border-transparent"
+										onClick={() => handleEdit(location)}
+									>
+										Edit
+									</Button>
+									<Button
+										variant="ghost"
+										size="sm"
+										className="h-8 text-muted-foreground hover:text-destructive shadow-sm lg:shadow-none bg-surface-container-lowest lg:bg-transparent border lg:border-transparent"
+										onClick={() => handleArchive(location)}
+									>
+										<Trash2 className="h-4 w-4 lg:mr-0 mr-2" />
+										<span className="lg:sr-only">Archive</span>
+									</Button>
+								</div>
+							</div>
 						))}
 					</div>
 				</section>
 
-				<aside className="flex flex-col gap-6">
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-base">Portfolio Snapshot</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="rounded-lg border bg-surface-container-lowest p-4">
-								<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-									Locations
+				<aside className="flex flex-col gap-8 md:border-l md:pl-6 lg:pl-10">
+					<section className="space-y-6">
+						<h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							Snapshot
+						</h2>
+						<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-1">
+							<div className="space-y-1">
+								<p className="text-sm font-medium text-muted-foreground">
+									Total Locations
 								</p>
-								<p className="mt-2 text-2xl font-semibold text-foreground">
+								<p className="font-display text-4xl font-semibold text-foreground tracking-tight">
 									{companyLocations.length}
 								</p>
 							</div>
 
-							<div className="rounded-lg border bg-surface-container-lowest p-4">
-								<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-									Projects linked
+							<div className="space-y-1">
+								<p className="text-sm font-medium text-muted-foreground">
+									Linked Projects
 								</p>
-								<p className="mt-2 text-2xl font-semibold text-foreground">
+								<p className="font-display text-4xl font-semibold text-foreground tracking-tight">
 									{totalProjects}
 								</p>
 							</div>
+						</div>
+					</section>
 
-							<div className="rounded-lg border bg-surface-container-lowest p-4 text-sm text-muted-foreground">
-								<p className="font-medium text-foreground">Contract check</p>
-								<p className="mt-2">
-									This screen now follows the backend contract exactly: location
-									fields are name/address/city/state/ZIP/addressType/notes.
-									Contacts are a separate resource and should be managed in their
-									own flow.
-								</p>
-							</div>
-						</CardContent>
-					</Card>
+					<section className="rounded-xl bg-muted/40 p-6 text-sm text-muted-foreground">
+						<h3 className="mb-2 font-medium text-foreground">
+							How locations work
+						</h3>
+						<div className="space-y-2 leading-relaxed">
+							<p>
+								Locations represent the physical sites where work happens. Keep
+								address details accurate for seamless mapping and logistics.
+							</p>
+							<p>
+								You can assign dedicated site managers and coordinators directly
+								to each location's contact list.
+							</p>
+						</div>
+					</section>
 				</aside>
 			</div>
 

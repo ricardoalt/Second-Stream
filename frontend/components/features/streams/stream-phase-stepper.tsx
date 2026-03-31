@@ -24,10 +24,6 @@ export function StreamPhaseStepper({
 					const isCompleted = Boolean(phaseProgress[phase]);
 					const isActive = phase === activePhase;
 					const isLast = index === phases.length - 1;
-					const prevPhase = index > 0 ? phases[index - 1] : undefined;
-					const prevCompleted = prevPhase
-						? Boolean(phaseProgress[prevPhase.phase])
-						: false;
 
 					return (
 						<li
