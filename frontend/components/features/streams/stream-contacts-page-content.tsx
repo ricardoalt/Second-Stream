@@ -18,7 +18,9 @@ interface StreamContactsPageContentProps {
 }
 
 interface ContactsDataState {
+	companyId: string;
 	locationName: string;
+	locationId: string;
 	locationAddress: string;
 	locationContacts: LocationContact[];
 	companyName: string;
@@ -26,7 +28,9 @@ interface ContactsDataState {
 }
 
 const EMPTY_CONTACTS: ContactsDataState = {
+	companyId: "",
 	locationName: "",
+	locationId: "",
 	locationAddress: "",
 	locationContacts: [],
 	companyName: "",
@@ -107,7 +111,9 @@ export function StreamContactsPageContent({
 			const company = await companiesAPI.get(location.companyId);
 
 			setContactsData({
+				companyId: company.id,
 				locationName: location.name,
+				locationId: location.id,
 				locationAddress: location.fullAddress,
 				locationContacts: sortByName(location.contacts ?? []),
 				companyName: company.name,
@@ -176,6 +182,26 @@ export function StreamContactsPageContent({
 				<p className="text-sm text-muted-foreground">
 					Prioritizing contacts at the current location first.
 				</p>
+				<div className="flex flex-wrap items-center gap-2">
+					{contactsData.companyId ? (
+						<Button asChild size="sm" variant="outline">
+							<Link
+								href={`/clients/${contactsData.companyId}/contacts?locationId=${contactsData.locationId}`}
+							>
+								<Users data-icon="inline-start" aria-hidden />
+								Manage location contacts
+							</Link>
+						</Button>
+					) : null}
+					{contactsData.companyId ? (
+						<Button asChild size="sm" variant="ghost">
+							<Link href={`/clients/${contactsData.companyId}/contacts`}>
+								<Building2 data-icon="inline-start" aria-hidden />
+								Open client contacts hub
+							</Link>
+						</Button>
+					) : null}
+				</div>
 			</header>
 
 			<div className="flex-1 space-y-4 overflow-y-auto">

@@ -196,13 +196,13 @@ export type CompanyContactFormData = z.infer<typeof companyContactSchema>;
 // =============================================================================
 
 export const locationSchema = z.object({
-	name: z.string().min(1, "Location name is required").max(100),
+	name: z.string().min(1, "Location name is required").max(255),
 	addressType: z.enum(ADDRESS_TYPES, {
 		required_error: "Please select an address type",
 	}),
-	city: z.string().min(1, "City is required"),
-	state: z.string().min(1, "State is required"),
-	address: z.string().default(""),
+	city: z.string().min(1, "City is required").max(100),
+	state: z.string().min(1, "State is required").max(100),
+	address: z.string().max(500).default(""),
 	zipCode: z
 		.string()
 		.transform(parseZipCode)
@@ -213,7 +213,7 @@ export const locationSchema = z.object({
 			message: ZIP_CODE_FORMAT_MESSAGE,
 		})
 		.default(""),
-	notes: z.string().default(""),
+	notes: z.string().max(1000).default(""),
 });
 
 export type LocationFormData = z.infer<typeof locationSchema>;

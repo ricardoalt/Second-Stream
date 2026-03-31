@@ -14,6 +14,7 @@ import {
 	Target,
 	Users,
 } from "lucide-react";
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -331,13 +332,17 @@ export default function ClientDetailPage() {
 							<Edit3 className="mr-1.5 h-4 w-4" />
 							Edit
 						</Button>
-						<Button variant="outline" size="sm">
-							<MapPin className="mr-1.5 h-4 w-4" />
-							Locations
+						<Button variant="outline" size="sm" asChild>
+							<Link href={`/clients/${companyId}/locations`}>
+								<MapPin className="mr-1.5 h-4 w-4" />
+								Locations
+							</Link>
 						</Button>
-						<Button size="sm">
-							<Users className="mr-1.5 h-4 w-4" />
-							Contacts
+						<Button size="sm" asChild>
+							<Link href={`/clients/${companyId}/contacts`}>
+								<Users className="mr-1.5 h-4 w-4" />
+								Contacts
+							</Link>
 						</Button>
 					</div>
 				</div>
