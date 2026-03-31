@@ -2,24 +2,16 @@
 
 import {
 	Activity,
-	AlertTriangle,
 	Building2,
-	CheckCircle,
 	ChevronLeft,
-	Clock,
-	DollarSign,
 	Edit3,
 	Factory,
-	FileWarning,
 	Flag,
 	Loader2,
 	Mail,
 	MapPin,
-	MessageSquare,
 	Phone,
-	Sparkles,
 	Target,
-	TrendingUp,
 	Users,
 } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -54,6 +46,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { bulkImportAPI } from "@/lib/api/bulk-import";
 import { companiesAPI } from "@/lib/api/companies";
+import { deriveOperationalInsights } from "@/lib/clients/operational-insights";
 import { toDiscoveryNormalizedData } from "@/lib/discovery-confirmation-utils";
 import type { ClientProfile } from "@/lib/mappers/company-client";
 import { toClientProfile } from "@/lib/mappers/company-client";
@@ -245,56 +238,28 @@ export default function ClientDetailPage() {
 		);
 	}
 
-	// Mock data for new UI elements (visual placeholders)
-	const mockRevenue = "$840k";
-	const mockRevenueTrend = "+12%";
-	const mockHealthIndex = 94;
-	const mockAvgAccepted = "94.2%";
-	const mockDiscoveryScore = 88;
+	const insights = deriveOperationalInsights({
+		profile,
+		companyAllStreams,
+		companyDraftStreams,
+		companyMissingInfoStreams,
+	});
 
-	// Mock alerts for visual demonstration
-	const mockAlerts = [
-		{
-			id: 1,
-			severity: "critical" as const,
-			title: "Missing Documentation",
-			description:
-				"SDS/COA required for Benzene Solvent Recovery (#PR-8828) or 12 days.",
-			icon: FileWarning,
-		},
-		{
-			id: 2,
-			severity: "warning" as const,
-			title: "Stalemate Deal 15",
-			description:
-				"Sent Addie Bodman (#TR-44-12) five times in draft for 5 days.",
-			icon: Clock,
-		},
-		{
-			id: 3,
-			severity: "info" as const,
-			title: "Pending Offer",
-			description:
-				"Mixed Hydrocarbon Sludge (S18-#8-#9) awaiting final approval for 6 days.",
-			icon: MessageSquare,
-		},
-	];
-
-	// Mock next steps for visual demonstration
-	const mockNextSteps = [
-		{
-			id: "step-1",
-			text: "Upload SDS for Benzene Solvent Recovery to unlock upcoming pickup.",
-		},
-		{
-			id: "step-2",
-			text: "Complete Phase 3 Discovery for Nitric Acid stream in Building 4C.",
-		},
-		{
-			id: "step-3",
-			text: "Follow up on Pending Offer #PR-8821 with Facility Manager Thorne.",
-		},
-	];
+	const {
+		totalTrackedStreams,
+		activeStreamsCount,
+		readyForOfferCount,
+		missingInfoStreamsCount,
+		draftStreamsCount,
+		facilitiesWithProjects,
+		facilityCoverage,
+		dataCompleteness,
+		accountStatus,
+		realAlerts,
+		nextSteps,
+		accountNarrative,
+		reviewAction,
+	} = insights;
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -330,12 +295,11 @@ export default function ClientDetailPage() {
 								<Factory className="h-3 w-3" />
 								Industry: {profile.industry}
 							</Badge>
-							<Badge variant="muted">Account: #{companyId?.slice(-4)}</Badge>
-							<Badge
-								variant="success"
-								className="rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
-							>
-								Active
+							<Badge variant="muted">
+								Company ID: {profile.id.slice(0, 8)}
+							</Badge>
+							<Badge variant={accountStatus.variant} className="rounded-full">
+								{accountStatus.label}
 							</Badge>
 						</div>
 					</div>
@@ -367,18 +331,21 @@ export default function ClientDetailPage() {
 					<CardHeader className="pb-2">
 						<div className="flex items-center justify-between">
 							<p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-								Total Revenue
+								Total Tracked Streams
 							</p>
 							<div className="rounded-lg bg-amber-100 p-1.5">
-								<DollarSign className="h-4 w-4 text-amber-600" />
+								<Activity className="h-4 w-4 text-amber-600" />
 							</div>
 						</div>
 					</CardHeader>
 					<CardContent>
 						<div className="flex items-baseline gap-2">
-							<p className="text-3xl font-bold tracking-tight">{mockRevenue}</p>
-							<Badge variant="success" className="rounded-full text-xs">
-								{mockRevenueTrend}
+							<p className="text-3xl font-bold tracking-tight">
+								{totalTrackedStreams}
+							</p>
+							<Badge variant="muted" className="rounded-full text-xs">
+								{draftStreamsCount} draft
+								{draftStreamsCount === 1 ? "" : "s"}
 							</Badge>
 						</div>
 					</CardContent>
@@ -387,7 +354,7 @@ export default function ClientDetailPage() {
 				<MetricCard
 					icon={Activity}
 					label="Active Streams"
-					value={companyAllStreams.length}
+					value={activeStreamsCount}
 					subtitle={`Across ${profile.locations.length} facilities`}
 					variant="primary"
 				/>
@@ -396,20 +363,24 @@ export default function ClientDetailPage() {
 					<CardHeader className="pb-2">
 						<div className="flex items-center justify-between">
 							<p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-								Average Accepted
+								Needs Follow-up
 							</p>
 							<div className="rounded-lg bg-emerald-100 p-1.5">
-								<CheckCircle className="h-4 w-4 text-emerald-600" />
+								<Flag className="h-4 w-4 text-emerald-600" />
 							</div>
 						</div>
 					</CardHeader>
 					<CardContent>
 						<div className="flex items-baseline gap-2">
 							<p className="text-3xl font-bold tracking-tight">
-								{mockAvgAccepted}
+								{missingInfoStreamsCount}
 							</p>
 						</div>
-						<p className="text-xs text-muted-foreground mt-1">Target: 92%</p>
+						<p className="mt-1 text-xs text-muted-foreground">
+							{missingInfoStreamsCount === 0
+								? "No stream follow-ups pending"
+								: "Streams missing required details"}
+						</p>
 					</CardContent>
 				</Card>
 
@@ -417,7 +388,7 @@ export default function ClientDetailPage() {
 					<CardHeader className="pb-2">
 						<div className="flex items-center justify-between">
 							<p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-								Discovery Score
+								Ready for Offer
 							</p>
 							<div className="rounded-lg bg-cyan-100 p-1.5">
 								<Target className="h-4 w-4 text-cyan-600" />
@@ -427,9 +398,11 @@ export default function ClientDetailPage() {
 					<CardContent>
 						<div className="flex items-center justify-between">
 							<p className="text-3xl font-bold tracking-tight">
-								{mockDiscoveryScore}
+								{readyForOfferCount}
 							</p>
-							<TrendingUp className="h-5 w-5 text-emerald-500" />
+							<Badge variant="muted" className="rounded-full text-xs">
+								{facilityCoverage}% facility coverage
+							</Badge>
 						</div>
 					</CardContent>
 				</Card>
@@ -451,38 +424,32 @@ export default function ClientDetailPage() {
 					</CardHeader>
 					<CardContent className="flex-1 space-y-4">
 						<p className="text-sm text-muted-foreground leading-relaxed">
-							{profile.notes ||
-								`${profile.name} currently maintains ${companyAllStreams.length} active streams distributed across ${profile.locations.length} primary facilities. Overall efficiency is high, but administrative overhead is increasing.`}
+							{accountNarrative}
 						</p>
 
 						<div className="space-y-2">
 							<div className="flex items-center justify-between text-sm">
-								<span className="font-medium">Stream Health Index</span>
-								<span className="text-emerald-600 font-medium">
-									Excellent ({mockHealthIndex}%)
+								<span className="font-medium">Data Completeness</span>
+								<span className="font-medium text-emerald-600">
+									{dataCompleteness}%
 								</span>
 							</div>
-							<Progress value={mockHealthIndex} className="h-2" />
+							<Progress value={dataCompleteness} className="h-2" />
 						</div>
 
 						<div className="space-y-2">
 							<div className="flex items-center justify-between text-sm">
 								<div>
-									<span className="font-medium">Documentation Status</span>
+									<span className="font-medium">Facility Coverage</span>
 									<p className="text-xs text-muted-foreground">
-										Action Required
+										Facilities with linked projects
 									</p>
 								</div>
-								<span className="text-destructive font-medium text-sm">
-									Action Required
+								<span className="text-sm font-medium text-primary">
+									{facilitiesWithProjects}/{profile.locations.length}
 								</span>
 							</div>
-							<div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-								<div className="h-full w-[65%] bg-emerald-500 rounded-full" />
-							</div>
-							<div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-								<div className="h-full w-[35%] bg-destructive rounded-full" />
-							</div>
+							<Progress value={facilityCoverage} className="h-2" />
 						</div>
 					</CardContent>
 				</Card>
@@ -492,7 +459,7 @@ export default function ClientDetailPage() {
 					<CardHeader className="pb-3">
 						<div className="flex items-center gap-2">
 							<div className="rounded-lg bg-amber-100 p-1.5">
-								<AlertTriangle className="h-4 w-4 text-amber-600" />
+								<Flag className="h-4 w-4 text-amber-600" />
 							</div>
 							<CardTitle className="text-base font-semibold">
 								Critical Alerts
@@ -500,37 +467,33 @@ export default function ClientDetailPage() {
 						</div>
 					</CardHeader>
 					<CardContent className="flex-1 space-y-3">
-						{mockAlerts.map((alert) => (
-							<div key={alert.id} className="rounded-lg border p-3 space-y-1">
-								<div className="flex items-start gap-2">
-									<alert.icon
-										className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
-											alert.severity === "critical"
-												? "text-destructive"
-												: alert.severity === "warning"
-													? "text-amber-500"
-													: "text-blue-500"
-										}`}
-									/>
-									<div className="space-y-0.5">
-										<p
-											className={`text-xs font-semibold uppercase tracking-wide ${
-												alert.severity === "critical"
-													? "text-destructive"
-													: alert.severity === "warning"
-														? "text-amber-600"
-														: "text-blue-600"
-											}`}
-										>
-											{alert.title}
-										</p>
-										<p className="text-xs text-muted-foreground leading-relaxed">
-											{alert.description}
-										</p>
-									</div>
-								</div>
+						{realAlerts.length === 0 ? (
+							<div className="rounded-lg border p-3">
+								<p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+									No critical blockers
+								</p>
+								<p className="text-xs leading-relaxed text-muted-foreground">
+									Current account data shows no immediate action blockers.
+								</p>
 							</div>
-						))}
+						) : (
+							realAlerts.map((alert) => (
+								<div key={alert.id} className="space-y-1 rounded-lg border p-3">
+									<p
+										className={`text-xs font-semibold uppercase tracking-wide ${
+											alert.tone === "critical"
+												? "text-destructive"
+												: "text-amber-600"
+										}`}
+									>
+										{alert.title}
+									</p>
+									<p className="text-xs leading-relaxed text-muted-foreground">
+										{alert.description}
+									</p>
+								</div>
+							))
+						)}
 					</CardContent>
 				</Card>
 
@@ -548,23 +511,27 @@ export default function ClientDetailPage() {
 					</CardHeader>
 					<CardContent className="flex-1 flex flex-col">
 						<ol className="space-y-3 flex-1">
-							{mockNextSteps.map((step) => (
-								<li key={step.id} className="flex gap-3">
+							{(nextSteps.length > 0
+								? nextSteps
+								: [
+										"Keep stream records current and continue regular account follow-up.",
+									]
+							).map((step, index) => (
+								<li key={step} className="flex gap-3">
 									<span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-medium">
-										{mockNextSteps.indexOf(step) + 1}
+										{index + 1}
 									</span>
-									<p className="text-sm leading-relaxed text-teal-50">
-										{step.text}
-									</p>
+									<p className="text-sm leading-relaxed text-teal-50">{step}</p>
 								</li>
 							))}
 						</ol>
 						<Button
 							variant="secondary"
 							className="mt-4 w-full bg-white text-teal-700 hover:bg-teal-50"
+							onClick={() => setActiveStreamsTab(reviewAction.tab)}
 						>
-							<Sparkles className="mr-1.5 h-4 w-4" />
-							Launch Discovery Wizard
+							<Flag className="mr-1.5 h-4 w-4" />
+							{reviewAction.label}
 						</Button>
 					</CardContent>
 				</Card>

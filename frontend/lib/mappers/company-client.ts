@@ -9,9 +9,11 @@
  */
 
 import type {
+	AccountStatus,
 	CompanyContact,
 	CompanyDetail,
 	CompanySummary,
+	CustomerType,
 	LocationSummary,
 } from "@/lib/types/company";
 
@@ -45,6 +47,8 @@ export type ClientProfile = {
 	id: string;
 	name: string;
 	industry: string;
+	customerType: CustomerType;
+	accountStatus: AccountStatus | null;
 	sector: string;
 	subsector: string;
 	notes: string;
@@ -52,6 +56,7 @@ export type ClientProfile = {
 	locations: LocationSummary[];
 	contacts: CompanyContact[];
 	primaryContact: PrimaryContact | null;
+	archivedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -114,6 +119,8 @@ export function toClientProfile(company: CompanyDetail): ClientProfile {
 		id: company.id,
 		name: company.name,
 		industry: company.industry,
+		customerType: company.customerType,
+		accountStatus: company.accountStatus ?? null,
 		sector: company.sector,
 		subsector: company.subsector,
 		notes: company.notes ?? "",
@@ -121,6 +128,7 @@ export function toClientProfile(company: CompanyDetail): ClientProfile {
 		locations: company.locations,
 		contacts: company.contacts,
 		primaryContact: extractPrimaryContact(company.contacts),
+		archivedAt: company.archivedAt ?? null,
 		createdAt: company.createdAt,
 		updatedAt: company.updatedAt,
 	};

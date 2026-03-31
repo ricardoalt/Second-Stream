@@ -1,8 +1,7 @@
 "use client";
 
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { ClipboardList, Info, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,8 +11,15 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+	STREAM_WORKSPACE_PHASES,
 	STREAM_WORKSPACE_QUESTIONS_BY_PHASE,
 	type StreamQuestionDefinition,
 	type StreamWorkspacePhase,
@@ -23,6 +29,7 @@ import type {
 	WorkspaceQuestionSuggestion,
 	WorkspaceQuestionSuggestionReviewScope,
 } from "@/lib/types/workspace";
+import { cn } from "@/lib/utils";
 
 type StreamWorkspaceFormProps = {
 	activePhase: StreamWorkspacePhase;
@@ -101,6 +108,10 @@ export function StreamWorkspaceForm({
 	onReviewSuggestion,
 }: StreamWorkspaceFormProps) {
 	const phaseQuestions = STREAM_WORKSPACE_QUESTIONS_BY_PHASE[activePhase];
+	const phaseMeta = STREAM_WORKSPACE_PHASES.find(
+		(p) => p.phase === activePhase,
+	);
+
 	const sections = useMemo<SectionGroup[]>(
 		() => groupQuestionsBySection(phaseQuestions),
 		[phaseQuestions],
@@ -116,54 +127,51 @@ export function StreamWorkspaceForm({
 		[phaseQuestions, pendingSuggestions],
 	);
 
-	const [sectionExpanded, setSectionExpanded] = useState<
-		Record<string, boolean>
-	>({});
 	const [locallyEditedQuestions, setLocallyEditedQuestions] = useState<
 		Record<string, true>
 	>({});
 
-	useEffect(() => {
-		setSectionExpanded((current) => {
-			const next = { ...current };
-			for (const section of sections) {
-				if (typeof next[section.section] !== "boolean") {
-					next[section.section] = true;
-				}
-			}
-			return next;
-		});
-	}, [sections]);
-
-	useEffect(() => {
-		setLocallyEditedQuestions((current) => {
-			let changed = false;
-			const next = { ...current };
-			for (const questionId of Object.keys(next)) {
-				if (!pendingSuggestions.has(questionId)) {
-					delete next[questionId];
-					changed = true;
-				}
-			}
-			return changed ? next : current;
-		});
-	}, [pendingSuggestions]);
-
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex flex-col gap-8">
+			{/* Phase Header */}
+			<div className="flex flex-col gap-2">
+				<div className="flex items-center gap-3">
+					<ClipboardList
+						className="size-5 shrink-0 text-muted-foreground"
+						aria-hidden
+					/>
+					<h2 className="font-display text-xl font-semibold tracking-tight text-foreground">
+						Phase {activePhase}: {phaseMeta?.label}
+					</h2>
+				</div>
+				{phaseMeta?.description ? (
+					<p className="text-sm leading-relaxed text-muted-foreground">
+						{phaseMeta.description}
+					</p>
+				) : null}
+			</div>
+
+			<Separator />
+
+			{/* AI Suggestions Banner */}
 			{phasePendingSuggestionCount > 0 ? (
-				<div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-primary/5 p-3">
-					<div className="flex items-center gap-2 text-sm text-foreground">
-						<Badge variant="secondary" className="rounded-full">
-							AI suggestions pending
-						</Badge>
-						<span>{phasePendingSuggestionCount} field(s) in this phase</span>
+				<div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+					<div className="flex items-center gap-2 text-sm">
+						<Sparkles
+							className="size-4 shrink-0 text-primary"
+							aria-hidden
+						/>
+						<span className="font-medium text-foreground">
+							{phasePendingSuggestionCount} AI suggestion
+							{phasePendingSuggestionCount > 1 ? "s" : ""} ready
+						</span>
 					</div>
 					<div className="flex items-center gap-2">
 						<Button
 							type="button"
 							size="sm"
 							variant="outline"
+							className="h-7 text-xs"
 							disabled={reviewingSuggestions}
 							onClick={() =>
 								onReviewSuggestion("reject", {
@@ -172,11 +180,12 @@ export function StreamWorkspaceForm({
 								})
 							}
 						>
-							Reject all (phase)
+							Reject all
 						</Button>
 						<Button
 							type="button"
 							size="sm"
+							className="h-7 text-xs"
 							disabled={reviewingSuggestions}
 							onClick={() =>
 								onReviewSuggestion("accept", {
@@ -185,133 +194,90 @@ export function StreamWorkspaceForm({
 								})
 							}
 						>
-							Accept all (phase)
+							Accept all
 						</Button>
 					</div>
 				</div>
 			) : null}
 
-			{sections.map((section) => {
-				const isExpanded = sectionExpanded[section.section] ?? true;
+			{/* Sections */}
+			{sections.map((section, sectionIndex) => {
 				const sectionPendingSuggestionCount =
 					countPendingSuggestionsForQuestions(
 						section.questions,
 						pendingSuggestions,
 					);
-				const answeredCount = section.questions.filter(
-					(question) =>
-						resolveDisplayedAnswerValue(
-							answers[question.id] ?? "",
-							pendingSuggestions.get(question.id),
-							Boolean(locallyEditedQuestions[question.id]),
-						).trim().length > 0,
-				).length;
 
 				return (
-					<section
-						key={section.section}
-						className="rounded-xl bg-surface-container-lowest shadow-xs"
-					>
-						<div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-							<button
-								type="button"
-								onClick={() =>
-									setSectionExpanded((current) => ({
-										...current,
-										[section.section]: !isExpanded,
-									}))
-								}
-								className="flex flex-1 items-center justify-between gap-3 text-left"
-							>
-								<div>
-									<p className="text-xs uppercase tracking-[0.08em] text-secondary">
-										Section
-									</p>
-									<h3 className="text-sm font-semibold text-foreground">
-										{section.section}
-									</h3>
-								</div>
-								<div className="flex items-center gap-2">
-									<Badge variant="secondary" className="rounded-full">
-										{answeredCount}/{section.questions.length} answered
-									</Badge>
-									{sectionPendingSuggestionCount > 0 ? (
-										<Badge variant="secondary" className="rounded-full">
-											{sectionPendingSuggestionCount} AI pending
-										</Badge>
-									) : null}
-									{isExpanded ? (
-										<ChevronDown
-											aria-hidden
-											className="size-4 text-secondary"
-										/>
-									) : (
-										<ChevronRight
-											aria-hidden
-											className="size-4 text-secondary"
-										/>
-									)}
-								</div>
-							</button>
-
-							{sectionPendingSuggestionCount > 0 ? (
-								<div className="flex items-center gap-2">
-									<Button
-										type="button"
-										size="sm"
-										variant="outline"
-										disabled={reviewingSuggestions}
-										onClick={() =>
-											onReviewSuggestion("reject", {
-												kind: "section",
-												section: section.section,
-											})
-										}
-									>
-										Reject all
-									</Button>
-									<Button
-										type="button"
-										size="sm"
-										disabled={reviewingSuggestions}
-										onClick={() =>
-											onReviewSuggestion("accept", {
-												kind: "section",
-												section: section.section,
-											})
-										}
-									>
-										Accept all
-									</Button>
-								</div>
-							) : null}
-						</div>
-
-						{isExpanded ? (
-							<div className="grid gap-4 px-4 py-4 md:grid-cols-2">
-								{section.questions.map((question) => (
-									<QuestionField
-										key={question.id}
-										question={question}
-										value={answers[question.id] ?? ""}
-										suggestion={pendingSuggestions.get(question.id)}
-										isLocallyEdited={Boolean(
-											locallyEditedQuestions[question.id],
-										)}
-										reviewingSuggestions={reviewingSuggestions}
-										onChange={onAnswerChange}
-										onLocalEdit={(questionId) =>
-											setLocallyEditedQuestions((current) => ({
-												...current,
-												[questionId]: true,
-											}))
-										}
-										onReviewSuggestion={onReviewSuggestion}
-									/>
-								))}
+					<div key={section.section} className="flex flex-col gap-6">
+						{/* Section divider — only between multiple sections */}
+						{sectionIndex > 0 ? (
+							<div className="flex items-center gap-3">
+								<Separator className="flex-1" />
+								<span className="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+									{section.section}
+								</span>
+								<Separator className="flex-1" />
+								{sectionPendingSuggestionCount > 0 ? (
+									<div className="flex items-center gap-1.5">
+										<Button
+											type="button"
+											size="sm"
+											variant="ghost"
+											className="h-6 px-2 text-[10px]"
+											disabled={reviewingSuggestions}
+											onClick={() =>
+												onReviewSuggestion("reject", {
+													kind: "section",
+													section: section.section,
+												})
+											}
+										>
+											Reject
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											className="h-6 px-2 text-[10px]"
+											disabled={reviewingSuggestions}
+											onClick={() =>
+												onReviewSuggestion("accept", {
+													kind: "section",
+													section: section.section,
+												})
+											}
+										>
+											Accept
+										</Button>
+									</div>
+								) : null}
 							</div>
 						) : null}
-					</section>
+
+						{/* Fields — single column, generous spacing */}
+						<div className="flex flex-col gap-7">
+							{section.questions.map((question) => (
+								<QuestionField
+									key={question.id}
+									question={question}
+									value={answers[question.id] ?? ""}
+									suggestion={pendingSuggestions.get(question.id)}
+									isLocallyEdited={Boolean(
+										locallyEditedQuestions[question.id],
+									)}
+									reviewingSuggestions={reviewingSuggestions}
+									onChange={onAnswerChange}
+									onLocalEdit={(questionId) =>
+										setLocallyEditedQuestions((current) => ({
+											...current,
+											[questionId]: true,
+										}))
+									}
+									onReviewSuggestion={onReviewSuggestion}
+								/>
+							))}
+						</div>
+					</div>
 				);
 			})}
 		</div>
@@ -340,6 +306,8 @@ function QuestionField({
 		scope: WorkspaceQuestionSuggestionReviewScope,
 	) => void;
 }) {
+	const fieldId = `field-${question.id}`;
+
 	const renderedValue = resolveDisplayedAnswerValue(
 		value,
 		suggestion,
@@ -359,17 +327,28 @@ function QuestionField({
 			case "open_question":
 				return (
 					<Textarea
+						id={fieldId}
 						value={renderedValue}
 						onChange={(event) => handleChange(event.target.value)}
-						placeholder="Enter response"
-						rows={4}
+						placeholder={question.label}
+						rows={3}
+						className={cn(
+							"resize-none text-sm",
+							suggestion && "border-primary/40 bg-primary/5",
+						)}
 					/>
 				);
 			case "boolean": {
 				const selectProps = renderedValue ? { value: renderedValue } : {};
 				return (
 					<Select {...selectProps} onValueChange={handleChange}>
-						<SelectTrigger>
+						<SelectTrigger
+							id={fieldId}
+							className={cn(
+								"text-sm",
+								suggestion && "border-primary/40 bg-primary/5",
+							)}
+						>
 							<SelectValue placeholder="Select one" />
 						</SelectTrigger>
 						<SelectContent>
@@ -383,72 +362,104 @@ function QuestionField({
 			case "number":
 				return (
 					<Input
+						id={fieldId}
 						type="number"
 						value={renderedValue}
 						onChange={(event) => handleChange(event.target.value)}
-						placeholder="Enter number"
+						placeholder="0.00"
+						className={cn(
+							"text-sm",
+							suggestion && "border-primary/40 bg-primary/5",
+						)}
 					/>
 				);
 			case "date":
 				return (
 					<Input
+						id={fieldId}
 						type="date"
 						value={renderedValue}
 						onChange={(event) => handleChange(event.target.value)}
+						className={cn(
+							"text-sm",
+							suggestion && "border-primary/40 bg-primary/5",
+						)}
 					/>
 				);
 			case "single_select":
 			case "short_text":
 				return (
 					<Input
+						id={fieldId}
 						value={renderedValue}
 						onChange={(event) => handleChange(event.target.value)}
-						placeholder="Enter response"
+						placeholder={question.label}
+						className={cn(
+							"text-sm",
+							suggestion && "border-primary/40 bg-primary/5",
+						)}
 					/>
 				);
 		}
 	})();
 
 	return (
-		<div className="space-y-2 rounded-lg bg-surface-container-low p-3 md:col-span-1">
-			<div className="space-y-1">
-				<p className="text-xs uppercase tracking-[0.08em] text-secondary">
-					Q{question.number}
-				</p>
-				<div className="flex flex-wrap items-center gap-2">
-					<p className="text-sm font-medium text-foreground">
+		<div className="flex flex-col gap-2">
+			{/* Label row */}
+			<div className="flex items-center gap-1.5">
+				<label
+					htmlFor={fieldId}
+					className="text-sm font-medium text-foreground"
+				>
+					{question.label}
+				</label>
+				{question.required ? (
+					<span className="text-xs text-destructive/70" aria-hidden>
+						*
+					</span>
+				) : null}
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<button type="button" className="text-muted-foreground/50 transition-colors hover:text-muted-foreground">
+							<Info className="size-3.5" aria-hidden />
+							<span className="sr-only">More info about {question.label}</span>
+						</button>
+					</TooltipTrigger>
+					<TooltipContent side="top" className="max-w-[240px] text-xs">
 						{question.label}
-					</p>
-					{question.required ? (
-						<Badge variant="secondary" className="rounded-full text-[10px]">
-							Required
-						</Badge>
-					) : null}
-					{suggestion ? (
-						<Badge className="rounded-full text-[10px]">AI suggested</Badge>
-					) : null}
-				</div>
+					</TooltipContent>
+				</Tooltip>
+				{suggestion ? (
+					<span className="ml-auto flex items-center gap-1 text-[10px] font-medium text-primary">
+						<Sparkles className="size-3" aria-hidden />
+						AI suggested
+					</span>
+				) : null}
 			</div>
+
 			{control}
+
+			{/* AI suggestion review panel */}
 			{suggestion ? (
-				<div className="space-y-2 rounded-md bg-primary/5 p-2">
-					{suggestion.hasConflict ? (
-						<p className="text-xs text-muted-foreground">
-							Current confirmed answer kept. AI alternative:
-							<span className="ml-1 font-medium text-foreground">
-								{suggestion.suggestedValue}
-							</span>
-						</p>
-					) : (
-						<p className="text-xs text-muted-foreground">
-							AI value is shown inline. Accept to confirm or reject to clear it.
-						</p>
-					)}
-					<div className="flex items-center gap-2">
+				<div className="flex items-center justify-between gap-3 rounded-lg border border-primary/15 bg-primary/5 px-3 py-2">
+					<p className="text-xs text-muted-foreground">
+						{suggestion.hasConflict ? (
+							<>
+								Your answer kept. AI alternative:{" "}
+								<span className="font-medium text-foreground">
+									{suggestion.suggestedValue}
+								</span>
+							</>
+						) : (
+							"AI value shown — accept to confirm or reject to clear."
+						)}
+					</p>
+					<div className="flex shrink-0 items-center gap-1.5">
 						<Button
 							type="button"
 							size="sm"
-							variant="outline"
+							variant="ghost"
+							className="h-6 px-2 text-[10px]"
 							disabled={reviewingSuggestions}
 							onClick={() =>
 								onReviewSuggestion("reject", {
@@ -462,6 +473,7 @@ function QuestionField({
 						<Button
 							type="button"
 							size="sm"
+							className="h-6 px-2 text-[10px]"
 							disabled={reviewingSuggestions}
 							onClick={() =>
 								onReviewSuggestion("accept", {

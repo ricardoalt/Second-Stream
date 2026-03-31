@@ -22,6 +22,7 @@ export interface StreamQuestionDefinition {
 export interface StreamQuestionPhaseDefinition {
 	phase: StreamWorkspacePhase;
 	label: string;
+	description: string;
 	questionIds: string[];
 }
 
@@ -29,21 +30,29 @@ export const STREAM_WORKSPACE_PHASES: StreamQuestionPhaseDefinition[] = [
 	{
 		phase: 1,
 		label: "Stream Snapshot",
+		description:
+			"Define the material identity, volume, and logistics baseline.",
 		questionIds: ["q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9"],
 	},
 	{
 		phase: 2,
 		label: "Current Handling",
+		description:
+			"Specify the current economic baseline and disposal environment.",
 		questionIds: ["q10", "q11", "q12", "q13", "q14"],
 	},
 	{
 		phase: 3,
 		label: "Technical Confidence",
+		description:
+			"Review composition metrics and certification requirements to ensure regulatory compatibility.",
 		questionIds: ["q15", "q16", "q17", "q18", "q19", "q20"],
 	},
 	{
 		phase: 4,
 		label: "Project Driver",
+		description:
+			"Identify hidden value levers and strategic alignment goals for the waste stream.",
 		questionIds: [
 			"q21",
 			"q22",

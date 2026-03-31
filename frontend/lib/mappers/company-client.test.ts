@@ -34,6 +34,7 @@ const baseCompanySummary = (
 	sector: overrides?.sector ?? "chemicals_pharmaceuticals",
 	subsector: overrides?.subsector ?? "chemical_manufacturing",
 	customerType: overrides?.customerType ?? "generator",
+	accountStatus: overrides?.accountStatus,
 	notes: overrides?.notes,
 	tags: overrides?.tags,
 	locationCount: overrides?.locationCount ?? 2,
@@ -107,6 +108,7 @@ describe("company-client mappers", () => {
 
 	it("maps CompanyDetail to ClientProfile preserving company-backed fields", () => {
 		const detail = baseCompanyDetail({
+			accountStatus: "prospect",
 			notes: "High-volume account",
 			contacts: [baseContact({ isPrimary: true })],
 		});
@@ -118,6 +120,8 @@ describe("company-client mappers", () => {
 		expect(profile.locationCount).toBe(detail.locationCount);
 		expect(profile.contacts).toEqual(detail.contacts);
 		expect(profile.primaryContact?.id).toBe("contact-1");
+		expect(profile.accountStatus).toBe("prospect");
+		expect(profile.archivedAt).toBeNull();
 		expect(profile.notes).toBe("High-volume account");
 	});
 

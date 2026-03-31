@@ -1,28 +1,26 @@
-import { Mic, Paperclip, PenSquare } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FileText, Mic, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type QuickCaptureActionKey = "upload" | "voice" | "paste";
 
 const QUICK_CAPTURE_ACTIONS = [
 	{
 		key: "upload",
-		label: "Upload",
-		description: "Upload files and refresh workspace evidence",
-		icon: Paperclip,
+		label: "Upload Documents",
+		description: "SDS, COA, or Lab Reports",
+		icon: FileText,
 	},
 	{
 		key: "voice",
-		label: "Voice",
-		description: "Capture field notes from audio recordings",
+		label: "Record Voice Note",
+		description: "Capture site visit observations",
 		icon: Mic,
 	},
 	{
 		key: "paste",
-		label: "Paste",
-		description: "Paste raw text and convert it into evidence",
-		icon: PenSquare,
+		label: "Quick Paste",
+		description: "Auto-parse email/text raw data",
+		icon: Sparkles,
 	},
 ] as const;
 
@@ -34,44 +32,38 @@ export function StreamQuickCaptureCard({
 	onOpenQuickCapture,
 }: StreamQuickCaptureCardProps) {
 	return (
-		<Card className="bg-surface-container-lowest shadow-sm">
-			<CardHeader className="gap-2">
-				<div className="flex items-center justify-between gap-2">
-					<CardTitle className="font-display text-lg">Quick Capture</CardTitle>
-					<Badge variant="secondary" className="rounded-full">
-						Live
-					</Badge>
-				</div>
-				<p className="text-xs text-muted-foreground">
-					Capture files, audio, and raw text in one unified flow.
-				</p>
-			</CardHeader>
-			<CardContent className="flex flex-col gap-2 pt-0">
+		<div className="flex flex-col gap-3">
+			<h3 className="text-xs font-bold uppercase tracking-[0.1em] text-secondary">
+				Quick Capture
+			</h3>
+			<div className="flex flex-col gap-2">
 				{QUICK_CAPTURE_ACTIONS.map(
 					({ key, label, description, icon: Icon }) => (
-						<Button
+						<button
 							key={key}
 							type="button"
-							variant="outline"
-							className="h-auto justify-start gap-3 px-3 py-3 text-start"
 							onClick={() => onOpenQuickCapture(key)}
+							className={cn(
+								"group flex items-center gap-3 rounded-2xl bg-surface-container-lowest p-3.5 text-left shadow-xs",
+								"transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm",
+								"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+							)}
 						>
-							<Icon
-								className="size-4 shrink-0 text-muted-foreground"
-								aria-hidden
-							/>
-							<span className="flex flex-col items-start">
-								<span className="text-sm font-medium text-foreground">
+							<div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+								<Icon className="size-5" aria-hidden />
+							</div>
+							<div className="flex min-w-0 flex-col gap-0.5">
+								<span className="text-sm font-semibold text-foreground">
 									{label}
 								</span>
-								<span className="text-xs text-muted-foreground">
+								<span className="text-[11px] leading-tight text-muted-foreground">
 									{description}
 								</span>
-							</span>
-						</Button>
+							</div>
+						</button>
 					),
 				)}
-			</CardContent>
-		</Card>
+			</div>
+		</div>
 	);
 }

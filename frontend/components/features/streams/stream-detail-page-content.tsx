@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderOpen, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, FolderOpen, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -9,9 +9,8 @@ import { StreamPhaseStepper } from "@/components/features/streams/stream-phase-s
 import { StreamQuickCaptureCard } from "@/components/features/streams/stream-quick-capture-card";
 import { StreamQuickCaptureModal } from "@/components/features/streams/stream-quick-capture-modal";
 import { StreamWorkspaceForm } from "@/components/features/streams/stream-workspace-form";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -30,6 +29,7 @@ import type {
 	WorkspaceQuestionId,
 	WorkspaceQuickCaptureStatus,
 } from "@/lib/types/workspace";
+import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/utils/logger";
 import type { StreamPhase } from "./types";
 
@@ -205,23 +205,9 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		[phaseProgress],
 	);
 
-	const completedCount = useMemo(
-		() => countCompletedPhases(phaseCompletion),
-		[phaseCompletion],
-	);
-
-	const activePhaseMeta = STREAM_WORKSPACE_PHASES.find(
-		(phase) => phase.phase === activePhase,
-	);
-
 	const materialName =
 		baseFields.find((field) => field.fieldId === "material_name")?.value ||
 		"Untitled stream";
-	const volume =
-		baseFields.find((field) => field.fieldId === "volume")?.value || "Not set";
-	const frequency =
-		baseFields.find((field) => field.fieldId === "frequency")?.value ||
-		"Not set";
 
 	const handlePhaseSelect = (phase: StreamPhase) => {
 		setPhaseManuallySelected(true);
@@ -289,67 +275,80 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		questionnaireAnswersDirty ||
 		questionnaireSaveStatus === "saving";
 
+	const prevPhase = activePhase > 1 ? ((activePhase - 1) as StreamPhase) : null;
+	const nextPhase = activePhase < 4 ? ((activePhase + 1) as StreamPhase) : null;
+	const nextPhaseMeta = nextPhase
+		? STREAM_WORKSPACE_PHASES.find((p) => p.phase === nextPhase)
+		: null;
+	const prevPhaseMeta = prevPhase
+		? STREAM_WORKSPACE_PHASES.find((p) => p.phase === prevPhase)
+		: null;
+
+	const saveStatusLabel =
+		questionnaireSaveStatus === "saving"
+			? "Saving..."
+			: questionnaireSaveStatus === "error"
+				? "Save error — will retry"
+				: questionnaireAnswersDirty
+					? "Unsaved edits"
+					: reviewSuggestionsStatus === "saving"
+						? "Applying AI review..."
+						: reviewSuggestionsStatus === "error"
+							? "AI review error — retry"
+							: "All changes saved";
+
 	return (
 		<>
 			<div className="flex flex-col gap-8">
-				<header className="animate-fade-in-up rounded-xl bg-surface-container-lowest p-6 shadow-xs">
-					<p className="text-xs uppercase tracking-[0.08em] text-secondary">
-						Streams / Workspace / {id}
-					</p>
-					<div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-						<div className="flex flex-col gap-2">
-							<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
+				{/* Header */}
+				<header className="animate-fade-in-up">
+					<div className="flex flex-col gap-1">
+						<p className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+							Waste Streams &rsaquo; Missing Information &rsaquo;{" "}
+							<span className="font-bold text-foreground">
 								{materialName}
+							</span>
+						</p>
+						<div className="flex items-start justify-between gap-4">
+							<h1 className="font-display text-[1.65rem] font-bold tracking-tight text-foreground">
+								Complete Stream Information
 							</h1>
-							<p className="text-sm text-muted-foreground">
-								Phase {activePhase} · {activePhaseMeta?.label}
-							</p>
-							<p className="text-sm text-muted-foreground">
-								Volume: {volume} · Frequency: {frequency}
-							</p>
-						</div>
-						<div className="flex items-center gap-2 text-sm">
-							<Badge variant="secondary" className="rounded-full">
-								{completedCount}/4 phases complete
-							</Badge>
-							<Badge variant="secondary" className="rounded-full">
-								Default: Phase {firstIncompletePhase}
-							</Badge>
-							<Button asChild variant="outline" size="sm">
-								<Link href={filesHref}>
-									<FolderOpen data-icon="inline-start" aria-hidden />
-									Files
-								</Link>
-							</Button>
-							<Button asChild variant="outline" size="sm">
-								<Link href={contactsHref}>
-									<Users data-icon="inline-start" aria-hidden />
-									Contacts
-								</Link>
-							</Button>
-							{activePhase === 4 ? (
+							<div className="flex shrink-0 items-center gap-2">
 								<Button
+									asChild
+									variant="outline"
 									size="sm"
-									onClick={() => {
-										setCompleteDiscoveryError(null);
-										setCompleteDiscoveryStatus("idle");
-										setCompleteDiscoveryModalOpen(true);
-									}}
-									disabled={completeDiscoveryDisabled}
+									className="border-primary/30 text-primary hover:bg-primary/5"
 								>
-									Complete Discovery
+									<Link href={filesHref}>
+										<FolderOpen className="size-4" aria-hidden />
+										Files
+									</Link>
 								</Button>
-							) : null}
+								<Button
+									asChild
+									variant="outline"
+									size="sm"
+									className="border-primary/30 text-primary hover:bg-primary/5"
+								>
+									<Link href={contactsHref}>
+										<Users className="size-4" aria-hidden />
+										Contacts
+									</Link>
+								</Button>
+							</div>
 						</div>
 					</div>
 				</header>
 
+				{/* Phase Stepper */}
 				<StreamPhaseStepper
 					activePhase={activePhase}
 					phaseProgress={phaseCompletion}
 					onPhaseSelect={handlePhaseSelect}
 				/>
 
+				{/* Error state */}
 				{error ? (
 					<Card className="border-0 bg-destructive/5 shadow-xs">
 						<CardContent className="py-4 text-sm text-destructive">
@@ -358,80 +357,123 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 					</Card>
 				) : null}
 
-				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
+				{/* Main Content Grid */}
+				<div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_260px]">
+					{/* Form Column */}
 					<div className="flex flex-col gap-6">
-						<Card className="border-0 bg-surface-container-lowest shadow-xs">
-							<CardHeader>
-								<CardTitle className="font-display text-xl">
-									Questionnaire workspace
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="flex flex-col gap-4 pt-0">
-								{loading ? (
-									<div className="rounded-lg bg-surface-container-low p-3 text-sm text-muted-foreground">
-										Loading workspace questionnaire...
+						{loading ? (
+							<div className="rounded-2xl bg-surface-container-lowest p-8 text-sm text-muted-foreground shadow-xs">
+								Loading workspace questionnaire...
+							</div>
+						) : (
+							<>
+								<div className="rounded-2xl bg-surface-container-lowest px-8 py-8 shadow-xs">
+									<StreamWorkspaceForm
+										activePhase={activePhase}
+										answers={questionnaireAnswers}
+										suggestions={questionnaireSuggestions}
+										reviewingSuggestions={
+											reviewSuggestionsStatus === "saving"
+										}
+										onAnswerChange={handleQuestionChange}
+										onReviewSuggestion={handleSuggestionReview}
+									/>
+								</div>
+
+								{/* Phase Navigation */}
+								<div className="flex items-center justify-between gap-3">
+									<div>
+										{prevPhase && prevPhaseMeta ? (
+											<Button
+												type="button"
+												variant="ghost"
+												className="gap-2 text-muted-foreground hover:text-foreground"
+												onClick={() => handlePhaseSelect(prevPhase)}
+											>
+												<ArrowLeft className="size-4" aria-hidden />
+												Back to Phase {prevPhase}
+											</Button>
+										) : null}
 									</div>
-								) : null}
-								{!loading ? (
-									<div className="text-xs text-muted-foreground">
-										{questionnaireSaveStatus === "saving"
-											? "Saving questionnaire answers..."
-											: questionnaireSaveStatus === "error"
-												? "Could not save answers. We will retry when you keep editing."
-												: questionnaireAnswersDirty
-													? "Unsaved questionnaire edits"
-													: reviewSuggestionsStatus === "saving"
-														? "Applying AI review action..."
-														: reviewSuggestionsStatus === "error"
-															? "Could not apply AI review action. Retry."
-															: "Questionnaire answers saved"}
+									<div>
+										{nextPhase && nextPhaseMeta ? (
+											<Button
+												type="button"
+												className="gap-2 bg-primary px-6 text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90"
+												onClick={() => handlePhaseSelect(nextPhase)}
+											>
+												Continue to Phase {nextPhase}
+												<ArrowRight className="size-4" aria-hidden />
+											</Button>
+										) : null}
+										{activePhase === 4 ? (
+											<Button
+												type="button"
+												className="gap-2 bg-primary px-6 text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90"
+												onClick={() => {
+													setCompleteDiscoveryError(null);
+													setCompleteDiscoveryStatus("idle");
+													setCompleteDiscoveryModalOpen(true);
+												}}
+												disabled={completeDiscoveryDisabled}
+											>
+												Complete Discovery
+												<ArrowRight className="size-4" aria-hidden />
+											</Button>
+										) : null}
 									</div>
-								) : null}
-								<StreamWorkspaceForm
-									activePhase={activePhase}
-									answers={questionnaireAnswers}
-									suggestions={questionnaireSuggestions}
-									reviewingSuggestions={reviewSuggestionsStatus === "saving"}
-									onAnswerChange={handleQuestionChange}
-									onReviewSuggestion={handleSuggestionReview}
-								/>
-							</CardContent>
-						</Card>
+								</div>
+
+								{/* Save status — subtle */}
+								<p
+									className={cn(
+										"text-center text-[11px]",
+										questionnaireSaveStatus === "error" ||
+											reviewSuggestionsStatus === "error"
+											? "text-destructive"
+											: "text-muted-foreground/60",
+									)}
+								>
+									{saveStatusLabel}
+								</p>
+							</>
+						)}
 					</div>
 
+					{/* Sidebar */}
 					<aside className="flex flex-col gap-6">
 						<StreamQuickCaptureCard
 							onOpenQuickCapture={handleOpenQuickCapture}
 						/>
 						{workspaceQuickCaptureFeedback ? (
-							<Card
-								className={
+							<div
+								className={cn(
+									"rounded-2xl p-4 shadow-xs",
 									workspaceQuickCaptureFeedback.tone === "error"
-										? "border-destructive/30 bg-destructive/5 shadow-xs"
+										? "border border-destructive/30 bg-destructive/5"
 										: workspaceQuickCaptureFeedback.tone === "success"
-											? "border-emerald-300/40 bg-emerald-500/10 shadow-xs"
-											: "border-0 bg-surface-container-lowest shadow-xs"
-								}
+											? "border border-emerald-300/40 bg-emerald-500/10"
+											: "bg-surface-container-lowest",
+								)}
 							>
-								<CardContent className="flex flex-col gap-2 py-3">
-									<p className="text-xs font-semibold text-foreground">
-										{workspaceQuickCaptureFeedback.title}
-									</p>
-									<p className="text-xs text-muted-foreground">
-										{workspaceQuickCaptureFeedback.description}
-									</p>
-									{workspaceQuickCaptureFeedback.actionLabel ? (
-										<Button
-											type="button"
-											size="sm"
-											variant="outline"
-											onClick={() => handleOpenQuickCapture("upload")}
-										>
-											{workspaceQuickCaptureFeedback.actionLabel}
-										</Button>
-									) : null}
-								</CardContent>
-							</Card>
+								<p className="text-xs font-semibold text-foreground">
+									{workspaceQuickCaptureFeedback.title}
+								</p>
+								<p className="mt-1 text-[11px] text-muted-foreground">
+									{workspaceQuickCaptureFeedback.description}
+								</p>
+								{workspaceQuickCaptureFeedback.actionLabel ? (
+									<Button
+										type="button"
+										size="sm"
+										variant="outline"
+										className="mt-2"
+										onClick={() => handleOpenQuickCapture("upload")}
+									>
+										{workspaceQuickCaptureFeedback.actionLabel}
+									</Button>
+								) : null}
+							</div>
 						) : null}
 					</aside>
 				</div>
