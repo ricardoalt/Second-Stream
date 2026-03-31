@@ -157,10 +157,7 @@ export function StreamWorkspaceForm({
 			{phasePendingSuggestionCount > 0 ? (
 				<div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
 					<div className="flex items-center gap-2 text-sm">
-						<Sparkles
-							className="size-4 shrink-0 text-primary"
-							aria-hidden
-						/>
+						<Sparkles className="size-4 shrink-0 text-primary" aria-hidden />
 						<span className="font-medium text-foreground">
 							{phasePendingSuggestionCount} AI suggestion
 							{phasePendingSuggestionCount > 1 ? "s" : ""} ready
@@ -262,9 +259,7 @@ export function StreamWorkspaceForm({
 									question={question}
 									value={answers[question.id] ?? ""}
 									suggestion={pendingSuggestions.get(question.id)}
-									isLocallyEdited={Boolean(
-										locallyEditedQuestions[question.id],
-									)}
+									isLocallyEdited={Boolean(locallyEditedQuestions[question.id])}
 									reviewingSuggestions={reviewingSuggestions}
 									onChange={onAnswerChange}
 									onLocalEdit={(questionId) =>
@@ -420,7 +415,10 @@ function QuestionField({
 				) : null}
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<button type="button" className="text-muted-foreground/50 transition-colors hover:text-muted-foreground">
+						<button
+							type="button"
+							className="text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+						>
 							<Info className="size-3.5" aria-hidden />
 							<span className="sr-only">More info about {question.label}</span>
 						</button>

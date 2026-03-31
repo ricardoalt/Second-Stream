@@ -1,8 +1,30 @@
+import type { Dispatch, SetStateAction } from "react";
+import { toast } from "sonner";
+import { bulkImportAPI } from "@/lib/api/bulk-import";
 import type { DraftCandidate } from "@/lib/types/discovery";
 import type { DraftEditorState } from "./streams-drafts-table";
 import type { StreamRow } from "./types";
 
 export type StreamsTab = "all" | "drafts" | "missing-info";
+
+export interface RejectAllDraftsSummary {
+	total: number;
+	rejected: number;
+	failed: number;
+}
+
+interface DraftRowRef {
+	itemId: string;
+}
+
+export interface RejectSingleDraftOptions {
+	draftId: string;
+	draftRowsById: Record<string, DraftRowRef | undefined>;
+	reviewNotes: string;
+	setDeletingDraftIds: Dispatch<SetStateAction<Set<string>>>;
+	clearHighlightedDraft: () => void;
+	refreshStreams: () => void;
+}
 
 export function getAllStreamsPrimaryActionLabel(
 	row: StreamRow,
@@ -58,4 +80,62 @@ export function getSelectedFollowUpItem(
 	}
 
 	return items.find((item) => item.id === selectedId) ?? null;
+}
+
+export function summarizeRejectAllDraftsResults(
+	results: PromiseSettledResult<unknown>[],
+): RejectAllDraftsSummary {
+	const rejected = results.filter(
+		(result) => result.status === "fulfilled",
+	).length;
+	const failed = results.length - rejected;
+
+	return {
+		total: results.length,
+		rejected,
+		failed,
+	};
+}
+
+export async function rejectSingleDraftWithConfirmation({
+	draftId,
+	draftRowsById,
+	reviewNotes,
+	setDeletingDraftIds,
+	clearHighlightedDraft,
+	refreshStreams,
+}: RejectSingleDraftOptions): Promise<void> {
+	const draft = draftRowsById[draftId];
+	if (!draft) {
+		return;
+	}
+
+	const confirmed = window.confirm(
+		"Discard this draft? This action cannot be undone.",
+	);
+	if (!confirmed) {
+		return;
+	}
+
+	setDeletingDraftIds((prev) => new Set(prev).add(draftId));
+	clearHighlightedDraft();
+
+	try {
+		await bulkImportAPI.decideDiscoveryDraft(draft.itemId, {
+			action: "reject",
+			reviewNotes,
+		});
+		toast.success("Draft discarded");
+		refreshStreams();
+	} catch (error) {
+		toast.error(
+			error instanceof Error ? error.message : "Failed to discard draft",
+		);
+	} finally {
+		setDeletingDraftIds((prev) => {
+			const next = new Set(prev);
+			next.delete(draftId);
+			return next;
+		});
+	}
 }

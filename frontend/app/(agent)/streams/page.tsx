@@ -9,14 +9,17 @@ import {
 	Loader2,
 	Search,
 	Sparkles,
+	Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
 import {
 	mapEditorStateToDraftCandidate,
+	rejectSingleDraftWithConfirmation,
 	resolveOpenDraftState,
 	type StreamsTab,
+	summarizeRejectAllDraftsResults,
 } from "@/components/features/streams/runtime-helpers";
 import { StreamsAllTable } from "@/components/features/streams/streams-all-table";
 import {
@@ -29,6 +32,16 @@ import {
 	useSharedStreamFilter,
 	useStreamFilters,
 } from "@/components/features/streams/use-stream-filters";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -47,7 +60,6 @@ import { toDiscoveryNormalizedData } from "@/lib/discovery-confirmation-utils";
 import {
 	useStreamsActions,
 	useStreamsAll,
-	useStreamsCounts,
 	useStreamsDraftRowsById,
 	useStreamsDrafts,
 	useStreamsError,
@@ -71,7 +83,6 @@ export default function AgentStreamsPage() {
 	const allStreams = useStreamsAll();
 	const draftStreams = useStreamsDrafts();
 	const missingInfoStreams = useStreamsMissingInfo();
-	const counts = useStreamsCounts();
 	const draftRowsById = useStreamsDraftRowsById();
 	const loading = useStreamsLoading();
 	const isInitialized = useStreamsInitialized();
@@ -81,6 +92,12 @@ export default function AgentStreamsPage() {
 	const [confirmingDraftIds, setConfirmingDraftIds] = useState<Set<string>>(
 		new Set(),
 	);
+	const [deletingDraftIds, setDeletingDraftIds] = useState<Set<string>>(
+		new Set(),
+	);
+	const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+	const [deleteAllConfirmation, setDeleteAllConfirmation] = useState("");
+	const [isDeletingAllDrafts, setIsDeletingAllDrafts] = useState(false);
 
 	const [highlightedDraftId, setHighlightedDraftId] = useState<string | null>(
 		null,
@@ -117,7 +134,7 @@ export default function AgentStreamsPage() {
 	);
 
 	// ── Derived KPIs ──
-	const kpis = useMemo(() => computeWasteStreamsKpis(counts), [counts]);
+	const kpis = useMemo(() => computeWasteStreamsKpis(allStreams), [allStreams]);
 
 	useEffect(() => {
 		if (!isInitialized) {
@@ -179,6 +196,59 @@ export default function AgentStreamsPage() {
 				next.delete(id);
 				return next;
 			});
+		}
+	}
+
+	async function handleDeleteDraft(id: string) {
+		await rejectSingleDraftWithConfirmation({
+			draftId: id,
+			draftRowsById,
+			reviewNotes: "rejected_via_streams_page; source=Waste Streams Drafts",
+			setDeletingDraftIds,
+			clearHighlightedDraft: () => setHighlightedDraftId(null),
+			refreshStreams: () => {
+				void loadStreams();
+			},
+		});
+	}
+
+	async function handleDeleteAllDrafts() {
+		if (isDeletingAllDrafts || draftStreams.length === 0) {
+			return;
+		}
+
+		setIsDeletingAllDrafts(true);
+		const currentDraftRows = draftStreams
+			.map((row) => draftRowsById[row.id])
+			.filter((row): row is NonNullable<typeof row> => Boolean(row));
+		const draftIds = currentDraftRows.map((row) => row.itemId);
+		setDeletingDraftIds(new Set(draftIds));
+
+		try {
+			const outcomes = await Promise.allSettled(
+				currentDraftRows.map((row) =>
+					bulkImportAPI.decideDiscoveryDraft(row.itemId, {
+						action: "reject",
+						reviewNotes:
+							"rejected_via_streams_page_bulk; source=Waste Streams Drafts",
+					}),
+				),
+			);
+			const summary = summarizeRejectAllDraftsResults(outcomes);
+
+			if (summary.failed === 0) {
+				toast.success(`Deleted ${summary.rejected} draft(s)`);
+			} else {
+				toast.error(
+					`Deleted ${summary.rejected} of ${summary.total} drafts. ${summary.failed} failed.`,
+				);
+			}
+			void loadStreams();
+		} finally {
+			setIsDeletingAllDrafts(false);
+			setDeleteAllConfirmation("");
+			setDeleteAllOpen(false);
+			setDeletingDraftIds(new Set());
 		}
 	}
 
@@ -429,21 +499,86 @@ export default function AgentStreamsPage() {
 				{/* ── Tab: Drafts ── */}
 				<TabsContent value="drafts" className="mt-6">
 					<div className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm">
-						<div className="p-4">
-							<h2 className="font-display text-xl font-semibold text-foreground">
-								Pending Drafts
-							</h2>
-							<p className="mt-1 text-sm text-muted-foreground">
-								Review and finalize these waste stream declarations before
-								submission.
-							</p>
+						<div className="flex items-start justify-between gap-4 p-4">
+							<div>
+								<h2 className="font-display text-xl font-semibold text-foreground">
+									Pending Drafts
+								</h2>
+								<p className="mt-1 text-sm text-muted-foreground">
+									Review and finalize these waste stream declarations before
+									submission.
+								</p>
+							</div>
+
+							<AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+								<Button
+									variant="destructive"
+									size="sm"
+									onClick={() => setDeleteAllOpen(true)}
+									disabled={draftStreams.length === 0 || isDeletingAllDrafts}
+								>
+									{isDeletingAllDrafts ? (
+										<Loader2 className="mr-1.5 size-4 animate-spin" />
+									) : (
+										<Trash2 className="mr-1.5 size-4" />
+									)}
+									Delete All Drafts
+								</Button>
+								<AlertDialogContent>
+									<AlertDialogHeader>
+										<AlertDialogTitle>
+											Delete all pending drafts?
+										</AlertDialogTitle>
+										<AlertDialogDescription>
+											This will reject <strong>{draftStreams.length}</strong>{" "}
+											draft
+											{draftStreams.length === 1 ? "" : "s"}. This action cannot
+											be undone. Type <strong>DELETE</strong> to confirm.
+										</AlertDialogDescription>
+									</AlertDialogHeader>
+									<Input
+										value={deleteAllConfirmation}
+										onChange={(event) =>
+											setDeleteAllConfirmation(event.target.value)
+										}
+										placeholder="Type DELETE"
+										className="mt-2"
+									/>
+									<AlertDialogFooter>
+										<AlertDialogCancel disabled={isDeletingAllDrafts}>
+											Cancel
+										</AlertDialogCancel>
+										<AlertDialogAction
+											onClick={(event) => {
+												event.preventDefault();
+												if (deleteAllConfirmation !== "DELETE") {
+													toast.error("Type DELETE to confirm this action");
+													return;
+												}
+												void handleDeleteAllDrafts();
+											}}
+											disabled={
+												isDeletingAllDrafts ||
+												deleteAllConfirmation !== "DELETE"
+											}
+										>
+											{isDeletingAllDrafts
+												? "Deleting..."
+												: "Delete all drafts"}
+										</AlertDialogAction>
+									</AlertDialogFooter>
+								</AlertDialogContent>
+							</AlertDialog>
 						</div>
 
 						<StreamsDraftsTable
 							rows={filteredDrafts}
 							onConfirm={handleConfirmDraft}
+							onDelete={handleDeleteDraft}
 							highlightedId={highlightedDraftId}
 							confirmingIds={confirmingDraftIds}
+							deletingIds={deletingDraftIds}
+							disableActions={isDeletingAllDrafts}
 						/>
 
 						{/* Pagination Footer */}
@@ -520,10 +655,8 @@ function KpiCard({
 				) : (
 					<span
 						className={cn(
-							"font-display text-2xl font-bold",
-							isPrimary
-								? "bg-gradient-to-r from-primary to-primary-container bg-clip-text text-transparent"
-								: "text-foreground",
+							"font-display text-2xl font-bold text-foreground",
+							isPrimary && "text-primary",
 						)}
 					>
 						{value}

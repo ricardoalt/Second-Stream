@@ -53,4 +53,9 @@ describe("DraftConfirmationModal helpers", () => {
 			"Process & Finalize All",
 		);
 	});
+
+	it("treats reject action as optional", () => {
+		expect(modalModule.canRejectCandidates(undefined)).toBe(false);
+		expect(modalModule.canRejectCandidates(() => {})).toBe(true);
+	});
 });

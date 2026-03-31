@@ -21,6 +21,7 @@ import { ClientCreateBanner } from "@/components/features/clients/client-create-
 import { EditClientModal } from "@/components/features/modals/edit-client-modal";
 import {
 	mapEditorStateToDraftCandidate,
+	rejectSingleDraftWithConfirmation,
 	resolveOpenDraftState,
 	type StreamsTab,
 } from "@/components/features/streams/runtime-helpers";
@@ -77,6 +78,9 @@ export default function ClientDetailPage() {
 		null,
 	);
 	const [confirmingDraftIds, setConfirmingDraftIds] = useState<Set<string>>(
+		new Set(),
+	);
+	const [deletingDraftIds, setDeletingDraftIds] = useState<Set<string>>(
 		new Set(),
 	);
 	const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(
@@ -210,6 +214,20 @@ export default function ClientDetailPage() {
 				return next;
 			});
 		}
+	}
+
+	async function handleDeleteDraft(id: string) {
+		await rejectSingleDraftWithConfirmation({
+			draftId: id,
+			draftRowsById,
+			reviewNotes:
+				"rejected_via_client_detail; source=Client Detail Waste Streams",
+			setDeletingDraftIds,
+			clearHighlightedDraft: () => setHighlightedDraftId(null),
+			refreshStreams: () => {
+				void loadStreams();
+			},
+		});
 	}
 
 	if (loading) {
@@ -715,8 +733,10 @@ export default function ClientDetailPage() {
 									<StreamsDraftsTable
 										rows={companyDraftStreams}
 										onConfirm={handleConfirmDraft}
+										onDelete={handleDeleteDraft}
 										highlightedId={highlightedDraftId}
 										confirmingIds={confirmingDraftIds}
+										deletingIds={deletingDraftIds}
 									/>
 								</div>
 							)}

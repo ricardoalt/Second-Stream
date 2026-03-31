@@ -22,16 +22,11 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import {
+	DRAFT_FREQUENCY_OPTIONS,
+	DRAFT_UNITS_OPTIONS,
+} from "./draft-field-options";
 import type { StreamRow } from "./types";
-
-const FREQUENCY_OPTIONS = [
-	"One-time",
-	"Weekly",
-	"Bi-weekly",
-	"Monthly",
-	"Quarterly",
-	"As needed",
-] as const;
 
 type StreamsDraftsTableProps = {
 	rows: StreamRow[];
@@ -39,6 +34,8 @@ type StreamsDraftsTableProps = {
 	onDelete?: (id: string) => void;
 	highlightedId?: string | null;
 	confirmingIds?: Set<string>;
+	deletingIds?: Set<string>;
+	disableActions?: boolean;
 };
 
 export type DraftEditorState = {
@@ -113,6 +110,8 @@ export function StreamsDraftsTable({
 	onDelete,
 	highlightedId,
 	confirmingIds = new Set(),
+	deletingIds = new Set(),
+	disableActions = false,
 }: StreamsDraftsTableProps) {
 	const [draft, setDraft] = useState<Record<string, DraftEditorState>>({});
 	const [errorsByRow, setErrorsByRow] = useState<
@@ -210,6 +209,9 @@ export function StreamsDraftsTable({
 					const rowDraft = getDraftState(row);
 					const rowErrors = errorsByRow[row.id] ?? {};
 					const isHighlighted = highlightedId === row.id;
+					const isConfirming = confirmingIds.has(row.id);
+					const isDeleting = deletingIds.has(row.id);
+					const rowBusy = disableActions || isConfirming || isDeleting;
 
 					return (
 						<motion.tr
@@ -320,11 +322,11 @@ export function StreamsDraftsTable({
 										</SelectTrigger>
 										<SelectContent>
 											<SelectGroup>
-												{FREQUENCY_OPTIONS.map((option) => (
-													<SelectItem key={option} value={option}>
-														{option}
-													</SelectItem>
-												))}
+											{DRAFT_FREQUENCY_OPTIONS.map((option) => (
+												<SelectItem key={option} value={option}>
+													{option}
+												</SelectItem>
+											))}
 											</SelectGroup>
 										</SelectContent>
 									</Select>
@@ -355,14 +357,14 @@ export function StreamsDraftsTable({
 										</SelectTrigger>
 										<SelectContent>
 											<SelectGroup>
-												<SelectItem value="Tons">Tons</SelectItem>
-												<SelectItem value="Kg">Kg</SelectItem>
-												<SelectItem value="Gallons">Gallons</SelectItem>
-												<SelectItem value="Liters">Liters</SelectItem>
-												<SelectItem value="Pallets">Pallets</SelectItem>
-											</SelectGroup>
-										</SelectContent>
-									</Select>
+											{DRAFT_UNITS_OPTIONS.map((option) => (
+												<SelectItem key={option} value={option}>
+													{option}
+												</SelectItem>
+											))}
+										</SelectGroup>
+									</SelectContent>
+								</Select>
 								</DraftField>
 								{rowErrors.units ? (
 									<p className="mt-1.5 text-xs text-red-600">
@@ -376,10 +378,10 @@ export function StreamsDraftsTable({
 								<div className="flex items-center justify-end gap-2">
 									<Button
 										onClick={() => handleConfirm(row)}
-										disabled={confirmingIds.has(row.id)}
+										disabled={rowBusy}
 										className="h-8 gap-1.5 rounded-full bg-teal-600 px-4 text-xs font-semibold text-white shadow-sm transition-all hover:bg-teal-700 hover:shadow-md active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
 									>
-										{confirmingIds.has(row.id) ? (
+										{isConfirming ? (
 											<>
 												<Loader2 className="size-3.5 animate-spin" />
 												Confirming...
@@ -398,8 +400,13 @@ export function StreamsDraftsTable({
 											className="size-8 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
 											aria-label="Discard draft"
 											onClick={() => onDelete(row.id)}
+											disabled={rowBusy}
 										>
-											<Trash2 className="size-4" />
+											{isDeleting ? (
+												<Loader2 className="size-4 animate-spin" />
+											) : (
+												<Trash2 className="size-4" />
+											)}
 										</Button>
 									) : (
 										<Button

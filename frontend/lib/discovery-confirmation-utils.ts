@@ -1,6 +1,10 @@
 import type { DraftCandidate } from "@/lib/types/discovery";
 
-export type CandidateEditableField = "material" | "volume" | "frequency";
+export type CandidateEditableField =
+	| "material"
+	| "volume"
+	| "frequency"
+	| "units";
 
 export type CandidateValidationErrors = Partial<
 	Record<CandidateEditableField, string>
@@ -19,7 +23,6 @@ export const NON_EDITABLE_FIELDS = new Set<keyof DraftCandidate>([
 	"source",
 	"confidence",
 	"status",
-	"units",
 ]);
 
 export function validateCandidateForConfirmation(

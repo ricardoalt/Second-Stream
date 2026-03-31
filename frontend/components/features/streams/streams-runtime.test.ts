@@ -8,6 +8,7 @@ import {
 	getSelectedFollowUpItem,
 	mapEditorStateToDraftCandidate,
 	resolveOpenDraftState,
+	summarizeRejectAllDraftsResults,
 } from "@/components/features/streams/runtime-helpers";
 import {
 	applyDraftFieldUpdate,
@@ -261,5 +262,19 @@ describe("/streams runtime hardening", () => {
 
 		expect(pageSource.includes("Archive (")).toBe(false);
 		expect(pageSource.includes("handleArchiveSelected")).toBe(false);
+	});
+
+	it("summarizes delete-all draft API outcomes explicitly", () => {
+		const outcomes: PromiseSettledResult<unknown>[] = [
+			{ status: "fulfilled", value: undefined },
+			{ status: "rejected", reason: new Error("boom") },
+			{ status: "fulfilled", value: undefined },
+		];
+
+		expect(summarizeRejectAllDraftsResults(outcomes)).toEqual({
+			total: 3,
+			rejected: 2,
+			failed: 1,
+		});
 	});
 });

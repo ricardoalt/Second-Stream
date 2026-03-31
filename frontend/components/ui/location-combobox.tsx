@@ -47,7 +47,10 @@ export function LocationCombobox({
 	}, [companyId, loadLocationsByCompany]);
 
 	const filteredLocations = locations.filter((l) => l.companyId === companyId);
-	const selectedLocation = filteredLocations.find((l) => l.id === value);
+	const validValue = value && filteredLocations.some((l) => l.id === value);
+	const selectedLocation = validValue
+		? filteredLocations.find((l) => l.id === value)
+		: undefined;
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -58,6 +61,11 @@ export function LocationCombobox({
 					aria-expanded={open}
 					className={cn("w-full justify-between h-12", className)}
 					disabled={!companyId}
+					onClick={() => {
+						if (value && !validValue) {
+							onValueChange?.("");
+						}
+					}}
 				>
 					{selectedLocation
 						? `${selectedLocation.name} - ${selectedLocation.city}`

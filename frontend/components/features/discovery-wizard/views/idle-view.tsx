@@ -290,6 +290,26 @@ export function IdleView({
 		}
 	}, [companyId, loadLocationsByCompany]);
 
+	useEffect(() => {
+		if (!companyId || locations.length === 0) return;
+		const companyLocationIds = new Set(
+			locations.filter((l) => l.companyId === companyId).map((l) => l.id),
+		);
+		if (locationId && !companyLocationIds.has(locationId)) {
+			setLocationId("");
+		}
+	}, [companyId, locationId, locations]);
+
+	useEffect(() => {
+		if (!qe.client || locations.length === 0) return;
+		const companyLocationIds = new Set(
+			locations.filter((l) => l.companyId === qe.client).map((l) => l.id),
+		);
+		if (qe.locationId && !companyLocationIds.has(qe.locationId)) {
+			setQe((prev) => ({ ...prev, locationId: "" }));
+		}
+	}, [qe.client, qe.locationId, locations]);
+
 	const quickEntryLocations = locations.filter(
 		(location) => location.companyId === qe.client,
 	);
@@ -775,7 +795,7 @@ export function IdleView({
 										<CompanyCombobox
 											value={companyId}
 											onValueChange={(value) => {
-												handleCompanyChange(value);
+												setCompanyId(value);
 												setLocationId("");
 											}}
 											placeholder="Select Existing Client"

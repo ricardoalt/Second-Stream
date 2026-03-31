@@ -20,11 +20,199 @@ import type {
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 120_000;
+const DISCOVERY_RESUME_STORAGE_KEY = "discovery-wizard-resume-session";
+const DISCOVERY_RESUME_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const TERMINAL_STATUSES = new Set([
 	"review_ready",
 	"partial_failure",
 	"failed",
 ]);
+
+type ResumeStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+interface PersistedDiscoveryResumeState {
+	sessionId: string;
+	companyId: string;
+	locationId: string;
+	savedAt: number;
+}
+
+export type DiscoveryResumeMode = "processing" | "review" | "terminal";
+
+interface DiscoveryResumeNotice {
+	sessionId: string;
+	companyId: string;
+	locationId: string;
+	status: DiscoverySessionResult["status"];
+	mode: DiscoveryResumeMode;
+	title: string;
+	description: string;
+	actionLabel: string | null;
+}
+
+function isResumeStorageCandidate(
+	value: unknown,
+): value is PersistedDiscoveryResumeState {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+
+	const candidate = value as Partial<PersistedDiscoveryResumeState>;
+	return (
+		typeof candidate.sessionId === "string" &&
+		candidate.sessionId.length > 0 &&
+		typeof candidate.companyId === "string" &&
+		candidate.companyId.length > 0 &&
+		typeof candidate.locationId === "string" &&
+		candidate.locationId.length > 0 &&
+		typeof candidate.savedAt === "number"
+	);
+}
+
+function resolveStorage(storage?: ResumeStorage): ResumeStorage | null {
+	if (storage) {
+		return storage;
+	}
+
+	if (typeof window === "undefined") {
+		return null;
+	}
+
+	return window.localStorage;
+}
+
+export function persistDiscoveryResumeState(
+	state: Omit<PersistedDiscoveryResumeState, "savedAt">,
+	storage?: ResumeStorage,
+): void {
+	const resolvedStorage = resolveStorage(storage);
+	if (!resolvedStorage) {
+		return;
+	}
+
+	try {
+		resolvedStorage.setItem(
+			DISCOVERY_RESUME_STORAGE_KEY,
+			JSON.stringify({ ...state, savedAt: Date.now() }),
+		);
+	} catch {
+		// Ignore storage failures to avoid blocking the wizard.
+	}
+}
+
+export function clearDiscoveryResumeState(storage?: ResumeStorage): void {
+	const resolvedStorage = resolveStorage(storage);
+	if (!resolvedStorage) {
+		return;
+	}
+
+	try {
+		resolvedStorage.removeItem(DISCOVERY_RESUME_STORAGE_KEY);
+	} catch {
+		// Ignore storage failures to avoid blocking the wizard.
+	}
+}
+
+export function loadDiscoveryResumeState(
+	storage?: ResumeStorage,
+	maxAgeMs: number = DISCOVERY_RESUME_MAX_AGE_MS,
+): PersistedDiscoveryResumeState | null {
+	const resolvedStorage = resolveStorage(storage);
+	if (!resolvedStorage) {
+		return null;
+	}
+
+	try {
+		const raw = resolvedStorage.getItem(DISCOVERY_RESUME_STORAGE_KEY);
+		if (!raw) {
+			return null;
+		}
+
+		const parsed: unknown = JSON.parse(raw);
+		if (!isResumeStorageCandidate(parsed)) {
+			clearDiscoveryResumeState(resolvedStorage);
+			return null;
+		}
+
+		if (Date.now() - parsed.savedAt > maxAgeMs) {
+			clearDiscoveryResumeState(resolvedStorage);
+			return null;
+		}
+
+		return parsed;
+	} catch {
+		clearDiscoveryResumeState(resolvedStorage);
+		return null;
+	}
+}
+
+export function resolveDiscoveryResumeMode(params: {
+	status: DiscoverySessionResult["status"];
+	draftsNeedingConfirmation: number;
+}): DiscoveryResumeMode {
+	const { status, draftsNeedingConfirmation } = params;
+
+	if (status === "review_ready" || status === "partial_failure") {
+		return draftsNeedingConfirmation > 0 ? "review" : "terminal";
+	}
+
+	if (status === "failed") {
+		return "terminal";
+	}
+
+	return "processing";
+}
+
+export function resolveDiscoveryResumeNotice(params: {
+	session: DiscoverySessionResult;
+	persisted: PersistedDiscoveryResumeState;
+}): DiscoveryResumeNotice {
+	const { session, persisted } = params;
+	const mode = resolveDiscoveryResumeMode({
+		status: session.status,
+		draftsNeedingConfirmation: session.summary.draftsNeedingConfirmation,
+	});
+
+	if (mode === "processing") {
+		return {
+			sessionId: persisted.sessionId,
+			companyId: persisted.companyId,
+			locationId: persisted.locationId,
+			status: session.status,
+			mode,
+			title: "Resume previous discovery session?",
+			description:
+				"Your previous discovery is still running. Resume to continue tracking progress.",
+			actionLabel: "Resume status",
+		};
+	}
+
+	if (mode === "review") {
+		return {
+			sessionId: persisted.sessionId,
+			companyId: persisted.companyId,
+			locationId: persisted.locationId,
+			status: session.status,
+			mode,
+			title: "Resume candidate review?",
+			description:
+				"A recent discovery session has drafts ready for confirmation.",
+			actionLabel: "Resume review",
+		};
+	}
+
+	return {
+		sessionId: persisted.sessionId,
+		companyId: persisted.companyId,
+		locationId: persisted.locationId,
+		status: session.status,
+		mode,
+		title: "Previous discovery session found",
+		description:
+			"That session is already complete and has nothing left to review. You can dismiss this reminder.",
+		actionLabel: null,
+	};
+}
 
 export type WizardPhase =
 	| "idle"
@@ -142,6 +330,37 @@ async function confirmCandidateDecision(params: {
 	return {};
 }
 
+type DecideDiscoveryDraftFn =
+	typeof import("@/lib/api/bulk-import").bulkImportAPI["decideDiscoveryDraft"];
+
+export const REJECT_CANDIDATE_CONFIRMATION_MESSAGE =
+	"Discard this draft stream? This will remove it from this review.";
+
+export function shouldProceedWithCandidateAction(params: {
+	action: "confirm" | "reject";
+	confirm: (message: string) => boolean;
+}): boolean {
+	const { action, confirm } = params;
+	if (action === "confirm") {
+		return true;
+	}
+
+	return confirm(REJECT_CANDIDATE_CONFIRMATION_MESSAGE);
+}
+
+export async function rejectCandidateDecision(params: {
+	itemId: string;
+	decideDiscoveryDraft?: DecideDiscoveryDraftFn;
+}): Promise<void> {
+	const { itemId, decideDiscoveryDraft = bulkImportAPI.decideDiscoveryDraft } =
+		params;
+
+	await decideDiscoveryDraft(itemId, {
+		action: "reject",
+		reviewNotes: "rejected_via_discovery_wizard",
+	});
+}
+
 async function processFinalizeAllCandidates(params: {
 	candidates: DraftCandidate[];
 	defaultLocationId: string;
@@ -229,6 +448,9 @@ export function useDiscoveryOrchestration(
 		null,
 	);
 	const [defaultLocationId, setDefaultLocationId] = useState("");
+	const [resumeNotice, setResumeNotice] =
+		useState<DiscoveryResumeNotice | null>(null);
+	const [checkingResumeState, setCheckingResumeState] = useState(false);
 
 	const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const pollStartRef = useRef(0);
@@ -281,7 +503,12 @@ export function useDiscoveryOrchestration(
 
 	const startPolling = useCallback(
 		(sessionId: string, companyId: string, locationId: string) => {
+			if (pollIntervalRef.current) {
+				clearInterval(pollIntervalRef.current);
+				pollIntervalRef.current = null;
+			}
 			setPhase("processing");
+			setResumeNotice(null);
 			pollStartRef.current = Date.now();
 			terminalConfirmingRef.current = false;
 
@@ -306,6 +533,7 @@ export function useDiscoveryOrchestration(
 						}
 
 						if (finalSession.status === "failed") {
+							clearDiscoveryResumeState();
 							setError(finalSession.processingError ?? "Processing failed");
 							setPhase("error");
 							return;
@@ -346,6 +574,7 @@ export function useDiscoveryOrchestration(
 								mappedCandidatesCount: 0,
 							})
 						) {
+							clearDiscoveryResumeState();
 							setPhase("no-results");
 						}
 						return;
@@ -396,6 +625,7 @@ export function useDiscoveryOrchestration(
 			try {
 				const session = await discoverySessionsAPI.create(companyId);
 				const sessionId = session.id;
+				persistDiscoveryResumeState({ sessionId, companyId, locationId });
 
 				const uploads: Promise<unknown>[] = [];
 				for (const file of files) {
@@ -423,11 +653,147 @@ export function useDiscoveryOrchestration(
 		[startPolling],
 	);
 
+	useEffect(() => {
+		if (!open || phase !== "idle") {
+			return;
+		}
+
+		const persisted = loadDiscoveryResumeState();
+		if (!persisted) {
+			setResumeNotice(null);
+			return;
+		}
+
+		let isCancelled = false;
+		setCheckingResumeState(true);
+
+		void discoverySessionsAPI
+			.getSession(persisted.sessionId)
+			.then((session) => {
+				if (isCancelled) {
+					return;
+				}
+
+				setResumeNotice(
+					resolveDiscoveryResumeNotice({
+						session,
+						persisted,
+					}),
+				);
+			})
+			.catch(() => {
+				clearDiscoveryResumeState();
+				if (!isCancelled) {
+					setResumeNotice(null);
+				}
+			})
+			.finally(() => {
+				if (!isCancelled) {
+					setCheckingResumeState(false);
+				}
+			});
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [open, phase]);
+
+	const dismissResumeNotice = useCallback(() => {
+		clearDiscoveryResumeState();
+		setResumeNotice(null);
+	}, []);
+
+	const resumeDiscoverySession = useCallback(async () => {
+		if (!resumeNotice) {
+			return;
+		}
+
+		if (resumeNotice.mode === "terminal") {
+			dismissResumeNotice();
+			return;
+		}
+
+		setError(null);
+		setDefaultLocationId(resumeNotice.locationId);
+
+		if (resumeNotice.mode === "processing") {
+			startPolling(
+				resumeNotice.sessionId,
+				resumeNotice.companyId,
+				resumeNotice.locationId,
+			);
+			return;
+		}
+
+		try {
+			const session = await discoverySessionsAPI.getSession(
+				resumeNotice.sessionId,
+			);
+			const mode = resolveDiscoveryResumeMode({
+				status: session.status,
+				draftsNeedingConfirmation: session.summary.draftsNeedingConfirmation,
+			});
+
+			if (mode === "processing") {
+				startPolling(
+					resumeNotice.sessionId,
+					resumeNotice.companyId,
+					resumeNotice.locationId,
+				);
+				return;
+			}
+
+			if (mode === "terminal") {
+				setResumeNotice(
+					resolveDiscoveryResumeNotice({
+						session,
+						persisted: {
+							sessionId: resumeNotice.sessionId,
+							companyId: resumeNotice.companyId,
+							locationId: resumeNotice.locationId,
+							savedAt: Date.now(),
+						},
+					}),
+				);
+				return;
+			}
+
+			const rows = await fetchCandidates(resumeNotice.sessionId);
+			const mapped = mapCandidateRows(
+				rows,
+				resumeNotice.companyId,
+				resumeNotice.locationId,
+			);
+			const route = resolveProcessingTerminalRoute({
+				status: session.status,
+				draftsNeedingConfirmation: session.summary.draftsNeedingConfirmation,
+				mappedCandidatesCount: mapped.length,
+			});
+
+			setResult(session);
+			setResumeNotice(null);
+			if (route.phase === "review") {
+				setCandidates(mapped);
+			}
+			setPhase(route.phase);
+			setCandidateModalOpen(route.openCandidateModal);
+		} catch (resumeError) {
+			setError(
+				resumeError instanceof Error
+					? resumeError.message
+					: "Failed to resume discovery session",
+			);
+			setPhase("error");
+		}
+	}, [dismissResumeNotice, mapCandidateRows, resumeNotice, startPolling]);
+
 	const handleTryAgain = useCallback(() => {
 		resetState();
 	}, [resetState]);
 
 	const handleCreateManually = useCallback(() => {
+		clearDiscoveryResumeState();
+		setResumeNotice(null);
 		setCandidateModalOpen(false);
 		setEditingCandidateId(null);
 		setCandidateErrors({});
@@ -529,9 +895,67 @@ export function useDiscoveryOrchestration(
 			setCandidateModalOpen(false);
 			setEditingCandidateId(null);
 			setReviewSummary(reviewCounts(candidates));
+			clearDiscoveryResumeState();
 			setPhase("complete");
 		},
 		[candidates, pendingCandidatesCount],
+	);
+
+	const handleRejectCandidate = useCallback(
+		async (itemId: string) => {
+			if (isCandidateMutationInFlight) {
+				return;
+			}
+
+			const candidate = candidates.find((item) => item.itemId === itemId);
+			if (!candidate || candidate.status !== "pending") {
+				return;
+			}
+
+			if (
+				!shouldProceedWithCandidateAction({
+					action: "reject",
+					confirm: window.confirm,
+				})
+			) {
+				return;
+			}
+
+			setConfirmingId(itemId);
+			try {
+				await rejectCandidateDecision({ itemId });
+				const updatedCandidates = candidates.filter(
+					(item) => item.itemId !== itemId,
+				);
+				setCandidates(updatedCandidates);
+				setCandidateErrors((current) => {
+					if (!(itemId in current)) {
+						return current;
+					}
+					const next = { ...current };
+					delete next[itemId];
+					return next;
+				});
+				setEditingCandidateId((current) =>
+					current === itemId ? null : current,
+				);
+
+				if (updatedCandidates.length === 0) {
+					setCandidateModalOpen(false);
+					setReviewSummary(reviewCounts(updatedCandidates));
+					setPhase("complete");
+				}
+			} catch (rejectError) {
+				toast.error(
+					rejectError instanceof Error
+						? rejectError.message
+						: "Failed to discard stream",
+				);
+			} finally {
+				setConfirmingId(null);
+			}
+		},
+		[candidates, isCandidateMutationInFlight],
 	);
 
 	const handleProcessFinalizeAll = useCallback(async () => {
@@ -555,6 +979,7 @@ export function useDiscoveryOrchestration(
 			setCandidateModalOpen(false);
 			setEditingCandidateId(null);
 			setCandidateErrors({});
+			clearDiscoveryResumeState();
 			setPhase("complete");
 			return;
 		}
@@ -593,6 +1018,7 @@ export function useDiscoveryOrchestration(
 		setCandidateModalOpen(false);
 		setEditingCandidateId(null);
 		setCandidateErrors({});
+		clearDiscoveryResumeState();
 		setPhase("complete");
 	}, [candidates, defaultLocationId, isCandidateMutationInFlight]);
 
@@ -607,6 +1033,7 @@ export function useDiscoveryOrchestration(
 		);
 		setCandidates(finalizedCandidates);
 		setReviewSummary(reviewCounts(finalizedCandidates));
+		clearDiscoveryResumeState();
 		setPhase("complete");
 	}, [candidates]);
 
@@ -620,6 +1047,8 @@ export function useDiscoveryOrchestration(
 		showDraftCloseWarning,
 		confirmingId,
 		isBulkConfirming,
+		resumeNotice,
+		checkingResumeState,
 		candidateErrors,
 		reviewSummary,
 		isCandidateMutationInFlight,
@@ -627,10 +1056,13 @@ export function useDiscoveryOrchestration(
 		setShowDraftCloseWarning,
 		setEditingCandidateId,
 		startDiscovery,
+		resumeDiscoverySession,
+		dismissResumeNotice,
 		handleTryAgain,
 		handleCreateManually,
 		handleCandidateFieldChange,
 		handleConfirmCandidate,
+		handleRejectCandidate,
 		handleCandidateModalOpenChange,
 		handleProcessFinalizeAll,
 		handleConfirmKeepDrafts,

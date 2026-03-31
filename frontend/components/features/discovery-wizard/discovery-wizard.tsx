@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { ReactElement } from "react";
 import { useCallback } from "react";
 import { DraftConfirmationModal } from "@/components/features/discovery/draft-confirmation-modal";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -14,6 +15,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
 	buildCandidateReviewNotes,
@@ -413,6 +415,37 @@ export function DiscoveryWizard({
 					aria-live="polite"
 					className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col h-full max-h-[90vh]"
 				>
+					{orchestration.phase === "idle" && orchestration.resumeNotice && (
+						<div className="px-6 pt-6">
+							<Alert variant="warning">
+								<AlertTitle>{orchestration.resumeNotice.title}</AlertTitle>
+								<AlertDescription>
+									{orchestration.resumeNotice.description}
+									<div className="mt-3 flex items-center gap-2">
+										{orchestration.resumeNotice.actionLabel ? (
+											<Button
+												size="sm"
+												onClick={() => {
+													void orchestration.resumeDiscoverySession();
+												}}
+												disabled={orchestration.checkingResumeState}
+											>
+												{orchestration.resumeNotice.actionLabel}
+											</Button>
+										) : null}
+										<Button
+											size="sm"
+											variant="ghost"
+											onClick={orchestration.dismissResumeNotice}
+										>
+											Dismiss
+										</Button>
+									</div>
+								</AlertDescription>
+							</Alert>
+						</div>
+					)}
+
 					{(orchestration.phase === "idle" ||
 						orchestration.phase === "submitting") && (
 						<IdleView
@@ -482,6 +515,7 @@ export function DiscoveryWizard({
 				onEditCandidate={orchestration.setEditingCandidateId}
 				onCandidateFieldChange={orchestration.handleCandidateFieldChange}
 				onConfirmCandidate={orchestration.handleConfirmCandidate}
+				onRejectCandidate={orchestration.handleRejectCandidate}
 				onProcessFinalizeAll={orchestration.handleProcessFinalizeAll}
 				candidateErrors={orchestration.candidateErrors}
 				confirmingId={orchestration.confirmingId}

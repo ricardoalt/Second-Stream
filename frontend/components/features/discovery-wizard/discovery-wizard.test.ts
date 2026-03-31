@@ -228,6 +228,76 @@ describe("review helpers", () => {
 		});
 	});
 
+	it("resolves discovery resume modes by status and pending drafts", () => {
+		expect(
+			orchestrationModule.resolveDiscoveryResumeMode({
+				status: "processing",
+				draftsNeedingConfirmation: 0,
+			}),
+		).toBe("processing");
+
+		expect(
+			orchestrationModule.resolveDiscoveryResumeMode({
+				status: "review_ready",
+				draftsNeedingConfirmation: 2,
+			}),
+		).toBe("review");
+
+		expect(
+			orchestrationModule.resolveDiscoveryResumeMode({
+				status: "partial_failure",
+				draftsNeedingConfirmation: 0,
+			}),
+		).toBe("terminal");
+
+		expect(
+			orchestrationModule.resolveDiscoveryResumeMode({
+				status: "failed",
+				draftsNeedingConfirmation: 4,
+			}),
+		).toBe("terminal");
+	});
+
+	it("builds reject decision payload for candidate deletion", async () => {
+		const decideDraft = mock(async () => ({}) as never);
+
+		await orchestrationModule.rejectCandidateDecision({
+			itemId: "item-123",
+			decideDiscoveryDraft: decideDraft,
+		});
+
+		expect(decideDraft).toHaveBeenCalledWith("item-123", {
+			action: "reject",
+			reviewNotes: "rejected_via_discovery_wizard",
+		});
+	});
+
+	it("does not request destructive confirmation for candidate confirm actions", () => {
+		const confirm = mock(() => false);
+
+		expect(
+			orchestrationModule.shouldProceedWithCandidateAction({
+				action: "confirm",
+				confirm,
+			}),
+		).toBe(true);
+		expect(confirm).not.toHaveBeenCalled();
+	});
+
+	it("requires explicit destructive confirmation for candidate reject actions", () => {
+		const confirm = mock(() => true);
+
+		expect(
+			orchestrationModule.shouldProceedWithCandidateAction({
+				action: "reject",
+				confirm,
+			}),
+		).toBe(true);
+		expect(confirm).toHaveBeenCalledWith(
+			orchestrationModule.REJECT_CANDIDATE_CONFIRMATION_MESSAGE,
+		);
+	});
+
 	it("renders no-results actions for recovery paths", () => {
 		const html = renderToStaticMarkup(
 			createElement(discoveryWizardModule.NoResultsView, {
@@ -469,5 +539,71 @@ describe("candidate confirmation flow", () => {
 				locationId: "location-1",
 			}),
 		).toBe("company-1");
+	});
+});
+
+describe("discovery resume persistence", () => {
+	function createStorageMock(): Storage {
+		const map = new Map<string, string>();
+		return {
+			length: 0,
+			clear() {
+				map.clear();
+			},
+			getItem(key: string) {
+				return map.get(key) ?? null;
+			},
+			key(index: number) {
+				const keys = Array.from(map.keys());
+				return keys[index] ?? null;
+			},
+			removeItem(key: string) {
+				map.delete(key);
+			},
+			setItem(key: string, value: string) {
+				map.set(key, value);
+			},
+		} as Storage;
+	}
+
+	it("persists and loads discovery resume state", () => {
+		const storage = createStorageMock();
+
+		orchestrationModule.persistDiscoveryResumeState(
+			{
+				sessionId: "session-1",
+				companyId: "company-1",
+				locationId: "location-1",
+			},
+			storage,
+		);
+
+		const loaded = orchestrationModule.loadDiscoveryResumeState(storage);
+		expect(loaded).toEqual(
+			expect.objectContaining({
+				sessionId: "session-1",
+				companyId: "company-1",
+				locationId: "location-1",
+			}),
+		);
+		expect(typeof loaded?.savedAt).toBe("number");
+	});
+
+	it("expires stale discovery resume state", () => {
+		const storage = createStorageMock();
+
+		storage.setItem(
+			"discovery-wizard-resume-session",
+			JSON.stringify({
+				sessionId: "old-session",
+				companyId: "company-1",
+				locationId: "location-1",
+				savedAt: Date.now() - 5_000,
+			}),
+		);
+
+		const loaded = orchestrationModule.loadDiscoveryResumeState(storage, 1000);
+		expect(loaded).toBeNull();
+		expect(storage.getItem("discovery-wizard-resume-session")).toBeNull();
 	});
 });

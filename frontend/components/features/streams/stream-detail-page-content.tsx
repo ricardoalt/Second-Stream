@@ -305,9 +305,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 					<div className="flex flex-col gap-1">
 						<p className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 							Waste Streams &rsaquo; Missing Information &rsaquo;{" "}
-							<span className="font-bold text-foreground">
-								{materialName}
-							</span>
+							<span className="font-bold text-foreground">{materialName}</span>
 						</p>
 						<div className="flex items-start justify-between gap-4">
 							<h1 className="font-display text-[1.65rem] font-bold tracking-tight text-foreground">
@@ -372,9 +370,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 										activePhase={activePhase}
 										answers={questionnaireAnswers}
 										suggestions={questionnaireSuggestions}
-										reviewingSuggestions={
-											reviewSuggestionsStatus === "saving"
-										}
+										reviewingSuggestions={reviewSuggestionsStatus === "saving"}
 										onAnswerChange={handleQuestionChange}
 										onReviewSuggestion={handleSuggestionReview}
 									/>
