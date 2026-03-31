@@ -92,12 +92,12 @@ function StatusPill({ status }: { status: StreamStatus }) {
 	);
 }
 
-function AlertBadge({ 
-	status, 
-	alertText 
-}: { 
-	status: StreamStatus; 
-	alertText: string | undefined 
+function AlertBadge({
+	status,
+	alertText,
+}: {
+	status: StreamStatus;
+	alertText: string | undefined;
 }) {
 	if (status === "draft") {
 		return (

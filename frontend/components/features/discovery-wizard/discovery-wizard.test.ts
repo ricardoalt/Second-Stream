@@ -10,6 +10,7 @@ import type {
 process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 
 const discoveryWizardModule = await import("./discovery-wizard");
+const orchestrationModule = await import("./use-discovery-orchestration");
 
 function buildSession(
 	overrides?: Partial<DiscoverySessionResult>,
@@ -159,6 +160,13 @@ describe("review helpers", () => {
 	it("uses guarded close warning while unresolved candidates remain", () => {
 		expect(
 			discoveryWizardModule.resolveCandidateModalInstruction({
+				nextOpen: true,
+				pendingCandidatesCount: 2,
+			}),
+		).toBe("open-review");
+
+		expect(
+			discoveryWizardModule.resolveCandidateModalInstruction({
 				nextOpen: false,
 				pendingCandidatesCount: 1,
 			}),
@@ -170,6 +178,54 @@ describe("review helpers", () => {
 				pendingCandidatesCount: 0,
 			}),
 		).toBe("close-complete");
+	});
+
+	it("routes processing terminal results to review or no-results", () => {
+		expect(
+			orchestrationModule.resolveProcessingTerminalRoute({
+				status: "review_ready",
+				draftsNeedingConfirmation: 2,
+				mappedCandidatesCount: 2,
+			}),
+		).toEqual({
+			phase: "review",
+			openCandidateModal: true,
+		});
+
+		expect(
+			orchestrationModule.resolveProcessingTerminalRoute({
+				status: "review_ready",
+				draftsNeedingConfirmation: 2,
+				mappedCandidatesCount: 0,
+			}),
+		).toEqual({
+			phase: "no-results",
+			openCandidateModal: false,
+		});
+
+		expect(
+			orchestrationModule.resolveProcessingTerminalRoute({
+				status: "partial_failure",
+				draftsNeedingConfirmation: 0,
+				mappedCandidatesCount: 0,
+			}),
+		).toEqual({
+			phase: "no-results",
+			openCandidateModal: false,
+		});
+	});
+
+	it("routes failed processing terminal results to error phase", () => {
+		expect(
+			orchestrationModule.resolveProcessingTerminalRoute({
+				status: "failed",
+				draftsNeedingConfirmation: 3,
+				mappedCandidatesCount: 3,
+			}),
+		).toEqual({
+			phase: "error",
+			openCandidateModal: false,
+		});
 	});
 
 	it("renders no-results actions for recovery paths", () => {

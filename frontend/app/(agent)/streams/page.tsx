@@ -25,7 +25,10 @@ import {
 } from "@/components/features/streams/streams-drafts-table";
 import { StreamsFamilyHeader } from "@/components/features/streams/streams-family-header";
 import { StreamsFollowUpBoard } from "@/components/features/streams/streams-follow-up-board";
-import { useStreamFilters } from "@/components/features/streams/use-stream-filters";
+import {
+	useSharedStreamFilter,
+	useStreamFilters,
+} from "@/components/features/streams/use-stream-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -90,55 +93,28 @@ export default function AgentStreamsPage() {
 
 	// ── Computed data ──
 	const operationalStreams = allStreams;
+	const sharedFilters = useMemo(
+		() => ({ search, clientFilter, statusFilter }),
+		[search, clientFilter, statusFilter],
+	);
+	const includeStatusOption = useMemo(() => ({ includeStatus: true }), []);
+	const excludeStatusOption = useMemo(() => ({ includeStatus: false }), []);
 
-	const filteredStreams = useMemo(() => {
-		const normalizedSearch = search.trim().toLowerCase();
-
-		return operationalStreams.filter((row) => {
-			const matchSearch =
-				normalizedSearch.length === 0 ||
-				row.name.toLowerCase().includes(normalizedSearch) ||
-				row.client.toLowerCase().includes(normalizedSearch) ||
-				row.wasteType.toLowerCase().includes(normalizedSearch);
-
-			const matchClient = clientFilter === "all" || row.client === clientFilter;
-			const matchStatus = statusFilter === "all" || row.status === statusFilter;
-
-			return matchSearch && matchClient && matchStatus;
-		});
-	}, [clientFilter, operationalStreams, search, statusFilter]);
-
-	const filteredDrafts = useMemo(() => {
-		const normalizedSearch = search.trim().toLowerCase();
-
-		return draftStreams.filter((row) => {
-			const matchSearch =
-				normalizedSearch.length === 0 ||
-				row.name.toLowerCase().includes(normalizedSearch) ||
-				row.client.toLowerCase().includes(normalizedSearch) ||
-				row.wasteType.toLowerCase().includes(normalizedSearch);
-
-			const matchClient = clientFilter === "all" || row.client === clientFilter;
-
-			return matchSearch && matchClient;
-		});
-	}, [clientFilter, draftStreams, search]);
-
-	const filteredFollowUps = useMemo(() => {
-		const normalizedSearch = search.trim().toLowerCase();
-
-		return missingInfoStreams.filter((row) => {
-			const matchSearch =
-				normalizedSearch.length === 0 ||
-				row.name.toLowerCase().includes(normalizedSearch) ||
-				row.client.toLowerCase().includes(normalizedSearch) ||
-				row.wasteType.toLowerCase().includes(normalizedSearch);
-
-			const matchClient = clientFilter === "all" || row.client === clientFilter;
-
-			return matchSearch && matchClient;
-		});
-	}, [clientFilter, missingInfoStreams, search]);
+	const filteredStreams = useSharedStreamFilter(
+		operationalStreams,
+		sharedFilters,
+		includeStatusOption,
+	);
+	const filteredDrafts = useSharedStreamFilter(
+		draftStreams,
+		sharedFilters,
+		excludeStatusOption,
+	);
+	const filteredFollowUps = useSharedStreamFilter(
+		missingInfoStreams,
+		sharedFilters,
+		excludeStatusOption,
+	);
 
 	// ── Derived KPIs ──
 	const kpis = useMemo(() => computeWasteStreamsKpis(counts), [counts]);

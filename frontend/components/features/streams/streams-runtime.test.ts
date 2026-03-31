@@ -92,7 +92,7 @@ describe("/streams runtime hardening", () => {
 		});
 	});
 
-	it("validates draft confirmation with required units", () => {
+	it("allows optional volume/frequency/units for inline draft confirmation", () => {
 		const validDraft: DraftEditorState = {
 			wasteType: "Spent Solvent",
 			volume: "20",
@@ -101,15 +101,15 @@ describe("/streams runtime hardening", () => {
 			clientId: "company-1",
 			locationId: "location-1",
 		};
-		const invalidDraft: DraftEditorState = {
+		const sparseDraft: DraftEditorState = {
 			...validDraft,
+			volume: "",
 			frequency: "",
+			units: "",
 		};
 
 		expect(validateDraft(validDraft)).toEqual({});
-		expect(validateDraft(invalidDraft)).toEqual({
-			frequency: "Frequency is required.",
-		});
+		expect(validateDraft(sparseDraft)).toEqual({});
 	});
 
 	it("does not require location to validate a draft row", () => {
