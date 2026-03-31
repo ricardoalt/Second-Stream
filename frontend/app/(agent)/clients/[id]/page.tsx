@@ -12,23 +12,33 @@ import {
 	Factory,
 	FileWarning,
 	Flag,
-	FlaskConical,
 	Loader2,
 	Mail,
 	MapPin,
 	MessageSquare,
-	MoreVertical,
 	Phone,
-	Shapes,
 	Sparkles,
 	Target,
 	TrendingUp,
 	Users,
 } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { ClientCreateBanner } from "@/components/features/clients/client-create-banner";
 import { EditClientModal } from "@/components/features/modals/edit-client-modal";
+import {
+	mapEditorStateToDraftCandidate,
+	resolveOpenDraftState,
+	type StreamsTab,
+} from "@/components/features/streams/runtime-helpers";
+import { StreamsAllTable } from "@/components/features/streams/streams-all-table";
+import {
+	type DraftEditorState,
+	StreamsDraftsTable,
+} from "@/components/features/streams/streams-drafts-table";
+import { StreamsFollowUpBoard } from "@/components/features/streams/streams-follow-up-board";
+import type { StreamRow } from "@/components/features/streams/types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,21 +51,22 @@ import {
 } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
-import { StatusBadge } from "@/components/ui/status-badge";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { bulkImportAPI } from "@/lib/api/bulk-import";
 import { companiesAPI } from "@/lib/api/companies";
-import { projectsAPI } from "@/lib/api/projects";
+import { toDiscoveryNormalizedData } from "@/lib/discovery-confirmation-utils";
 import type { ClientProfile } from "@/lib/mappers/company-client";
 import { toClientProfile } from "@/lib/mappers/company-client";
-import type { ProjectSummary } from "@/lib/project-types";
+import {
+	useStreamsActions,
+	useStreamsAll,
+	useStreamsDraftRowsById,
+	useStreamsDrafts,
+	useStreamsError,
+	useStreamsInitialized,
+	useStreamsLoading,
+	useStreamsMissingInfo,
+} from "@/lib/stores/streams-store";
 
 export default function ClientDetailPage() {
 	const params = useParams<{ id: string }>();
@@ -65,10 +76,28 @@ export default function ClientDetailPage() {
 	const createState = searchParams.get("create");
 
 	const [profile, setProfile] = useState<ClientProfile | null>(null);
-	const [projects, setProjects] = useState<ProjectSummary[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [editModalOpen, setEditModalOpen] = useState(false);
+	const [activeStreamsTab, setActiveStreamsTab] = useState<StreamsTab>("all");
+	const [highlightedDraftId, setHighlightedDraftId] = useState<string | null>(
+		null,
+	);
+	const [confirmingDraftIds, setConfirmingDraftIds] = useState<Set<string>>(
+		new Set(),
+	);
+	const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(
+		null,
+	);
+
+	const allStreams = useStreamsAll();
+	const draftStreams = useStreamsDrafts();
+	const missingInfoStreams = useStreamsMissingInfo();
+	const draftRowsById = useStreamsDraftRowsById();
+	const streamsLoading = useStreamsLoading();
+	const streamsInitialized = useStreamsInitialized();
+	const streamsError = useStreamsError();
+	const { loadStreams } = useStreamsActions();
 
 	const fetchProfile = useCallback(async () => {
 		if (!companyId) return;
@@ -76,13 +105,9 @@ export default function ClientDetailPage() {
 			setLoading(true);
 			setError(null);
 
-			const [companyDetail, projectsResponse] = await Promise.all([
-				companiesAPI.get(companyId),
-				projectsAPI.getProjects({ companyId, size: 100 }),
-			]);
+			const companyDetail = await companiesAPI.get(companyId);
 
 			setProfile(toClientProfile(companyDetail));
-			setProjects(projectsResponse.items ?? []);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to load client");
 		} finally {
@@ -93,6 +118,106 @@ export default function ClientDetailPage() {
 	useEffect(() => {
 		fetchProfile();
 	}, [fetchProfile]);
+
+	useEffect(() => {
+		if (!streamsInitialized) {
+			void loadStreams();
+		}
+	}, [loadStreams, streamsInitialized]);
+
+	const primaryContact = profile?.primaryContact ?? null;
+	const normalizedProfileName = profile?.name.trim().toLowerCase() ?? "";
+
+	const matchesCurrentCompany = useCallback(
+		(row: StreamRow) => {
+			if (!companyId) {
+				return false;
+			}
+
+			if (row.clientId) {
+				return row.clientId === companyId;
+			}
+
+			return row.client.trim().toLowerCase() === normalizedProfileName;
+		},
+		[companyId, normalizedProfileName],
+	);
+
+	const companyAllStreams = useMemo(
+		() => allStreams.filter(matchesCurrentCompany),
+		[allStreams, matchesCurrentCompany],
+	);
+	const companyDraftStreams = useMemo(
+		() => draftStreams.filter(matchesCurrentCompany),
+		[draftStreams, matchesCurrentCompany],
+	);
+	const companyMissingInfoStreams = useMemo(
+		() => missingInfoStreams.filter(matchesCurrentCompany),
+		[missingInfoStreams, matchesCurrentCompany],
+	);
+
+	useEffect(() => {
+		if (
+			selectedFollowUpId &&
+			!companyMissingInfoStreams.some((row) => row.id === selectedFollowUpId)
+		) {
+			setSelectedFollowUpId(null);
+		}
+	}, [companyMissingInfoStreams, selectedFollowUpId]);
+
+	function handleOpenDraft(id: string) {
+		const next = resolveOpenDraftState(id);
+		setActiveStreamsTab(next.activeTab);
+		setHighlightedDraftId(next.highlightedDraftId);
+	}
+
+	async function handleConfirmDraft(id: string, editorState: DraftEditorState) {
+		const draft = draftRowsById[id];
+		if (!draft) {
+			return;
+		}
+
+		setConfirmingDraftIds((prev) => new Set(prev).add(id));
+		setHighlightedDraftId(null);
+
+		try {
+			const candidate = mapEditorStateToDraftCandidate(
+				draft.itemId,
+				draft.runId,
+				editorState,
+			);
+			const payload: Parameters<typeof bulkImportAPI.decideDiscoveryDraft>[1] =
+				{
+					action: "confirm",
+					normalizedData: toDiscoveryNormalizedData(candidate),
+					reviewNotes:
+						"confirmed_via_client_detail; source=Client Detail Waste Streams",
+				};
+
+			if (editorState.locationId) {
+				payload.locationResolution = {
+					mode: "existing",
+					locationId: editorState.locationId,
+				};
+			}
+
+			await bulkImportAPI.decideDiscoveryDraft(draft.itemId, payload);
+			toast.success("Draft confirmed and converted to waste stream");
+			void loadStreams();
+		} catch (confirmError) {
+			toast.error(
+				confirmError instanceof Error
+					? confirmError.message
+					: "Failed to confirm draft",
+			);
+		} finally {
+			setConfirmingDraftIds((prev) => {
+				const next = new Set(prev);
+				next.delete(id);
+				return next;
+			});
+		}
+	}
 
 	if (loading) {
 		return (
@@ -119,8 +244,6 @@ export default function ClientDetailPage() {
 			</div>
 		);
 	}
-
-	const primaryContact = profile.primaryContact;
 
 	// Mock data for new UI elements (visual placeholders)
 	const mockRevenue = "$840k";
@@ -264,7 +387,7 @@ export default function ClientDetailPage() {
 				<MetricCard
 					icon={Activity}
 					label="Active Streams"
-					value={projects.length}
+					value={companyAllStreams.length}
 					subtitle={`Across ${profile.locations.length} facilities`}
 					variant="primary"
 				/>
@@ -329,7 +452,7 @@ export default function ClientDetailPage() {
 					<CardContent className="flex-1 space-y-4">
 						<p className="text-sm text-muted-foreground leading-relaxed">
 							{profile.notes ||
-								`${profile.name} currently maintains ${projects.length} active streams distributed across ${profile.locations.length} primary facilities. Overall efficiency is high, but administrative overhead is increasing.`}
+								`${profile.name} currently maintains ${companyAllStreams.length} active streams distributed across ${profile.locations.length} primary facilities. Overall efficiency is high, but administrative overhead is increasing.`}
 						</p>
 
 						<div className="space-y-2">
@@ -555,143 +678,97 @@ export default function ClientDetailPage() {
 			{/* ── Streams Table with Tabs ── */}
 			<Card>
 				<CardHeader className="pb-0">
-					<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-						<div>
-							<CardTitle className="text-base font-semibold">
-								Waste Streams
-							</CardTitle>
-							<CardDescription>
-								Projects tracked for this account
-							</CardDescription>
-						</div>
-						<div className="flex items-center gap-2">
-							<Button variant="outline" size="sm">
-								<Shapes className="mr-1.5 h-4 w-4" />
-								Filter
-							</Button>
-							<Button variant="outline" size="sm">
-								Download
-							</Button>
-						</div>
+					<div>
+						<CardTitle className="text-base font-semibold">
+							Waste Streams
+						</CardTitle>
+						<CardDescription>
+							Live stream data for this account, synced with Waste Streams
+							buckets.
+						</CardDescription>
 					</div>
 				</CardHeader>
 				<CardContent className="pt-6">
-					<Tabs defaultValue="all" className="w-full">
-						<TabsList className="w-fit mb-4">
-							<TabsTrigger value="all">All Streams</TabsTrigger>
-							<TabsTrigger value="drafts">Drafts</TabsTrigger>
-							<TabsTrigger value="missing">Missing Information</TabsTrigger>
+					{streamsLoading && !streamsInitialized ? (
+						<div className="mb-4 flex items-center gap-2 rounded-lg bg-surface-container-low px-4 py-3 text-sm text-muted-foreground">
+							<Loader2 aria-hidden className="size-4 animate-spin" />
+							Loading streams…
+						</div>
+					) : null}
+
+					{streamsError ? (
+						<div className="mb-4 rounded-lg bg-destructive/5 px-4 py-3 text-sm text-destructive">
+							{streamsError}
+						</div>
+					) : null}
+
+					<Tabs
+						value={activeStreamsTab}
+						onValueChange={(value) => setActiveStreamsTab(value as StreamsTab)}
+						className="w-full"
+					>
+						<TabsList className="mb-4 w-fit">
+							<TabsTrigger value="all">
+								All Streams ({companyAllStreams.length})
+							</TabsTrigger>
+							<TabsTrigger value="drafts">
+								Drafts ({companyDraftStreams.length})
+							</TabsTrigger>
+							<TabsTrigger value="missing-info">
+								Missing Information ({companyMissingInfoStreams.length})
+							</TabsTrigger>
 						</TabsList>
 
 						<TabsContent value="all" className="mt-0">
-							{projects.length === 0 ? (
+							{companyAllStreams.length === 0 ? (
 								<div className="rounded-lg border border-dashed p-8 text-center">
 									<p className="text-sm text-muted-foreground">
 										No waste streams associated with this client yet.
 									</p>
-									<Button className="mt-4" size="sm">
-										<Sparkles className="mr-1.5 h-4 w-4" />
-										Launch Discovery Wizard
-									</Button>
 								</div>
 							) : (
-								<div className="rounded-lg border">
-									<Table>
-										<TableHeader>
-											<TableRow className="bg-muted/50 hover:bg-muted/50">
-												<TableHead className="w-[280px]">Material</TableHead>
-												<TableHead>Location</TableHead>
-												<TableHead>Status</TableHead>
-												<TableHead>Volume</TableHead>
-												<TableHead>Frequency</TableHead>
-												<TableHead className="w-[50px]"></TableHead>
-											</TableRow>
-										</TableHeader>
-										<TableBody>
-											{projects.map((project) => (
-												<TableRow
-													key={project.id}
-													className="cursor-pointer"
-													onClick={() => router.push(`/streams/${project.id}`)}
-												>
-													<TableCell>
-														<div className="flex items-center gap-3">
-															<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-																<FlaskConical className="h-4 w-4 text-primary" />
-															</div>
-															<div>
-																<p className="font-medium">{project.name}</p>
-																<p className="text-xs text-muted-foreground">
-																	ID: {project.id.slice(0, 8)}
-																</p>
-															</div>
-														</div>
-													</TableCell>
-													<TableCell className="text-sm text-muted-foreground">
-														{project.locationName ?? project.location ?? "—"}
-													</TableCell>
-													<TableCell>
-														<StatusBadge
-															status={
-																project.proposalsCount > 0 ? "OPEN" : "DRAFT"
-															}
-														/>
-													</TableCell>
-													<TableCell className="text-sm text-muted-foreground">
-														14,200 L
-													</TableCell>
-													<TableCell className="text-sm text-muted-foreground">
-														Monthly
-													</TableCell>
-													<TableCell>
-														<Button
-															variant="ghost"
-															size="icon"
-															className="h-8 w-8"
-															onClick={(e) => {
-																e.stopPropagation();
-															}}
-														>
-															<MoreVertical className="h-4 w-4" />
-														</Button>
-													</TableCell>
-												</TableRow>
-											))}
-										</TableBody>
-									</Table>
+								<div className="overflow-hidden rounded-lg border border-border/40 bg-surface-container-lowest/50">
+									<StreamsAllTable
+										rows={companyAllStreams}
+										onOpenDraft={handleOpenDraft}
+									/>
 								</div>
 							)}
-							<div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-								<p>
-									Showing {Math.min(projects.length, 10)} of {projects.length}{" "}
-									active streams
-								</p>
-								<div className="flex items-center gap-1">
-									<Button variant="ghost" size="icon" className="h-7 w-7">
-										&lt;
-									</Button>
-									<span>1</span>
-									<Button variant="ghost" size="icon" className="h-7 w-7">
-										&gt;
-									</Button>
-								</div>
-							</div>
 						</TabsContent>
 
 						<TabsContent value="drafts" className="mt-0">
-							<div className="rounded-lg border border-dashed p-8 text-center">
-								<p className="text-sm text-muted-foreground">
-									No drafts found for this client.
-								</p>
-							</div>
+							{companyDraftStreams.length === 0 ? (
+								<div className="rounded-lg border border-dashed p-8 text-center">
+									<p className="text-sm text-muted-foreground">
+										No drafts found for this client.
+									</p>
+								</div>
+							) : (
+								<div className="overflow-hidden rounded-lg border border-border/40 bg-surface-container-lowest/50">
+									<StreamsDraftsTable
+										rows={companyDraftStreams}
+										onConfirm={handleConfirmDraft}
+										highlightedId={highlightedDraftId}
+										confirmingIds={confirmingDraftIds}
+									/>
+								</div>
+							)}
 						</TabsContent>
 
-						<TabsContent value="missing" className="mt-0">
-							<div className="rounded-lg border border-dashed p-8 text-center">
-								<p className="text-sm text-muted-foreground">
-									No streams with missing information.
-								</p>
-							</div>
+						<TabsContent value="missing-info" className="mt-0">
+							{companyMissingInfoStreams.length === 0 ? (
+								<div className="rounded-lg border border-dashed p-8 text-center">
+									<p className="text-sm text-muted-foreground">
+										No streams with missing information.
+									</p>
+								</div>
+							) : (
+								<StreamsFollowUpBoard
+									items={companyMissingInfoStreams}
+									selectedId={selectedFollowUpId}
+									onSelect={setSelectedFollowUpId}
+								/>
+							)}
 						</TabsContent>
 					</Tabs>
 				</CardContent>

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CreateCompanyDialog } from "@/components/features/companies/create-company-dialog";
+import { AddClientDialog } from "@/components/features/clients/add-client-dialog";
 import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
 import { Button } from "@/components/ui/button";
 import { CompanyCombobox } from "@/components/ui/company-combobox";
@@ -488,7 +488,7 @@ export function IdleView({
 
 	return (
 		<div className="flex flex-col flex-1">
-			<div className="relative overflow-hidden px-8 pt-5 pb-4 shrink-0">
+			<div className="relative overflow-hidden px-8 pt-5 pb-3 shrink-0">
 				<div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-container" />
 				<h2 className="font-display text-xl font-semibold tracking-tight">
 					Discovery Wizard
@@ -496,7 +496,7 @@ export function IdleView({
 				<p className="text-sm text-muted-foreground/80 mt-1">
 					Select a method to identify and ingest waste stream data
 				</p>
-				<div className="mt-4 flex gap-0">
+				<div className="mt-3 flex gap-0">
 					<button
 						type="button"
 						onClick={() => setWizardTab("ai")}
@@ -544,17 +544,8 @@ export function IdleView({
 												<span className="text-xs font-semibold uppercase tracking-[0.08em] text-primary">
 													Client Selection
 												</span>
-												<CreateCompanyDialog
-													onSuccess={(company) => {
-														if (company) {
-															setQuickEntryError(null);
-															setQe({
-																...qe,
-																client: company.id,
-																locationId: "",
-															});
-														}
-													}}
+												<AddClientDialog
+													hideTrigger
 													trigger={
 														<button
 															type="button"
@@ -564,6 +555,14 @@ export function IdleView({
 															Add New Client
 														</button>
 													}
+													onSuccessWithClient={(clientId) => {
+														setQuickEntryError(null);
+														setQe({
+															...qe,
+															client: clientId,
+															locationId: "",
+														});
+													}}
 												/>
 											</div>
 											<CompanyCombobox
@@ -738,101 +737,104 @@ export function IdleView({
 				</div>
 			) : (
 				<div className="flex flex-col flex-1">
-					<div className="flex-1 overflow-auto px-8 py-6">
-						<div className="mx-auto w-full max-w-3xl space-y-6">
-							<section className="rounded-xl bg-surface-container-lowest/80 p-6 border border-border/15">
-								<div className="mb-4 flex items-center justify-between">
-									<div className="flex items-center gap-3">
+					<div className="flex-1 overflow-auto px-8 py-5">
+						<div className="mx-auto w-full space-y-4">
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">
+									<div className="mb-3 flex items-center justify-between">
+										<div className="flex items-center gap-3">
+											<div className="p-2.5 bg-primary/10 rounded-lg">
+												<Building2 className="size-5 text-primary" />
+											</div>
+											<h3 className="text-base font-semibold text-foreground">
+												Client Information
+											</h3>
+										</div>
+										<AddClientDialog
+											hideTrigger
+											trigger={
+												<button
+													type="button"
+													className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5"
+												>
+													<PlusCircle className="size-3.5" />
+													Add New Client
+												</button>
+											}
+											onSuccessWithClient={(clientId) => {
+												handleCompanyChange(clientId);
+											}}
+										/>
+									</div>
+									{defaultCompanyId ? (
+										<div className="flex items-center gap-2 rounded-lg border border-border/30 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+											<Package className="size-4 text-muted-foreground" />
+											Company pre-selected
+										</div>
+									) : (
+										<CompanyCombobox
+											value={companyId}
+											onValueChange={(value) => {
+												handleCompanyChange(value);
+												setLocationId("");
+											}}
+											placeholder="Select Existing Client"
+											showCreate={true}
+										/>
+									)}
+								</section>
+
+								<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">
+									<div className="flex items-center gap-3 mb-3">
 										<div className="p-2.5 bg-primary/10 rounded-lg">
-											<Building2 className="size-5 text-primary" />
+											<MapPin className="size-5 text-primary" />
 										</div>
 										<h3 className="text-base font-semibold text-foreground">
-											Client Information
+											Assign Default Location
 										</h3>
 									</div>
-									<CreateCompanyDialog
-										onSuccess={(company) => {
-											if (company) handleCompanyChange(company.id);
-										}}
-										trigger={
-											<button
-												type="button"
-												className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5"
-											>
-												<PlusCircle className="size-3.5" />
-												Add New Client
-											</button>
-										}
-									/>
-								</div>
-								{defaultCompanyId ? (
-									<div className="flex items-center gap-2 rounded-lg border border-border/30 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-										<Package className="size-4 text-muted-foreground" />
-										Company pre-selected
+									<div className="space-y-2">
+										<LocationCombobox
+											companyId={companyId}
+											value={locationId}
+											onValueChange={setLocationId}
+											placeholder={
+												companyId
+													? "e.g. Houston Facility, TX"
+													: "Select Client first"
+											}
+											className="h-10"
+										/>
+										{companyId && aiLocations.length === 0 ? (
+											<div className="text-xs text-muted-foreground">
+												No locations —{" "}
+												<CreateLocationDialog
+													companyId={companyId}
+													onSuccess={(location) => {
+														if (!location) return;
+														void loadLocationsByCompany(companyId);
+														setLocationId(location.id);
+													}}
+													trigger={
+														<button
+															type="button"
+															className="font-medium text-primary hover:underline"
+														>
+															[+ Add location]
+														</button>
+													}
+												/>
+											</div>
+										) : null}
 									</div>
-								) : (
-									<CompanyCombobox
-										value={companyId}
-										onValueChange={(value) => {
-											handleCompanyChange(value);
-											setLocationId("");
-										}}
-										placeholder="Select Existing Client"
-										showCreate={true}
-									/>
-								)}
-							</section>
+									<p className="mt-1.5 text-xs text-muted-foreground">
+										Select a location before upload/analysis.
+									</p>
+								</section>
+							</div>
 
-							<section className="rounded-xl bg-surface-container-lowest/80 p-6 border border-border/15">
-								<div className="flex items-center gap-3 mb-4">
-									<div className="p-2.5 bg-primary/10 rounded-lg">
-										<MapPin className="size-5 text-primary" />
-									</div>
-									<h3 className="text-base font-semibold text-foreground">
-										Assign Default Location
-									</h3>
-								</div>
-								<div className="space-y-2">
-									<LocationCombobox
-										companyId={companyId}
-										value={locationId}
-										onValueChange={setLocationId}
-										placeholder={
-											companyId
-												? "e.g. Houston Facility, TX"
-												: "Select Client first"
-										}
-										className="h-12"
-									/>
-									{companyId && aiLocations.length === 0 ? (
-										<div className="text-xs text-muted-foreground">
-											No locations —{" "}
-											<CreateLocationDialog
-												companyId={companyId}
-												onSuccess={(location) => {
-													if (!location) return;
-													void loadLocationsByCompany(companyId);
-													setLocationId(location.id);
-												}}
-												trigger={
-													<button
-														type="button"
-														className="font-medium text-primary hover:underline"
-													>
-														[+ Add location]
-													</button>
-												}
-											/>
-										</div>
-									) : null}
-								</div>
-								<p className="mt-1 text-xs text-muted-foreground">
-									Select a location before upload/analysis.
-								</p>
-							</section>
-
-							<section className="rounded-xl bg-surface-container-lowest/80 p-6 border border-border/15">
-								<div className="flex items-center gap-3 mb-4">
+							<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">
+								<div className="flex items-center gap-3 mb-3">
 									<div className="p-2.5 bg-primary/10 rounded-lg">
 										<Upload className="size-5 text-primary" />
 									</div>
@@ -919,7 +921,7 @@ export function IdleView({
 									) : (
 										<button
 											type="button"
-											className="flex w-full flex-col items-center gap-3 px-6 py-8 text-center"
+											className="flex w-full flex-col items-center gap-3 px-6 py-6 text-center"
 											onClick={() => fileInputRef.current?.click()}
 											disabled={isSubmitting}
 										>
@@ -954,8 +956,8 @@ export function IdleView({
 								</section>
 							</section>
 
-							<section className="rounded-xl bg-surface-container-lowest/80 p-6 border border-border/15">
-								<div className="flex items-center gap-3 mb-4">
+							<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">
+								<div className="flex items-center gap-3 mb-3">
 									<div className="p-2.5 bg-primary/10 rounded-lg">
 										<Mic className="size-5 text-primary" />
 									</div>
@@ -1018,7 +1020,7 @@ export function IdleView({
 						}}
 					/>
 
-					<div className="flex items-center justify-between border-t border-border/20 bg-surface-container-low/60 px-8 py-5 shrink-0">
+					<div className="flex items-center justify-between border-t border-border/20 bg-surface-container-low/60 px-8 py-4 shrink-0">
 						<button
 							type="button"
 							onClick={() => {

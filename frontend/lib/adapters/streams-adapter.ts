@@ -1,6 +1,36 @@
 import type { StreamRow } from "@/components/features/streams/types";
 import type { DraftItemRow, PersistedStreamRow } from "@/lib/types/dashboard";
 
+function parseVolumeSummary(volumeSummary: string | null): {
+	volume: string;
+	units?: string;
+	frequency?: string;
+} {
+	if (!volumeSummary) {
+		return { volume: "" };
+	}
+
+	const normalized = volumeSummary.trim();
+	if (normalized.length === 0) {
+		return { volume: "" };
+	}
+
+	const slashIndex = normalized.indexOf("/");
+	const volumePart =
+		slashIndex >= 0 ? normalized.slice(0, slashIndex).trim() : normalized;
+	const frequencyPart =
+		slashIndex >= 0 ? normalized.slice(slashIndex + 1).trim() : "";
+
+	const unitsMatch = volumePart.match(/^[\d.,\s-]+(.+)$/);
+	const parsedUnits = unitsMatch?.[1]?.trim();
+
+	return {
+		volume: volumePart,
+		...(parsedUnits ? { units: parsedUnits } : {}),
+		...(frequencyPart ? { frequency: frequencyPart } : {}),
+	};
+}
+
 function computeDaysSinceLastActivity(lastActivityAt: string): number {
 	const parsed = Date.parse(lastActivityAt);
 	if (Number.isNaN(parsed)) {
@@ -33,6 +63,8 @@ function persistedStatus(row: PersistedStreamRow): StreamRow["status"] {
 }
 
 export function adaptPersistedStream(row: PersistedStreamRow): StreamRow {
+	const volumeData = parseVolumeSummary(row.volumeSummary);
+
 	return {
 		id: row.projectId,
 		name: row.streamName,
@@ -41,7 +73,9 @@ export function adaptPersistedStream(row: PersistedStreamRow): StreamRow {
 		...(row.companyId ? { clientId: row.companyId } : {}),
 		location: row.locationLabel ?? "",
 		agent: row.ownerDisplayName ?? "",
-		volume: row.volumeSummary ?? "",
+		volume: volumeData.volume,
+		...(volumeData.units ? { units: volumeData.units } : {}),
+		...(volumeData.frequency ? { frequency: volumeData.frequency } : {}),
 		lastUpdated: row.lastActivityAt,
 		daysSinceLastActivity: computeDaysSinceLastActivity(row.lastActivityAt),
 		missingFields: row.missingFields,
@@ -50,7 +84,7 @@ export function adaptPersistedStream(row: PersistedStreamRow): StreamRow {
 }
 
 export function adaptDraftItem(row: DraftItemRow): StreamRow {
-	const volume = row.volumeSummary ?? "";
+	const volumeData = parseVolumeSummary(row.volumeSummary);
 
 	return {
 		id: row.itemId,
@@ -60,7 +94,9 @@ export function adaptDraftItem(row: DraftItemRow): StreamRow {
 		...(row.companyId ? { clientId: row.companyId } : {}),
 		location: row.locationLabel ?? "",
 		agent: "",
-		volume,
+		volume: volumeData.volume,
+		...(volumeData.units ? { units: volumeData.units } : {}),
+		...(volumeData.frequency ? { frequency: volumeData.frequency } : {}),
 		lastUpdated: row.lastActivityAt,
 		daysSinceLastActivity: computeDaysSinceLastActivity(row.lastActivityAt),
 		status: "draft",

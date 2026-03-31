@@ -228,9 +228,16 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 
 							{/* Volume */}
 							<TableCell className="px-6 py-5">
-								<span className="text-sm tabular-nums font-medium text-foreground">
-									{row.volume}
-								</span>
+								<div className="flex flex-col gap-0.5">
+									<span className="text-sm tabular-nums font-medium text-foreground">
+										{row.volume || "—"}
+									</span>
+									{row.frequency ? (
+										<span className="text-xs text-muted-foreground">
+											/{row.frequency}
+										</span>
+									) : null}
+								</div>
 							</TableCell>
 
 							{/* Alerts */}

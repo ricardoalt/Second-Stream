@@ -405,7 +405,7 @@ export function DiscoveryWizard({
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
-				className="glass-popover discovery-wizard-dialog w-[min(92vw,850px)] max-w-none h-auto max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl shadow-water-lg"
+				className="glass-popover discovery-wizard-dialog w-[min(94vw,960px)] max-w-none h-auto max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl shadow-water-lg"
 				showCloseButton={!orchestration.isBlocking}
 			>
 				<div

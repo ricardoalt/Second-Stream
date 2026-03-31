@@ -84,14 +84,26 @@ const DEFAULT_FORM: AddClientFormData = {
 };
 
 type Props = {
+	/** Callback fired after successful submission. Use this for wizard/context flows without redirect */
+	onSuccessWithClient?: (clientId: string) => void;
+	/** Callback fired after successful submission (legacy, for pages that redirect) */
 	onSubmitted?: () => void;
+	/** Hide the default trigger - useful when controlling from parent */
+	hideTrigger?: boolean;
+	/** Custom trigger element */
+	trigger?: React.ReactNode;
 };
 
 const isSector = (value: string): value is Sector => {
 	return sectorsConfig.some((sector) => sector.id === value);
 };
 
-export function AddClientDialog({ onSubmitted }: Props) {
+export function AddClientDialog({
+	onSuccessWithClient,
+	onSubmitted,
+	hideTrigger,
+	trigger,
+}: Props) {
 	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const [form, setForm] = useState<AddClientFormData>(DEFAULT_FORM);
@@ -158,6 +170,15 @@ export function AddClientDialog({ onSubmitted }: Props) {
 
 			setOpen(false);
 			reset();
+
+			// Wizard mode: callback with client ID (no redirect)
+			// The wizard can load locations after creation if needed
+			if (onSuccessWithClient) {
+				onSuccessWithClient(result.companyId);
+				return;
+			}
+
+			// Legacy mode: redirect after creation
 			onSubmitted?.();
 			router.push(result.handoffUrl);
 		} catch {
@@ -177,12 +198,16 @@ export function AddClientDialog({ onSubmitted }: Props) {
 				}
 			}}
 		>
-			<DialogTrigger asChild>
-				<Button>
-					<Building2 data-icon="inline-start" aria-hidden="true" />
-					Add New Client
-				</Button>
-			</DialogTrigger>
+			{!hideTrigger && (
+				<DialogTrigger asChild>
+					{trigger ?? (
+						<Button>
+							<Building2 data-icon="inline-start" aria-hidden="true" />
+							Add New Client
+						</Button>
+					)}
+				</DialogTrigger>
+			)}
 
 			<DialogContent
 				className="w-[min(94vw,780px)] max-w-none gap-0 overflow-hidden rounded-2xl border-0 bg-white/90 p-0 shadow-lg backdrop-blur-2xl"
