@@ -1,6 +1,6 @@
 import copy
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import (
@@ -1316,6 +1316,76 @@ async def test_dashboard_persisted_rows_include_category_and_owner_visibility_ru
     assert owner_item["canEditProposalFollowUp"] is True
     assert owner_item["ownerDisplayName"] is None
     assert owner_item["missingRequiredInfo"] is True
+
+
+@pytest.mark.asyncio
+async def test_dashboard_persisted_rows_include_owner_id_and_queue_priority(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Dashboard Queue Priority", "org-dashboard-queue")
+    owner = await create_user(
+        db_session,
+        email=f"dashboard-queue-owner-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    admin = await create_user(
+        db_session,
+        email=f"dashboard-queue-admin-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Queue Priority Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Queue Priority Loc"
+    )
+
+    pending_confirmation_project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=owner.id,
+        location_id=location.id,
+        name="Queue Pending Confirmation",
+    )
+    _set_project_completion(pending_confirmation_project, 16)
+    await _create_pending_suggestion(
+        db_session,
+        org_id=org.id,
+        project_id=pending_confirmation_project.id,
+        user_id=admin.id,
+    )
+
+    follow_up_project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=owner.id,
+        location_id=location.id,
+        name="Queue Waiting Response",
+    )
+    _set_project_completion(follow_up_project, 16)
+    await _create_proposal_record(db_session, org_id=org.id, project_id=follow_up_project.id)
+    follow_up_project.proposal_follow_up_state = "waiting_response"
+    follow_up_project.updated_at = datetime.now(UTC) - timedelta(days=9)
+    await db_session.commit()
+
+    set_current_user(admin)
+    response = await client.get("/api/v1/projects/dashboard?bucket=total&size=50")
+    assert response.status_code == 200
+
+    by_name = {item["streamName"]: item for item in response.json()["items"]}
+
+    pending_item = by_name["Queue Pending Confirmation"]
+    assert pending_item["ownerUserId"] == str(owner.id)
+    assert pending_item["queuePriority"] == "critical"
+    assert pending_item["queuePriorityReason"] == "pending_confirmation"
+
+    waiting_item = by_name["Queue Waiting Response"]
+    assert waiting_item["ownerUserId"] == str(owner.id)
+    assert waiting_item["queuePriority"] == "high"
+    assert waiting_item["queuePriorityReason"] == "stale_waiting_response"
 
 
 @pytest.mark.asyncio

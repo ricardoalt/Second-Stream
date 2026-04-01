@@ -19,6 +19,7 @@ DashboardBucket = Literal[
 ]
 DashboardRowKind = Literal["persisted_stream", "draft_item"]
 DraftKind = Literal["linked", "orphan_stream", "location_only"]
+DashboardQueuePriority = Literal["critical", "high", "normal"]
 ProposalFollowUpState = Literal[
     "uploaded",
     "waiting_to_send",
@@ -56,6 +57,9 @@ class PersistedStreamDashboardRow(BaseSchema):
     can_edit_proposal_follow_up: bool
     waste_category_label: str | None = None
     owner_display_name: str | None = None
+    owner_user_id: UUID | None = None
+    queue_priority: DashboardQueuePriority = "normal"
+    queue_priority_reason: str = "normal"
     company_id: UUID | None = None
     company_label: str | None = None
     location_label: str | None = None
@@ -99,6 +103,8 @@ class DraftItemDashboardRow(BaseSchema):
     draft_status: Literal["pending_review", "accepted", "amended"]
     confidence: int | None = None
     draft_kind: DraftKind
+    queue_priority: DashboardQueuePriority = "high"
+    queue_priority_reason: str = "draft_needs_confirmation"
     confirmable: bool
     target: DraftTargetResponse | None = None
 

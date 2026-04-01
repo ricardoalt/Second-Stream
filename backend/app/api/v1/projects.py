@@ -260,6 +260,31 @@ def _owner_display_name(project: Project, *, can_view_owner: bool) -> str | None
     return full_name or owner.email
 
 
+def _queue_priority_for_persisted_row(
+    *,
+    pending_confirmation: bool,
+    missing_required_info: bool,
+    proposal_follow_up_state: ProposalFollowUpState | None,
+    last_activity_at: datetime,
+) -> tuple[Literal["critical", "high", "normal"], str]:
+    if pending_confirmation:
+        return ("critical", "pending_confirmation")
+
+    if missing_required_info:
+        return ("high", "missing_required_info")
+
+    now = datetime.now(UTC)
+    staleness_days = max(0, int((now - last_activity_at).total_seconds() // 86400))
+
+    if proposal_follow_up_state == "waiting_response" and staleness_days >= 7:
+        return ("high", "stale_waiting_response")
+
+    if proposal_follow_up_state == "under_negotiation" and staleness_days >= 14:
+        return ("high", "stale_under_negotiation")
+
+    return ("normal", "normal")
+
+
 def _project_completion(project: Project) -> int:
     project_data = project.project_data if isinstance(project.project_data, dict) else {}
     technical_sections = project_data.get("technical_sections")
@@ -466,6 +491,12 @@ async def _build_persisted_dashboard_rows(
             location_label=resolved_location_label,
         ):
             continue
+        queue_priority, queue_priority_reason = _queue_priority_for_persisted_row(
+            pending_confirmation=pending_confirmation,
+            missing_required_info=bool(missing_fields),
+            proposal_follow_up_state=effective_state,
+            last_activity_at=project.updated_at,
+        )
         rows.append(
             PersistedStreamDashboardRow(
                 bucket=bucket,
@@ -482,6 +513,9 @@ async def _build_persisted_dashboard_rows(
                     project,
                     can_view_owner=can_view_owner,
                 ),
+                owner_user_id=project.user_id,
+                queue_priority=queue_priority,
+                queue_priority_reason=queue_priority_reason,
                 company_id=resolved_company_id,
                 company_label=resolved_company_label,
                 location_label=resolved_location_label,
@@ -672,6 +706,8 @@ async def _build_draft_dashboard_rows(
                 draft_status=item.status,
                 confidence=item.confidence,
                 draft_kind=draft_kind,
+                queue_priority="high",
+                queue_priority_reason="draft_needs_confirmation",
                 confirmable=confirmable,
                 target=(
                     DraftTargetResponse(
@@ -864,6 +900,8 @@ async def _build_location_only_draft_rows(
                 draft_status=item.status,
                 confidence=item.confidence,
                 draft_kind="location_only",
+                queue_priority="normal",
+                queue_priority_reason="location_only_draft",
                 confirmable=False,
                 target=None,
             )

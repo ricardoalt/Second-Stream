@@ -46,6 +46,7 @@ export type ProposalFollowUpState =
 export type DraftSourceType = "bulk_import" | "voice_interview";
 export type DraftStatus = "pending_review" | "accepted" | "amended";
 export type DraftKind = "linked" | "orphan_stream" | "location_only";
+export type QueuePriority = "critical" | "high" | "normal";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ROW SCHEMAS (camelCase — matches backend JSON output)
@@ -67,6 +68,9 @@ export interface PersistedStreamRow {
 	streamName: string;
 	wasteCategoryLabel: string | null;
 	ownerDisplayName: string | null;
+	ownerUserId: string | null;
+	queuePriority: QueuePriority;
+	queuePriorityReason: string;
 	companyId: string | null;
 	companyLabel: string | null;
 	locationLabel: string | null;
@@ -98,6 +102,8 @@ export interface DraftItemRow {
 	draftStatus: DraftStatus;
 	confidence: number | null;
 	draftKind: DraftKind;
+	queuePriority: QueuePriority;
+	queuePriorityReason: string;
 	confirmable: boolean;
 	target: DraftTarget | null;
 }

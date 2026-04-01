@@ -25,3 +25,27 @@
 ### Notes
 - No build command was run.
 - Existing unrelated frontend TypeScript/test issues in streams area were not modified in this batch.
+
+---
+
+## Apply Progress — admin dashboard load failure fix
+
+**Change**: admin-superadmin-workspaces  
+**Mode**: Strict TDD (targeted frontend checks)
+
+### Completed in this batch
+- Identified root cause for dashboard hard-fail: frontend requested `/projects/dashboard` with `size=200`, while backend `PageSize` validation caps `size` at `<=100` (`backend/app/api/dependencies.py`), causing request rejection and triggering the generic dashboard error state.
+- Fixed dashboard request page size to `100` in admin dashboard page content.
+- Added minimal resilience: switched dashboard + offers pipeline loading from `Promise.all` to `Promise.allSettled` so a pipeline failure no longer collapses the entire dashboard data load when the dashboard projection succeeds.
+
+### Validation executed
+- `cd frontend && bun test "components/features/workspace/admin-dashboard-data.test.ts"` ✅ (3 pass)
+- `cd frontend && bunx biome check "components/features/workspace/admin-dashboard-page-content.tsx"` ✅
+
+### Files touched in this batch
+- `frontend/components/features/workspace/admin-dashboard-page-content.tsx`
+- `sdd/admin-superadmin-workspaces/apply-progress`
+
+### Notes
+- No build command was run.
+- Backend code was not modified in this batch.
