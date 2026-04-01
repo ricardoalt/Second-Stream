@@ -22,11 +22,15 @@ export type DashboardActivityItem = {
 
 const statusConfig: Record<
 	DashboardActivityItem["status"],
-	{ label: string; icon: React.ComponentType<{ className?: string }> }
+	{
+		label: string;
+		icon: React.ComponentType<{ className?: string }>;
+		variant: "success" | "warning" | "pipeline";
+	}
 > = {
-	completed: { label: "Completed", icon: CheckCircle2 },
-	follow_up: { label: "Follow-up", icon: Clock3 },
-	new: { label: "New", icon: Sparkles },
+	completed: { label: "Completed", icon: CheckCircle2, variant: "success" },
+	follow_up: { label: "Follow-up", icon: Clock3, variant: "warning" },
+	new: { label: "New", icon: Sparkles, variant: "pipeline" },
 };
 
 export function AgentDashboardActivityFeed({
@@ -84,9 +88,11 @@ export function AgentDashboardActivityFeed({
 									</p>
 									<div className="flex items-center gap-2">
 										<StatusBadge
-											status={item.status}
+											variant={config.variant}
 											className="text-[0.65rem] gap-1"
-										/>
+										>
+											{config.label}
+										</StatusBadge>
 										<span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
 											<Icon aria-hidden="true" className="size-3" />
 											{item.time}

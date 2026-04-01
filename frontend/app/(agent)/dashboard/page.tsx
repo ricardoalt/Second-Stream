@@ -180,6 +180,21 @@ const dailyProgress = {
 	],
 };
 
+function getComplianceStatusVariant(status: string) {
+	switch (status) {
+		case "Blocked":
+			return "critical" as const;
+		case "Pending":
+		case "Action Required":
+			return "warning" as const;
+		case "Review":
+			return "info" as const;
+		case "Missing Info":
+		default:
+			return "neutral" as const;
+	}
+}
+
 // ════════════════════════════════════════════════════════════
 // HELPER COMPONENTS
 // ════════════════════════════════════════════════════════════
@@ -469,14 +484,12 @@ export default function AgentDashboardPage() {
 									</div>
 								</div>
 
-								{/* Status */}
-								<div>
-									<StatusBadge
-										status={stream.complianceStatus
-											.toLowerCase()
-											.replace(/\s+/g, "_")}
-									/>
-								</div>
+							{/* Status */}
+							<div>
+								<StatusBadge variant={getComplianceStatusVariant(stream.complianceStatus)}>
+									{stream.complianceStatus}
+								</StatusBadge>
+							</div>
 
 								{/* Missing Doc */}
 								<div className="min-w-0">

@@ -6,7 +6,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { formatNumber } from "@/lib/utils";
+import { formatNumber } from "../metrics-helpers";
 
 // Legacy types from water treatment model (kept for backward compatibility)
 interface EquipmentSpec {

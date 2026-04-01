@@ -190,7 +190,6 @@ export const KpiCard = memo(function KpiCard({
 			iconBg: "bg-success/10",
 			iconColor: "text-success",
 			badgeStatus: "success",
-			badgeText: undefined,
 		},
 		alert: {
 			// Destructive: Alertas

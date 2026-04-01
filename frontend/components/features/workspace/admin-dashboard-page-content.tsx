@@ -18,6 +18,7 @@ import { routes } from "@/lib/routes";
 import type {
 	DashboardListResponse,
 	PersistedStreamRow,
+	QueuePriority,
 } from "@/lib/types/dashboard";
 import {
 	buildSupervisionQueue,
@@ -92,7 +93,7 @@ function groupRiskCount(streams: PersistedStreamRow[]): number {
 	return streams.filter((stream) => stream.queuePriority !== "normal").length;
 }
 
-const QUEUE_PRIORITY_ORDER: Record<string, number> = {
+const QUEUE_PRIORITY_ORDER: Record<QueuePriority, number> = {
 	critical: 0,
 	high: 1,
 	normal: 2,
@@ -112,7 +113,7 @@ function groupPrimaryStream(
 		return Date.parse(right.lastActivityAt) - Date.parse(left.lastActivityAt);
 	});
 
-	return sorted[0];
+	return sorted[0] ?? null;
 }
 
 function formatPipelineValue(items: OfferPipelineResponseDTO["items"]): string {

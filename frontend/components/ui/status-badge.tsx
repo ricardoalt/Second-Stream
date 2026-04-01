@@ -16,8 +16,8 @@ type StatusVariant =
 interface StatusBadgeProps {
 	variant: StatusVariant;
 	children: React.ReactNode;
-	days?: number;
-	className?: string;
+	days?: number | undefined;
+	className?: string | undefined;
 }
 
 /**

@@ -127,7 +127,8 @@ const GradientButton = React.forwardRef<HTMLButtonElement, GradientButtonProps>(
 		ref,
 	) => {
 		const Comp = asChild ? Slot : "button";
-		const isDisabled = disabled || loading || isLoading;
+		const loadingState = Boolean(loading || isLoading);
+		const isDisabled = Boolean(disabled || loading || isLoading);
 
 		return (
 			<Comp
@@ -136,7 +137,7 @@ const GradientButton = React.forwardRef<HTMLButtonElement, GradientButtonProps>(
 						variant,
 						size,
 						radius,
-						isLoading: loading || isLoading,
+						isLoading: loadingState,
 					}),
 					className,
 				)}
@@ -144,7 +145,7 @@ const GradientButton = React.forwardRef<HTMLButtonElement, GradientButtonProps>(
 				disabled={isDisabled}
 				{...props}
 			>
-				{loading || isLoading ? (
+				{loadingState ? (
 					<>
 						<svg
 							className="animate-spin -ml-1 mr-2 size-4"

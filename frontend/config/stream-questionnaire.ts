@@ -1,3 +1,5 @@
+import type { WorkspaceQuestionId } from "@/lib/types/workspace";
+
 export type StreamWorkspacePhase = 1 | 2 | 3 | 4;
 
 export type StreamQuestionInputType =
@@ -10,7 +12,7 @@ export type StreamQuestionInputType =
 	| "open_question";
 
 export interface StreamQuestionDefinition {
-	id: string;
+	id: WorkspaceQuestionId;
 	number: number;
 	phase: StreamWorkspacePhase;
 	section: string;
@@ -23,7 +25,7 @@ export interface StreamQuestionPhaseDefinition {
 	phase: StreamWorkspacePhase;
 	label: string;
 	description: string;
-	questionIds: string[];
+	questionIds: WorkspaceQuestionId[];
 }
 
 export const STREAM_WORKSPACE_PHASES: StreamQuestionPhaseDefinition[] = [

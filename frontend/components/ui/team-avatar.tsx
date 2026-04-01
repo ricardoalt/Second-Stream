@@ -16,9 +16,9 @@ type AvatarColor =
 
 interface TeamAvatarProps {
 	name: string;
-	color?: AvatarColor;
-	className?: string;
-	size?: "sm" | "md" | "lg";
+	color?: AvatarColor | undefined;
+	className?: string | undefined;
+	size?: "sm" | "md" | "lg" | undefined;
 }
 
 /**
@@ -97,7 +97,7 @@ export function getAvatarColorForName(name: string): AvatarColor {
 		hash = hash & hash;
 	}
 	const index = Math.abs(hash) % colors.length;
-	return colors[index];
+	return colors[index] ?? "teal";
 }
 
 // Auto-color avatar
