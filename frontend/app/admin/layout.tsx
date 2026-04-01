@@ -17,6 +17,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/contexts";
+import { getAdminRedirectPath } from "@/lib/routing/workspace-guards";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
 	const { isSuperAdmin, isLoading } = useAuth();
@@ -25,8 +26,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 	const showOrgSwitcher = !pathname.startsWith("/admin/users");
 
 	useEffect(() => {
-		if (!isLoading && !isSuperAdmin) {
-			router.replace("/");
+		if (isLoading) {
+			return;
+		}
+
+		const redirectPath = getAdminRedirectPath(isSuperAdmin);
+		if (redirectPath) {
+			router.replace(redirectPath);
 		}
 	}, [isLoading, isSuperAdmin, router]);
 

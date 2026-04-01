@@ -4,6 +4,7 @@ import {
 	Archive,
 	ArrowLeft,
 	CheckCircle,
+	LayoutDashboard,
 	Mail,
 	MoreHorizontal,
 	Phone,
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -65,6 +66,7 @@ import {
 	runOrganizationArchiveFlow,
 	showOrganizationPurgeForceResultToast,
 } from "@/lib/errors/organization-lifecycle";
+import { useOrganizationStore } from "@/lib/stores/organization-store";
 import type { User, UserRole } from "@/lib/types/user";
 import { cn } from "@/lib/utils";
 
@@ -112,6 +114,10 @@ const TransferUserModal = dynamic(
 export default function OrganizationDetailPage() {
 	const params = useParams();
 	const orgId = params.id as string;
+	const router = useRouter();
+	const selectOrganization = useOrganizationStore(
+		(state) => state.selectOrganization,
+	);
 
 	const [organization, setOrganization] = useState<Organization | null>(null);
 	const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -259,6 +265,12 @@ export default function OrganizationDetailPage() {
 		}
 	};
 
+	const handleOpenWorkspace = useCallback(() => {
+		if (!organization) return;
+		selectOrganization(organization.id);
+		router.push("/admin/workspace");
+	}, [organization, router, selectOrganization]);
+
 	const handleRoleChange = async (
 		userId: string,
 		newRole: Exclude<UserRole, "admin">,
@@ -376,6 +388,10 @@ export default function OrganizationDetailPage() {
 					</div>
 				</div>
 				<div className="flex items-center gap-2 shrink-0">
+					<Button onClick={handleOpenWorkspace}>
+						<LayoutDashboard className="mr-2 h-4 w-4" />
+						Workspace
+					</Button>
 					<Button
 						variant="outline"
 						size="icon"

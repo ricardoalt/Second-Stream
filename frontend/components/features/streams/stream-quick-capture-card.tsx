@@ -1,4 +1,6 @@
-import { FileText, Mic, Sparkles } from "lucide-react";
+import { FileText, Mic, Sparkles, Upload } from "lucide-react";
+import { useCallback } from "react";
+import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
 
 type QuickCaptureActionKey = "upload" | "voice" | "paste";
@@ -31,11 +33,51 @@ interface StreamQuickCaptureCardProps {
 export function StreamQuickCaptureCard({
 	onOpenQuickCapture,
 }: StreamQuickCaptureCardProps) {
+	const onDrop = useCallback(() => {
+		onOpenQuickCapture("upload");
+	}, [onOpenQuickCapture]);
+
+	const { getRootProps, getInputProps, isDragActive } = useDropzone({
+		onDrop,
+		noClick: true,
+		maxFiles: 10,
+	});
+
 	return (
 		<div className="flex flex-col gap-3">
 			<h3 className="text-xs font-bold uppercase tracking-[0.1em] text-secondary">
 				Quick Capture
 			</h3>
+
+			{/* Drop zone */}
+			<div
+				{...getRootProps()}
+				className={cn(
+					"flex cursor-default flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-4 py-4 transition-colors",
+					isDragActive
+						? "border-primary bg-primary/5"
+						: "border-border/30 hover:border-primary/30",
+				)}
+			>
+				<input {...getInputProps()} />
+				<Upload
+					className={cn(
+						"size-4 transition-colors",
+						isDragActive ? "text-primary" : "text-muted-foreground/50",
+					)}
+					aria-hidden
+				/>
+				<p
+					className={cn(
+						"text-center text-[10px] leading-tight transition-colors",
+						isDragActive ? "text-primary" : "text-muted-foreground/50",
+					)}
+				>
+					{isDragActive ? "Release to open capture" : "Drop files here"}
+				</p>
+			</div>
+
+			{/* Action buttons */}
 			<div className="flex flex-col gap-2">
 				{QUICK_CAPTURE_ACTIONS.map(
 					({ key, label, description, icon: Icon }) => (

@@ -2,19 +2,22 @@
 
 import {
 	Archive,
+	BriefcaseBusiness,
 	Calendar,
 	Edit2,
 	Mail,
 	Phone,
 	RotateCcw,
+	Settings,
 	ShieldAlert,
-	Users,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { Organization } from "@/lib/api/organizations";
+import { useOrganizationStore } from "@/lib/stores/organization-store";
 import { cn } from "@/lib/utils";
 import { OrgAvatar } from "./org-avatar";
 
@@ -35,6 +38,11 @@ export function OrgCard({
 	onPurge,
 	actionLoading = false,
 }: OrgCardProps) {
+	const router = useRouter();
+	const selectOrganization = useOrganizationStore(
+		(state) => state.selectOrganization,
+	);
+
 	const createdDate = organization.createdAt
 		? new Date(organization.createdAt).toLocaleDateString("en-US", {
 				month: "short",
@@ -42,6 +50,11 @@ export function OrgCard({
 				year: "numeric",
 			})
 		: null;
+
+	function handleOpenWorkspace() {
+		selectOrganization(organization.id);
+		router.push("/admin/workspace");
+	}
 
 	return (
 		<Card
@@ -121,10 +134,16 @@ export function OrgCard({
 						className="flex-1"
 					>
 						<Button variant="outline" size="sm" className="w-full">
-							<Users className="h-3.5 w-3.5 mr-2 text-info" />
-							Manage Members
+							<Settings className="h-3.5 w-3.5 mr-2 text-info" />
+							Management
 						</Button>
 					</Link>
+					<div className="flex-1">
+						<Button size="sm" className="w-full" onClick={handleOpenWorkspace}>
+							<BriefcaseBusiness className="h-3.5 w-3.5 mr-2" />
+							Workspace
+						</Button>
+					</div>
 					{onEdit && organization.isActive && (
 						<Button
 							variant="ghost"

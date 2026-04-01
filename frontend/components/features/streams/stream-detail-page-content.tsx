@@ -299,7 +299,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 
 	return (
 		<>
-			<div className="flex flex-col gap-8">
+			<div className="flex flex-col gap-6">
 				{/* Header */}
 				<header className="animate-fade-in-up">
 					<div className="flex flex-col gap-1">
@@ -356,28 +356,26 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 				) : null}
 
 				{/* Main Content Grid */}
-				<div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_260px]">
+				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
 					{/* Form Column */}
-					<div className="flex flex-col gap-6">
+					<div className="flex flex-col gap-5">
 						{loading ? (
-							<div className="rounded-2xl bg-surface-container-lowest p-8 text-sm text-muted-foreground shadow-xs">
+							<div className="rounded-xl bg-surface-container-lowest p-8 text-sm text-muted-foreground shadow-xs">
 								Loading workspace questionnaire...
 							</div>
 						) : (
 							<>
-								<div className="rounded-2xl bg-surface-container-lowest px-8 py-8 shadow-xs">
-									<StreamWorkspaceForm
-										activePhase={activePhase}
-										answers={questionnaireAnswers}
-										suggestions={questionnaireSuggestions}
-										reviewingSuggestions={reviewSuggestionsStatus === "saving"}
-										onAnswerChange={handleQuestionChange}
-										onReviewSuggestion={handleSuggestionReview}
-									/>
-								</div>
+								<StreamWorkspaceForm
+									activePhase={activePhase}
+									answers={questionnaireAnswers}
+									suggestions={questionnaireSuggestions}
+									reviewingSuggestions={reviewSuggestionsStatus === "saving"}
+									onAnswerChange={handleQuestionChange}
+									onReviewSuggestion={handleSuggestionReview}
+								/>
 
-								{/* Phase Navigation */}
-								<div className="flex items-center justify-between gap-3">
+								{/* Phase Navigation — save status inline */}
+								<div className="flex items-center justify-between gap-3 pt-1">
 									<div>
 										{prevPhase && prevPhaseMeta ? (
 											<Button
@@ -391,6 +389,17 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 											</Button>
 										) : null}
 									</div>
+									<p
+										className={cn(
+											"text-[11px]",
+											questionnaireSaveStatus === "error" ||
+												reviewSuggestionsStatus === "error"
+												? "text-destructive"
+												: "text-muted-foreground/60",
+										)}
+									>
+										{saveStatusLabel}
+									</p>
 									<div>
 										{nextPhase && nextPhaseMeta ? (
 											<Button
@@ -419,32 +428,19 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 										) : null}
 									</div>
 								</div>
-
-								{/* Save status — subtle */}
-								<p
-									className={cn(
-										"text-center text-[11px]",
-										questionnaireSaveStatus === "error" ||
-											reviewSuggestionsStatus === "error"
-											? "text-destructive"
-											: "text-muted-foreground/60",
-									)}
-								>
-									{saveStatusLabel}
-								</p>
 							</>
 						)}
 					</div>
 
 					{/* Sidebar */}
-					<aside className="flex flex-col gap-6">
+					<aside className="flex flex-col gap-5">
 						<StreamQuickCaptureCard
 							onOpenQuickCapture={handleOpenQuickCapture}
 						/>
 						{workspaceQuickCaptureFeedback ? (
 							<div
 								className={cn(
-									"rounded-2xl p-4 shadow-xs",
+									"rounded-xl p-4 shadow-xs",
 									workspaceQuickCaptureFeedback.tone === "error"
 										? "border border-destructive/30 bg-destructive/5"
 										: workspaceQuickCaptureFeedback.tone === "success"

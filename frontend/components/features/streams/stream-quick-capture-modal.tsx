@@ -1,28 +1,35 @@
 "use client";
 
-import { Loader2, Mic, Paperclip, PenSquare, Upload } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+	FileAudio,
+	FileText,
+	Loader2,
+	Music,
+	Paperclip,
+	Upload,
+	X,
+} from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { useDropzone } from "react-dropzone";
 import { useShallow } from "zustand/react/shallow";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
-	DialogFooter,
-	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { projectsAPI } from "@/lib/api/projects";
+import { formatFileSize } from "@/lib/format";
 import { useToast } from "@/lib/hooks/use-toast";
 import {
 	useWorkspaceActions,
 	useWorkspaceStore,
 } from "@/lib/stores/workspace-store";
 import type { WorkspaceQuickCaptureStatus } from "@/lib/types/workspace";
+import { cn } from "@/lib/utils";
 
 interface StreamQuickCaptureModalProps {
 	projectId: string;
@@ -117,6 +124,108 @@ export function resolveQuickCaptureModalStatusMessage({
 	return null;
 }
 
+const ACCEPTED_DOCUMENT_TYPES = {
+	"application/pdf": [".pdf"],
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
+		".docx",
+	],
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+		".xlsx",
+	],
+	"text/csv": [".csv"],
+	"text/plain": [".txt"],
+	"image/jpeg": [".jpg", ".jpeg"],
+	"image/png": [".png"],
+};
+
+const ACCEPTED_AUDIO_TYPES = {
+	"audio/mpeg": [".mp3"],
+	"audio/wav": [".wav"],
+	"audio/mp4": [".m4a"],
+	"audio/*": [],
+};
+
+function FileChip({
+	file,
+	onRemove,
+	isAudio = false,
+}: {
+	file: File;
+	onRemove: () => void;
+	isAudio?: boolean;
+}) {
+	const Icon = isAudio ? FileAudio : FileText;
+	return (
+		<div className="flex items-center gap-2 rounded-lg border border-border/40 bg-surface-container-lowest px-3 py-2">
+			<Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+			<div className="min-w-0 flex-1">
+				<p className="truncate text-xs font-medium text-foreground">
+					{file.name}
+				</p>
+				<p className="text-[10px] text-muted-foreground">
+					{formatFileSize(file.size)}
+				</p>
+			</div>
+			<button
+				type="button"
+				onClick={onRemove}
+				className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
+				aria-label={`Remove ${file.name}`}
+			>
+				<X className="size-3.5" aria-hidden />
+			</button>
+		</div>
+	);
+}
+
+function DropZone({
+	isDragActive,
+	accept,
+	getRootProps,
+	getInputProps,
+}: {
+	isDragActive: boolean;
+	accept?: Record<string, string[]>;
+	getRootProps: () => React.HTMLAttributes<HTMLElement>;
+	getInputProps: () => React.InputHTMLAttributes<HTMLInputElement>;
+}) {
+	return (
+		<div
+			{...getRootProps()}
+			className={cn(
+				"flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-8 transition-colors",
+				isDragActive
+					? "border-primary bg-primary/5"
+					: "border-border/40 bg-surface-container-lowest hover:border-primary/40 hover:bg-primary/[0.02]",
+			)}
+		>
+			<input {...getInputProps()} />
+			<div
+				className={cn(
+					"flex size-10 items-center justify-center rounded-xl transition-colors",
+					isDragActive
+						? "bg-primary/15 text-primary"
+						: "bg-surface-container-high text-muted-foreground",
+				)}
+			>
+				<Upload className="size-5" aria-hidden />
+			</div>
+			<div className="text-center">
+				<p className="text-sm font-medium text-foreground">
+					{isDragActive
+						? "Drop files here"
+						: "Drag files here or click to browse"}
+				</p>
+				<p className="mt-0.5 text-[11px] text-muted-foreground">
+					{accept === ACCEPTED_AUDIO_TYPES
+						? "MP3, WAV, M4A — up to 25 MB"
+						: "PDF, DOCX, XLSX, CSV, TXT, images — up to 10 MB"}
+				</p>
+			</div>
+		</div>
+	);
+}
+
 export function StreamQuickCaptureModal({
 	projectId,
 	open,
@@ -141,13 +250,40 @@ export function StreamQuickCaptureModal({
 	const [rawText, setRawText] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 
-	const isAnyProcessing = submitting;
-
-	const autoFocusTarget = useMemo(() => {
-		if (initialAction === "paste") return "text";
+	const defaultTab = useMemo(() => {
+		if (initialAction === "paste") return "notes";
 		if (initialAction === "voice") return "audio";
 		return "files";
 	}, [initialAction]);
+
+	const onDropFiles = useCallback((accepted: File[]) => {
+		setFiles((prev) => [...prev, ...accepted]);
+	}, []);
+
+	const onDropAudio = useCallback((accepted: File[]) => {
+		setAudioFiles((prev) => [...prev, ...accepted]);
+	}, []);
+
+	const {
+		getRootProps: getFileRootProps,
+		getInputProps: getFileInputProps,
+		isDragActive: isFileDragActive,
+	} = useDropzone({
+		onDrop: onDropFiles,
+		accept: ACCEPTED_DOCUMENT_TYPES,
+		maxFiles: 10,
+		maxSize: 10 * 1024 * 1024,
+	});
+
+	const {
+		getRootProps: getAudioRootProps,
+		getInputProps: getAudioInputProps,
+		isDragActive: isAudioDragActive,
+	} = useDropzone({
+		onDrop: onDropAudio,
+		accept: ACCEPTED_AUDIO_TYPES,
+		maxSize: 25 * 1024 * 1024,
+	});
 
 	const uploadCaptureBatch = async (items: File[]) => {
 		setSubmitting(true);
@@ -166,9 +302,7 @@ export function StreamQuickCaptureModal({
 	};
 
 	const handleProcessFiles = async () => {
-		if (files.length === 0) {
-			return;
-		}
+		if (files.length === 0) return;
 		try {
 			await uploadCaptureBatch(files);
 			setFiles([]);
@@ -183,9 +317,7 @@ export function StreamQuickCaptureModal({
 	};
 
 	const handleProcessText = async () => {
-		if (!rawText.trim()) {
-			return;
-		}
+		if (!rawText.trim()) return;
 		try {
 			const textFile = createTextCaptureFile(rawText.trim());
 			await uploadCaptureBatch([textFile]);
@@ -201,9 +333,7 @@ export function StreamQuickCaptureModal({
 	};
 
 	const handleProcessAudio = async () => {
-		if (audioFiles.length === 0) {
-			return;
-		}
+		if (audioFiles.length === 0) return;
 		try {
 			await uploadCaptureBatch(audioFiles);
 			setAudioFiles([]);
@@ -237,154 +367,210 @@ export function StreamQuickCaptureModal({
 				}
 			}}
 		>
-			<DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-				<DialogHeader>
-					<div className="flex items-center gap-2">
-						<DialogTitle>Quick Capture</DialogTitle>
-						<Badge variant="secondary" className="rounded-full">
-							Unified
-						</Badge>
-					</div>
-					<DialogDescription>
-						Capture files, audio, and raw text in one place. Completion is
-						confirmed after evidence appears and workspace suggestions refresh.
-					</DialogDescription>
-				</DialogHeader>
+			<DialogContent className="glass-popover w-[min(94vw,680px)] max-w-none gap-0 overflow-hidden rounded-2xl p-0">
+				<DialogTitle className="sr-only">Quick Capture</DialogTitle>
+				<DialogDescription className="sr-only">
+					Capture files, audio, and raw text. Completion is confirmed after
+					evidence appears and workspace suggestions refresh.
+				</DialogDescription>
 
-				<div className="space-y-5">
+				{/* Header */}
+				<div className="border-b border-border/20 bg-surface-container-low px-6 py-4">
+					<div className="flex items-center justify-between gap-3">
+						<div>
+							<h2 className="font-display text-base font-semibold text-foreground">
+								Quick Capture
+							</h2>
+							<p className="mt-0.5 text-[11px] text-muted-foreground">
+								Evidence is processed by AI and applied to workspace
+								suggestions.
+							</p>
+						</div>
+						{submitting ? (
+							<div className="flex items-center gap-1.5 text-xs text-primary">
+								<Loader2 className="size-3.5 animate-spin" aria-hidden />
+								Processing...
+							</div>
+						) : null}
+					</div>
+
+					{/* Status banner */}
 					{captureStatusMessage ? (
 						<div
-							className={
+							className={cn(
+								"mt-3 rounded-lg px-3 py-2 text-xs",
 								captureStatusMessage.variant === "error"
-									? "rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+									? "border border-destructive/30 bg-destructive/5 text-destructive"
 									: captureStatusMessage.variant === "success"
-										? "rounded-lg border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-800"
-										: "rounded-lg border border-secondary/20 bg-secondary/10 px-3 py-2 text-xs text-secondary"
-							}
+										? "border border-emerald-300/40 bg-emerald-500/10 text-emerald-800"
+										: "border border-secondary/20 bg-secondary/10 text-secondary",
+							)}
 						>
 							{captureStatusMessage.text}
 						</div>
 					) : null}
-
-					<section className="space-y-3 rounded-lg border bg-surface-container-lowest p-4">
-						<div className="flex items-center gap-2">
-							<Paperclip className="size-4 text-muted-foreground" />
-							<p className="text-sm font-semibold">Files</p>
-						</div>
-						<Label htmlFor="quick-capture-files">Add files</Label>
-						<Input
-							id="quick-capture-files"
-							type="file"
-							multiple
-							autoFocus={autoFocusTarget === "files"}
-							onChange={(event) => {
-								setFiles(Array.from(event.target.files ?? []));
-							}}
-						/>
-						<p className="text-xs text-muted-foreground">
-							{files.length > 0
-								? `${files.length} file(s) selected`
-								: "No files selected"}
-						</p>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => {
-								void handleProcessFiles();
-							}}
-							disabled={files.length === 0 || submitting}
-						>
-							{submitting ? (
-								<Loader2 data-icon="inline-start" className="animate-spin" />
-							) : (
-								<Upload data-icon="inline-start" />
-							)}
-							Process files
-						</Button>
-					</section>
-
-					<section className="space-y-3 rounded-lg border bg-surface-container-lowest p-4">
-						<div className="flex items-center gap-2">
-							<Mic className="size-4 text-muted-foreground" />
-							<p className="text-sm font-semibold">Audio</p>
-						</div>
-						<Label htmlFor="quick-capture-audio">Add audio files</Label>
-						<Input
-							id="quick-capture-audio"
-							type="file"
-							accept="audio/*"
-							multiple
-							autoFocus={autoFocusTarget === "audio"}
-							onChange={(event) => {
-								setAudioFiles(Array.from(event.target.files ?? []));
-							}}
-						/>
-						<p className="text-xs text-muted-foreground">
-							{audioFiles.length > 0
-								? `${audioFiles.length} audio file(s) selected`
-								: "No audio selected"}
-						</p>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => {
-								void handleProcessAudio();
-							}}
-							disabled={audioFiles.length === 0 || submitting}
-						>
-							{submitting ? (
-								<Loader2 data-icon="inline-start" className="animate-spin" />
-							) : (
-								<Upload data-icon="inline-start" />
-							)}
-							Process audio
-						</Button>
-					</section>
-
-					<section className="space-y-3 rounded-lg border bg-surface-container-lowest p-4">
-						<div className="flex items-center gap-2">
-							<PenSquare className="size-4 text-muted-foreground" />
-							<p className="text-sm font-semibold">Raw text</p>
-						</div>
-						<Label htmlFor="quick-capture-text">Paste notes</Label>
-						<Textarea
-							id="quick-capture-text"
-							value={rawText}
-							autoFocus={autoFocusTarget === "text"}
-							onChange={(event) => {
-								setRawText(event.target.value);
-							}}
-							rows={6}
-							placeholder="Paste meeting notes, field observations, or copied snippets..."
-						/>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => {
-								void handleProcessText();
-							}}
-							disabled={!rawText.trim() || submitting}
-						>
-							{submitting ? (
-								<Loader2 data-icon="inline-start" className="animate-spin" />
-							) : (
-								<Upload data-icon="inline-start" />
-							)}
-							Process text
-						</Button>
-					</section>
 				</div>
 
-				<DialogFooter>
-					<Button
-						type="button"
-						variant="outline"
-						onClick={() => onOpenChange(false)}
-						disabled={isAnyProcessing}
-					>
-						Close
-					</Button>
-				</DialogFooter>
+				{/* Tabs */}
+				<Tabs defaultValue={defaultTab} className="flex flex-col">
+					<div className="border-b border-border/15 px-6 pt-3">
+						<TabsList className="h-9 bg-transparent p-0 gap-1">
+							<TabsTrigger
+								value="files"
+								className="gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium data-[state=active]:bg-surface-container-lowest data-[state=active]:shadow-xs"
+							>
+								<Paperclip className="size-3.5" aria-hidden />
+								Documents
+							</TabsTrigger>
+							<TabsTrigger
+								value="audio"
+								className="gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium data-[state=active]:bg-surface-container-lowest data-[state=active]:shadow-xs"
+							>
+								<Music className="size-3.5" aria-hidden />
+								Audio
+							</TabsTrigger>
+							<TabsTrigger
+								value="notes"
+								className="gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium data-[state=active]:bg-surface-container-lowest data-[state=active]:shadow-xs"
+							>
+								<FileText className="size-3.5" aria-hidden />
+								Notes
+							</TabsTrigger>
+						</TabsList>
+					</div>
+
+					{/* Documents tab */}
+					<TabsContent value="files" className="flex flex-col gap-4 px-6 py-5">
+						<DropZone
+							isDragActive={isFileDragActive}
+							accept={ACCEPTED_DOCUMENT_TYPES}
+							getRootProps={getFileRootProps}
+							getInputProps={getFileInputProps}
+						/>
+						{files.length > 0 ? (
+							<div className="flex flex-col gap-2">
+								{files.map((file, index) => (
+									<FileChip
+										key={`${file.name}-${index}`}
+										file={file}
+										onRemove={() =>
+											setFiles((prev) => prev.filter((_, i) => i !== index))
+										}
+									/>
+								))}
+							</div>
+						) : null}
+						<div className="flex justify-end">
+							<Button
+								type="button"
+								onClick={() => {
+									void handleProcessFiles();
+								}}
+								disabled={files.length === 0 || submitting}
+								className="gap-2"
+							>
+								{submitting ? (
+									<Loader2 className="size-4 animate-spin" aria-hidden />
+								) : (
+									<Upload className="size-4" aria-hidden />
+								)}
+								Process{" "}
+								{files.length > 0
+									? `${files.length} file${files.length > 1 ? "s" : ""}`
+									: "files"}
+							</Button>
+						</div>
+					</TabsContent>
+
+					{/* Audio tab */}
+					<TabsContent value="audio" className="flex flex-col gap-4 px-6 py-5">
+						<DropZone
+							isDragActive={isAudioDragActive}
+							accept={ACCEPTED_AUDIO_TYPES}
+							getRootProps={getAudioRootProps}
+							getInputProps={getAudioInputProps}
+						/>
+						{audioFiles.length > 0 ? (
+							<div className="flex flex-col gap-2">
+								{audioFiles.map((file, index) => (
+									<FileChip
+										key={`${file.name}-${index}`}
+										file={file}
+										isAudio
+										onRemove={() =>
+											setAudioFiles((prev) =>
+												prev.filter((_, i) => i !== index),
+											)
+										}
+									/>
+								))}
+							</div>
+						) : null}
+						<div className="flex justify-end">
+							<Button
+								type="button"
+								onClick={() => {
+									void handleProcessAudio();
+								}}
+								disabled={audioFiles.length === 0 || submitting}
+								className="gap-2"
+							>
+								{submitting ? (
+									<Loader2 className="size-4 animate-spin" aria-hidden />
+								) : (
+									<Upload className="size-4" aria-hidden />
+								)}
+								Process{" "}
+								{audioFiles.length > 0
+									? `${audioFiles.length} recording${audioFiles.length > 1 ? "s" : ""}`
+									: "audio"}
+							</Button>
+						</div>
+					</TabsContent>
+
+					{/* Notes tab */}
+					<TabsContent value="notes" className="flex flex-col gap-4 px-6 py-5">
+						<Textarea
+							value={rawText}
+							onChange={(event) => setRawText(event.target.value)}
+							rows={8}
+							placeholder="Paste meeting notes, field observations, or copied snippets from emails..."
+							className="resize-none text-sm"
+						/>
+						<div className="flex justify-end">
+							<Button
+								type="button"
+								onClick={() => {
+									void handleProcessText();
+								}}
+								disabled={!rawText.trim() || submitting}
+								className="gap-2"
+							>
+								{submitting ? (
+									<Loader2 className="size-4 animate-spin" aria-hidden />
+								) : (
+									<Upload className="size-4" aria-hidden />
+								)}
+								Process notes
+							</Button>
+						</div>
+					</TabsContent>
+				</Tabs>
+
+				{/* Footer */}
+				<div className="border-t border-border/15 bg-surface-container-low px-6 py-3">
+					<div className="flex justify-end">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => onOpenChange(false)}
+							disabled={submitting}
+						>
+							Close
+						</Button>
+					</div>
+				</div>
 			</DialogContent>
 		</Dialog>
 	);

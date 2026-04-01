@@ -19,8 +19,12 @@ export const ORG_EXEMPT_ROUTES = [
 	"/forgot-password",
 	"/reset-password",
 
-	// Admin section (has its own OrgSwitcher)
+	// Superadmin console routes (handle org selection in-layout)
 	"/admin",
+
+	// Org-admin workspace has its own role guard/layout.
+	// Superadmins should be redirected by /org-admin guard, not blocked by org selector.
+	"/org-admin",
 
 	// User-specific pages (not org-scoped)
 	"/profile",

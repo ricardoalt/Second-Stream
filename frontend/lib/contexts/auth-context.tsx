@@ -16,6 +16,7 @@ import { apiClient } from "@/lib/api/client";
 import { PERMISSIONS } from "@/lib/authz/permissions";
 import { isPublicRoute } from "@/lib/constants";
 import { SELECTED_ORG_STORAGE_KEY } from "@/lib/constants/storage";
+import { getSuperAdminEntryPath } from "@/lib/routing/workspace-guards";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
 import { useProjectStore } from "@/lib/stores/project-store";
 import { clearTechnicalStorageKeys } from "@/lib/stores/technical-data-persistence";
@@ -108,9 +109,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		if (!user && !isPublicRoute(pathname)) {
 			router.replace("/login");
 		} else if (user && (pathname === "/login" || pathname === "/register")) {
+			if (user.isSuperuser) {
+				router.replace(getSuperAdminEntryPath(selectedOrgId));
+				return;
+			}
+
 			router.replace("/dashboard");
 		}
-	}, [user, isLoading, pathname, router]);
+	}, [user, isLoading, pathname, router, selectedOrgId]);
 
 	const login = async (email: string, password: string) => {
 		try {

@@ -2,11 +2,15 @@
 
 import {
 	Building2,
+	FileText,
+	Home,
+	Layers,
 	Menu,
 	MessageSquare,
 	Settings,
 	ShieldCheck,
 	Star,
+	Users,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,6 +23,7 @@ import {
 	SheetTitle,
 	SheetTrigger,
 } from "@/components/ui/sheet";
+import { useOrganizationStore } from "@/lib/stores/organization-store";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -45,6 +50,39 @@ const NAV_ITEMS = [
 		label: "Proposal Ratings",
 		icon: Star,
 		description: "Audit proposal quality",
+	},
+];
+
+const WORKSPACE_NAV_ITEMS = [
+	{
+		href: "/admin/workspace",
+		label: "Dashboard",
+		icon: Home,
+		description: "Supervision overview",
+	},
+	{
+		href: "/admin/workspace/team",
+		label: "Team Management",
+		icon: Users,
+		description: "Manage workspace members",
+	},
+	{
+		href: "/admin/workspace/streams",
+		label: "Streams",
+		icon: Layers,
+		description: "Track stream execution",
+	},
+	{
+		href: "/admin/workspace/clients",
+		label: "Client Portfolio",
+		icon: Building2,
+		description: "View client accounts",
+	},
+	{
+		href: "/admin/workspace/offers",
+		label: "Offers",
+		icon: FileText,
+		description: "Review active offers",
 	},
 ];
 
@@ -101,6 +139,7 @@ function NavItem({
 
 function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 	const pathname = usePathname();
+	const selectedOrgId = useOrganizationStore((state) => state.selectedOrgId);
 
 	return (
 		<div className="flex flex-col h-full">
@@ -133,6 +172,29 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 						onClick={onItemClick}
 					/>
 				))}
+
+				{selectedOrgId ? (
+					<>
+						<p className="px-3 pb-2 pt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+							Workspace
+						</p>
+						{WORKSPACE_NAV_ITEMS.map((item) => (
+							<NavItem
+								key={item.href}
+								href={item.href}
+								label={item.label}
+								description={item.description}
+								icon={item.icon}
+								isActive={
+									pathname === item.href ||
+									(item.href !== "/admin/workspace" &&
+										pathname.startsWith(item.href))
+								}
+								onClick={onItemClick}
+							/>
+						))}
+					</>
+				) : null}
 			</nav>
 
 			<div className="border-t border-border/50 p-4">
