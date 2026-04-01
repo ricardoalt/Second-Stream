@@ -177,7 +177,7 @@ After each PR:
 | `app/globals.css` | Token system (oklch, semantic, domain, dark mode) |
 | `components/features/workspace/admin-dashboard-page-content.tsx` | Largest migration target (uses 4 duplicated components) |
 
-## Open Questions
+## Resolved Decisions
 
-1. **`add-user-modal.tsx` password strength** uses `bg-red-500/bg-yellow-500/bg-blue-500/bg-green-500` — tokens `--strength-weak/fair/good/strong` already exist in globals.css. Should we map to those, or is the current visual (red/yellow/blue/green gradient) intentional?
-2. **`users-table.tsx` role colors** (8 colors for different roles) — use avatar palette tokens (`--avatar-1` through `--avatar-8`) or create dedicated `--role-*` tokens?
+1. **Password strength** (`add-user-modal.tsx`): Map to existing `--strength-weak/fair/good/strong` tokens in globals.css. Zero new tokens.
+2. **Role colors** (`users-table.tsx`): Reuse avatar palette tokens (`--avatar-1` through `--avatar-8`). Zero new tokens.

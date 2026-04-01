@@ -61,11 +61,11 @@ const EMPTY_PIPELINE: OfferPipelineResponseDTO = {
 };
 
 function queueReasonLabel(reason: string): string {
-	if (reason === "pending_confirmation") return "Pending COA";
-	if (reason === "missing_required_info") return "Missing SDS";
-	if (reason === "stale_waiting_response") return "Offer Stalled";
-	if (reason === "stale_under_negotiation") return "In Negotiation";
-	return "On Track";
+	if (reason === "pending_confirmation") return "Pending confirmation";
+	if (reason === "missing_required_info") return "Missing information";
+	if (reason === "stale_waiting_response") return "Stale follow-up";
+	if (reason === "stale_under_negotiation") return "Under negotiation";
+	return "On track";
 }
 
 function streamStageLabel(stream: PersistedStreamRow): string {
@@ -291,7 +291,7 @@ export function AdminDashboardPageContent({
 					/>
 					<KpiCard
 						type="offers"
-						label="Offers"
+						label="In Negotiation"
 						value={pipeline.counts.underNegotiation}
 						loading={loading}
 					/>
@@ -496,16 +496,6 @@ export function AdminDashboardPageContent({
 									className="border-border text-foreground hover:bg-muted"
 								>
 									<Link href={routes.streams.all}>Open streams board</Link>
-								</Button>
-								<Button
-									asChild
-									size="sm"
-									className="bg-teal-600 text-white hover:bg-teal-700"
-								>
-									<Link href={routes.settings}>
-										Team Management
-										<ArrowRight className="ml-1.5 h-4 w-4" />
-									</Link>
 								</Button>
 							</div>
 						</CardContent>

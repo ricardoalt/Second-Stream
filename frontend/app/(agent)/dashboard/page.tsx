@@ -484,12 +484,16 @@ export default function AgentDashboardPage() {
 									</div>
 								</div>
 
-							{/* Status */}
-							<div>
-								<StatusBadge variant={getComplianceStatusVariant(stream.complianceStatus)}>
-									{stream.complianceStatus}
-								</StatusBadge>
-							</div>
+								{/* Status */}
+								<div>
+									<StatusBadge
+										variant={getComplianceStatusVariant(
+											stream.complianceStatus,
+										)}
+									>
+										{stream.complianceStatus}
+									</StatusBadge>
+								</div>
 
 								{/* Missing Doc */}
 								<div className="min-w-0">
