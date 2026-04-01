@@ -1,33 +1,23 @@
 "use client";
 
-import {
-	Building2,
-	ChevronLeft,
-	ChevronRight,
-	FileText,
-	Home,
-	Layers,
-	Settings,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { DSRLogo } from "@/components/shared/branding/dsr-logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/contexts";
+import {
+	getSidebarNavItems,
+	type SidebarRole,
+} from "@/lib/routing/sidebar-nav";
 import { cn } from "@/lib/utils";
 
 type AppSidebarProps = {
 	userName?: string;
 	userEmail?: string;
 };
-
-const navItems = [
-	{ href: "/dashboard", label: "Dashboard", icon: Home },
-	{ href: "/streams", label: "Streams", icon: Layers },
-	{ href: "/clients", label: "Clients", icon: Building2 },
-	{ href: "/offers", label: "Offers", icon: FileText },
-];
 
 function getInitials(name?: string): string {
 	if (!name) return "AG";
@@ -42,7 +32,14 @@ function getInitials(name?: string): string {
 
 export function AppSidebar({ userName, userEmail }: AppSidebarProps) {
 	const pathname = usePathname();
+	const { isOrgAdmin, isSuperAdmin } = useAuth();
 	const [collapsed, setCollapsed] = useState(false);
+	const role: SidebarRole = isSuperAdmin
+		? "superadmin"
+		: isOrgAdmin
+			? "org-admin"
+			: "field-agent";
+	const navItems = getSidebarNavItems(role);
 
 	return (
 		<aside

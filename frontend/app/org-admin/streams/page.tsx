@@ -1,5 +1,5 @@
-import { WorkspaceStreamsPageContent } from "@/components/features/workspace";
+import { redirect } from "next/navigation";
 
 export default function OrgAdminStreamsPage() {
-	return <WorkspaceStreamsPageContent />;
+	redirect("/streams");
 }

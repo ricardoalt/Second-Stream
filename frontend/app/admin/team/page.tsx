@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function OrgAdminTeamPage() {
+export default function AdminTeamPage() {
 	redirect("/settings/team");
 }

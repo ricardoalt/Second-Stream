@@ -23,10 +23,11 @@ import {
 	SheetTitle,
 	SheetTrigger,
 } from "@/components/ui/sheet";
+import { useAuth } from "@/lib/contexts";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
+const PLATFORM_NAV_ITEMS = [
 	{
 		href: "/admin/organizations",
 		label: "Organizations",
@@ -55,31 +56,31 @@ const NAV_ITEMS = [
 
 const WORKSPACE_NAV_ITEMS = [
 	{
-		href: "/admin/workspace",
+		href: "/admin",
 		label: "Dashboard",
 		icon: Home,
 		description: "Supervision overview",
 	},
 	{
-		href: "/admin/workspace/team",
+		href: "/admin/team",
 		label: "Team Management",
 		icon: Users,
 		description: "Manage workspace members",
 	},
 	{
-		href: "/admin/workspace/streams",
+		href: "/admin/streams",
 		label: "Streams",
 		icon: Layers,
 		description: "Track stream execution",
 	},
 	{
-		href: "/admin/workspace/clients",
+		href: "/admin/clients",
 		label: "Client Portfolio",
 		icon: Building2,
 		description: "View client accounts",
 	},
 	{
-		href: "/admin/workspace/offers",
+		href: "/admin/offers",
 		label: "Offers",
 		icon: FileText,
 		description: "Review active offers",
@@ -140,6 +141,8 @@ function NavItem({
 function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 	const pathname = usePathname();
 	const selectedOrgId = useOrganizationStore((state) => state.selectedOrgId);
+	const { isSuperAdmin, isOrgAdmin } = useAuth();
+	const showWorkspaceNav = isOrgAdmin || Boolean(selectedOrgId);
 
 	return (
 		<div className="flex flex-col h-full">
@@ -158,24 +161,9 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 			</div>
 
 			<nav className="flex-1 p-4 space-y-1.5">
-				<p className="px-3 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-					Management
-				</p>
-				{NAV_ITEMS.map((item) => (
-					<NavItem
-						key={item.href}
-						href={item.href}
-						label={item.label}
-						description={item.description}
-						icon={item.icon}
-						isActive={pathname.startsWith(item.href)}
-						onClick={onItemClick}
-					/>
-				))}
-
-				{selectedOrgId ? (
+				{showWorkspaceNav ? (
 					<>
-						<p className="px-3 pb-2 pt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+						<p className="px-3 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
 							Workspace
 						</p>
 						{WORKSPACE_NAV_ITEMS.map((item) => (
@@ -187,9 +175,27 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 								icon={item.icon}
 								isActive={
 									pathname === item.href ||
-									(item.href !== "/admin/workspace" &&
-										pathname.startsWith(item.href))
+									(item.href !== "/admin" && pathname.startsWith(item.href))
 								}
+								onClick={onItemClick}
+							/>
+						))}
+					</>
+				) : null}
+
+				{isSuperAdmin ? (
+					<>
+						<p className="px-3 pb-2 pt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+							Platform Controls
+						</p>
+						{PLATFORM_NAV_ITEMS.map((item) => (
+							<NavItem
+								key={item.href}
+								href={item.href}
+								label={item.label}
+								description={item.description}
+								icon={item.icon}
+								isActive={pathname.startsWith(item.href)}
 								onClick={onItemClick}
 							/>
 						))}

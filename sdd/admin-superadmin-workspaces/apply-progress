@@ -1,0 +1,27 @@
+## Apply Progress — final coherence fix (shared product-family shell)
+
+**Change**: admin-superadmin-workspaces  
+**Mode**: Strict TDD (frontend targeted tests)
+
+### Completed in this batch
+- Replaced detached `/admin` layout shell with the shared product-family shell by rendering `AgentShellLayout` from `frontend/app/admin/layout.tsx`.
+- Preserved admin access gating behavior:
+  - non-admin users are redirected by `getAdminRedirectPath`
+  - `org_admin` is blocked from superadmin-only platform routes (`/admin/organizations`, `/admin/users`, `/admin/feedback`, `/admin/proposal-ratings`) and redirected to `/dashboard`.
+- Removed “Admin Console” wording from the superadmin org-required blocking screen and aligned copy to “Organizations”.
+- Added platform route titles to shared top bar so superadmin platform pages keep coherent shared-shell headings.
+- Updated targeted routing/coherence tests to assert that `/admin` uses `AgentShellLayout` and no longer references detached Admin Console shell/sidebar copy.
+
+### Validation executed
+- `cd frontend && bun test "lib/routing/admin-superadmin-workspaces.test.ts"` ✅ (10 pass)
+- `cd frontend && bunx biome check "app/admin/layout.tsx" "components/features/agent-shell/top-bar.tsx" "components/features/org-context/org-required-screen.tsx" "lib/routing/admin-superadmin-workspaces.test.ts"` ✅
+
+### Files touched in this batch
+- `frontend/app/admin/layout.tsx`
+- `frontend/components/features/agent-shell/top-bar.tsx`
+- `frontend/components/features/org-context/org-required-screen.tsx`
+- `frontend/lib/routing/admin-superadmin-workspaces.test.ts`
+
+### Notes
+- No build command was run.
+- Existing unrelated frontend TypeScript/test issues in streams area were not modified in this batch.

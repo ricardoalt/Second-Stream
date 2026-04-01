@@ -31,6 +31,11 @@ const pageTitleMap: Record<string, string> = {
 	"/clients": "Client Portfolio",
 	"/offers": "Offers Pipeline",
 	"/offers/archive": "Historical Archive",
+	"/settings/team": "Team Management",
+	"/admin/organizations": "Organizations",
+	"/admin/users": "Platform Admins",
+	"/admin/feedback": "User Feedback",
+	"/admin/proposal-ratings": "Proposal Ratings",
 };
 
 function getInitials(name?: string): string {

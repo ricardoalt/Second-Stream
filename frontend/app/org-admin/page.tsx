@@ -1,5 +1,5 @@
-import { AdminDashboardPageContent } from "@/components/features/workspace";
+import { redirect } from "next/navigation";
 
 export default function OrgAdminDashboardPage() {
-	return <AdminDashboardPageContent workspaceBasePath="/org-admin" />;
+	redirect("/dashboard");
 }

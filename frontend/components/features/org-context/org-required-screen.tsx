@@ -30,7 +30,7 @@ interface OrgRequiredScreenProps {
  * Features:
  * - Minimal header (logo only, no nav)
  * - Centered card with organization selector
- * - Link to admin console for org management
+ * - Link to organizations area for org management
  * - Error state display for invalid org scenarios
  */
 export function OrgRequiredScreen({
@@ -88,7 +88,7 @@ export function OrgRequiredScreen({
 						<p className="text-sm text-muted-foreground">
 							Or go to the{" "}
 							<Button variant="link" className="h-auto p-0" asChild>
-								<Link href="/admin/organizations">Admin Console</Link>
+								<Link href="/admin/organizations">Organizations</Link>
 							</Button>{" "}
 							to manage organizations.
 						</p>

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function OrgAdminOffersPage() {
+export default function AdminOffersPage() {
 	redirect("/offers");
 }

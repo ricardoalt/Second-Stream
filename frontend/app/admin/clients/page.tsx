@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function AdminWorkspaceClientsPage() {
+export default function AdminClientsPage() {
 	redirect("/clients");
 }

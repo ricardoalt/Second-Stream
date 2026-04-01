@@ -46,11 +46,13 @@ const TEAM_ALERTS = [
 ];
 
 type AdminDashboardPageContentProps = {
-	workspaceBasePath?: string;
+	streamsPath?: string;
+	teamPath?: string;
 };
 
 export function AdminDashboardPageContent({
-	workspaceBasePath = "/org-admin",
+	streamsPath = "/admin/streams",
+	teamPath = "/admin/team",
 }: AdminDashboardPageContentProps) {
 	return (
 		<div className="space-y-6">
@@ -101,12 +103,10 @@ export function AdminDashboardPageContent({
 						</div>
 						<div className="flex flex-wrap gap-2 pt-1">
 							<Button asChild size="sm" variant="outline">
-								<Link href={`${workspaceBasePath}/streams`}>
-									Open streams board
-								</Link>
+								<Link href={streamsPath}>Open streams board</Link>
 							</Button>
 							<Button asChild size="sm">
-								<Link href={`${workspaceBasePath}/team`}>
+								<Link href={teamPath}>
 									Team Management
 									<ArrowRight className="ml-1.5 h-4 w-4" />
 								</Link>

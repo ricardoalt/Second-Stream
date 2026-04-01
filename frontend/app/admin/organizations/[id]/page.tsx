@@ -268,7 +268,7 @@ export default function OrganizationDetailPage() {
 	const handleOpenWorkspace = useCallback(() => {
 		if (!organization) return;
 		selectOrganization(organization.id);
-		router.push("/admin/workspace");
+		router.push("/dashboard");
 	}, [organization, router, selectOrganization]);
 
 	const handleRoleChange = async (

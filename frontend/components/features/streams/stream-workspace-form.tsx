@@ -1,7 +1,9 @@
 "use client";
 
+import { motion } from "framer-motion";
 import {
 	ArrowUpDown,
+	Check,
 	FlaskConical,
 	Package2,
 	Sparkles,
@@ -10,8 +12,10 @@ import {
 } from "lucide-react";
 import type { ElementType } from "react";
 import { useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
 	Select,
 	SelectContent,
@@ -83,6 +87,17 @@ function countPendingSuggestionsForQuestions(
 		}
 	}
 	return count;
+}
+
+function countSectionCompletion(
+	questions: StreamQuestionDefinition[],
+	answers: Record<string, string>,
+): { completed: number; total: number } {
+	const total = questions.length;
+	const completed = questions.filter((q) =>
+		Boolean(answers[q.id]?.trim()),
+	).length;
+	return { completed, total };
 }
 
 export function groupQuestionsBySection(
@@ -201,6 +216,12 @@ export function StreamWorkspaceForm({
 
 			{/* Section cards */}
 			{sections.map((section) => {
+				const { completed, total } = countSectionCompletion(
+					section.questions,
+					answers,
+				);
+				const isSectionComplete = completed === total && total > 0;
+				const completionPercent = Math.round((completed / total) * 100);
 				const sectionPendingSuggestionCount =
 					countPendingSuggestionsForQuestions(
 						section.questions,
@@ -212,25 +233,69 @@ export function StreamWorkspaceForm({
 				return (
 					<div
 						key={section.section}
-						className="rounded-xl bg-surface-container-lowest p-5 shadow-xs"
+						className={cn(
+							"rounded-xl shadow-xs transition-colors duration-200",
+							isSectionComplete
+								? "bg-success/5"
+								: "bg-surface-container-lowest",
+						)}
 					>
 						{/* Section header */}
-						<div className="mb-5 flex items-center justify-between gap-3 border-b border-border/20 pb-4">
-							<div className="flex items-center gap-2.5">
-								<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-									<SectionIconComponent className="size-4" aria-hidden />
+						<div className="flex items-center justify-between gap-3 px-5 pt-5 pb-4 border-b border-border/10">
+							<div className="flex items-center gap-3 min-w-0 flex-1">
+								{/* Section icon */}
+								<div
+									className={cn(
+										"flex size-8 shrink-0 items-center justify-center rounded-lg",
+										isSectionComplete ? "bg-success/10" : "bg-primary/10",
+									)}
+								>
+									{isSectionComplete ? (
+										<Check className="size-4 text-success" aria-hidden />
+									) : (
+										<SectionIconComponent
+											className="size-4 text-primary"
+											aria-hidden
+										/>
+									)}
 								</div>
-								<div>
-									<p className="text-sm font-semibold text-foreground">
+
+								{/* Name + completion text */}
+								<div className="flex flex-col gap-0.5 min-w-0 flex-1">
+									<p className="text-sm font-semibold text-foreground leading-none">
 										{section.section}
 									</p>
 									<p className="text-[11px] text-muted-foreground">
-										{section.questions.length} fields
+										{completed} of {total} fields completed
 									</p>
 								</div>
+
+								{/* Progress bar + AI indicator */}
+								<div className="flex items-center gap-2.5 shrink-0">
+									<Progress
+										value={completionPercent}
+										className={cn(
+											"w-20 h-1.5",
+											isSectionComplete && "[&>div]:bg-success",
+										)}
+									/>
+									{sectionPendingSuggestionCount > 0 ? (
+										<Badge
+											variant="outline"
+											className="h-5 gap-1 px-1.5 text-[10px] text-primary border-primary/30 font-medium"
+										>
+											<span
+												className="inline-block size-1.5 rounded-full bg-primary"
+												aria-hidden
+											/>
+											{sectionPendingSuggestionCount} AI
+										</Badge>
+									) : null}
+								</div>
 							</div>
+
 							{sectionPendingSuggestionCount > 0 ? (
-								<div className="flex items-center gap-1.5">
+								<div className="flex items-center gap-1.5 shrink-0">
 									<Button
 										type="button"
 										size="sm"
@@ -264,29 +329,42 @@ export function StreamWorkspaceForm({
 							) : null}
 						</div>
 
-						{/* Fields in smart 2-col grid */}
-						<div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2">
-							{section.questions.map((question) => (
-								<QuestionField
+						{/* Fields grid with staggered entrance */}
+						<div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2 px-5 py-5">
+							{section.questions.map((question, questionIndex) => (
+								<motion.div
 									key={question.id}
-									question={question}
-									value={answers[question.id] ?? ""}
-									suggestion={pendingSuggestions.get(question.id)}
-									isLocallyEdited={Boolean(locallyEditedQuestions[question.id])}
-									reviewingSuggestions={reviewingSuggestions}
-									isFullWidth={
+									initial={{ opacity: 0, y: 8 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{
+										delay: questionIndex * 0.03,
+										duration: 0.2,
+									}}
+									className={cn(
 										question.type === "long_text" ||
-										question.type === "open_question"
-									}
-									onChange={onAnswerChange}
-									onLocalEdit={(questionId) =>
-										setLocallyEditedQuestions((current) => ({
-											...current,
-											[questionId]: true,
-										}))
-									}
-									onReviewSuggestion={onReviewSuggestion}
-								/>
+											question.type === "open_question"
+											? "md:col-span-2"
+											: "",
+									)}
+								>
+									<QuestionField
+										question={question}
+										value={answers[question.id] ?? ""}
+										suggestion={pendingSuggestions.get(question.id)}
+										isLocallyEdited={Boolean(
+											locallyEditedQuestions[question.id],
+										)}
+										reviewingSuggestions={reviewingSuggestions}
+										onChange={onAnswerChange}
+										onLocalEdit={(questionId) =>
+											setLocallyEditedQuestions((current) => ({
+												...current,
+												[questionId]: true,
+											}))
+										}
+										onReviewSuggestion={onReviewSuggestion}
+									/>
+								</motion.div>
 							))}
 						</div>
 					</div>
@@ -302,7 +380,6 @@ function QuestionField({
 	suggestion,
 	isLocallyEdited,
 	reviewingSuggestions,
-	isFullWidth = false,
 	onChange,
 	onLocalEdit,
 	onReviewSuggestion,
@@ -312,7 +389,6 @@ function QuestionField({
 	suggestion: WorkspaceQuestionSuggestion | undefined;
 	isLocallyEdited: boolean;
 	reviewingSuggestions: boolean;
-	isFullWidth?: boolean;
 	onChange: (questionId: string, value: string) => void;
 	onLocalEdit: (questionId: string) => void;
 	onReviewSuggestion: (
@@ -321,6 +397,7 @@ function QuestionField({
 	) => void;
 }) {
 	const fieldId = `field-${question.id}`;
+	const isCompleted = Boolean(value?.trim()) && !suggestion;
 
 	const renderedValue = resolveDisplayedAnswerValue(
 		value,
@@ -419,7 +496,10 @@ function QuestionField({
 
 	return (
 		<div
-			className={cn("flex flex-col gap-1.5", isFullWidth && "md:col-span-2")}
+			className={cn(
+				"flex flex-col gap-1.5 rounded-lg p-0.5 transition-colors duration-200",
+				isCompleted && "pl-2 border-l-2 border-success/25",
+			)}
 		>
 			{/* Label row */}
 			<div className="flex items-center gap-1.5">
@@ -434,6 +514,9 @@ function QuestionField({
 						*
 					</span>
 				) : null}
+				{isCompleted ? (
+					<Check className="size-3 text-success/60 ml-0.5" aria-hidden />
+				) : null}
 				{suggestion ? (
 					<span className="ml-auto flex items-center gap-1 text-[10px] font-medium text-primary">
 						<span
@@ -447,10 +530,10 @@ function QuestionField({
 
 			{control}
 
-			{/* Compact AI suggestion review */}
+			{/* AI suggestion review */}
 			{suggestion ? (
-				<div className="flex items-center justify-between gap-2 rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-1.5">
-					<p className="min-w-0 truncate text-[11px] text-muted-foreground">
+				<div className="flex items-center justify-between gap-2 rounded-lg border border-primary/15 bg-primary/5 backdrop-blur-sm px-2.5 py-1.5">
+					<p className="min-w-0 truncate text-xs text-muted-foreground">
 						{suggestion.hasConflict ? (
 							<>
 								Alt:{" "}

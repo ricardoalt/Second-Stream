@@ -1,5 +1,5 @@
-import { WorkspaceOffersPageContent } from "@/components/features/workspace";
+import { redirect } from "next/navigation";
 
 export default function AdminWorkspaceOffersPage() {
-	return <WorkspaceOffersPageContent />;
+	redirect("/offers");
 }

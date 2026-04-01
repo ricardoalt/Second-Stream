@@ -1,5 +1,5 @@
-import { WorkspaceClientsPageContent } from "@/components/features/workspace";
+import { redirect } from "next/navigation";
 
 export default function OrgAdminClientsPage() {
-	return <WorkspaceClientsPageContent />;
+	redirect("/clients");
 }

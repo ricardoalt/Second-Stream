@@ -5,6 +5,6 @@ export default async function LegacyOrganizationWorkspaceClientsRedirect({
 }: {
 	params: Promise<{ id: string }>;
 }) {
-	const { id } = await params;
-	redirect(`/admin/organizations/${id}`);
+	await params;
+	redirect("/clients");
 }

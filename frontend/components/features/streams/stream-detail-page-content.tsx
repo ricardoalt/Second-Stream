@@ -9,6 +9,7 @@ import { StreamPhaseStepper } from "@/components/features/streams/stream-phase-s
 import { StreamQuickCaptureCard } from "@/components/features/streams/stream-quick-capture-card";
 import { StreamQuickCaptureModal } from "@/components/features/streams/stream-quick-capture-modal";
 import { StreamWorkspaceForm } from "@/components/features/streams/stream-workspace-form";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,7 +18,12 @@ import {
 	DialogDescription,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { STREAM_WORKSPACE_PHASES } from "@/config/stream-questionnaire";
+import { Progress } from "@/components/ui/progress";
+import {
+	STREAM_WORKSPACE_PHASES,
+	STREAM_WORKSPACE_QUESTIONS,
+	STREAM_WORKSPACE_QUESTIONS_BY_PHASE,
+} from "@/config/stream-questionnaire";
 import { workspaceAPI } from "@/lib/api/workspace";
 import {
 	useWorkspaceActions,
@@ -205,6 +211,51 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		[phaseProgress],
 	);
 
+	// Compute completion percent per phase for stepper progress rings
+	const phaseCompletionPercent = useMemo(() => {
+		const result = {} as Record<StreamPhase, number>;
+		for (const phase of [1, 2, 3, 4] as StreamPhase[]) {
+			const questions = STREAM_WORKSPACE_QUESTIONS_BY_PHASE[phase];
+			const completed = questions.filter((q) =>
+				Boolean(questionnaireAnswers[q.id]?.trim()),
+			).length;
+			result[phase] = Math.round((completed / questions.length) * 100);
+		}
+		return result;
+	}, [questionnaireAnswers]);
+
+	// Overall completion across all 31 questions
+	const totalCompleted = useMemo(
+		() =>
+			STREAM_WORKSPACE_QUESTIONS.filter((q) =>
+				Boolean(questionnaireAnswers[q.id]?.trim()),
+			).length,
+		[questionnaireAnswers],
+	);
+
+	// Active phase summary stats
+	const activePhaseSummary = useMemo(() => {
+		const questions = STREAM_WORKSPACE_QUESTIONS_BY_PHASE[activePhase];
+		const completed = questions.filter((q) =>
+			Boolean(questionnaireAnswers[q.id]?.trim()),
+		).length;
+		const pendingAI = questionnaireSuggestions.filter(
+			(s) =>
+				s.status === "pending" && questions.some((q) => q.id === s.questionId),
+		).length;
+		const percent = Math.round((completed / questions.length) * 100);
+		const phaseMeta = STREAM_WORKSPACE_PHASES.find(
+			(p) => p.phase === activePhase,
+		);
+		return {
+			completed,
+			total: questions.length,
+			pendingAI,
+			percent,
+			phaseMeta,
+		};
+	}, [activePhase, questionnaireAnswers, questionnaireSuggestions]);
+
 	const materialName =
 		baseFields.find((field) => field.fieldId === "material_name")?.value ||
 		"Untitled stream";
@@ -302,15 +353,28 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 			<div className="flex flex-col gap-6">
 				{/* Header */}
 				<header className="animate-fade-in-up">
-					<div className="flex flex-col gap-1">
+					<div className="flex flex-col gap-1.5">
 						<p className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 							Waste Streams &rsaquo; Missing Information &rsaquo;{" "}
 							<span className="font-bold text-foreground">{materialName}</span>
 						</p>
 						<div className="flex items-start justify-between gap-4">
-							<h1 className="font-display text-[1.65rem] font-bold tracking-tight text-foreground">
-								Complete Stream Information
-							</h1>
+							<div className="flex flex-col gap-0.5">
+								<h1 className="font-display text-[1.65rem] font-bold tracking-tight text-foreground leading-tight">
+									{materialName}
+								</h1>
+								<div className="flex items-center gap-2.5">
+									<p className="text-sm text-muted-foreground">
+										Complete Stream Information
+									</p>
+									<Badge
+										variant="outline"
+										className="h-5 px-1.5 text-[10px] font-medium border-border/50"
+									>
+										{totalCompleted}/{STREAM_WORKSPACE_QUESTIONS.length} fields
+									</Badge>
+								</div>
+							</div>
 							<div className="flex shrink-0 items-center gap-2">
 								<Button
 									asChild
@@ -343,8 +407,46 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 				<StreamPhaseStepper
 					activePhase={activePhase}
 					phaseProgress={phaseCompletion}
+					phaseCompletionPercent={phaseCompletionPercent}
 					onPhaseSelect={handlePhaseSelect}
 				/>
+
+				{/* Phase Summary Bar */}
+				{!loading ? (
+					<div className="flex items-center justify-between gap-4 rounded-xl bg-surface-container-low/60 px-5 py-3">
+						<div className="flex items-center gap-3 min-w-0">
+							<p className="text-sm font-semibold text-foreground shrink-0">
+								Phase {activePhase}:{" "}
+								<span className="text-muted-foreground font-normal">
+									{activePhaseSummary.phaseMeta?.label}
+								</span>
+							</p>
+							<span className="text-muted-foreground/40 text-sm">·</span>
+							<p className="text-xs text-muted-foreground shrink-0">
+								{activePhaseSummary.completed} of {activePhaseSummary.total}{" "}
+								fields
+								{activePhaseSummary.pendingAI > 0 ? (
+									<span className="text-primary font-medium">
+										{" "}
+										· {activePhaseSummary.pendingAI} AI ready
+									</span>
+								) : null}
+							</p>
+						</div>
+						<div className="flex items-center gap-2.5 shrink-0">
+							<Progress
+								value={activePhaseSummary.percent}
+								className={cn(
+									"w-24 h-1.5",
+									activePhaseSummary.percent === 100 && "[&>div]:bg-success",
+								)}
+							/>
+							<span className="text-xs font-medium tabular-nums text-muted-foreground w-8 text-right">
+								{activePhaseSummary.percent}%
+							</span>
+						</div>
+					</div>
+				) : null}
 
 				{/* Error state */}
 				{error ? (
@@ -374,66 +476,68 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 									onReviewSuggestion={handleSuggestionReview}
 								/>
 
-								{/* Phase Navigation — save status inline */}
-								<div className="flex items-center justify-between gap-3 pt-1">
-									<div>
-										{prevPhase && prevPhaseMeta ? (
-											<Button
-												type="button"
-												variant="ghost"
-												className="gap-2 text-muted-foreground hover:text-foreground"
-												onClick={() => handlePhaseSelect(prevPhase)}
-											>
-												<ArrowLeft className="size-4" aria-hidden />
-												Back to Phase {prevPhase}
-											</Button>
-										) : null}
-									</div>
-									<p
-										className={cn(
-											"text-[11px]",
-											questionnaireSaveStatus === "error" ||
-												reviewSuggestionsStatus === "error"
-												? "text-destructive"
-												: "text-muted-foreground/60",
-										)}
-									>
-										{saveStatusLabel}
-									</p>
-									<div>
-										{nextPhase && nextPhaseMeta ? (
-											<Button
-												type="button"
-												className="gap-2 bg-primary px-6 text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90"
-												onClick={() => handlePhaseSelect(nextPhase)}
-											>
-												Continue to Phase {nextPhase}
-												<ArrowRight className="size-4" aria-hidden />
-											</Button>
-										) : null}
-										{activePhase === 4 ? (
-											<Button
-												type="button"
-												className="gap-2 bg-primary px-6 text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90"
-												onClick={() => {
-													setCompleteDiscoveryError(null);
-													setCompleteDiscoveryStatus("idle");
-													setCompleteDiscoveryModalOpen(true);
-												}}
-												disabled={completeDiscoveryDisabled}
-											>
-												Complete Discovery
-												<ArrowRight className="size-4" aria-hidden />
-											</Button>
-										) : null}
+								{/* Phase Navigation — sticky at bottom */}
+								<div className="sticky bottom-0 -mx-1 px-1 pt-2 pb-3">
+									<div className="flex items-center justify-between gap-3 rounded-xl border border-border/30 bg-background/80 px-4 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.04)] backdrop-blur-sm">
+										<div>
+											{prevPhase && prevPhaseMeta ? (
+												<Button
+													type="button"
+													variant="ghost"
+													className="gap-2 text-muted-foreground hover:text-foreground"
+													onClick={() => handlePhaseSelect(prevPhase)}
+												>
+													<ArrowLeft className="size-4" aria-hidden />
+													Phase {prevPhase}
+												</Button>
+											) : null}
+										</div>
+										<p
+											className={cn(
+												"text-[11px]",
+												questionnaireSaveStatus === "error" ||
+													reviewSuggestionsStatus === "error"
+													? "text-destructive"
+													: "text-muted-foreground/60",
+											)}
+										>
+											{saveStatusLabel}
+										</p>
+										<div>
+											{nextPhase && nextPhaseMeta ? (
+												<Button
+													type="button"
+													className="gap-2 bg-primary px-6 text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90"
+													onClick={() => handlePhaseSelect(nextPhase)}
+												>
+													Phase {nextPhase}
+													<ArrowRight className="size-4" aria-hidden />
+												</Button>
+											) : null}
+											{activePhase === 4 ? (
+												<Button
+													type="button"
+													className="gap-2 bg-primary px-6 text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90"
+													onClick={() => {
+														setCompleteDiscoveryError(null);
+														setCompleteDiscoveryStatus("idle");
+														setCompleteDiscoveryModalOpen(true);
+													}}
+													disabled={completeDiscoveryDisabled}
+												>
+													Complete Discovery
+													<ArrowRight className="size-4" aria-hidden />
+												</Button>
+											) : null}
+										</div>
 									</div>
 								</div>
 							</>
 						)}
 					</div>
 
-					{/* Sidebar */}
-					<aside className="flex flex-col gap-5">
+					{/* Sidebar — sticky on desktop */}
+					<aside className="flex flex-col gap-5 xl:sticky xl:top-6 xl:self-start">
 						<StreamQuickCaptureCard
 							onOpenQuickCapture={handleOpenQuickCapture}
 						/>

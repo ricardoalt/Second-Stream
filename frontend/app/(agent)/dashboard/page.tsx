@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
+import { AdminDashboardPageContent } from "@/components/features/workspace";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import {
 import { CircularGauge } from "@/components/ui/circular-gauge";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useAuth } from "@/lib/contexts";
 import { cn } from "@/lib/utils";
 
 // ═══════════════════════════════════════════════════════════
@@ -320,7 +322,17 @@ function CriticalActionCard({
 // ════════════════════════════════════════════════════════════
 
 export default function AgentDashboardPage() {
+	const { isOrgAdmin, isSuperAdmin } = useAuth();
 	const discoveryWizard = useDiscoveryWizard();
+
+	if (isOrgAdmin || isSuperAdmin) {
+		return (
+			<AdminDashboardPageContent
+				streamsPath="/streams"
+				teamPath="/settings/team"
+			/>
+		);
+	}
 	const now = new Date();
 	const greeting =
 		now.getHours() < 12

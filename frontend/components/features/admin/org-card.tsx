@@ -53,7 +53,7 @@ export function OrgCard({
 
 	function handleOpenWorkspace() {
 		selectOrganization(organization.id);
-		router.push("/admin/workspace");
+		router.push("/dashboard");
 	}
 
 	return (
