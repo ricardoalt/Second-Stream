@@ -1,33 +1,31 @@
 "use client";
 
-import {
-	AlertTriangle,
-	ArrowRight,
-	ChevronDown,
-	Layers,
-	Users,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DashboardSection, KpiGrid } from "@/components/ui/dashboard-section";
+import { DataTable, SectionDivider } from "@/components/ui/data-table";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { ProgressCard } from "@/components/ui/progress-card";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { getAvatarColorForName, TeamAvatar } from "@/components/ui/team-avatar";
 import { dashboardAPI } from "@/lib/api/dashboard";
 import type { OfferPipelineResponseDTO } from "@/lib/api/offers";
 import { offersAPI } from "@/lib/api/offers";
+import { routes } from "@/lib/routes";
 import type {
 	DashboardListResponse,
 	PersistedStreamRow,
 } from "@/lib/types/dashboard";
 import {
-	buildKpiCards,
 	buildSupervisionQueue,
 	groupStreamsByOwner,
 } from "./admin-dashboard-data";
 
 type AdminDashboardPageContentProps = {
-	streamsPath?: string;
-	teamPath?: string;
+	className?: string;
 };
 
 const DASHBOARD_PAGE_SIZE = 100;
@@ -62,32 +60,16 @@ const EMPTY_PIPELINE: OfferPipelineResponseDTO = {
 };
 
 function queueReasonLabel(reason: string): string {
-	if (reason === "pending_confirmation") return "Pending confirmation";
-	if (reason === "missing_required_info") return "Missing required information";
-	if (reason === "stale_waiting_response") return "Stale waiting response";
-	if (reason === "stale_under_negotiation") return "Stale negotiation";
-	return "Normal follow-up";
-}
-
-function queuePriorityLabel(
-	priority: PersistedStreamRow["queuePriority"],
-): string {
-	if (priority === "critical") return "Critical";
-	if (priority === "high") return "Needs attention";
-	return "On track";
-}
-
-function queuePriorityBadgeVariant(
-	priority: PersistedStreamRow["queuePriority"],
-) {
-	if (priority === "critical") return "destructive" as const;
-	if (priority === "high") return "outline" as const;
-	return "secondary" as const;
+	if (reason === "pending_confirmation") return "Pending COA";
+	if (reason === "missing_required_info") return "Missing SDS";
+	if (reason === "stale_waiting_response") return "Offer Stalled";
+	if (reason === "stale_under_negotiation") return "In Negotiation";
+	return "On Track";
 }
 
 function streamStageLabel(stream: PersistedStreamRow): string {
 	if (stream.proposalFollowUpState === "under_negotiation")
-		return "Negotiation";
+		return "In Negotiation";
 	if (stream.proposalFollowUpState === "waiting_response") return "Review";
 	if (stream.proposalFollowUpState === "waiting_to_send") return "Proposal";
 	if (stream.proposalFollowUpState === "uploaded") return "Intake";
@@ -97,8 +79,8 @@ function streamStageLabel(stream: PersistedStreamRow): string {
 }
 
 function streamProgressValue(stream: PersistedStreamRow): number {
-	if (stream.proposalFollowUpState === "under_negotiation") return 65;
-	if (stream.proposalFollowUpState === "waiting_response") return 50;
+	if (stream.proposalFollowUpState === "under_negotiation") return 45;
+	if (stream.proposalFollowUpState === "waiting_response") return 65;
 	if (stream.proposalFollowUpState === "waiting_to_send") return 40;
 	if (stream.proposalFollowUpState === "uploaded") return 30;
 	if (stream.missingRequiredInfo) return 25;
@@ -110,34 +92,27 @@ function groupRiskCount(streams: PersistedStreamRow[]): number {
 	return streams.filter((stream) => stream.queuePriority !== "normal").length;
 }
 
+const QUEUE_PRIORITY_ORDER: Record<string, number> = {
+	critical: 0,
+	high: 1,
+	normal: 2,
+};
+
 function groupPrimaryStream(
 	streams: PersistedStreamRow[],
 ): PersistedStreamRow | null {
-	return streams[0] ?? null;
-}
+	if (streams.length === 0) return null;
 
-function nextActionLabel(stream: PersistedStreamRow | null): string {
-	if (!stream) return "Review workload";
-	if (stream.queuePriorityReason === "missing_required_info")
-		return "Unblock stream";
-	if (stream.queuePriorityReason === "pending_confirmation")
-		return "Confirm discovery";
-	if (stream.queuePriorityReason === "stale_waiting_response")
-		return "Review stalled offer";
-	if (stream.queuePriorityReason === "stale_under_negotiation")
-		return "Advance negotiation";
-	return "Monitor capacity";
-}
+	// Sort by priority (critical > high > normal), then by most recent activity
+	const sorted = [...streams].sort((left, right) => {
+		const priorityDiff =
+			QUEUE_PRIORITY_ORDER[left.queuePriority] -
+			QUEUE_PRIORITY_ORDER[right.queuePriority];
+		if (priorityDiff !== 0) return priorityDiff;
+		return Date.parse(right.lastActivityAt) - Date.parse(left.lastActivityAt);
+	});
 
-function workloadBarClassName(streams: PersistedStreamRow[]): string {
-	const riskCount = groupRiskCount(streams);
-	if (riskCount >= 2 || streams.length >= 14) return "bg-destructive";
-	if (riskCount >= 1 || streams.length >= 9) return "bg-warning";
-	return "bg-emerald-600";
-}
-
-function workloadPercent(streams: PersistedStreamRow[]): number {
-	return Math.min(100, Math.max(18, streams.length * 6));
+	return sorted[0];
 }
 
 function formatPipelineValue(items: OfferPipelineResponseDTO["items"]): string {
@@ -148,19 +123,24 @@ function formatPipelineValue(items: OfferPipelineResponseDTO["items"]): string {
 	return `$${total.toLocaleString()}`;
 }
 
-function kpiDeltaLabel(kpiId: string, value: number): string {
-	if (kpiId === "missing_information") {
-		return value > 0 ? `-${Math.min(value, 3)}` : "0";
-	}
-	if (kpiId === "active_negotiation") {
-		return "+5";
-	}
-	return "+12";
+function getDaysSince(dateString: string): number {
+	const date = new Date(dateString);
+	const now = new Date();
+	const diffTime = Math.abs(now.getTime() - date.getTime());
+	return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+// Get badge variant based on queue priority
+function getBadgeVariantForPriority(
+	priority: PersistedStreamRow["queuePriority"],
+): "critical" | "warning" | "success" {
+	if (priority === "critical") return "critical";
+	if (priority === "high") return "warning";
+	return "success";
 }
 
 export function AdminDashboardPageContent({
-	streamsPath = "/streams",
-	teamPath = "/settings/team",
+	className,
 }: AdminDashboardPageContentProps) {
 	const [dashboard, setDashboard] =
 		useState<DashboardListResponse>(EMPTY_DASHBOARD);
@@ -214,16 +194,15 @@ export function AdminDashboardPageContent({
 			),
 		[dashboard.items],
 	);
-	const kpis = useMemo(
-		() => buildKpiCards(dashboard, pipeline),
-		[dashboard, pipeline],
-	);
 	const teamGroups = useMemo(
 		() => groupStreamsByOwner(dashboard.items),
 		[dashboard.items],
 	);
 	const queueRows = useMemo(
-		() => buildSupervisionQueue(persistedRows, 5),
+		() =>
+			buildSupervisionQueue(persistedRows, 5).filter(
+				(row) => row.queuePriority !== "normal",
+			),
 		[persistedRows],
 	);
 	const pipelineValue = useMemo(
@@ -231,116 +210,242 @@ export function AdminDashboardPageContent({
 		[pipeline.items],
 	);
 
-	return (
-		<div className="space-y-8">
-			<section className="space-y-3">
-				<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-					<div className="space-y-2">
-						<div className="flex items-center gap-3">
-							<h1 className="text-xl font-semibold tracking-tight text-foreground">
-								Organization Overview
-							</h1>
-							<Badge
-								variant="outline"
-								className="text-[10px] uppercase tracking-[0.18em]"
-							>
-								Live
-							</Badge>
-						</div>
-						<div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-							<p>
-								Supervising{" "}
-								<span className="font-semibold text-foreground">
-									{loading ? "—" : pipelineValue}
-								</span>{" "}
-								in active pipeline across{" "}
-								<span className="font-semibold text-foreground">
-									{teamGroups.length || 0} agents
-								</span>
-								.
-							</p>
-							<Button
-								asChild
-								variant="ghost"
-								size="sm"
-								className="h-auto px-0 text-sm text-muted-foreground hover:bg-transparent hover:text-foreground"
-							>
-								<Link href={teamPath}>
-									Go to Team Management
-									<ArrowRight className="ml-1.5 h-4 w-4" />
-								</Link>
-							</Button>
-						</div>
-					</div>
+	// Render expanded stream content
+	const renderExpandedStreams = (
+		group: ReturnType<typeof groupStreamsByOwner>[number],
+	) => {
+		return (
+			<>
+				<SectionDivider label="Active waste streams" />
+				<div className="space-y-2">
+					{group.streams.slice(0, 3).map((stream) => (
+						<Link
+							key={stream.projectId}
+							href={routes.streams.detail(stream.projectId)}
+							className="block"
+						>
+							<ProgressCard
+								title={stream.streamName}
+								subtitle={
+									stream.companyLabel ||
+									stream.locationLabel ||
+									"Client unavailable"
+								}
+								date={new Date(stream.lastActivityAt).toLocaleDateString(
+									"en-US",
+									{
+										month: "short",
+										day: "numeric",
+										year: "numeric",
+									},
+								)}
+								daysOld={getDaysSince(stream.lastActivityAt)}
+								progress={streamProgressValue(stream)}
+								stage={streamStageLabel(stream)}
+								statusVariant={
+									stream.queuePriority === "critical"
+										? "critical"
+										: stream.queuePriority === "high"
+											? "warning"
+											: "info"
+								}
+								statusLabel={queueReasonLabel(stream.queuePriorityReason)}
+							/>
+						</Link>
+					))}
 				</div>
-			</section>
+			</>
+		);
+	};
 
+	return (
+		<div className={`space-y-10 ${className || ""}`}>
+			{/* Error State */}
 			{error ? (
-				<Card>
+				<Card className="border-border/60 shadow-none">
 					<CardContent className="pt-6 text-sm text-destructive">
 						{error}
 					</CardContent>
 				</Card>
 			) : null}
 
-			<section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-				{kpis.map((kpi) => (
-					<Card key={kpi.id} className="border-border/60 shadow-none">
-						<CardContent className="space-y-3 p-5">
-							<div className="flex items-start justify-between gap-3">
-								<p className="text-[0.72rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-									{kpi.label}
-								</p>
-								{kpi.id === "active_negotiation" ? (
-									<Layers className="h-4 w-4 text-muted-foreground/70" />
-								) : kpi.id === "missing_information" ? (
-									<AlertTriangle className="h-4 w-4 text-muted-foreground/70" />
-								) : (
-									<Users className="h-4 w-4 text-muted-foreground/70" />
-								)}
-							</div>
-							<div className="flex items-end gap-2">
-								<p className="text-4xl font-semibold tracking-tight text-foreground">
-									{loading ? "—" : kpi.value}
-								</p>
-								<Badge
-									variant="secondary"
-									className="mb-1 rounded-md bg-emerald-50 px-1.5 py-0 text-xs font-semibold text-emerald-700"
-								>
-									{kpiDeltaLabel(kpi.id, kpi.value)}
-								</Badge>
-							</div>
-							<p className="text-xs text-muted-foreground">{kpi.note}</p>
-						</CardContent>
-					</Card>
-				))}
-			</section>
+			{/* Stream Lifecycle Summary - Using Design System */}
+			<DashboardSection
+				title="Stream Lifecycle Summary"
+				badge={{ text: "Live Flow Tracking", variant: "live" }}
+				variant="highlighted"
+			>
+				<KpiGrid>
+					<KpiCard
+						type="streams"
+						label="Total Streams"
+						value={dashboard.counts.total}
+						loading={loading}
+					/>
+					<KpiCard
+						type="missing"
+						label="Missing Information"
+						value={dashboard.counts.missingInformation}
+						loading={loading}
+					/>
+					<KpiCard
+						type="offers"
+						label="Offers"
+						value={pipeline.counts.underNegotiation}
+						loading={loading}
+					/>
+					<KpiCard
+						type="revenue"
+						label="Pipeline Value"
+						value={pipelineValue}
+						loading={loading}
+					/>
+				</KpiGrid>
+			</DashboardSection>
 
-			<section className="space-y-3">
-				<div className="flex items-center gap-2 text-[0.92rem] font-semibold uppercase tracking-[0.18em] text-foreground/70">
-					<span className="text-warning">⚡</span>
-					<span>Critical Supervision Queue</span>
-				</div>
-				<Card className="border-border/60 shadow-none">
-					<CardContent className="space-y-2 p-0 text-sm">
-						{queueRows.length === 0 ? (
-							<p className="p-5 text-muted-foreground">
-								No active streams in queue.
-							</p>
-						) : (
-							queueRows.map((row) => (
+			{/* Team Performance - Using Design System */}
+			<DashboardSection
+				title="Team Performance"
+				action={
+					<Button
+						asChild
+						variant="ghost"
+						size="sm"
+						className="h-auto px-2 text-muted-foreground hover:bg-transparent hover:text-foreground"
+					>
+						<Link href={routes.streams.all}>
+							<ArrowRight className="h-4 w-4" />
+						</Link>
+					</Button>
+				}
+			>
+				<DataTable
+					data={teamGroups.slice(0, 6)}
+					keyExtractor={(group) => group.ownerUserId}
+					columns={[
+						{
+							key: "agent",
+							header: "Agent Name",
+							width: "2fr",
+							cell: (group) => {
+								const name = group.ownerLabel;
+								const color = getAvatarColorForName(name);
+
+								return (
+									<div className="flex min-w-0 items-center gap-3">
+										<TeamAvatar name={name} color={color} />
+										<div className="min-w-0">
+											<p className="truncate font-medium text-foreground">
+												{name}
+											</p>
+										</div>
+									</div>
+								);
+							},
+						},
+						{
+							key: "streams",
+							header: "Total Streams",
+							width: "1fr",
+							cell: (group) => (
+								<span className="text-sm text-foreground">
+									{group.streams.length} Streams
+								</span>
+							),
+						},
+						{
+							key: "actions",
+							header: "Critical Actions",
+							width: "1.5fr",
+							cell: (group) => {
+								const primary = groupPrimaryStream(group.streams);
+								const riskCount = groupRiskCount(group.streams);
+
+								if (riskCount > 0 && primary) {
+									const days = primary.lastActivityAt
+										? getDaysSince(primary.lastActivityAt)
+										: 0;
+									const badgeVariant = getBadgeVariantForPriority(
+										primary.queuePriority,
+									);
+
+									return (
+										<StatusBadge
+											variant={badgeVariant}
+											days={days > 0 ? Math.min(days, 28) : undefined}
+										>
+											{queueReasonLabel(primary.queuePriorityReason)}
+										</StatusBadge>
+									);
+								}
+
+								return <StatusBadge variant="success">On Track</StatusBadge>;
+							},
+						},
+						{
+							key: "action",
+							header: "Action",
+							width: "1fr",
+							cell: (group) => {
+								const primary = groupPrimaryStream(group.streams);
+								const riskCount = groupRiskCount(group.streams);
+
+								if (riskCount > 0 && primary) {
+									return (
+										<Button
+											asChild
+											variant="ghost"
+											size="sm"
+											className="h-auto px-0 text-sm text-destructive hover:bg-transparent hover:text-destructive"
+										>
+											<Link href={routes.streams.detail(primary.projectId)}>
+												View Priority Stream
+											</Link>
+										</Button>
+									);
+								}
+
+								return (
+									<Button
+										asChild
+										variant="ghost"
+										size="sm"
+										className="h-auto px-0 text-sm text-cyan-600 hover:bg-transparent hover:text-foreground"
+									>
+										<Link href={routes.streams.all}>View All</Link>
+									</Button>
+								);
+							},
+						},
+					]}
+					expandedContent={renderExpandedStreams}
+					emptyMessage="No team stream ownership data available."
+					pagination={{
+						total: teamGroups.length,
+						pageSize: 6,
+						disabled: { previous: true, next: teamGroups.length <= 6 },
+					}}
+				/>
+			</DashboardSection>
+
+			{/* Critical Supervision Queue */}
+			{queueRows.length > 0 && (
+				<DashboardSection title="Critical Supervision Queue">
+					<Card className="border border-border/60 bg-white shadow-sm">
+						<CardContent className="space-y-1 p-0">
+							{queueRows.map((row) => (
 								<div
 									key={row.projectId}
-									className="flex flex-col gap-3 border-b border-border/40 px-5 py-4 last:border-b-0 sm:flex-row sm:items-center"
+									className="flex flex-col gap-3 border-b border-border px-5 py-4 last:border-b-0 sm:flex-row sm:items-center"
 								>
 									<div className="min-w-0 flex-1">
 										<div className="flex items-center gap-2">
 											<span
-												className={
+												className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${
 													row.queuePriority === "critical"
-														? "inline-flex h-4 w-4 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10 text-[10px] text-destructive"
-														: "inline-flex h-4 w-4 items-center justify-center rounded-full border border-warning/30 bg-warning/10 text-[10px] text-warning"
-												}
+														? "bg-destructive text-white"
+														: "bg-orange-500 text-white"
+												}`}
 											>
 												!
 											</span>
@@ -355,13 +460,13 @@ export function AdminDashboardPageContent({
 											</p>
 										</div>
 									</div>
-									<div className="flex items-center gap-6 self-end sm:self-auto">
+									<div className="flex items-center gap-4 self-end sm:self-auto">
 										<p
-											className={
+											className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${
 												row.queuePriority === "critical"
-													? "text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-destructive"
-													: "text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-warning"
-											}
+													? "text-destructive"
+													: "text-orange-500"
+											}`}
 										>
 											{queueReasonLabel(row.queuePriorityReason)}
 										</p>
@@ -369,189 +474,43 @@ export function AdminDashboardPageContent({
 											asChild
 											variant="ghost"
 											size="sm"
-											className={
+											className={`h-auto px-2 text-sm ${
 												row.queuePriority === "critical"
-													? "h-auto px-2 text-destructive hover:bg-destructive/5 hover:text-destructive"
-													: "h-auto px-2 text-warning hover:bg-warning/5 hover:text-warning"
-											}
+													? "text-destructive hover:bg-destructive/10 hover:text-destructive"
+													: "text-orange-500 hover:bg-orange-500/10 hover:text-orange-500"
+											}`}
 										>
-											<Link href={streamsPath}>
-												{row.queuePriority === "critical"
-													? "Nudge Agent"
-													: "View Stream"}
+											<Link href={routes.streams.detail(row.projectId)}>
+												View Stream
 											</Link>
 										</Button>
 									</div>
 								</div>
-							))
-						)}
-						<div className="flex flex-wrap gap-2 border-t border-border/40 px-5 py-4">
-							<Button
-								asChild
-								size="sm"
-								variant="outline"
-								className="shadow-none"
-							>
-								<Link href={streamsPath}>Open streams board</Link>
-							</Button>
-							<Button asChild size="sm">
-								<Link href={teamPath}>
-									Team Management
-									<ArrowRight className="ml-1.5 h-4 w-4" />
-								</Link>
-							</Button>
-						</div>
-					</CardContent>
-				</Card>
-			</section>
-
-			<section className="space-y-3">
-				<h2 className="text-[0.92rem] font-semibold uppercase tracking-[0.18em] text-foreground/70">
-					Team Oversight
-				</h2>
-				<Card className="overflow-hidden border-border/60 shadow-none">
-					<div className="grid grid-cols-[2fr_1.2fr_1.2fr_1.4fr_40px] gap-4 border-b border-border/50 px-6 py-4 text-[0.72rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-						<span>Agent</span>
-						<span>Workload</span>
-						<span>Status</span>
-						<span>Next Action</span>
-						<span />
-					</div>
-					{teamGroups.length === 0 ? (
-						<div className="px-6 py-6 text-sm text-muted-foreground">
-							No team stream ownership data available.
-						</div>
-					) : (
-						teamGroups.slice(0, 5).map((group) => {
-							const primary = groupPrimaryStream(group.streams);
-							const riskCount = groupRiskCount(group.streams);
-							const riskLabel =
-								riskCount > 0 ? `${riskCount} at risk` : "Healthy";
-
-							return (
-								<details
-									key={group.ownerUserId}
-									className="group border-b border-border/40 last:border-b-0"
+							))}
+							<div className="flex flex-wrap gap-2 border-t border-border px-5 py-4">
+								<Button
+									asChild
+									size="sm"
+									variant="outline"
+									className="border-border text-foreground hover:bg-muted"
 								>
-									<summary className="grid cursor-pointer grid-cols-[2fr_1.2fr_1.2fr_1.4fr_40px] items-center gap-4 px-6 py-4 marker:content-none hover:bg-surface-container-low/30">
-										<div className="flex items-center gap-3 min-w-0">
-											<div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container text-sm font-medium text-primary">
-												{group.ownerLabel
-													.split(" ")
-													.map((part) => part[0])
-													.slice(0, 2)
-													.join("")
-													.toUpperCase()}
-											</div>
-											<div className="min-w-0">
-												<p className="truncate font-medium text-foreground">
-													{group.ownerLabel}
-												</p>
-												<p className="text-[0.65rem] uppercase tracking-wide text-muted-foreground/70">
-													{primary?.ownerDisplayName
-														? "Assigned owner"
-														: "Team member"}
-												</p>
-											</div>
-										</div>
-										<div className="space-y-1">
-											<div className="flex items-center justify-between gap-2 text-sm">
-												<span>{group.streams.length} streams</span>
-												<span
-													className={
-														riskCount > 0
-															? "text-xs font-medium text-destructive"
-															: "text-xs text-muted-foreground"
-													}
-												>
-													{riskLabel}
-												</span>
-											</div>
-											<div className="h-1.5 rounded-full bg-surface-container-high">
-												<div
-													className={`h-1.5 rounded-full ${workloadBarClassName(group.streams)}`}
-													style={{
-														width: `${workloadPercent(group.streams)}%`,
-													}}
-												/>
-											</div>
-										</div>
-										<div>
-											<Badge
-												variant={queuePriorityBadgeVariant(
-													primary?.queuePriority ?? "normal",
-												)}
-											>
-												{queuePriorityLabel(primary?.queuePriority ?? "normal")}
-											</Badge>
-										</div>
-										<div
-											className={
-												primary?.queuePriority === "normal"
-													? "text-sm text-muted-foreground"
-													: "text-sm font-semibold text-foreground"
-											}
-										>
-											{nextActionLabel(primary)}
-										</div>
-										<div className="flex justify-end text-muted-foreground transition-transform group-open:rotate-180">
-											<ChevronDown className="h-4 w-4" />
-										</div>
-									</summary>
-									<div className="bg-surface-container-low/20 px-6 py-3">
-										<div className="mb-2 flex items-center gap-3 text-[0.72rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-											<span>Active waste streams</span>
-											<div className="h-px flex-1 bg-border/30" />
-										</div>
-										<div className="space-y-1">
-											{group.streams.slice(0, 4).map((stream) => (
-												<div
-													key={stream.projectId}
-													className="grid grid-cols-[1.7fr_1fr_1fr] items-center gap-4 border-b border-border/20 px-2 py-3 last:border-b-0 hover:bg-surface-container-low/40"
-												>
-													<div className="min-w-0">
-														<p className="truncate font-medium text-foreground">
-															{stream.streamName}
-														</p>
-														<p className="truncate text-sm text-muted-foreground">
-															{stream.companyLabel ||
-																stream.locationLabel ||
-																"Client unavailable"}
-														</p>
-													</div>
-													<div className="space-y-1">
-														<div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-															<span>{streamStageLabel(stream)}</span>
-															<span>{streamProgressValue(stream)}%</span>
-														</div>
-														<div className="h-1.5 rounded-full bg-surface-container-high">
-															<div
-																className="h-1.5 rounded-full bg-primary"
-																style={{
-																	width: `${streamProgressValue(stream)}%`,
-																}}
-															/>
-														</div>
-													</div>
-													<div className="flex justify-start lg:justify-end">
-														<Badge
-															variant={queuePriorityBadgeVariant(
-																stream.queuePriority,
-															)}
-														>
-															{queueReasonLabel(stream.queuePriorityReason)}
-														</Badge>
-													</div>
-												</div>
-											))}
-										</div>
-									</div>
-								</details>
-							);
-						})
-					)}
-				</Card>
-			</section>
+									<Link href={routes.streams.all}>Open streams board</Link>
+								</Button>
+								<Button
+									asChild
+									size="sm"
+									className="bg-teal-600 text-white hover:bg-teal-700"
+								>
+									<Link href={routes.settings}>
+										Team Management
+										<ArrowRight className="ml-1.5 h-4 w-4" />
+									</Link>
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+				</DashboardSection>
+			)}
 		</div>
 	);
 }

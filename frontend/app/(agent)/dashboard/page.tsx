@@ -326,12 +326,7 @@ export default function AgentDashboardPage() {
 	const discoveryWizard = useDiscoveryWizard();
 
 	if (isOrgAdmin || isSuperAdmin) {
-		return (
-			<AdminDashboardPageContent
-				streamsPath="/streams"
-				teamPath="/settings/team"
-			/>
-		);
+		return <AdminDashboardPageContent />;
 	}
 	const now = new Date();
 	const greeting =

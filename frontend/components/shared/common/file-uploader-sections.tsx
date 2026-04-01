@@ -12,6 +12,7 @@ import {
 	XCircle,
 } from "lucide-react";
 import type { HTMLAttributes, InputHTMLAttributes } from "react";
+import { StatusChip } from "@/components/system/status-chip";
 import {
 	Accordion,
 	AccordionContent,
@@ -84,38 +85,58 @@ const FILE_TYPE_ICONS: Record<string, typeof FileText> = {
 	png: FileImage,
 };
 
+/**
+ * Design System Editorial - Tokens semánticos
+ *
+ * Antes: Colores hardcodeados (bg-emerald-500/15, text-rose-400, etc.)
+ * Después: Tokens semánticos con color-mix para transparencias
+ */
 const PROCESSING_STATUS_CONFIG = {
 	queued: {
 		label: "Queued",
 		IconComponent: Clock,
 		iconClassName: "",
-		style: "bg-muted text-muted-foreground border-muted",
+		status: "pending" as const,
+		variant: "ghost" as const,
 	},
 	processing: {
 		label: "Processing",
 		IconComponent: Loader2,
 		iconClassName: "animate-spin",
-		style: "bg-primary/15 text-primary border-primary/30",
+		status: "active" as const,
+		variant: "subtle" as const,
 	},
 	completed: {
 		label: "Ready",
 		IconComponent: CheckCircle,
 		iconClassName: "",
-		style: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+		status: "success" as const,
+		variant: "subtle" as const,
 	},
 	failed: {
 		label: "Failed",
 		IconComponent: XCircle,
 		iconClassName: "",
-		style: "bg-rose-500/15 text-rose-400 border-rose-500/30",
+		status: "error" as const,
+		variant: "subtle" as const,
 	},
 } as const;
 
-const QUALITY_BADGE_STYLES = {
-	High: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-	Medium: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-	Low: "bg-rose-500/15 text-rose-400 border-rose-500/30",
-} as const;
+/**
+ * Quality badges usando tokens semánticos
+ *
+ * High → success (verde)
+ * Medium → warning (ámbar)
+ * Low → error (rojo)
+ */
+const QUALITY_BADGE_STYLES: Record<
+	string,
+	{ status: React.ComponentProps<typeof StatusChip>["status"]; label: string }
+> = {
+	High: { status: "success", label: "High" },
+	Medium: { status: "warning", label: "Medium" },
+	Low: { status: "error", label: "Low" },
+};
 
 function getFileIcon(fileType: string): typeof FileText {
 	return FILE_TYPE_ICONS[fileType.toLowerCase()] || FileText;
@@ -156,17 +177,20 @@ export function UploadDropZone({
 				>
 					<input {...inputProps} />
 
-					<div className="mx-auto flex flex-col items-center space-y-4">
+					{/* gap en lugar de space-y */}
+					<div className="mx-auto flex flex-col items-center gap-4">
 						<div
 							className={cn(
 								"rounded-full bg-primary/10 p-4 transition-transform duration-200",
 								isDragActive && "scale-110 animate-bounce",
 							)}
 						>
-							<Upload className="h-8 w-8 text-primary" />
+							{/* size-* en lugar de h-* w-* */}
+							<Upload className="size-8 text-primary" />
 						</div>
 
-						<div className="space-y-2">
+						{/* gap en lugar de space-y */}
+						<div className="flex flex-col gap-2">
 							<h3 className="text-lg font-semibold">
 								{isDragActive && !disabled ? "Drop files here" : "Upload files"}
 							</h3>
@@ -264,7 +288,8 @@ function NonEmptyList({ items }: { items: string[] }) {
 	if (items.length === 0)
 		return <p className="text-xs text-muted-foreground">—</p>;
 	return (
-		<ul className="list-disc pl-4 space-y-1">
+		// gap en lugar de space-y
+		<ul className="list-disc pl-4 flex flex-col gap-1">
 			{items.map((item) => (
 				<li key={item} className="text-xs text-muted-foreground">
 					{item}
@@ -292,8 +317,10 @@ function ImageAnalysisDetails({
 		<Accordion type="multiple" className="w-full">
 			<AccordionItem value="summary">
 				<AccordionTrigger>Summary</AccordionTrigger>
-				<AccordionContent className="space-y-3">
+				{/* gap en lugar de space-y */}
+				<AccordionContent className="flex flex-col gap-3">
 					<p className="text-xs text-muted-foreground">{data.summary}</p>
+					{/* gap en lugar de flex-wrap gap-2 */}
 					<div className="flex flex-wrap gap-2">
 						<Badge variant="secondary" className="text-[10px]">
 							{data.material_type}
@@ -341,7 +368,9 @@ function ImageAnalysisDetails({
 
 			<AccordionItem value="impact">
 				<AccordionTrigger>Environmental impact</AccordionTrigger>
-				<AccordionContent className="space-y-3">
+				{/* gap en lugar de space-y */}
+				<AccordionContent className="flex flex-col gap-3">
+					{/* gap en lugar de gap-2 */}
 					<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 						<div className="rounded-md border bg-card/50 p-3">
 							<p className="text-xs font-semibold">Disposal pathway</p>
@@ -369,7 +398,8 @@ function ImageAnalysisDetails({
 						</div>
 					</div>
 
-					<div className="space-y-1">
+					{/* gap en lugar de space-y */}
+					<div className="flex flex-col gap-1">
 						<p className="text-xs font-semibold">ESG statement</p>
 						<div className="max-h-40 overflow-y-auto rounded-md border bg-card/50 p-3">
 							<p className="text-xs text-muted-foreground whitespace-pre-wrap">
@@ -379,7 +409,8 @@ function ImageAnalysisDetails({
 					</div>
 
 					{data.lca_assumptions.trim() && (
-						<div className="space-y-1">
+						// gap en lugar de space-y
+						<div className="flex flex-col gap-1">
 							<p className="text-xs font-semibold">LCA assumptions</p>
 							<p className="text-xs text-muted-foreground whitespace-pre-wrap">
 								{data.lca_assumptions}
@@ -391,20 +422,22 @@ function ImageAnalysisDetails({
 
 			<AccordionItem value="safety">
 				<AccordionTrigger>Handling & safety</AccordionTrigger>
-				<AccordionContent className="space-y-4">
-					<div className="space-y-1">
+				{/* gap en lugar de space-y */}
+				<AccordionContent className="flex flex-col gap-4">
+					{/* gap en lugar de space-y */}
+					<div className="flex flex-col gap-1">
 						<p className="text-xs font-semibold">PPE requirements</p>
 						<NonEmptyList items={data.ppe_requirements} />
 					</div>
-					<div className="space-y-1">
+					<div className="flex flex-col gap-1">
 						<p className="text-xs font-semibold">Storage requirements</p>
 						<NonEmptyList items={data.storage_requirements} />
 					</div>
-					<div className="space-y-1">
+					<div className="flex flex-col gap-1">
 						<p className="text-xs font-semibold">Degradation risks</p>
 						<NonEmptyList items={data.degradation_risks} />
 					</div>
-					<div className="space-y-1">
+					<div className="flex flex-col gap-1">
 						<p className="text-xs font-semibold">Visible hazards</p>
 						<NonEmptyList items={data.visible_hazards} />
 					</div>
@@ -426,14 +459,17 @@ export function FileDetailPanel({
 	const analysis = file.ai_analysis
 		? asImageAnalysisOutput(file.ai_analysis)
 		: null;
-	const qualityStyle = analysis
-		? (QUALITY_BADGE_STYLES[analysis.quality_grade] ?? "")
-		: "";
+
+	// Obtener config de quality badge usando tokens semánticos
+	const qualityConfig = analysis
+		? QUALITY_BADGE_STYLES[analysis.quality_grade]
+		: null;
 
 	return (
 		<Card className="aqua-panel">
-			<CardContent className="p-6 space-y-4">
-				<div className="flex items-center justify-between">
+			{/* gap en lugar de space-y */}
+			<CardContent className="p-6 flex flex-col gap-4">
+				<div className="flex items-center justify-between gap-2">
 					<div className="flex-1 min-w-0">
 						<h4 className="text-base font-semibold truncate">
 							{file.filename}
@@ -443,7 +479,7 @@ export function FileDetailPanel({
 						</p>
 					</div>
 					{isLoading && (
-						<Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+						<Loader2 className="size-4 animate-spin text-muted-foreground" />
 					)}
 				</div>
 
@@ -458,27 +494,33 @@ export function FileDetailPanel({
 				)}
 
 				{analysis && (
-					<div className="space-y-3 p-4 rounded-lg bg-muted/30 border">
+					// gap en lugar de space-y
+					<div className="flex flex-col gap-3 p-4 rounded-lg bg-muted/30 border">
 						<div className="flex flex-wrap items-center gap-2">
 							<Badge variant="secondary" className="text-xs font-medium">
 								{analysis.material_type}
 							</Badge>
-							<Badge
-								variant="outline"
-								className={cn("text-xs border", qualityStyle)}
-							>
-								{analysis.quality_grade} Quality
-							</Badge>
+							{qualityConfig && (
+								<StatusChip
+									status={qualityConfig.status}
+									variant="subtle"
+									size="xs"
+									shape="pill"
+								>
+									{qualityConfig.label} Quality
+								</StatusChip>
+							)}
 							<Badge variant="outline" className="text-xs">
 								{analysis.lifecycle_status}
 							</Badge>
 						</div>
 
 						{analysis.co2_savings > 0 && (
-							<div className="flex items-center gap-3 p-3 rounded-md bg-emerald-500/10 border border-emerald-500/20">
-								<Globe className="h-6 w-6 text-emerald-400" />
+							// Usar tokens semánticos en lugar de colores hardcodeados
+							<div className="flex items-center gap-3 p-3 rounded-md bg-success/10 border border-success/20">
+								<Globe className="size-6 text-success" />
 								<div>
-									<p className="text-sm font-semibold text-emerald-400">
+									<p className="text-sm font-semibold text-success">
 										~{analysis.co2_savings.toFixed(1)} tCO₂e
 									</p>
 									<p className="text-xs text-muted-foreground">
@@ -489,7 +531,8 @@ export function FileDetailPanel({
 						)}
 
 						{analysis.esg_statement && (
-							<div className="space-y-1">
+							// gap en lugar de space-y
+							<div className="flex flex-col gap-1">
 								<p className="text-xs font-medium text-muted-foreground">
 									ESG Statement
 								</p>
@@ -502,7 +545,8 @@ export function FileDetailPanel({
 				)}
 
 				{file.processed_text && (
-					<div className="space-y-2">
+					// gap en lugar de space-y
+					<div className="flex flex-col gap-2">
 						<p className="text-xs font-semibold">Extracted Content</p>
 						<div className="max-h-32 overflow-y-auto rounded-md border bg-card/50 p-3">
 							<p className="text-xs text-muted-foreground whitespace-pre-wrap">
@@ -563,7 +607,8 @@ export function UploadingFilesCard({
 		<Card className="aqua-panel">
 			<CardContent className="p-6">
 				<h3 className="text-lg font-semibold mb-4">Uploading...</h3>
-				<div className="space-y-3">
+				{/* gap en lugar de space-y */}
+				<div className="flex flex-col gap-3">
 					{files.map((uploadingFile) => {
 						const FileIcon = getFileIcon(
 							uploadingFile.file.name.split(".").pop() || "",
@@ -575,21 +620,23 @@ export function UploadingFilesCard({
 								className="flex items-center gap-3 p-3 rounded-lg border bg-card/50"
 							>
 								<div className="rounded-lg bg-primary/10 p-2">
-									<FileIcon className="h-5 w-5 text-primary" />
+									<FileIcon className="size-5 text-primary" />
 								</div>
 
-								<div className="flex-1 min-w-0 space-y-1">
-									<div className="flex items-center justify-between">
+								{/* gap en lugar de space-y */}
+								<div className="flex-1 min-w-0 flex flex-col gap-1">
+									<div className="flex items-center justify-between gap-2">
 										<p className="text-sm font-medium truncate">
 											{uploadingFile.file.name}
 										</p>
-										<span className="text-xs text-muted-foreground ml-2">
+										<span className="text-xs text-muted-foreground shrink-0">
 											{formatFileSize(uploadingFile.file.size)}
 										</span>
 									</div>
 
 									{uploadingFile.status === "uploading" && (
-										<div className="space-y-1">
+										// gap en lugar de space-y
+										<div className="flex flex-col gap-1">
 											<Progress
 												value={uploadingFile.progress}
 												className="h-1.5"
@@ -601,15 +648,17 @@ export function UploadingFilesCard({
 									)}
 
 									{uploadingFile.status === "success" && (
+										// gap en lugar de space-x
 										<div className="flex items-center gap-1 text-success">
-											<CheckCircle className="h-3 w-3" />
+											<CheckCircle className="size-3" />
 											<span className="text-xs">Uploaded successfully</span>
 										</div>
 									)}
 
 									{uploadingFile.status === "error" && (
+										// gap en lugar de space-x
 										<div className="flex items-center gap-1 text-destructive">
-											<AlertCircle className="h-3 w-3" />
+											<AlertCircle className="size-3" />
 											<span className="text-xs">
 												{uploadingFile.error || "Upload failed"}
 											</span>
@@ -623,7 +672,7 @@ export function UploadingFilesCard({
 										size="sm"
 										onClick={() => onCancelUpload(uploadingFile.id)}
 									>
-										<X className="h-4 w-4" />
+										<X className="size-4" />
 									</Button>
 								)}
 							</div>
@@ -647,8 +696,9 @@ export function UploadedFilesCard({
 		return (
 			<Card className="aqua-panel">
 				<CardContent className="p-6">
+					{/* gap en lugar de space-x */}
 					<div className="flex items-center justify-center gap-2">
-						<Loader2 className="h-5 w-5 animate-spin" />
+						<Loader2 className="size-5 animate-spin" />
 						<span className="text-sm text-muted-foreground">
 							Loading files...
 						</span>
@@ -680,7 +730,8 @@ export function UploadedFilesCard({
 					</span>
 				</div>
 
-				<div className="space-y-3">
+				{/* gap en lugar de space-y */}
+				<div className="flex flex-col gap-3">
 					{files.map((file) => {
 						const FileIcon = getFileIcon(file.file_type);
 						const hasAiCapability =
@@ -705,32 +756,37 @@ export function UploadedFilesCard({
 								}}
 							>
 								<div className="rounded-lg bg-primary/10 p-2.5 group-hover:bg-primary/15 transition-colors">
-									<FileIcon className="h-5 w-5 text-primary" />
+									<FileIcon className="size-5 text-primary" />
 								</div>
 
-								<div className="flex-1 min-w-0 space-y-1">
+								{/* gap en lugar de space-y */}
+								<div className="flex-1 min-w-0 flex flex-col gap-1">
+									{/* gap en lugar de space-x */}
 									<div className="flex items-center gap-2">
 										<p className="text-sm font-medium truncate">
 											{file.filename}
 										</p>
 										{processingBadge && (
-											<Badge
-												variant="outline"
-												className={cn(
-													"text-[10px] shrink-0 border flex items-center gap-1",
-													processingBadge.style,
-												)}
+											// Usar StatusChip en lugar de Badge con colores hardcodeados
+											<StatusChip
+												status={processingBadge.status}
+												variant={processingBadge.variant}
+												size="xs"
+												shape="pill"
+												icon={
+													<processingBadge.IconComponent
+														className={cn(
+															"size-3",
+															processingBadge.iconClassName,
+														)}
+													/>
+												}
 											>
-												<processingBadge.IconComponent
-													className={cn(
-														"h-3 w-3",
-														processingBadge.iconClassName,
-													)}
-												/>
 												{processingBadge.label}
-											</Badge>
+											</StatusChip>
 										)}
 									</div>
+									{/* gap en lugar de space-x */}
 									<div className="flex items-center gap-2 text-xs text-muted-foreground">
 										<span>{formatFileSize(file.file_size)}</span>
 										<span>•</span>
@@ -753,7 +809,7 @@ export function UploadedFilesCard({
 									className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
 									disabled={readOnly}
 								>
-									<X className="h-4 w-4" />
+									<X className="size-4" />
 								</Button>
 							</div>
 						);

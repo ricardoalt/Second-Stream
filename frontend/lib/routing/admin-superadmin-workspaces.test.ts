@@ -205,10 +205,6 @@ describe("admin-first dashboard and navigation", () => {
 		expect(dashboardPageSource.includes("AdminDashboardPageContent")).toBe(
 			true,
 		);
-		expect(dashboardPageSource.includes('streamsPath="/streams"')).toBe(true);
-		expect(dashboardPageSource.includes('teamPath="/settings/team"')).toBe(
-			true,
-		);
 	});
 
 	it("builds role-aware navigation for shared product routes", () => {

@@ -1,18 +1,14 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
+import { Geist, Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import type React from "react";
 import { ClientLayout } from "@/components/providers/client-layout";
 import { ThemeProvider } from "@/components/shared/common/theme-provider";
 import "./globals.css";
 import "./theme-overrides.css";
+import { cn } from "@/lib/utils";
 
-const inter = Inter({
-	subsets: ["latin"],
-	variable: "--font-sans",
-	weight: ["400", "500", "600", "700"],
-	display: "swap",
-});
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 const manrope = Manrope({
 	subsets: ["latin"],
@@ -40,7 +36,11 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang="en" suppressHydrationWarning>
+		<html
+			lang="en"
+			suppressHydrationWarning
+			className={cn("font-sans", inter.variable)}
+		>
 			<body
 				className={`${inter.variable} ${manrope.variable} ${jetbrains.variable} font-sans antialiased`}
 			>

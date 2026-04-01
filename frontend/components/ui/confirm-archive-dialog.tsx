@@ -12,6 +12,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 interface ConfirmArchiveDialogProps {
 	open: boolean;
@@ -24,6 +25,21 @@ interface ConfirmArchiveDialogProps {
 	onForceConfirm?: () => void | Promise<void>;
 }
 
+/**
+ * Confirm Archive Dialog - Editorial Design System
+ *
+ * Standardized confirmation dialog for archive operations.
+ * Uses semantic tokens (warning) instead of hardcoded colors.
+ *
+ * @example
+ * <ConfirmArchiveDialog
+ *   open={open}
+ *   onOpenChange={setOpen}
+ *   onConfirm={handleConfirm}
+ *   entityType="project"
+ *   entityName="Project Alpha"
+ * />
+ */
 export function ConfirmArchiveDialog({
 	open,
 	onOpenChange,
@@ -50,12 +66,21 @@ export function ConfirmArchiveDialog({
 		<AlertDialog open={open} onOpenChange={onOpenChange}>
 			<AlertDialogContent>
 				<AlertDialogHeader>
+					{/* gap en lugar de space-x */}
 					<div className="flex items-center gap-3">
-						<div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10">
+						{/* size-* en lugar de h-* w-* */}
+						<div
+							className={cn(
+								"flex size-10 items-center justify-center rounded-full",
+								// Token semántico en lugar de bg-amber-500/10
+								"bg-warning/10",
+							)}
+						>
 							{isForceMode ? (
-								<Users className="h-5 w-5 text-amber-500" />
+								// size-* en lugar de h-* w-*
+								<Users className="size-5 text-warning" />
 							) : (
-								<Archive className="h-5 w-5 text-amber-500" />
+								<Archive className="size-5 text-warning" />
 							)}
 						</div>
 						<AlertDialogTitle>
@@ -64,14 +89,15 @@ export function ConfirmArchiveDialog({
 								: `Archive ${entityType}?`}
 						</AlertDialogTitle>
 					</div>
-					<AlertDialogDescription className="mt-4 space-y-2">
+					{/* gap en lugar de space-y */}
+					<AlertDialogDescription className="mt-4 flex flex-col gap-2">
 						{isForceMode ? (
 							<>
-								<span className="block">
+								<span>
 									This {entityType} has active users. Archiving will deactivate
 									all members and make the {entityType} read-only.
 								</span>
-								<span className="block">
+								<span>
 									<span className="font-semibold text-foreground">
 										{entityName}
 									</span>
@@ -79,11 +105,11 @@ export function ConfirmArchiveDialog({
 							</>
 						) : (
 							<>
-								<span className="block">
+								<span>
 									Are you sure you want to archive this {entityType}? It will
 									become read-only and hidden from active lists.
 								</span>
-								<span className="block">
+								<span>
 									<span className="font-semibold text-foreground">
 										{entityName}
 									</span>
@@ -98,7 +124,8 @@ export function ConfirmArchiveDialog({
 						<AlertDialogAction
 							onClick={handleForceConfirm}
 							disabled={loading}
-							className="bg-amber-500 text-white hover:bg-amber-600"
+							// Token semántico en lugar de bg-amber-500
+							className="bg-warning text-warning-foreground hover:bg-warning/90"
 						>
 							{loading ? "Archiving…" : "Archive & Deactivate Users"}
 						</AlertDialogAction>
@@ -106,7 +133,7 @@ export function ConfirmArchiveDialog({
 						<AlertDialogAction
 							onClick={handleConfirm}
 							disabled={loading}
-							className="bg-amber-500 text-white hover:bg-amber-600"
+							className="bg-warning text-warning-foreground hover:bg-warning/90"
 						>
 							{loading ? "Archiving…" : "Archive"}
 						</AlertDialogAction>

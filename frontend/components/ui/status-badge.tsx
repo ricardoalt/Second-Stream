@@ -1,146 +1,127 @@
-import { cva, type VariantProps } from "class-variance-authority";
-import type * as React from "react";
+import { memo } from "react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
+// Design System: Industrial Precision & Fluidity
+// Status Badge Variants - Built on shadcn Badge
+
+type StatusVariant =
+	| "critical"
+	| "warning"
+	| "success"
+	| "info"
+	| "neutral"
+	| "pipeline";
+
+interface StatusBadgeProps {
+	variant: StatusVariant;
+	children: React.ReactNode;
+	days?: number;
+	className?: string;
+}
+
 /**
- * Semantic Status Badge - Unifies all status indicators across the app
- * Follows Stitch pattern: color = semantic meaning
+ * Status Badge - Industrial Precision Design System
  *
- * Severity mapping:
- * - critical: Blocked, Failed, Rejected, Overdue, Error
- * - warning: Pending, Missing Info, In Review, Stalled
- * - success: Active, Approved, Complete, Won, Paid
- * - info: Submitted, In Progress, Draft, Scheduled
- * - neutral: Archived, Cancelled, On Hold, Default
+ * Built on shadcn Badge with design system colors.
+ * Pill-shaped (rounded-full) for contrast with md corners.
+ *
+ * @example
+ * <StatusBadge variant="critical" days={4}>Missing SDS</StatusBadge>
+ * <StatusBadge variant="warning" days={28}>Offer Stalled</StatusBadge>
+ * <StatusBadge variant="success">On Track</StatusBadge>
  */
-
-const statusBadgeVariants = cva(
-	"inline-flex items-center rounded-full border-0 px-2.5 py-0.5 text-xs font-medium transition-colors",
-	{
-		variants: {
-			severity: {
-				critical: "bg-destructive/15 text-destructive",
-				warning: "bg-warning/15 text-warning",
-				success: "bg-success/15 text-success",
-				info: "bg-primary/15 text-primary",
-				neutral: "bg-muted text-muted-foreground",
-			},
-		},
-		defaultVariants: {
-			severity: "neutral",
-		},
-	},
-);
-
-export interface StatusBadgeProps
-	extends React.HTMLAttributes<HTMLDivElement>,
-		VariantProps<typeof statusBadgeVariants> {
-	/** Status value to determine severity and label */
-	status: string;
-	/** Optional custom label (defaults to status value) */
-	label?: string;
-}
-
-/**
- * Maps common status values to semantic severity levels
- */
-function getSeverityFromStatus(
-	status: string,
-): VariantProps<typeof statusBadgeVariants>["severity"] {
-	const normalized = status.toLowerCase().trim();
-
-	// Critical/Destructive states
-	if (
-		normalized.includes("blocked") ||
-		normalized.includes("failed") ||
-		normalized.includes("rejected") ||
-		normalized.includes("overdue") ||
-		normalized.includes("error") ||
-		normalized.includes("critical") ||
-		normalized.includes("expired") ||
-		normalized.includes("declined")
-	) {
-		return "critical";
-	}
-
-	// Warning states
-	if (
-		normalized.includes("pending") ||
-		normalized.includes("missing") ||
-		normalized.includes("review") ||
-		normalized.includes("stalled") ||
-		normalized.includes("waiting") ||
-		normalized.includes("attention") ||
-		normalized.includes("negotiation") ||
-		normalized.includes("draft")
-	) {
-		return "warning";
-	}
-
-	// Success states
-	if (
-		normalized.includes("active") ||
-		normalized.includes("approved") ||
-		normalized.includes("complete") ||
-		normalized.includes("won") ||
-		normalized.includes("paid") ||
-		normalized.includes("accepted") ||
-		normalized.includes("ready") ||
-		normalized.includes("resolved") ||
-		normalized.includes("sent") ||
-		normalized.includes("live")
-	) {
-		return "success";
-	}
-
-	// Info/Primary states
-	if (
-		normalized.includes("submitted") ||
-		normalized.includes("progress") ||
-		normalized.includes("current") ||
-		normalized.includes("scheduled") ||
-		normalized.includes("under_review") ||
-		normalized.includes("in_review")
-	) {
-		return "info";
-	}
-
-	// Default to neutral for unknown states
-	return "neutral";
-}
-
-/**
- * Formats a status string for display
- */
-function formatStatusLabel(status: string): string {
-	// Replace underscores with spaces and capitalize words
-	return status
-		.replace(/_/g, " ")
-		.replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function StatusBadge({
+export const StatusBadge = memo(function StatusBadge({
+	variant,
+	children,
+	days,
 	className,
-	severity,
-	status,
-	label,
-	...props
 }: StatusBadgeProps) {
-	// Determine severity from status if not explicitly provided
-	const resolvedSeverity = severity ?? getSeverityFromStatus(status);
-	const displayLabel = label ?? formatStatusLabel(status);
+	const displayText =
+		days !== undefined ? `${children} (${days} days)` : children;
+
+	// Tailwind color mappings consistent with shadcn
+	const variantStyles: Record<StatusVariant, string> = {
+		critical:
+			"bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400",
+		warning:
+			"bg-orange-100 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400",
+		success:
+			"bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400",
+		info: "bg-cyan-100 text-cyan-700 hover:bg-cyan-100 dark:bg-cyan-900/30 dark:text-cyan-400",
+		neutral:
+			"bg-slate-100 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400",
+		pipeline:
+			"bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400",
+	};
 
 	return (
-		<div
+		<Badge
 			className={cn(
-				statusBadgeVariants({ severity: resolvedSeverity }),
+				"rounded-full border-0 px-3 py-1 text-xs font-medium",
+				variantStyles[variant],
 				className,
 			)}
-			{...props}
 		>
-			{displayLabel}
-		</div>
+			{displayText}
+		</Badge>
 	);
-}
+});
 
-export { StatusBadge, statusBadgeVariants, getSeverityFromStatus };
+// Convenience exports
+export const CriticalBadge = memo(function CriticalBadge({
+	children,
+	days,
+	className,
+}: Omit<StatusBadgeProps, "variant">) {
+	return (
+		<StatusBadge variant="critical" days={days} className={className}>
+			{children}
+		</StatusBadge>
+	);
+});
+
+export const WarningBadge = memo(function WarningBadge({
+	children,
+	days,
+	className,
+}: Omit<StatusBadgeProps, "variant">) {
+	return (
+		<StatusBadge variant="warning" days={days} className={className}>
+			{children}
+		</StatusBadge>
+	);
+});
+
+export const SuccessBadge = memo(function SuccessBadge({
+	children,
+	className,
+}: Omit<StatusBadgeProps, "variant" | "days">) {
+	return (
+		<StatusBadge variant="success" className={className}>
+			{children}
+		</StatusBadge>
+	);
+});
+
+export const InfoBadge = memo(function InfoBadge({
+	children,
+	className,
+}: Omit<StatusBadgeProps, "variant" | "days">) {
+	return (
+		<StatusBadge variant="info" className={className}>
+			{children}
+		</StatusBadge>
+	);
+});
+
+export const PipelineBadge = memo(function PipelineBadge({
+	children,
+	className,
+}: Omit<StatusBadgeProps, "variant" | "days">) {
+	return (
+		<StatusBadge variant="pipeline" className={className}>
+			{children}
+		</StatusBadge>
+	);
+});

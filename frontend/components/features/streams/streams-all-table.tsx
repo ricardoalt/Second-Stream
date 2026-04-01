@@ -10,6 +10,7 @@ import {
 	MoreHorizontal,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { StatusChip } from "@/components/system/status-chip";
 import { Button } from "@/components/ui/button";
 import {
 	Table,
@@ -27,71 +28,148 @@ type StreamsAllTableProps = {
 	onOpenDraft: (id: string) => void;
 };
 
-const statusConfig: Record<
+/**
+ * Mapeo de estados de Stream a variantes de StatusChip
+ *
+ * Design System Editorial - Tokens semánticos:
+ * - success: Estados positivos (active, completed, go confirm)
+ * - warning: Estados de atención (blocked, pending review)
+ * - destructive: Estados críticos (missing_info)
+ * - primary: Estados en progreso (in_review, ready_for_offer)
+ * - secondary: Estados neutrales (draft)
+ * - muted: Estados finales/archivados (completed)
+ */
+const statusToChipVariant: Record<
 	StreamStatus,
-	{ bg: string; text: string; border: string; label: string }
+	{
+		status: React.ComponentProps<typeof StatusChip>["status"];
+		variant: React.ComponentProps<typeof StatusChip>["variant"];
+		label: string;
+		icon?: React.ReactNode;
+	}
 > = {
 	active: {
-		bg: "bg-emerald-50/80",
-		text: "text-emerald-700",
-		border: "border-emerald-200",
+		status: "success",
+		variant: "subtle",
 		label: "Active",
 	},
 	draft: {
-		bg: "bg-slate-100",
-		text: "text-slate-700",
-		border: "border-slate-200",
+		status: "info",
+		variant: "subtle",
 		label: "Draft",
 	},
 	in_review: {
-		bg: "bg-blue-50/80",
-		text: "text-blue-700",
-		border: "border-blue-200",
+		status: "info",
+		variant: "subtle",
 		label: "In review",
 	},
 	missing_info: {
-		bg: "bg-rose-50/80",
-		text: "text-rose-700",
-		border: "border-rose-200",
+		status: "error",
+		variant: "subtle",
 		label: "Missing info",
 	},
 	blocked: {
-		bg: "bg-red-50/80",
-		text: "text-red-700",
-		border: "border-red-200",
+		status: "warning",
+		variant: "subtle",
 		label: "Blocked",
 	},
 	ready_for_offer: {
-		bg: "bg-indigo-50/80",
-		text: "text-indigo-700",
-		border: "border-indigo-200",
+		status: "active",
+		variant: "subtle",
 		label: "Ready",
 	},
 	completed: {
-		bg: "bg-slate-50",
-		text: "text-slate-600",
-		border: "border-slate-200",
+		status: "completed",
+		variant: "subtle",
 		label: "Completed",
 	},
 };
 
+/**
+ * Mapeo de estados a alertas (AlertBadge refactorizado)
+ *
+ * Estados con alertas especiales necesitan iconos y mensajes
+ */
+const alertConfig: Record<
+	StreamStatus,
+	{
+		status: React.ComponentProps<typeof StatusChip>["status"];
+		label: string;
+		icon: React.ReactNode;
+		show: boolean;
+	}
+> = {
+	active: {
+		status: "success",
+		label: "No issues",
+		icon: <CheckCircle2 className="size-3.5" />,
+		show: true,
+	},
+	draft: {
+		status: "success",
+		label: "Go Confirm",
+		icon: <CheckCircle2 className="size-3.5" />,
+		show: true,
+	},
+	in_review: {
+		status: "info",
+		label: "In review",
+		icon: <Clock className="size-3.5" />,
+		show: true,
+	},
+	missing_info: {
+		status: "error",
+		label: "Info required",
+		icon: <AlertTriangle className="size-3.5" />,
+		show: true,
+	},
+	blocked: {
+		status: "warning",
+		label: "Pending review",
+		icon: <Clock className="size-3.5" />,
+		show: true,
+	},
+	ready_for_offer: {
+		status: "active",
+		label: "Ready to offer",
+		icon: <FileWarning className="size-3.5" />,
+		show: true,
+	},
+	completed: {
+		status: "completed",
+		label: "Done",
+		icon: <CheckCircle2 className="size-3.5" />,
+		show: false, // No mostrar alerta para completed
+	},
+};
+
+/**
+ * StatusPill refactorizado usando StatusChip del Design System
+ *
+ * Antes: Colores hardcodeados (bg-emerald-50, text-emerald-700, etc.)
+ * Después: Tokens semánticos (status="success", variant="subtle")
+ */
 function StatusPill({ status }: { status: StreamStatus }) {
-	const config = statusConfig[status];
+	const config = statusToChipVariant[status];
 
 	return (
-		<span
-			className={cn(
-				"inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium",
-				config.bg,
-				config.text,
-				config.border,
-			)}
+		<StatusChip
+			status={config.status}
+			variant={config.variant}
+			size="sm"
+			shape="pill"
 		>
 			{config.label}
-		</span>
+		</StatusChip>
 	);
 }
 
+/**
+ * AlertBadge refactorizado usando StatusChip
+ *
+ * Antes: Badges custom con colores hardcodeados
+ * Después: StatusChip con iconos y variantes semánticas
+ */
 function AlertBadge({
 	status,
 	alertText,
@@ -99,47 +177,32 @@ function AlertBadge({
 	status: StreamStatus;
 	alertText: string | undefined;
 }) {
-	if (status === "draft") {
+	const config = alertConfig[status];
+
+	// No mostrar alerta para estados que no requieren atención
+	if (!config.show) {
 		return (
-			<span className="inline-flex items-center gap-1.5 rounded-lg bg-teal-100 px-3 py-1.5 text-xs font-medium text-teal-700">
+			<StatusChip status="success" variant="ghost" size="sm" shape="rounded">
 				<CheckCircle2 className="size-3.5" />
-				Go Confirm
-			</span>
+				No issues
+			</StatusChip>
 		);
 	}
 
-	if (status === "missing_info") {
-		return (
-			<span className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700">
-				<AlertTriangle className="size-3.5" />
-				{alertText || "CRITICAL: Info required"}
-			</span>
-		);
-	}
-
-	if (status === "blocked") {
-		return (
-			<span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
-				<Clock className="size-3.5" />
-				Pending review
-			</span>
-		);
-	}
-
-	if (status === "ready_for_offer") {
-		return (
-			<span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700">
-				<FileWarning className="size-3.5" />
-				Ready to offer
-			</span>
-		);
-	}
+	// Para missing_info, usar el texto custom si existe
+	const label =
+		status === "missing_info" && alertText ? alertText : config.label;
 
 	return (
-		<span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
-			<CheckCircle2 className="size-3.5" />
-			No issues
-		</span>
+		<StatusChip
+			status={config.status}
+			variant="subtle"
+			size="sm"
+			shape="rounded"
+			icon={config.icon}
+		>
+			{label}
+		</StatusChip>
 	);
 }
 
@@ -149,6 +212,10 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 	return (
 		<Table>
 			<TableHeader>
+				{/* 
+					No-Line Rule: Usamos border-b sutil solo en header
+					En filas usamos hover:bg para separación visual
+				*/}
 				<TableRow className="border-b border-border/40 hover:bg-transparent">
 					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
 						Material &amp; Client
@@ -196,10 +263,11 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 							whileTap={{ scale: 0.998 }}
 							onClick={handleRowClick}
 							className={cn(
-								"group cursor-pointer border-b border-border/20",
-								"transition-all duration-200 ease-out",
-								"hover:bg-surface-container-high/30",
-								"last:border-b-0",
+								// No-Line Rule: Sin bordes entre filas
+								// Usamos hover:bg para separación visual
+								"group cursor-pointer transition-all duration-200 ease-out",
+								"hover:bg-muted/30",
+								"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 							)}
 							tabIndex={0}
 							onKeyDown={(e) => {
@@ -211,6 +279,7 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 						>
 							{/* Material & Client */}
 							<TableCell className="px-6 py-5">
+								{/* gap en lugar de space-y */}
 								<div className="flex flex-col gap-1">
 									<span className="text-sm font-semibold text-foreground transition-colors duration-200 group-hover:text-primary">
 										{row.name}
@@ -247,12 +316,13 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 
 							{/* Actions */}
 							<TableCell className="px-6 py-5 text-right">
-								<div className="flex items-center justify-end gap-1">
+								<div className="flex items-center justify-end gap-2">
 									{isDraft ? (
 										<Button
 											variant="ghost"
 											size="sm"
-											className="h-8 gap-1 px-3 text-xs font-medium text-teal-700 hover:bg-teal-50 hover:text-teal-800"
+											// Usamos tokens semánticos en lugar de colores hardcodeados
+											className="h-8 gap-1 px-3 text-xs font-medium text-success hover:bg-success/10 hover:text-success"
 											onClick={(e) => {
 												e.stopPropagation();
 												onOpenDraft(row.id);
@@ -266,6 +336,7 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 											<Button
 												variant="ghost"
 												size="icon"
+												// size-* en lugar de w-* h-*
 												className="size-8 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
 												onClick={(e) => {
 													e.stopPropagation();
