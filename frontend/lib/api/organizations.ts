@@ -92,6 +92,8 @@ interface RawUserResponse {
 	organization_id?: string | null;
 	permissions?: string[];
 	permissions_version?: string;
+	open_streams_count?: number;
+	openStreamsCount?: number;
 }
 
 interface RawPurgeForcePendingResponse {
@@ -151,6 +153,8 @@ function transformUser(response: RawUserResponse): User {
 		permissions: response.permissions ?? [],
 		permissionsVersion:
 			response.permissions_version ?? "2026-02-28-role-authz-mvp-v1",
+		openStreamsCount:
+			response.openStreamsCount ?? response.open_streams_count ?? 0,
 	};
 }
 

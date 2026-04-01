@@ -1,16 +1,9 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock, Mail, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -45,34 +38,29 @@ const PASSWORD_REQUIREMENTS = [
 const TENANT_ROLES: {
 	value: Exclude<UserRole, "admin">;
 	label: string;
-	description: string;
 }[] = [
 	{
 		value: "org_admin",
 		label: "Org Admin",
-		description: "Full access to organization settings and user management",
 	},
 	{
 		value: "field_agent",
 		label: "Field Agent",
-		description: "Create and manage field assessments",
 	},
-	// {
-	// 	value: "sales",
-	// 	label: "Sales Rep",
-	// 	description: "View projects and manage proposals",
-	// },
-	// {
-	// 	value: "contractor",
-	// 	label: "Contractor",
-	// 	description: "Execute approved projects",
-	// },
-	// {
-	// 	value: "compliance",
-	// 	label: "Compliance",
-	// 	description: "Review and approve compliance requirements",
-	// },
 ];
+
+export const ADD_USER_MODAL_COPY = {
+	title: "Add team member",
+	subtitle: "Enter the required account details.",
+	fields: {
+		firstName: "First name",
+		lastName: "Last name",
+		email: "Email address",
+		role: "Role",
+		password: "Password",
+		confirmPassword: "Confirm password",
+	},
+} as const;
 
 function getPasswordStrength(password: string): {
 	score: number;
@@ -103,7 +91,6 @@ export function AddUserModal({
 	open,
 	onOpenChange,
 	onSubmit,
-	organizationName,
 }: AddUserModalProps) {
 	const [form, setForm] = useState({
 		email: "",
@@ -111,7 +98,7 @@ export function AddUserModal({
 		confirmPassword: "",
 		firstName: "",
 		lastName: "",
-		role: "field_agent" as Exclude<UserRole, "admin">,
+		role: "" as Exclude<UserRole, "admin"> | "",
 	});
 	const [submitting, setSubmitting] = useState(false);
 
@@ -126,7 +113,7 @@ export function AddUserModal({
 			confirmPassword: "",
 			firstName: "",
 			lastName: "",
-			role: "field_agent",
+			role: "",
 		});
 	};
 
@@ -143,7 +130,8 @@ export function AddUserModal({
 			/[0-9]/.test(form.password) &&
 			form.password === form.confirmPassword &&
 			form.firstName.trim() !== "" &&
-			form.lastName.trim() !== ""
+			form.lastName.trim() !== "" &&
+			form.role !== ""
 		);
 	}, [form]);
 
@@ -157,7 +145,7 @@ export function AddUserModal({
 				password: form.password,
 				firstName: form.firstName.trim(),
 				lastName: form.lastName.trim(),
-				role: form.role,
+				role: form.role as Exclude<UserRole, "admin">,
 			});
 			resetForm();
 			onOpenChange(false);
@@ -173,182 +161,241 @@ export function AddUserModal({
 
 	return (
 		<Dialog open={open} onOpenChange={handleClose}>
-			<DialogContent className="sm:max-w-[425px]">
-				<DialogHeader>
-					<DialogTitle>Add Team Member</DialogTitle>
-					<DialogDescription>
-						{organizationName
-							? `Create a new user in ${organizationName}`
-							: "Create a new user in your organization"}
-					</DialogDescription>
-				</DialogHeader>
-				<div className="space-y-4 py-4">
-					<div className="space-y-2">
-						<Label htmlFor="email">Email *</Label>
-						<Input
-							id="email"
-							type="email"
-							placeholder="user@company.com"
-							value={form.email}
-							onChange={(e) => handleInputChange("email", e.target.value)}
-						/>
-					</div>
+			<DialogContent className="overflow-hidden border-border/60 p-0 sm:max-w-[560px]">
+				<div className="relative border-b border-border/60 bg-muted/30 px-6 py-5">
+					<button
+						type="button"
+						onClick={handleClose}
+						className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+						aria-label="Close"
+					>
+						<X className="h-5 w-5" />
+					</button>
+
+					<DialogTitle className="text-xl font-semibold text-foreground">
+						{ADD_USER_MODAL_COPY.title}
+					</DialogTitle>
+					<p className="mt-1 text-sm text-muted-foreground">
+						{ADD_USER_MODAL_COPY.subtitle}
+					</p>
+				</div>
+
+				<div className="space-y-5 px-6 py-6">
 					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
-							<Label htmlFor="firstName">First Name *</Label>
+							<Label
+								htmlFor="firstName"
+								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+							>
+								{ADD_USER_MODAL_COPY.fields.firstName}
+							</Label>
 							<Input
 								id="firstName"
+								placeholder="First name"
 								value={form.firstName}
 								onChange={(e) => handleInputChange("firstName", e.target.value)}
+								className="h-11"
 							/>
 						</div>
+
 						<div className="space-y-2">
-							<Label htmlFor="lastName">Last Name *</Label>
+							<Label
+								htmlFor="lastName"
+								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+							>
+								{ADD_USER_MODAL_COPY.fields.lastName}
+							</Label>
 							<Input
 								id="lastName"
+								placeholder="Last name"
 								value={form.lastName}
 								onChange={(e) => handleInputChange("lastName", e.target.value)}
+								className="h-11"
 							/>
 						</div>
 					</div>
+
 					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
-							<Label htmlFor="password">Password *</Label>
-							<Input
-								id="password"
-								type="password"
-								value={form.password}
-								onChange={(e) => handleInputChange("password", e.target.value)}
-								aria-describedby="password-requirements"
-							/>
+							<Label
+								htmlFor="email"
+								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+							>
+								{ADD_USER_MODAL_COPY.fields.email}
+							</Label>
+							<div className="relative">
+								<Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+								<Input
+									id="email"
+									type="email"
+									placeholder="name@company.com"
+									value={form.email}
+									onChange={(e) => handleInputChange("email", e.target.value)}
+									className="h-11 pl-10"
+								/>
+							</div>
 						</div>
+
 						<div className="space-y-2">
-							<Label htmlFor="confirmPassword">Confirm *</Label>
-							<Input
-								id="confirmPassword"
-								type="password"
-								value={form.confirmPassword}
-								onChange={(e) =>
-									handleInputChange("confirmPassword", e.target.value)
+							<Label
+								htmlFor="role"
+								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+							>
+								{ADD_USER_MODAL_COPY.fields.role}
+							</Label>
+							<Select
+								value={form.role}
+								onValueChange={(value) =>
+									handleInputChange("role", value as Exclude<UserRole, "admin">)
 								}
-								aria-invalid={
-									form.confirmPassword.length > 0 &&
-									form.password !== form.confirmPassword
-								}
-								aria-describedby={
-									form.confirmPassword.length > 0 &&
-									form.password !== form.confirmPassword
-										? "password-mismatch"
-										: undefined
-								}
-							/>
+							>
+								<SelectTrigger className="h-11 w-full">
+									<SelectValue placeholder="Select role" />
+								</SelectTrigger>
+								<SelectContent>
+									{TENANT_ROLES.map((role) => (
+										<SelectItem key={role.value} value={role.value}>
+											{role.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
 					</div>
-					{form.confirmPassword.length > 0 &&
-						form.password !== form.confirmPassword && (
-							<p
-								id="password-mismatch"
-								className="text-xs text-destructive"
-								role="alert"
-							>
-								Passwords do not match
-							</p>
-						)}
-					{form.password && (
+
+					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
+							<Label
+								htmlFor="password"
+								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+							>
+								{ADD_USER_MODAL_COPY.fields.password}
+							</Label>
+							<div className="relative">
+								<Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+								<Input
+									id="password"
+									type="password"
+									placeholder="••••••••"
+									value={form.password}
+									onChange={(e) =>
+										handleInputChange("password", e.target.value)
+									}
+									className="h-11 pl-10"
+								/>
+							</div>
+						</div>
+
+						<div className="space-y-2">
+							<Label
+								htmlFor="confirmPassword"
+								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+							>
+								{ADD_USER_MODAL_COPY.fields.confirmPassword}
+							</Label>
+							<div className="relative">
+								<Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+								<Input
+									id="confirmPassword"
+									type="password"
+									placeholder="Re-enter password"
+									value={form.confirmPassword}
+									onChange={(e) =>
+										handleInputChange("confirmPassword", e.target.value)
+									}
+									aria-invalid={
+										form.confirmPassword.length > 0 &&
+										form.password !== form.confirmPassword
+									}
+									className={cn(
+										"h-11 pl-10",
+										form.confirmPassword.length > 0 &&
+											form.password !== form.confirmPassword &&
+											"border-red-400 focus:border-red-400 focus-visible:ring-red-400/20",
+									)}
+								/>
+							</div>
+							{form.confirmPassword.length > 0 &&
+								form.password !== form.confirmPassword && (
+									<p className="mt-1 text-xs text-red-500" role="alert">
+										Passwords do not match
+									</p>
+								)}
+						</div>
+					</div>
+
+					{form.password && (
+						<div className="space-y-2 pt-1">
 							<div className="flex items-center gap-2">
-								<div
-									className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden"
-									role="progressbar"
-									aria-valuenow={passwordStrength.score}
-									aria-valuemin={0}
-									aria-valuemax={5}
-									aria-label={`Password strength: ${passwordStrength.label}`}
-								>
+								<div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
 									<div
 										className={cn(
-											"h-full transition-[width]",
+											"h-full transition-all duration-300",
 											passwordStrength.color,
 										)}
 										style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
 									/>
 								</div>
-								<span className="text-xs text-muted-foreground">
+								<span className="min-w-[50px] text-xs font-medium text-muted-foreground">
 									{passwordStrength.label}
 								</span>
 							</div>
+
+							<ul className="flex flex-wrap gap-3">
+								{PASSWORD_REQUIREMENTS.map((req) => {
+									const passed =
+										form.password.length > 0 && req.test(form.password);
+									return (
+										<li
+											key={req.key}
+											className={cn(
+												"flex items-center gap-1 text-[10px] transition-colors",
+												passed
+													? "text-emerald-600 dark:text-emerald-400"
+													: "text-muted-foreground",
+											)}
+										>
+											<span
+												className={cn(
+													"w-3.5 h-3.5 rounded-full flex items-center justify-center",
+													passed
+														? "bg-emerald-100 dark:bg-emerald-900/30"
+														: "bg-muted",
+												)}
+											>
+												{passed ? (
+													<span
+														aria-hidden="true"
+														className="text-[10px] leading-none"
+													>
+														✓
+													</span>
+												) : (
+													<span className="w-1 h-1 rounded-full bg-current" />
+												)}
+											</span>
+											<span>{req.label}</span>
+										</li>
+									);
+								})}
+							</ul>
 						</div>
 					)}
-					<ul
-						id="password-requirements"
-						className="space-y-1"
-						aria-label="Password requirements"
-					>
-						{PASSWORD_REQUIREMENTS.map((req) => {
-							const passed =
-								form.password.length > 0 && req.test(form.password);
-							return (
-								<li
-									key={req.key}
-									className={cn(
-										"flex items-center gap-2 text-xs transition-colors",
-										form.password.length === 0
-											? "text-muted-foreground"
-											: passed
-												? "text-green-600 dark:text-green-400"
-												: "text-muted-foreground",
-									)}
-								>
-									<span className="w-3 text-center" aria-hidden="true">
-										{form.password.length === 0 ? "○" : passed ? "✓" : "○"}
-									</span>
-									<span>{req.label}</span>
-									<span className="sr-only">
-										{passed ? "(met)" : "(not met)"}
-									</span>
-								</li>
-							);
-						})}
-					</ul>
-					<div className="border-t border-border/50 my-4" />
-					<div className="space-y-2">
-						<Label htmlFor="role">Role *</Label>
-						<Select
-							value={form.role}
-							onValueChange={(value) =>
-								handleInputChange("role", value as Exclude<UserRole, "admin">)
-							}
-						>
-							<SelectTrigger>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{TENANT_ROLES.map((role) => (
-									<SelectItem key={role.value} value={role.value}>
-										<div>
-											<div>{role.label}</div>
-											<div className="text-xs text-muted-foreground">
-												{role.description}
-											</div>
-										</div>
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
 				</div>
-				<DialogFooter>
-					<Button variant="outline" onClick={handleClose}>
+
+				<div className="flex justify-end gap-3 border-t border-border/60 px-6 py-4">
+					<Button variant="ghost" onClick={handleClose}>
 						Cancel
 					</Button>
 					<Button
 						onClick={handleSubmit}
 						disabled={!canSubmitForm || submitting}
+						className="px-6"
 					>
 						{submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-						{submitting ? "Creating..." : "Create User"}
+						{submitting ? "Adding..." : "Add member"}
 					</Button>
-				</DialogFooter>
+				</div>
 			</DialogContent>
 		</Dialog>
 	);

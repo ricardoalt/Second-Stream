@@ -23,4 +23,5 @@ export interface User {
 	organizationId: string | null;
 	permissions: string[];
 	permissionsVersion: string;
+	openStreamsCount?: number;
 }

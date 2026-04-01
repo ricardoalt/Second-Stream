@@ -11,7 +11,6 @@ import {
 } from "@tanstack/react-table";
 import {
 	ArrowRightLeft,
-	ArrowUpDown,
 	MoreHorizontal,
 	Search,
 	User as UserIcon,
@@ -132,7 +131,7 @@ function UserAvatar({
 }
 
 interface UsersTableProps {
-	users: User[];
+	users: Array<User & { openStreamsCount?: number }>;
 	isLoading?: boolean | undefined;
 	currentUserId?: string | undefined;
 	canEditRoles?: boolean | undefined;
@@ -286,174 +285,161 @@ export function UsersTable({
 		? updatingUsers.has(pendingAction.userId)
 		: false;
 
-	const columns: ColumnDef<User>[] = useMemo(
-		() => [
-			{
-				accessorKey: "name",
-				header: ({ column }) => {
-					const sortState = column.getIsSorted();
-					return (
-						<Button
-							variant="ghost"
-							onClick={() => column.toggleSorting(sortState === "asc")}
-							aria-label={`Sort by name${sortState ? `, currently sorted ${sortState === "asc" ? "ascending" : "descending"}` : ""}`}
-						>
-							Name
-							<ArrowUpDown className="ml-2 h-4 w-4" />
-						</Button>
-					);
-				},
-				cell: ({ row }) => (
-					<div className="flex items-center gap-3">
-						<UserAvatar
-							firstName={row.original.firstName}
-							lastName={row.original.lastName}
-						/>
-						<div>
-							<div className="flex items-center gap-2">
-								<span className="font-medium">
-									{row.original.firstName} {row.original.lastName}
-								</span>
-								{row.original.id === currentUserId && (
-									<Badge variant="outline" className="text-xs">
-										You
-									</Badge>
-								)}
-							</div>
-							<div className="text-sm text-muted-foreground">
-								{row.original.email}
-							</div>
+	const columns: ColumnDef<User>[] = useMemo(() => [
+		{
+			accessorKey: "name",
+			header: "Team member",
+			cell: ({ row }) => (
+				<div className="flex items-center gap-3">
+					<UserAvatar
+						firstName={row.original.firstName}
+						lastName={row.original.lastName}
+					/>
+					<div className="min-w-0">
+						<div className="flex items-center gap-2">
+							<span className="font-medium text-slate-900 dark:text-slate-100 truncate">
+								{row.original.firstName} {row.original.lastName}
+							</span>
+							{row.original.id === currentUserId && (
+								<Badge variant="outline" className="text-xs shrink-0">
+									You
+								</Badge>
+							)}
+						</div>
+						<div className="text-sm text-slate-500 dark:text-slate-400 truncate">
+							{row.original.email}
 						</div>
 					</div>
-				),
-			},
-			{
-				accessorKey: "role",
-				header: "Role",
-				cell: ({ row }) => {
-					const isUpdating = updatingUsers.has(row.original.id);
-					const isSelf = row.original.id === currentUserId;
+				</div>
+			),
+		},
+		{
+			accessorKey: "role",
+			header: "Role",
+			cell: ({ row }) => {
+				const isUpdating = updatingUsers.has(row.original.id);
+				const isSelf = row.original.id === currentUserId;
 
-					if (canEditRoles && onRoleChange && !isSelf) {
-						return (
-							<Select
-								value={row.original.role}
-								onValueChange={(value) =>
-									requestRoleChange(
-										row.original.id,
-										value as Exclude<UserRole, "admin">,
-									)
+				if (canEditRoles && onRoleChange && !isSelf) {
+					return (
+						<Select
+							value={row.original.role}
+							onValueChange={(value) =>
+								requestRoleChange(
+									row.original.id,
+									value as Exclude<UserRole, "admin">,
+								)
+							}
+							disabled={isUpdating}
+						>
+							<SelectTrigger className="w-[140px]">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{TENANT_ROLES.map((role) => (
+									<SelectItem key={role.value} value={role.value}>
+										{role.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					);
+				}
+
+				return (
+					<Badge variant={getRoleBadgeVariant(row.original.role)}>
+						{formatRole(row.original.role)}
+					</Badge>
+				);
+			},
+		},
+		{
+			accessorKey: "isActive",
+			header: "Status",
+			cell: ({ row }) => {
+				const isUpdating = updatingUsers.has(row.original.id);
+				const isSelf = row.original.id === currentUserId;
+
+				if (canEditStatus && onStatusChange && !isSelf) {
+					return (
+						<div className="flex items-center gap-2">
+							<Switch
+								checked={row.original.isActive}
+								onCheckedChange={(checked) =>
+									requestStatusChange(row.original.id, checked)
 								}
 								disabled={isUpdating}
+								aria-label={`${row.original.isActive ? "Deactivate" : "Activate"} ${row.original.firstName} ${row.original.lastName}`}
+							/>
+							<span
+								className={cn(
+									"text-sm",
+									row.original.isActive
+										? "text-foreground"
+										: "text-muted-foreground",
+								)}
 							>
-								<SelectTrigger className="w-[140px]">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{TENANT_ROLES.map((role) => (
-										<SelectItem key={role.value} value={role.value}>
-											{role.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						);
-					}
-
-					return (
-						<Badge variant={getRoleBadgeVariant(row.original.role)}>
-							{formatRole(row.original.role)}
-						</Badge>
+								{row.original.isActive ? "Active" : "Inactive"}
+							</span>
+						</div>
 					);
-				},
-			},
-			{
-				accessorKey: "isActive",
-				header: "Status",
-				cell: ({ row }) => {
-					const isUpdating = updatingUsers.has(row.original.id);
-					const isSelf = row.original.id === currentUserId;
+				}
 
-					if (canEditStatus && onStatusChange && !isSelf) {
-						return (
-							<div className="flex items-center gap-2">
-								<Switch
-									checked={row.original.isActive}
-									onCheckedChange={(checked) =>
-										requestStatusChange(row.original.id, checked)
-									}
-									disabled={isUpdating}
-									aria-label={`${row.original.isActive ? "Deactivate" : "Activate"} ${row.original.firstName} ${row.original.lastName}`}
-								/>
-								<span
-									className={cn(
-										"text-sm",
-										row.original.isActive
-											? "text-foreground"
-											: "text-muted-foreground",
-									)}
-								>
-									{row.original.isActive ? "Active" : "Inactive"}
-								</span>
-							</div>
-						);
-					}
-
-					return (
-						<Badge variant={row.original.isActive ? "default" : "secondary"}>
-							{row.original.isActive ? "Active" : "Inactive"}
-						</Badge>
-					);
-				},
+				return (
+					<Badge variant={row.original.isActive ? "default" : "secondary"}>
+						{row.original.isActive ? "Active" : "Inactive"}
+					</Badge>
+				);
 			},
-			{
-				id: "actions",
-				header: "",
-				cell: ({ row }) => {
-					if (!onMoveMember) {
-						return null;
-					}
-					const isSelf = row.original.id === currentUserId;
-					if (isSelf) {
-						return null;
-					}
-					return (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									aria-label="Open member actions"
-								>
-									<MoreHorizontal className="h-4 w-4" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem
-									onClick={() => onMoveMember(row.original)}
-									className="text-muted-foreground"
-								>
-									<ArrowRightLeft className="h-4 w-4" />
-									Transfer member to another org
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					);
-				},
+		},
+		{
+			accessorKey: "openStreamsCount",
+			header: "Open Streams",
+			cell: ({ row }) => {
+				const count = row.original.openStreamsCount ?? 0;
+				return (
+					<span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+						{count} {count === 1 ? "stream" : "streams"}
+					</span>
+				);
 			},
-		],
-		[
-			currentUserId,
-			canEditRoles,
-			canEditStatus,
-			onRoleChange,
-			onStatusChange,
-			updatingUsers,
-			requestRoleChange,
-			requestStatusChange,
-			onMoveMember,
-		],
-	);
+		},
+		{
+			id: "actions",
+			header: "",
+			cell: ({ row }) => {
+				if (!onMoveMember) {
+					return null;
+				}
+				const isSelf = row.original.id === currentUserId;
+				if (isSelf) {
+					return null;
+				}
+				return (
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label="Open member actions"
+							>
+								<MoreHorizontal className="h-4 w-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								onClick={() => onMoveMember(row.original)}
+								className="text-muted-foreground"
+							>
+								<ArrowRightLeft className="h-4 w-4 mr-2" />
+								Transfer member to another org
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				);
+			},
+		},
+	]);
 
 	const table = useReactTable({
 		data: filteredUsers,

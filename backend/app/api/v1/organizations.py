@@ -10,7 +10,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi_users.exceptions import UserAlreadyExists
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 
 from app.api.dependencies import AsyncDB, CurrentUser, OrganizationContext, SuperAdminOnly
 from app.authz import permissions
@@ -18,6 +18,7 @@ from app.authz.authz import raise_org_access_denied, require_permission
 from app.core.user_manager import UserManager, get_user_manager
 from app.main import limiter
 from app.models.organization import Organization
+from app.models.project import Project
 from app.models.user import User, UserRole
 from app.schemas.org_user import OrgUserCreate, OrgUserCreateRequest, OrgUserUpdate
 from app.schemas.organization import (
@@ -106,6 +107,35 @@ async def _get_organization_for_update(db: AsyncDB, org_id: UUID) -> Organizatio
     return result.scalar_one_or_none()
 
 
+async def _list_users_with_open_streams_count(db: AsyncDB, org_id: UUID) -> list[UserRead]:
+    query = (
+        select(User, func.count(Project.id).label("open_streams_count"))
+        .outerjoin(
+            Project,
+            and_(
+                Project.user_id == User.id,
+                Project.organization_id == org_id,
+                Project.archived_at.is_(None),
+                Project.status != "Completed",
+            ),
+        )
+        .where(User.organization_id == org_id)
+        .group_by(User.id)
+        .order_by(User.email)
+    )
+    result = await db.execute(query)
+    rows = result.all()
+
+    return [
+        UserRead.from_user(
+            user,
+            organization_id=user.organization_id,
+            open_streams_count=open_streams_count,
+        )
+        for user, open_streams_count in rows
+    ]
+
+
 @router.get("", response_model=list[OrganizationRead])
 async def list_organizations(
     current_user: CurrentUser,
@@ -165,9 +195,7 @@ async def list_my_org_users(
     """List users in my organization. Org Admin or Platform Admin only."""
     require_permission(current_user, permissions.ORG_USER_READ)
 
-    query = select(User).where(User.organization_id == org.id).order_by(User.email)
-    result = await db.execute(query)
-    return result.scalars().all()
+    return await _list_users_with_open_streams_count(db, org.id)
 
 
 @router.post("/current/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -229,9 +257,7 @@ async def list_org_users(
     if org.id != org_id:
         raise_org_access_denied(org_id=str(org_id))
 
-    query = select(User).where(User.organization_id == org.id).order_by(User.email)
-    result = await db.execute(query)
-    return result.scalars().all()
+    return await _list_users_with_open_streams_count(db, org.id)
 
 
 @router.post("/{org_id}/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)

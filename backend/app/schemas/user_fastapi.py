@@ -56,6 +56,10 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
         default=PERMISSIONS_VERSION,
         description="Version string for FE permission cache invalidation",
     )
+    open_streams_count: int = Field(
+        default=0,
+        description="Open streams count for this user in current organization context",
+    )
 
     # Custom profile fields
     first_name: str = Field(..., description="User's first name")
@@ -74,6 +78,7 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
         *,
         organization_id: uuid.UUID | None,
         permissions: list[str] | None = None,
+        open_streams_count: int = 0,
     ) -> "UserRead":
         return cls(
             id=user.id,
@@ -93,6 +98,7 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
             if permissions is not None
             else list(permissions_for_user(user)),
             permissions_version=PERMISSIONS_VERSION,
+            open_streams_count=open_streams_count,
         )
 
 

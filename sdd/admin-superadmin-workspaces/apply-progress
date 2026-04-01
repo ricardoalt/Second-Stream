@@ -1,3 +1,32 @@
+## Apply Progress — Team Management UI honesty/cleanup
+
+**Change**: admin-superadmin-workspaces  
+**Mode**: Strict TDD (frontend targeted checks)
+
+### Completed in this batch
+- Refactored Team Management page presentation to remove misleading sales/manifest language and decorative fake-enterprise badges while preserving existing fetch/permission/create/update/activate/deactivate behavior.
+- Removed local `MetricCard` abstraction and replaced it with direct, sober stat cards using real values only: total members, active members, inactive members.
+- Updated Team Management header and table container copy/styles to align visually with admin dashboard patterns while keeping the existing `UsersTable` integration and actions intact.
+- Simplified `AddUserModal` to show only supported fields and honest labels: first name, last name, email address, role, password, confirm password.
+- Removed misleading modal breadcrumb/decorative copy and standardized modal title/subtitle copy through `ADD_USER_MODAL_COPY`.
+- Added a targeted frontend test to lock the modal copy contract and prevent regression to fake or unsupported field language.
+
+### Validation executed
+- `cd frontend && bun test "components/features/admin/add-user-modal.test.tsx"` ✅ (1 pass)
+- `cd frontend && bunx biome check "components/features/workspace/team-members-page-content.tsx" "components/features/admin/add-user-modal.tsx" "components/features/admin/add-user-modal.test.tsx"` ✅
+
+### Files touched in this batch
+- `frontend/components/features/workspace/team-members-page-content.tsx`
+- `frontend/components/features/admin/add-user-modal.tsx`
+- `frontend/components/features/admin/add-user-modal.test.tsx`
+- `sdd/admin-superadmin-workspaces/apply-progress`
+
+### Notes
+- No backend/API contracts or business logic were changed.
+- No build command was run.
+
+---
+
 ## Apply Progress — final coherence fix (shared product-family shell)
 
 **Change**: admin-superadmin-workspaces  

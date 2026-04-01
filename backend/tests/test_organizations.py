@@ -1,7 +1,8 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
-from conftest import create_org, create_user
+from conftest import create_company, create_location, create_org, create_project, create_user
 from httpx import AsyncClient
 
 from app.models.user import UserRole
@@ -58,6 +59,137 @@ async def test_list_org_users_as_admin(client: AsyncClient, db_session, set_curr
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 3
+
+
+@pytest.mark.asyncio
+async def test_org_user_list_includes_open_streams_count_with_locked_semantics(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Streams Count", f"org-streams-count-{uid}")
+    other_org = await create_org(db_session, "Other Org Streams", f"other-org-streams-{uid}")
+
+    admin = await create_user(
+        db_session,
+        email=f"admin-streams-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    member = await create_user(
+        db_session,
+        email=f"member-streams-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    other_member = await create_user(
+        db_session,
+        email=f"other-member-streams-{uid}@example.com",
+        org_id=other_org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    company = await create_company(
+        db_session,
+        org_id=org.id,
+        name=f"Streams Co {uid}",
+        created_by_user_id=admin.id,
+    )
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name=f"Streams Site {uid}",
+        created_by_user_id=admin.id,
+    )
+
+    await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=admin.id,
+        location_id=location.id,
+        name=f"Open Stream A {uid}",
+    )
+    await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=admin.id,
+        location_id=location.id,
+        name=f"Open Stream B {uid}",
+    )
+
+    completed_project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=admin.id,
+        location_id=location.id,
+        name=f"Completed Stream {uid}",
+    )
+    completed_project.status = "Completed"
+
+    archived_project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=admin.id,
+        location_id=location.id,
+        name=f"Archived Stream {uid}",
+    )
+    archived_project.archived_at = datetime.now(UTC)
+
+    await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=member.id,
+        location_id=location.id,
+        name=f"Member Open Stream {uid}",
+    )
+
+    other_company = await create_company(
+        db_session,
+        org_id=other_org.id,
+        name=f"Other Streams Co {uid}",
+        created_by_user_id=other_member.id,
+    )
+    other_location = await create_location(
+        db_session,
+        org_id=other_org.id,
+        company_id=other_company.id,
+        name=f"Other Streams Site {uid}",
+        created_by_user_id=other_member.id,
+    )
+    await create_project(
+        db_session,
+        org_id=other_org.id,
+        user_id=other_member.id,
+        location_id=other_location.id,
+        name=f"Other Org Open Stream {uid}",
+    )
+
+    db_session.add(completed_project)
+    db_session.add(archived_project)
+    await db_session.commit()
+
+    set_current_user(admin)
+
+    current_users_response = await client.get("/api/v1/organizations/current/users")
+    assert current_users_response.status_code == 200
+    current_users = current_users_response.json()
+    current_by_email = {row["email"]: row for row in current_users}
+
+    assert current_by_email[admin.email]["open_streams_count"] == 2
+    assert current_by_email[member.email]["open_streams_count"] == 1
+    assert all(isinstance(row["open_streams_count"], int) for row in current_users)
+
+    scoped_users_response = await client.get(f"/api/v1/organizations/{org.id}/users")
+    assert scoped_users_response.status_code == 200
+    scoped_users = scoped_users_response.json()
+    scoped_by_email = {row["email"]: row for row in scoped_users}
+
+    assert scoped_by_email[admin.email]["open_streams_count"] == 2
+    assert scoped_by_email[member.email]["open_streams_count"] == 1
+    assert all(isinstance(row["open_streams_count"], int) for row in scoped_users)
 
 
 @pytest.mark.asyncio
