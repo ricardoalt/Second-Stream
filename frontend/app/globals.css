@@ -89,6 +89,11 @@
 		color-mix(in srgb, var(--primary) 80%, var(--info))
 	);
 
+	/* Logo Brand Tokens (HSL format for CSS manipulation) */
+	--logo-primary: 215 70% 45%; /* #2f5fa7 */
+	--logo-accent: 195 80% 65%; /* #63c1e5 */
+	--logo-text: 215 60% 28%; /* #1e3a6f */
+
 	--font-sans: var(--font-geist-sans), system-ui, sans-serif;
 	--font-display: var(--font-dm-sans), "DM Sans", sans-serif;
 	--font-mono:
@@ -296,6 +301,11 @@
 	--context-scoped-text: oklch(0.8 0.1 250);
 	--context-global-bg: oklch(0.2 0.01 250);
 	--context-global-border: oklch(0.35 0.02 250);
+
+	/* Logo Brand Tokens - Dark Mode (brighter for visibility) */
+	--logo-primary: 215 70% 65%; /* Lighter blue */
+	--logo-accent: 195 80% 75%; /* Lighter accent */
+	--logo-text: 215 30% 95%; /* Almost white */
 }
 
 @supports not (color: oklch(0 0 0)) {

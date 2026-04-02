@@ -74,10 +74,10 @@ function getPasswordStrength(password: string): {
 	if (/[0-9]/.test(password)) score++;
 	if (/[^A-Za-z0-9]/.test(password)) score++;
 
-	if (score <= 2) return { score, label: "Weak", color: "bg-red-500" };
-	if (score <= 3) return { score, label: "Fair", color: "bg-yellow-500" };
-	if (score <= 4) return { score, label: "Good", color: "bg-blue-500" };
-	return { score, label: "Strong", color: "bg-green-500" };
+	if (score <= 2) return { score, label: "Weak", color: "bg-strength-weak" };
+	if (score <= 3) return { score, label: "Fair", color: "bg-strength-fair" };
+	if (score <= 4) return { score, label: "Good", color: "bg-strength-good" };
+	return { score, label: "Strong", color: "bg-strength-strong" };
 }
 
 interface AddUserModalProps {
@@ -161,77 +161,77 @@ export function AddUserModal({
 
 	return (
 		<Dialog open={open} onOpenChange={handleClose}>
-			<DialogContent className="overflow-hidden border-border/60 p-0 sm:max-w-[560px]">
-				<div className="relative border-b border-border/60 bg-muted/30 px-6 py-5">
+			<DialogContent className="overflow-hidden border-none p-0 sm:max-w-[600px] shadow-lg">
+				<div className="relative bg-primary/5 px-8 py-8">
 					<button
 						type="button"
 						onClick={handleClose}
-						className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+						className="absolute right-6 top-6 rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
 						aria-label="Close"
 					>
 						<X className="h-5 w-5" />
 					</button>
 
-					<DialogTitle className="text-xl font-semibold text-foreground">
+					<DialogTitle className="text-2xl font-bold text-foreground">
 						{ADD_USER_MODAL_COPY.title}
 					</DialogTitle>
-					<p className="mt-1 text-sm text-muted-foreground">
+					<p className="mt-2 text-sm text-muted-foreground">
 						{ADD_USER_MODAL_COPY.subtitle}
 					</p>
 				</div>
 
-				<div className="space-y-5 px-6 py-6">
-					<div className="grid grid-cols-2 gap-4">
+				<div className="space-y-6 px-8 py-8">
+					<div className="grid grid-cols-2 gap-6">
 						<div className="space-y-2">
 							<Label
 								htmlFor="firstName"
-								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
 							>
 								{ADD_USER_MODAL_COPY.fields.firstName}
 							</Label>
 							<Input
 								id="firstName"
-								placeholder="First name"
+								placeholder="e.g. Jonathan"
 								value={form.firstName}
 								onChange={(e) => handleInputChange("firstName", e.target.value)}
-								className="h-11"
+								className="h-12 bg-primary/5 border-transparent focus-visible:ring-primary/20"
 							/>
 						</div>
 
 						<div className="space-y-2">
 							<Label
 								htmlFor="lastName"
-								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
 							>
 								{ADD_USER_MODAL_COPY.fields.lastName}
 							</Label>
 							<Input
 								id="lastName"
-								placeholder="Last name"
+								placeholder="e.g. Smith"
 								value={form.lastName}
 								onChange={(e) => handleInputChange("lastName", e.target.value)}
-								className="h-11"
+								className="h-12 bg-primary/5 border-transparent focus-visible:ring-primary/20"
 							/>
 						</div>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-2 gap-6">
 						<div className="space-y-2">
 							<Label
 								htmlFor="email"
-								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
 							>
 								{ADD_USER_MODAL_COPY.fields.email}
 							</Label>
 							<div className="relative">
-								<Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+								<Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 								<Input
 									id="email"
 									type="email"
 									placeholder="name@company.com"
 									value={form.email}
 									onChange={(e) => handleInputChange("email", e.target.value)}
-									className="h-11 pl-10"
+									className="h-12 pl-11 bg-primary/5 border-transparent focus-visible:ring-primary/20"
 								/>
 							</div>
 						</div>
@@ -239,7 +239,7 @@ export function AddUserModal({
 						<div className="space-y-2">
 							<Label
 								htmlFor="role"
-								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
 							>
 								{ADD_USER_MODAL_COPY.fields.role}
 							</Label>
@@ -249,8 +249,8 @@ export function AddUserModal({
 									handleInputChange("role", value as Exclude<UserRole, "admin">)
 								}
 							>
-								<SelectTrigger className="h-11 w-full">
-									<SelectValue placeholder="Select role" />
+								<SelectTrigger className="h-12 w-full bg-primary/5 border-transparent focus:ring-primary/20">
+									<SelectValue placeholder="Select a role..." />
 								</SelectTrigger>
 								<SelectContent>
 									{TENANT_ROLES.map((role) => (
@@ -263,16 +263,16 @@ export function AddUserModal({
 						</div>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-2 gap-6">
 						<div className="space-y-2">
 							<Label
 								htmlFor="password"
-								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
 							>
 								{ADD_USER_MODAL_COPY.fields.password}
 							</Label>
 							<div className="relative">
-								<Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+								<Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 								<Input
 									id="password"
 									type="password"
@@ -281,7 +281,7 @@ export function AddUserModal({
 									onChange={(e) =>
 										handleInputChange("password", e.target.value)
 									}
-									className="h-11 pl-10"
+									className="h-12 pl-11 bg-primary/5 border-transparent focus-visible:ring-primary/20"
 								/>
 							</div>
 						</div>
@@ -289,12 +289,12 @@ export function AddUserModal({
 						<div className="space-y-2">
 							<Label
 								htmlFor="confirmPassword"
-								className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+								className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
 							>
 								{ADD_USER_MODAL_COPY.fields.confirmPassword}
 							</Label>
 							<div className="relative">
-								<Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+								<Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 								<Input
 									id="confirmPassword"
 									type="password"
@@ -308,16 +308,19 @@ export function AddUserModal({
 										form.password !== form.confirmPassword
 									}
 									className={cn(
-										"h-11 pl-10",
+										"h-12 pl-11 bg-primary/5 border-transparent focus-visible:ring-primary/20",
 										form.confirmPassword.length > 0 &&
 											form.password !== form.confirmPassword &&
-											"border-red-400 focus:border-red-400 focus-visible:ring-red-400/20",
+											"border-destructive bg-destructive/5 focus-visible:ring-destructive/20",
 									)}
 								/>
 							</div>
 							{form.confirmPassword.length > 0 &&
 								form.password !== form.confirmPassword && (
-									<p className="mt-1 text-xs text-red-500" role="alert">
+									<p
+										className="mt-1 text-xs font-medium text-destructive"
+										role="alert"
+									>
 										Passwords do not match
 									</p>
 								)}
@@ -350,17 +353,13 @@ export function AddUserModal({
 											key={req.key}
 											className={cn(
 												"flex items-center gap-1 text-[10px] transition-colors",
-												passed
-													? "text-emerald-600 dark:text-emerald-400"
-													: "text-muted-foreground",
+												passed ? "text-success" : "text-muted-foreground",
 											)}
 										>
 											<span
 												className={cn(
 													"w-3.5 h-3.5 rounded-full flex items-center justify-center",
-													passed
-														? "bg-emerald-100 dark:bg-emerald-900/30"
-														: "bg-muted",
+													passed ? "bg-success/15" : "bg-muted",
 												)}
 											>
 												{passed ? (
@@ -383,17 +382,17 @@ export function AddUserModal({
 					)}
 				</div>
 
-				<div className="flex justify-end gap-3 border-t border-border/60 px-6 py-4">
-					<Button variant="ghost" onClick={handleClose}>
+				<div className="flex justify-end gap-3 px-8 py-6 bg-background">
+					<Button variant="ghost" onClick={handleClose} className="h-11 px-6">
 						Cancel
 					</Button>
 					<Button
 						onClick={handleSubmit}
 						disabled={!canSubmitForm || submitting}
-						className="px-6"
+						className="h-11 px-8 font-semibold bg-primary hover:bg-primary/90"
 					>
 						{submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-						{submitting ? "Adding..." : "Add member"}
+						{submitting ? "Adding..." : "Add Member"}
 					</Button>
 				</div>
 			</DialogContent>

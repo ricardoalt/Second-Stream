@@ -1,17 +1,12 @@
 /**
  * Editorial Design System - Componentes de Sistema
  *
- * Este módulo exporta componentes de dominio que implementan el Design System Editorial.
- * Todos los componentes usan tokens semánticos de CSS, nunca colores hardcodeados.
+ * Componentes que implementan el Design System Editorial.
+ * Todos usan tokens semánticos de CSS, nunca colores hardcodeados.
  *
  * @example
  * ```tsx
- * import { EditorialCard, StatusChip, GradientButton } from "@/components/system";
- *
- * <EditorialCard variant="glass" glow>
- *   <StatusChip status="go">GO Decision</StatusChip>
- *   <GradientButton>Primary Action</GradientButton>
- * </EditorialCard>
+ * import { PageTemplate, PageHeader, PageSection, KpiGrid, KpiCard, StatusChip } from "@/components/system";
  * ```
  */
 
@@ -24,17 +19,15 @@ export {
 	EditorialTableRow,
 	EditorialTableStyles,
 } from "./data-table";
-// Componentes de tarjeta editorial
+// Page Templates
 export {
-	EditorialCard,
-	EditorialCardContent,
-	EditorialCardDescription,
-	EditorialCardFooter,
-	EditorialCardHeader,
-	EditorialCardTitle,
-} from "./editorial-card";
-// Botones
-export { GradientButton, gradientButtonVariants } from "./gradient-button";
+	ActionCard,
+	KpiCard,
+	KpiGrid,
+	PageHeader,
+	PageSection,
+	PageTemplate,
+} from "./page-template";
 export type { StatusChipGroupProps } from "./status-chip";
 // Componentes de estado
 export { StatusChip, StatusChipGroup } from "./status-chip";

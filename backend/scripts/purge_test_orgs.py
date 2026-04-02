@@ -15,14 +15,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import os
 import sys
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-import structlog
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Add app to path
@@ -33,7 +31,6 @@ from app.models.bulk_import import ImportItem, ImportRun
 from app.models.company import Company
 from app.models.company_contact import CompanyContact
 from app.models.discovery_session import DiscoverySession, DiscoverySource
-from app.models.feedback import Feedback
 from app.models.feedback_attachment import FeedbackAttachment
 from app.models.file import ProjectFile
 from app.models.incoming_material import IncomingMaterial
@@ -163,7 +160,7 @@ async def delete_organization_data(
             continue
 
         # Special case: users - solo borrar los de la org, no superusers
-        if table_name == "users":
+        if table_name == "users" or table_name == "organization_purge_manifests":
             if not dry_run:
                 count_result = await db.execute(
                     select(func.count()).select_from(model).where(model.organization_id == org_id)
@@ -177,30 +174,6 @@ async def delete_organization_data(
             else:
                 count_result = await db.execute(
                     select(func.count()).select_from(model).where(model.organization_id == org_id)
-                )
-                count = count_result.scalar_one() or 0
-                deleted_counts[table_name] = count
-                if verbose:
-                    print(f"    [DRY-RUN] {table_name}: {count} registros")
-        # Special case: organization_purge_manifests - puede tener org_id NULL
-        elif table_name == "organization_purge_manifests":
-            if not dry_run:
-                count_result = await db.execute(
-                    select(func.count())
-                    .select_from(model)
-                    .where(model.organization_id == org_id)
-                )
-                count = count_result.scalar_one() or 0
-                if count > 0:
-                    await db.execute(delete(model).where(model.organization_id == org_id))
-                    deleted_counts[table_name] = count
-                    if verbose:
-                        print(f"    ✓ {table_name}: {count} registros eliminados")
-            else:
-                count_result = await db.execute(
-                    select(func.count())
-                    .select_from(model)
-                    .where(model.organization_id == org_id)
                 )
                 count = count_result.scalar_one() or 0
                 deleted_counts[table_name] = count
@@ -236,11 +209,11 @@ async def delete_organization_data(
         await db.execute(delete(Organization).where(Organization.id == org_id))
         deleted_counts["organizations"] = 1
         if verbose:
-            print(f"    ✓ organization: eliminada")
+            print("    ✓ organization: eliminada")
     else:
         deleted_counts["organizations"] = 1
         if verbose:
-            print(f"    [DRY-RUN] organization: sería eliminada")
+            print("    [DRY-RUN] organization: sería eliminada")
 
     if not dry_run:
         await db.commit()
@@ -258,9 +231,9 @@ async def run_purge(dry_run: bool = False, verbose: bool = False, auto_confirm: 
         f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
         f"@localhost:5433/{settings.POSTGRES_DB}"
     )
-    
+
     print(f"Conectando a: postgresql+asyncpg://{settings.POSTGRES_USER}:***@localhost:5433/{settings.POSTGRES_DB}")
-    
+
     engine = create_async_engine(database_url, echo=False)
     session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

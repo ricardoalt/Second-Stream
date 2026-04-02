@@ -1,0 +1,9 @@
+<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+  <title>SecondStream Icon</title>
+
+  <line x1="5" y1="25" x2="20" y2="25" stroke="hsl(215, 70%, 45%)" stroke-width="3" stroke-linecap="round"/>
+  <line x1="5" y1="33" x2="17" y2="33" stroke="hsl(215, 70%, 45%)" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  <text x="25" y="34" font-family="Georgia, serif" font-size="20" fill="hsl(215, 60%, 28%)">S</text>
+  <line x1="42" y1="25" x2="55" y2="25" stroke="hsl(215, 70%, 45%)" stroke-width="3" stroke-linecap="round"/>
+  <line x1="44" y1="33" x2="55" y2="33" stroke="hsl(215, 70%, 45%)" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+</svg>

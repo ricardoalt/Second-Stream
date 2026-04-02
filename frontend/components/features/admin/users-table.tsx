@@ -16,7 +16,7 @@ import {
 	User as UserIcon,
 	X,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { type MouseEvent, useCallback, useMemo, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -70,19 +70,6 @@ const STATUS_OPTIONS = [
 	{ value: "inactive", label: "Inactive" },
 ];
 
-function getRoleBadgeVariant(role: string) {
-	switch (role) {
-		case "org_admin":
-			return "default";
-		case "field_agent":
-			return "secondary";
-		case "sales":
-			return "outline";
-		default:
-			return "secondary";
-	}
-}
-
 function formatRole(role: string): string {
 	return role
 		.split("_")
@@ -92,21 +79,21 @@ function formatRole(role: string): string {
 
 function getAvatarColor(name: string): string {
 	const colors = [
-		"bg-blue-500/20 text-blue-600 dark:text-blue-400",
-		"bg-green-500/20 text-green-600 dark:text-green-400",
-		"bg-purple-500/20 text-purple-600 dark:text-purple-400",
-		"bg-orange-500/20 text-orange-600 dark:text-orange-400",
-		"bg-pink-500/20 text-pink-600 dark:text-pink-400",
-		"bg-cyan-500/20 text-cyan-600 dark:text-cyan-400",
-		"bg-yellow-500/20 text-yellow-600 dark:text-yellow-400",
-		"bg-red-500/20 text-red-600 dark:text-red-400",
+		"bg-avatar-1/20 text-avatar-1",
+		"bg-avatar-2/20 text-avatar-2",
+		"bg-avatar-3/20 text-avatar-3",
+		"bg-avatar-4/20 text-avatar-4",
+		"bg-avatar-5/20 text-avatar-5",
+		"bg-avatar-6/20 text-avatar-6",
+		"bg-avatar-7/20 text-avatar-7",
+		"bg-avatar-8/20 text-avatar-8",
 	];
 	let hash = 0;
 	for (let i = 0; i < name.length; i++) {
 		hash = name.charCodeAt(i) + ((hash << 5) - hash);
 	}
 	const index = Math.abs(hash) % colors.length;
-	return colors[index] ?? "bg-blue-500/20 text-blue-600 dark:text-blue-400";
+	return colors[index] ?? "bg-avatar-1/20 text-avatar-1";
 }
 
 function UserAvatar({
@@ -143,6 +130,7 @@ interface UsersTableProps {
 		| ((userId: string, isActive: boolean) => Promise<void>)
 		| undefined;
 	onMoveMember?: ((user: User) => void) | undefined;
+	onRowClick?: ((user: User) => void) | undefined;
 }
 
 type PendingAction =
@@ -166,6 +154,7 @@ export function UsersTable({
 	onRoleChange,
 	onStatusChange,
 	onMoveMember,
+	onRowClick,
 }: UsersTableProps) {
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [updatingUsers, setUpdatingUsers] = useState<Set<string>>(new Set());
@@ -285,161 +274,206 @@ export function UsersTable({
 		? updatingUsers.has(pendingAction.userId)
 		: false;
 
-	const columns: ColumnDef<User>[] = useMemo(() => [
-		{
-			accessorKey: "name",
-			header: "Team member",
-			cell: ({ row }) => (
-				<div className="flex items-center gap-3">
-					<UserAvatar
-						firstName={row.original.firstName}
-						lastName={row.original.lastName}
-					/>
-					<div className="min-w-0">
-						<div className="flex items-center gap-2">
-							<span className="font-medium text-slate-900 dark:text-slate-100 truncate">
-								{row.original.firstName} {row.original.lastName}
-							</span>
-							{row.original.id === currentUserId && (
-								<Badge variant="outline" className="text-xs shrink-0">
-									You
-								</Badge>
-							)}
+	const columns: ColumnDef<User>[] = useMemo(
+		() => [
+			{
+				accessorKey: "name",
+				header: () => (
+					<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+						AGENT IDENTITY
+					</span>
+				),
+				cell: ({ row }) => (
+					<div className="flex items-center gap-4 py-1">
+						<div className="relative">
+							<UserAvatar
+								firstName={row.original.firstName}
+								lastName={row.original.lastName}
+							/>
+							<div
+								className={cn(
+									"absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background",
+									row.original.isActive ? "bg-success" : "bg-muted-foreground",
+								)}
+							/>
 						</div>
-						<div className="text-sm text-slate-500 dark:text-slate-400 truncate">
-							{row.original.email}
+						<div className="min-w-0">
+							<div className="flex items-center gap-2">
+								<span className="font-semibold text-foreground truncate">
+									{row.original.firstName} {row.original.lastName}
+								</span>
+								{row.original.id === currentUserId && (
+									<Badge
+										variant="outline"
+										className="text-[10px] uppercase tracking-wider shrink-0 bg-background"
+									>
+										You
+									</Badge>
+								)}
+							</div>
+							<div className="text-sm text-muted-foreground truncate">
+								{row.original.email}
+							</div>
 						</div>
 					</div>
-				</div>
-			),
-		},
-		{
-			accessorKey: "role",
-			header: "Role",
-			cell: ({ row }) => {
-				const isUpdating = updatingUsers.has(row.original.id);
-				const isSelf = row.original.id === currentUserId;
-
-				if (canEditRoles && onRoleChange && !isSelf) {
-					return (
-						<Select
-							value={row.original.role}
-							onValueChange={(value) =>
-								requestRoleChange(
-									row.original.id,
-									value as Exclude<UserRole, "admin">,
-								)
-							}
-							disabled={isUpdating}
-						>
-							<SelectTrigger className="w-[140px]">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{TENANT_ROLES.map((role) => (
-									<SelectItem key={role.value} value={role.value}>
-										{role.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					);
-				}
-
-				return (
-					<Badge variant={getRoleBadgeVariant(row.original.role)}>
-						{formatRole(row.original.role)}
-					</Badge>
-				);
+				),
 			},
-		},
-		{
-			accessorKey: "isActive",
-			header: "Status",
-			cell: ({ row }) => {
-				const isUpdating = updatingUsers.has(row.original.id);
-				const isSelf = row.original.id === currentUserId;
+			{
+				accessorKey: "role",
+				header: () => (
+					<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+						ROLE
+					</span>
+				),
+				cell: ({ row }) => {
+					const isUpdating = updatingUsers.has(row.original.id);
+					const isSelf = row.original.id === currentUserId;
 
-				if (canEditStatus && onStatusChange && !isSelf) {
-					return (
-						<div className="flex items-center gap-2">
-							<Switch
-								checked={row.original.isActive}
-								onCheckedChange={(checked) =>
-									requestStatusChange(row.original.id, checked)
+					if (canEditRoles && onRoleChange && !isSelf) {
+						return (
+							<Select
+								value={row.original.role}
+								onValueChange={(value) =>
+									requestRoleChange(
+										row.original.id,
+										value as Exclude<UserRole, "admin">,
+									)
 								}
 								disabled={isUpdating}
-								aria-label={`${row.original.isActive ? "Deactivate" : "Activate"} ${row.original.firstName} ${row.original.lastName}`}
-							/>
-							<span
-								className={cn(
-									"text-sm",
-									row.original.isActive
-										? "text-foreground"
-										: "text-muted-foreground",
-								)}
 							>
-								{row.original.isActive ? "Active" : "Inactive"}
-							</span>
-						</div>
-					);
-				}
+								<SelectTrigger className="w-[160px] h-9 text-sm">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{TENANT_ROLES.map((role) => (
+										<SelectItem key={role.value} value={role.value}>
+											{role.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						);
+					}
 
-				return (
-					<Badge variant={row.original.isActive ? "default" : "secondary"}>
-						{row.original.isActive ? "Active" : "Inactive"}
-					</Badge>
-				);
+					return (
+						<span className="text-sm font-medium text-muted-foreground">
+							{formatRole(row.original.role)}
+						</span>
+					);
+				},
 			},
-		},
-		{
-			accessorKey: "openStreamsCount",
-			header: "Open Streams",
-			cell: ({ row }) => {
-				const count = row.original.openStreamsCount ?? 0;
-				return (
-					<span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-						{count} {count === 1 ? "stream" : "streams"}
+			{
+				accessorKey: "isActive",
+				header: () => (
+					<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+						STATUS
 					</span>
-				);
+				),
+				cell: ({ row }) => {
+					const isUpdating = updatingUsers.has(row.original.id);
+					const isSelf = row.original.id === currentUserId;
+
+					if (canEditStatus && onStatusChange && !isSelf) {
+						return (
+							<div className="flex items-center gap-3">
+								<Switch
+									checked={row.original.isActive}
+									onCheckedChange={(checked) =>
+										requestStatusChange(row.original.id, checked)
+									}
+									disabled={isUpdating}
+									aria-label={`${row.original.isActive ? "Deactivate" : "Activate"} ${row.original.firstName} ${row.original.lastName}`}
+								/>
+								<span
+									className={cn(
+										"text-sm font-medium",
+										row.original.isActive
+											? "text-foreground"
+											: "text-muted-foreground",
+									)}
+								>
+									{row.original.isActive ? "Active" : "Inactive"}
+								</span>
+							</div>
+						);
+					}
+
+					return (
+						<Badge
+							variant={row.original.isActive ? "default" : "secondary"}
+							className="text-[10px] uppercase tracking-wider"
+						>
+							{row.original.isActive ? "Active" : "Inactive"}
+						</Badge>
+					);
+				},
 			},
-		},
-		{
-			id: "actions",
-			header: "",
-			cell: ({ row }) => {
-				if (!onMoveMember) {
-					return null;
-				}
-				const isSelf = row.original.id === currentUserId;
-				if (isSelf) {
-					return null;
-				}
-				return (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label="Open member actions"
-							>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								onClick={() => onMoveMember(row.original)}
-								className="text-muted-foreground"
-							>
-								<ArrowRightLeft className="h-4 w-4 mr-2" />
-								Transfer member to another org
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				);
+			{
+				accessorKey: "openStreamsCount",
+				header: () => (
+					<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+						OPEN STREAMS
+					</span>
+				),
+				cell: ({ row }) => {
+					const count = row.original.openStreamsCount ?? 0;
+					return (
+						<span className="text-sm font-bold text-foreground">{count}</span>
+					);
+				},
 			},
-		},
-	]);
+			{
+				id: "actions",
+				header: () => (
+					<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+						ACTIONS
+					</span>
+				),
+				cell: ({ row }) => {
+					if (!onMoveMember) {
+						return null;
+					}
+					const isSelf = row.original.id === currentUserId;
+					if (isSelf) {
+						return null;
+					}
+					return (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									size="icon"
+									aria-label="Open member actions"
+								>
+									<MoreHorizontal className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onClick={() => onMoveMember(row.original)}
+									className="text-muted-foreground"
+								>
+									<ArrowRightLeft className="h-4 w-4 mr-2" />
+									Transfer member to another org
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					);
+				},
+			},
+		],
+		[
+			updatingUsers,
+			requestRoleChange,
+			requestStatusChange,
+			canEditRoles,
+			canEditStatus,
+			onRoleChange,
+			onStatusChange,
+			currentUserId,
+			onMoveMember,
+		],
+	);
 
 	const table = useReactTable({
 		data: filteredUsers,
@@ -461,6 +495,24 @@ export function UsersTable({
 	const dialogActionLabel =
 		pendingAction?.type === "role" ? "Confirm role change" : "Deactivate user";
 	const dialogIsDestructive = pendingAction?.type === "status";
+
+	const handleRowClick = useCallback(
+		(event: MouseEvent<HTMLTableRowElement>, user: User) => {
+			if (!onRowClick || user.role !== "field_agent") {
+				return;
+			}
+			const target = event.target as HTMLElement;
+			if (
+				target.closest(
+					"button,a,input,[role='button'],[data-no-row-click='true']",
+				)
+			) {
+				return;
+			}
+			onRowClick(user);
+		},
+		[onRowClick],
+	);
 
 	const handleConfirmAction = async () => {
 		if (!pendingAction) return;
@@ -500,20 +552,11 @@ export function UsersTable({
 	}
 
 	return (
-		<div className="space-y-4">
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-				<div className="relative flex-1">
-					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						placeholder="Search by name or email..."
-						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
+		<div className="space-y-6">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-between">
 				<div className="flex items-center gap-2">
 					<Select value={roleFilter} onValueChange={setRoleFilter}>
-						<SelectTrigger className="w-[140px]">
+						<SelectTrigger className="w-[160px] h-9 bg-background border-border">
 							<SelectValue placeholder="All Roles" />
 						</SelectTrigger>
 						<SelectContent>
@@ -526,7 +569,7 @@ export function UsersTable({
 						</SelectContent>
 					</Select>
 					<Select value={statusFilter} onValueChange={setStatusFilter}>
-						<SelectTrigger className="w-[130px]">
+						<SelectTrigger className="w-[140px] h-9 bg-background border-border">
 							<SelectValue placeholder="All Status" />
 						</SelectTrigger>
 						<SelectContent>
@@ -542,12 +585,22 @@ export function UsersTable({
 							variant="ghost"
 							size="sm"
 							onClick={clearFilters}
-							className="text-muted-foreground"
+							className="text-muted-foreground h-9"
 						>
 							<X className="h-4 w-4 mr-1" />
 							Clear
 						</Button>
 					)}
+				</div>
+
+				<div className="relative w-full sm:w-[280px]">
+					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+					<Input
+						placeholder="Search members..."
+						value={searchQuery}
+						onChange={(e) => setSearchQuery(e.target.value)}
+						className="pl-9 h-9 bg-background"
+					/>
 				</div>
 			</div>
 
@@ -565,9 +618,9 @@ export function UsersTable({
 					</Button>
 				</div>
 			) : (
-				<div className="rounded-md border">
+				<div className="rounded-none border-t border-border">
 					<Table>
-						<TableHeader>
+						<TableHeader className="bg-muted/30">
 							{table.getHeaderGroups().map((headerGroup) => (
 								<TableRow key={headerGroup.id}>
 									{headerGroup.headers.map((header) => (
@@ -587,10 +640,13 @@ export function UsersTable({
 							{table.getRowModel().rows.map((row) => (
 								<TableRow
 									key={row.id}
+									onClick={(event) => handleRowClick(event, row.original)}
 									className={cn(
 										"transition-colors",
 										updatingUsers.has(row.original.id) && "opacity-50",
-										"hover:bg-muted/50",
+										onRowClick && row.original.role === "field_agent"
+											? "cursor-pointer hover:bg-muted/50"
+											: "hover:bg-muted/50",
 									)}
 								>
 									{row.getVisibleCells().map((cell) => (

@@ -1,5 +1,6 @@
 import { ArrowUpRight, CheckCircle2, Clock3, Sparkles } from "lucide-react";
 import type React from "react";
+import { StatusChip } from "@/components/system/status-chip";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
 	Card,
@@ -8,7 +9,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 
 export type DashboardActivityItem = {
@@ -25,12 +25,12 @@ const statusConfig: Record<
 	{
 		label: string;
 		icon: React.ComponentType<{ className?: string }>;
-		variant: "success" | "warning" | "pipeline";
+		chipStatus: "success" | "warning" | "pipeline";
 	}
 > = {
-	completed: { label: "Completed", icon: CheckCircle2, variant: "success" },
-	follow_up: { label: "Follow-up", icon: Clock3, variant: "warning" },
-	new: { label: "New", icon: Sparkles, variant: "pipeline" },
+	completed: { label: "Completed", icon: CheckCircle2, chipStatus: "success" },
+	follow_up: { label: "Follow-up", icon: Clock3, chipStatus: "warning" },
+	new: { label: "New", icon: Sparkles, chipStatus: "pipeline" },
 };
 
 export function AgentDashboardActivityFeed({
@@ -87,12 +87,13 @@ export function AgentDashboardActivityFeed({
 										</button>
 									</p>
 									<div className="flex items-center gap-2">
-										<StatusBadge
-											variant={config.variant}
-											className="text-[0.65rem] gap-1"
+										<StatusChip
+											status={config.chipStatus}
+											variant="subtle"
+											size="xs"
 										>
 											{config.label}
-										</StatusBadge>
+										</StatusChip>
 										<span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
 											<Icon aria-hidden="true" className="size-3" />
 											{item.time}

@@ -132,7 +132,7 @@ function PathwayCard({
 							{isBest && (
 								<Badge
 									variant="default"
-									className="gap-1 bg-amber-500 hover:bg-amber-600"
+									className="gap-1 bg-warning hover:bg-warning/90"
 								>
 									<Crown className="h-3 w-3" />
 									Best ROI
@@ -188,15 +188,15 @@ function PathwayCard({
 					<div
 						className={cn(
 							"p-3 sm:p-4 rounded-lg mb-3",
-							"bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800/50",
+							"bg-success/5 border border-success/20",
 						)}
 					>
 						<div className="flex flex-col sm:flex-row items-start justify-between gap-3">
 							<div className="flex-1">
-								<p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">
+								<p className="text-xs font-semibold text-success mb-1">
 									ESG Pitch for Buyer
 								</p>
-								<p className="text-sm text-green-800 dark:text-green-300 italic leading-relaxed">
+								<p className="text-sm text-foreground/80 italic leading-relaxed">
 									&ldquo;{pathway.esgPitch}&rdquo;
 								</p>
 							</div>
@@ -205,9 +205,9 @@ function PathwayCard({
 								variant="outline"
 								className={cn(
 									"shrink-0 gap-2 h-9",
-									"border-green-300 dark:border-green-700",
-									"hover:bg-green-100 dark:hover:bg-green-900/50",
-									copied && "bg-green-100 dark:bg-green-900/50 text-green-600",
+									"border-success/30",
+									"hover:bg-success/10",
+									copied && "bg-success/10 text-success",
 								)}
 								onClick={handleCopy}
 							>

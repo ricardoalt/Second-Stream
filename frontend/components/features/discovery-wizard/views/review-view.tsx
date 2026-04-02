@@ -107,13 +107,13 @@ export function ResultView({
 			icon: Waves,
 			label: "Waste-streams found",
 			count: result.summary.wasteStreamsFound,
-			color: "bg-emerald-500/10 text-emerald-600",
+			color: "bg-success/10 text-success",
 		},
 		{
 			icon: MapPin,
 			label: "Locations found",
 			count: result.summary.locationsFound,
-			color: "bg-blue-500/10 text-blue-600",
+			color: "bg-info/10 text-info",
 		},
 	];
 	const subtitle =
@@ -123,10 +123,10 @@ export function ResultView({
 
 	return (
 		<section aria-label="Discovery complete" className="flex flex-col flex-1">
-			<div className="h-1 bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-400" />
+			<div className="h-1 bg-gradient-to-r from-success/80 via-success to-success/80" />
 			<div className="flex flex-col items-center px-6 pt-10 pb-6 flex-1">
-				<div className="rounded-2xl bg-emerald-500/10 p-5 mb-5">
-					<CheckCircle className="h-8 w-8 text-emerald-500" />
+				<div className="rounded-2xl bg-success/10 p-5 mb-5">
+					<CheckCircle className="h-8 w-8 text-success" />
 				</div>
 				<h3 className="font-display text-xl font-semibold tracking-tight mb-1">
 					Ready for review
@@ -180,7 +180,7 @@ export function ResultView({
 				</div>
 				<Button
 					onClick={onReviewNow}
-					className="w-full max-w-sm mt-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+					className="w-full max-w-sm mt-auto bg-success text-success-foreground hover:bg-success/90"
 				>
 					Review Drafts
 				</Button>
@@ -277,7 +277,7 @@ export function ReviewView({
 									key={candidate.itemId}
 									className={cn(
 										"transition-colors border-l-[3px]",
-										isConfirmed && "border-l-emerald-500 bg-emerald-500/5",
+										isConfirmed && "border-l-success bg-success/5",
 										isSkipped && "border-l-muted-foreground/30 opacity-60",
 										!isConfirmed && !isSkipped && "border-l-primary",
 									)}
@@ -290,7 +290,7 @@ export function ReviewView({
 									<td className="py-3">
 										<div className="flex items-center justify-end gap-1.5">
 											{isConfirmed ? (
-												<span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+												<span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2.5 py-1 text-[11px] font-medium text-success">
 													<CircleCheck className="size-3.5" />
 													Confirmed
 												</span>

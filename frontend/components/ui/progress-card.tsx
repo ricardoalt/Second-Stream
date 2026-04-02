@@ -1,6 +1,6 @@
 import { memo } from "react";
+import { StatusChip } from "@/components/system/status-chip";
 import { Card } from "@/components/ui/card";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 
 // Design System: Industrial Precision & Fluidity
@@ -13,7 +13,7 @@ interface ProgressCardProps {
 	daysOld: number;
 	progress: number;
 	stage: string;
-	statusVariant?: "critical" | "warning" | "success" | "info";
+	statusVariant?: "error" | "warning" | "success" | "info";
 	statusLabel: string;
 	className?: string;
 }
@@ -68,7 +68,7 @@ export const ProgressCard = memo(function ProgressCard({
 				<div className="flex items-center gap-6">
 					<div className="flex items-center gap-4">
 						<div className="text-right">
-							<p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-cyan-600 dark:text-cyan-400">
+							<p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
 								{stage}
 							</p>
 						</div>
@@ -78,14 +78,16 @@ export const ProgressCard = memo(function ProgressCard({
 							</div>
 							<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
 								<div
-									className="h-full rounded-full bg-teal-500 transition-all duration-500 ease-out"
+									className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
 									style={{ width: `${progress}%` }}
 								/>
 							</div>
 						</div>
 					</div>
 
-					<StatusBadge variant={statusVariant}>{statusLabel}</StatusBadge>
+					<StatusChip status={statusVariant} variant="subtle" size="sm">
+						{statusLabel}
+					</StatusChip>
 				</div>
 			</div>
 		</Card>

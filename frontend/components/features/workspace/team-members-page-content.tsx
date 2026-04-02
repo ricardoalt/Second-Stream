@@ -1,14 +1,15 @@
 "use client";
 
 import {
+	Layers,
 	Plus,
 	RefreshCcw,
 	UserCheck,
 	Users,
 	UserX,
-	Layers,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -21,7 +22,6 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { APIClientError } from "@/lib/api/client";
-import { dashboardAPI } from "@/lib/api/dashboard";
 import {
 	type OrgUserCreateInput,
 	organizationsAPI,
@@ -75,29 +75,41 @@ function MetricCard({
 	accent?: "blue" | "emerald" | "slate" | "violet";
 }) {
 	const accentStyles = {
-		blue: "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400",
-		emerald:
-			"bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400",
-		slate: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
-		violet:
-			"bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400",
+		blue: "border-t-info",
+		emerald: "border-t-success",
+		slate: "border-t-primary/20",
+		violet: "border-t-avatar-7",
+	};
+
+	const iconStyles = {
+		blue: "bg-info/10 text-info",
+		emerald: "bg-success/10 text-success",
+		slate: "bg-primary/5 text-primary/70",
+		violet: "bg-avatar-7/10 text-avatar-7",
 	};
 
 	return (
-		<div className="flex items-center gap-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-			<div
-				className={cn(
-					"flex h-12 w-12 shrink-0 items-center justify-center rounded-lg",
-					accentStyles[accent ?? "slate"],
-				)}
-			>
-				<Icon className="h-6 w-6" />
-			</div>
-			<div className="min-w-0">
-				<p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+		<div
+			className={cn(
+				"relative flex flex-col justify-between rounded-xl border border-border bg-background p-5 shadow-sm border-t-2",
+				accentStyles[accent ?? "slate"],
+			)}
+		>
+			<div className="flex items-center justify-between mb-4">
+				<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
 					{label}
 				</p>
-				<p className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+				<div
+					className={cn(
+						"flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+						iconStyles[accent ?? "slate"],
+					)}
+				>
+					<Icon className="h-4 w-4" />
+				</div>
+			</div>
+			<div className="min-w-0">
+				<p className="text-3xl font-bold tracking-tight text-foreground">
 					{loading ? "—" : value}
 				</p>
 			</div>
@@ -112,6 +124,7 @@ type TeamMembersPageContentProps = {
 export function WorkspaceTeamMembersPageContent({
 	organizationId,
 }: TeamMembersPageContentProps) {
+	const router = useRouter();
 	const { user: currentUser, isSuperAdmin } = useAuth();
 	const canViewUsers =
 		isSuperAdmin ||
@@ -137,30 +150,12 @@ export function WorkspaceTeamMembersPageContent({
 		try {
 			setIsLoading(true);
 
-			// Fetch users
 			const usersData = organizationId
 				? await organizationsAPI.listOrgUsers(organizationId)
 				: await organizationsAPI.listMyOrgUsers();
-
-			// Fetch streams to calculate open_streams_count per user (REAL DATA)
-			const dashboard = await dashboardAPI.getDashboard({
-				bucket: "total",
-				size: 1000,
-			});
-
-			// Count streams per owner
-			const streamsByOwner = new Map<string, number>();
-			for (const item of dashboard.items) {
-				if (item.kind === "persisted_stream" && item.ownerUserId) {
-					const current = streamsByOwner.get(item.ownerUserId) ?? 0;
-					streamsByOwner.set(item.ownerUserId, current + 1);
-				}
-			}
-
-			// Combine users with their real open streams count
 			const usersWithStreams: UserWithStreams[] = usersData.map((user) => ({
 				...user,
-				openStreamsCount: streamsByOwner.get(user.id) ?? 0,
+				openStreamsCount: user.openStreamsCount ?? 0,
 			}));
 
 			setUsers(usersWithStreams);
@@ -275,6 +270,13 @@ export function WorkspaceTeamMembersPageContent({
 		}
 	};
 
+	const handleUserRowClick = (user: User) => {
+		if (user.role !== "field_agent") {
+			return;
+		}
+		router.push(`/settings/team/${user.id}`);
+	};
+
 	if (!canViewUsers) {
 		return (
 			<div className="flex items-center justify-center min-h-[400px]">
@@ -286,15 +288,15 @@ export function WorkspaceTeamMembersPageContent({
 	}
 
 	return (
-		<div className="mx-auto w-full max-w-7xl space-y-8 px-6 py-8">
+		<div className="mx-auto w-full max-w-6xl space-y-8 px-6 py-10">
 			{/* Header Section */}
-			<div className="flex flex-wrap items-end justify-between gap-4">
+			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 				<div className="space-y-1">
-					<h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+					<h1 className="text-3xl font-bold tracking-tight text-foreground">
 						Team Management
 					</h1>
-					<p className="text-slate-600 dark:text-slate-400">
-						Manage team members and access for this organization.
+					<p className="text-muted-foreground text-base">
+						Orchestrate your organization's members and open streams.
 					</p>
 				</div>
 
@@ -307,7 +309,7 @@ export function WorkspaceTeamMembersPageContent({
 									size="icon"
 									onClick={fetchData}
 									disabled={isLoading}
-									className="h-10 w-10"
+									className="h-10 w-10 shrink-0 border-border bg-background"
 								>
 									<RefreshCcw
 										className={cn("h-4 w-4", isLoading && "animate-spin")}
@@ -327,10 +329,10 @@ export function WorkspaceTeamMembersPageContent({
 									<Button
 										onClick={() => setModalOpen(true)}
 										disabled={!orgAllowsUserChanges || !canCreateUsers}
-										className="gap-2"
+										className="h-10 px-5 gap-2 bg-primary font-semibold shadow-sm hover:bg-primary/90"
 									>
 										<Plus className="h-4 w-4" />
-										Add member
+										Add New Member
 									</Button>
 								</span>
 							</TooltipTrigger>
@@ -346,11 +348,11 @@ export function WorkspaceTeamMembersPageContent({
 
 			{/* Org inactive alert */}
 			{isOrgActive === false && (
-				<Alert className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
-					<AlertTitle className="text-amber-800 dark:text-amber-200">
+				<Alert className="border-warning/30 bg-warning/5">
+					<AlertTitle className="text-warning">
 						Organization inactive
 					</AlertTitle>
-					<AlertDescription className="text-amber-700 dark:text-amber-300">
+					<AlertDescription className="text-warning/80">
 						User changes are disabled until this organization is reactivated.
 					</AlertDescription>
 				</Alert>
@@ -360,60 +362,52 @@ export function WorkspaceTeamMembersPageContent({
 			<div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
 				<MetricCard
 					icon={Users}
-					label="Total members"
+					label="TOTAL MEMBERS"
 					value={stats.total}
 					loading={isLoading}
-					accent="blue"
+					accent="slate"
 				/>
 				<MetricCard
 					icon={UserCheck}
-					label="Active members"
+					label="ACTIVE MEMBERS"
 					value={stats.active}
 					loading={isLoading}
-					accent="emerald"
+					accent="slate"
 				/>
 				<MetricCard
 					icon={UserX}
-					label="Inactive members"
+					label="INACTIVE MEMBERS"
 					value={stats.inactive}
 					loading={isLoading}
 					accent="slate"
 				/>
 				<MetricCard
 					icon={Layers}
-					label="Open streams"
+					label="OPEN STREAMS"
 					value={stats.totalOpenStreams}
 					loading={isLoading}
-					accent="violet"
+					accent="slate"
 				/>
 			</div>
 
 			{/* Team Members Table - Editorial style */}
-			<div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-				<div className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 px-6 py-4">
+			<div className="overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+				<div className="border-b border-border bg-background px-6 py-5">
 					<div className="flex items-center justify-between">
 						<div>
-							<h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-								Team members
+							<h2 className="text-xl font-bold text-foreground">
+								Team Members
 							</h2>
-							<p className="text-sm text-slate-500 dark:text-slate-400">
-								Review members, manage roles, and control access.
-							</p>
 						</div>
-						<span className="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-sm font-medium text-slate-600 dark:text-slate-400">
-							{isLoading ? "Loading..." : `${stats.total} members`}
-						</span>
 					</div>
 				</div>
 
-				<div>
+				<div className="p-6">
 					{isLoading ? (
-						<div className="p-6">
-							<div className="space-y-3">
-								<Skeleton className="h-16 w-full" />
-								<Skeleton className="h-16 w-full" />
-								<Skeleton className="h-16 w-full" />
-							</div>
+						<div className="space-y-3">
+							<Skeleton className="h-16 w-full" />
+							<Skeleton className="h-16 w-full" />
+							<Skeleton className="h-16 w-full" />
 						</div>
 					) : (
 						<UsersTable
@@ -423,6 +417,7 @@ export function WorkspaceTeamMembersPageContent({
 							canEditStatus={orgAllowsUserChanges && canUpdateUsers}
 							onRoleChange={handleRoleChange}
 							onStatusChange={handleStatusChange}
+							onRowClick={handleUserRowClick}
 						/>
 					)}
 				</div>

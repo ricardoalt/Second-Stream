@@ -1,6 +1,6 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
-import { Geist, Inter, JetBrains_Mono, Manrope } from "next/font/google";
+import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import type React from "react";
 import { ClientLayout } from "@/components/providers/client-layout";
 import { ThemeProvider } from "@/components/shared/common/theme-provider";

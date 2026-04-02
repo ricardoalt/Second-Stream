@@ -16,6 +16,7 @@ import {
 import Link from "next/link";
 import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
 import { AdminDashboardPageContent } from "@/components/features/workspace";
+import { StatusChip } from "@/components/system/status-chip";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,6 @@ import {
 } from "@/components/ui/card";
 import { CircularGauge } from "@/components/ui/circular-gauge";
 import { Progress } from "@/components/ui/progress";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/contexts";
 import { cn } from "@/lib/utils";
 
@@ -180,18 +180,19 @@ const dailyProgress = {
 	],
 };
 
-function getComplianceStatusVariant(status: string) {
+function getComplianceStatusChip(
+	status: string,
+): "error" | "warning" | "info" | "pending" {
 	switch (status) {
 		case "Blocked":
-			return "critical" as const;
+			return "error";
 		case "Pending":
 		case "Action Required":
-			return "warning" as const;
+			return "warning";
 		case "Review":
-			return "info" as const;
-		case "Missing Info":
+			return "info";
 		default:
-			return "neutral" as const;
+			return "pending";
 	}
 }
 
@@ -486,13 +487,13 @@ export default function AgentDashboardPage() {
 
 								{/* Status */}
 								<div>
-									<StatusBadge
-										variant={getComplianceStatusVariant(
-											stream.complianceStatus,
-										)}
+									<StatusChip
+										status={getComplianceStatusChip(stream.complianceStatus)}
+										variant="subtle"
+										size="sm"
 									>
 										{stream.complianceStatus}
-									</StatusBadge>
+									</StatusChip>
 								</div>
 
 								{/* Missing Doc */}

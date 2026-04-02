@@ -112,23 +112,23 @@ interface TopResourcesProps {
 }
 
 const LIFECYCLE_CONFIG = {
-	"Like-new": { color: "bg-emerald-500", label: "Like-new" },
-	Good: { color: "bg-green-500", label: "Good" },
-	Used: { color: "bg-yellow-500", label: "Used" },
-	Degraded: { color: "bg-orange-500", label: "Degraded" },
-	"End-of-life": { color: "bg-red-500", label: "End-of-life" },
+	"Like-new": { color: "bg-success", label: "Like-new" },
+	Good: { color: "bg-success/80", label: "Good" },
+	Used: { color: "bg-warning", label: "Used" },
+	Degraded: { color: "bg-warning/80", label: "Degraded" },
+	"End-of-life": { color: "bg-destructive", label: "End-of-life" },
 } as const;
 
 const QUALITY_CONFIG = {
 	High: {
-		border: "border-green-500",
-		text: "text-green-600 dark:text-green-400",
+		border: "border-success",
+		text: "text-success",
 	},
 	Medium: {
-		border: "border-yellow-500",
-		text: "text-yellow-600 dark:text-yellow-400",
+		border: "border-warning",
+		text: "text-warning",
 	},
-	Low: { border: "border-red-500", text: "text-red-600 dark:text-red-400" },
+	Low: { border: "border-destructive", text: "text-destructive" },
 } as const;
 
 // Empty State Component
@@ -372,7 +372,7 @@ function ResourceCard({
 							>
 								{item.quality} Quality
 							</Badge>
-							<span className="text-xs font-semibold text-green-600 dark:text-green-400">
+							<span className="text-xs font-semibold text-success">
 								{item.priceHint}
 							</span>
 						</div>

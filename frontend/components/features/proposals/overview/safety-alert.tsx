@@ -16,26 +16,24 @@ const HAZARD_CONFIG = {
 	None: null, // Don't render
 	Low: {
 		variant: "default" as const,
-		bg: "bg-yellow-50 dark:bg-yellow-950/30",
-		border: "border-yellow-300 dark:border-yellow-800",
-		icon: "text-yellow-600",
-		badge:
-			"bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+		bg: "bg-warning/5",
+		border: "border-warning/30",
+		icon: "text-warning",
+		badge: "bg-warning/15 text-warning",
 	},
 	Moderate: {
 		variant: "default" as const,
-		bg: "bg-orange-50 dark:bg-orange-950/30",
-		border: "border-orange-300 dark:border-orange-800",
-		icon: "text-orange-600",
-		badge:
-			"bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+		bg: "bg-warning/10",
+		border: "border-warning/40",
+		icon: "text-warning",
+		badge: "bg-warning/15 text-warning",
 	},
 	High: {
 		variant: "destructive" as const,
-		bg: "bg-red-50 dark:bg-red-950/30",
-		border: "border-red-300 dark:border-red-800",
-		icon: "text-red-600",
-		badge: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+		bg: "bg-destructive/5",
+		border: "border-destructive/30",
+		icon: "text-destructive",
+		badge: "bg-destructive/15 text-destructive",
 	},
 } as const;
 

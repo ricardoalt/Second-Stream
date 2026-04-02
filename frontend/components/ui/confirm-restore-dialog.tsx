@@ -40,8 +40,8 @@ export function ConfirmRestoreDialog({
 			<AlertDialogContent>
 				<AlertDialogHeader>
 					<div className="flex items-center gap-3">
-						<div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10">
-							<RotateCcw className="h-5 w-5 text-green-500" />
+						<div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10">
+							<RotateCcw className="h-5 w-5 text-success" />
 						</div>
 						<AlertDialogTitle>Restore {entityType}?</AlertDialogTitle>
 					</div>
@@ -58,7 +58,7 @@ export function ConfirmRestoreDialog({
 					<AlertDialogAction
 						onClick={handleConfirm}
 						disabled={loading}
-						className="bg-green-500 text-white hover:bg-green-600"
+						className="bg-success text-success-foreground hover:bg-success/90"
 					>
 						{loading ? "Restoring…" : "Restore"}
 					</AlertDialogAction>

@@ -174,7 +174,7 @@ export function DraftConfirmationModal({
 									<div className="mt-3 flex max-w-[24rem] items-center gap-3">
 										<div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
 											<motion.div
-												className="h-full rounded-full bg-emerald-500"
+												className="h-full rounded-full bg-success"
 												initial={{ width: 0 }}
 												animate={{ width: `${progressPercentage}%` }}
 												transition={{ duration: 0.5, ease: "easeOut" }}
@@ -256,9 +256,7 @@ export function DraftConfirmationModal({
 											layout
 											className={cn(
 												"group relative transition-colors duration-200",
-												isConfirmed
-													? "bg-emerald-50/50 dark:bg-emerald-950/20"
-													: "hover:bg-muted/30",
+												isConfirmed ? "bg-success/5" : "hover:bg-muted/30",
 												isEditing && "bg-primary/[0.02]",
 											)}
 										>
@@ -266,8 +264,8 @@ export function DraftConfirmationModal({
 											<motion.div
 												className={cn(
 													"absolute left-0 top-0 bottom-0 w-[3px]",
-													isConfirmed && "bg-emerald-500",
-													isPending && "bg-slate-300 dark:bg-slate-600",
+													isConfirmed && "bg-success",
+													isPending && "bg-muted-foreground/30",
 													isEditing && "bg-primary",
 												)}
 												initial={{ scaleY: 0 }}
@@ -288,8 +286,7 @@ export function DraftConfirmationModal({
 													<p
 														className={cn(
 															"text-sm font-medium text-foreground",
-															isConfirmed &&
-																"text-emerald-700 dark:text-emerald-400",
+															isConfirmed && "text-success",
 														)}
 													>
 														{candidate.material}
@@ -400,7 +397,7 @@ export function DraftConfirmationModal({
 																			disableActions ||
 																			showSpinner
 																		}
-																		className="h-8 bg-emerald-600 px-3 text-xs hover:bg-emerald-700 transition-all duration-200 hover:scale-105 active:scale-95"
+																		className="h-8 bg-success text-success-foreground px-3 text-xs hover:bg-success/90 transition-all duration-200 hover:scale-105 active:scale-95"
 																	>
 																		{showSpinner ? (
 																			<Loader2 className="size-3.5 animate-spin" />
@@ -446,7 +443,7 @@ export function DraftConfirmationModal({
 														<Tooltip>
 															<TooltipTrigger asChild>
 																<motion.span
-																	className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 cursor-help"
+																	className="inline-flex items-center gap-1.5 text-xs font-medium text-success cursor-help"
 																	initial={{ opacity: 0, scale: 0.8 }}
 																	animate={{ opacity: 1, scale: 1 }}
 																	transition={{
@@ -672,7 +669,7 @@ export function DraftConfirmationModal({
 										<span className="truncate">
 											{confirmedCount > 0 ? (
 												<>
-													<strong className="text-emerald-600">
+													<strong className="text-success">
 														{confirmedCount}
 													</strong>{" "}
 													confirmed, <strong>{pendingCount}</strong> pending
@@ -716,7 +713,7 @@ export function DraftConfirmationModal({
 										<Button
 											onClick={onProcessFinalizeAll}
 											disabled={disableActions || pendingCount === 0}
-											className="bg-emerald-600 hover:bg-emerald-700 transition-all duration-200 hover:scale-105 active:scale-95"
+											className="bg-success text-success-foreground hover:bg-success/90 transition-all duration-200 hover:scale-105 active:scale-95"
 										>
 											{isBulkConfirming ? (
 												<>

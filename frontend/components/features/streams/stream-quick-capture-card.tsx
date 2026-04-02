@@ -19,16 +19,16 @@ const QUICK_CAPTURE_ACTIONS = [
 		label: "Record Voice Note",
 		description: "Capture site visit observations",
 		icon: Mic,
-		iconBg: "bg-amber-500",
-		accentRing: "hover:ring-amber-500/15",
+		iconBg: "bg-warning",
+		accentRing: "hover:ring-warning/15",
 	},
 	{
 		key: "paste" as const,
 		label: "Quick Paste",
 		description: "Auto-parse email/text raw data",
 		icon: Sparkles,
-		iconBg: "bg-violet-500",
-		accentRing: "hover:ring-violet-500/15",
+		iconBg: "bg-avatar-7",
+		accentRing: "hover:ring-avatar-7/15",
 	},
 ];
 
@@ -52,7 +52,7 @@ export function StreamQuickCaptureCard({
 	return (
 		<div className="rounded-xl bg-surface-container-lowest shadow-xs overflow-hidden flex flex-col">
 			{/* Accent strip + heading */}
-			<div className="h-1 bg-gradient-to-r from-primary via-violet-500 to-amber-500" />
+			<div className="h-1 bg-gradient-to-r from-primary via-avatar-7 to-warning" />
 			<div className="px-4 pt-4 pb-3">
 				<div className="flex items-center gap-1.5">
 					<Sparkles className="size-3.5 text-primary" aria-hidden />

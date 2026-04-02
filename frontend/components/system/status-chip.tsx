@@ -42,6 +42,8 @@ const statusChipVariants = cva(
 				completed: "bg-success text-success-foreground border border-success",
 				archived:
 					"bg-secondary text-secondary-foreground border border-secondary",
+				// Pipeline: streams/ofertas en proceso de venta
+				pipeline: "bg-info text-info-foreground border border-info",
 			},
 
 			// Variantes de apariencia (background vs outline)
@@ -62,6 +64,7 @@ const statusChipVariants = cva(
 					"data-[status=active]:bg-[color-mix(in_srgb,var(--primary)_18%,transparent)]",
 					"data-[status=completed]:bg-[color-mix(in_srgb,var(--success)_18%,transparent)]",
 					"data-[status=pending]:bg-[color-mix(in_srgb,var(--muted)_30%,transparent)]",
+					"data-[status=pipeline]:bg-[color-mix(in_srgb,var(--info)_18%,transparent)]",
 				),
 
 				// Ghost: Sin background, solo borde y texto
@@ -123,6 +126,8 @@ const glowStyles = {
 		"shadow-[0_4px_12px_color-mix(in_srgb,var(--success)_30%,transparent)]",
 	pending: "",
 	archived: "",
+	pipeline:
+		"shadow-[0_4px_12px_color-mix(in_srgb,var(--info)_30%,transparent)]",
 	compliant:
 		"shadow-[0_4px_12px_color-mix(in_srgb,var(--success)_30%,transparent)]",
 	"non-compliant":
@@ -131,28 +136,12 @@ const glowStyles = {
 		"shadow-[0_4px_12px_color-mix(in_srgb,var(--warning)_30%,transparent)]",
 };
 
-// Iconos por defecto para cada estado (opcional)
-const statusIcons = {
-	go: null,
-	"no-go": null,
-	investigate: null,
-	success: null,
-	error: null,
-	warning: null,
-	info: null,
-	compliant: null,
-	"non-compliant": null,
-	partial: null,
-	pending: null,
-	active: null,
-	completed: null,
-	archived: null,
-};
-
 export interface StatusChipProps
 	extends React.HTMLAttributes<HTMLSpanElement>,
 		VariantProps<typeof statusChipVariants> {
 	icon?: React.ReactNode;
+	/** Appends "(X days)" to the label, e.g. for "Stalled (28 days)" */
+	days?: number;
 }
 
 const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(
@@ -165,12 +154,21 @@ const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(
 			shape,
 			glow,
 			icon,
+			days,
 			children,
 			...props
 		},
 		ref,
 	) => {
 		const glowClass = glow ? glowStyles[status as keyof typeof glowStyles] : "";
+		const label =
+			days !== undefined ? (
+				<>
+					{children} ({days} days)
+				</>
+			) : (
+				children
+			);
 
 		return (
 			<span
@@ -184,7 +182,7 @@ const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(
 				{...props}
 			>
 				{icon && <span className="shrink-0">{icon}</span>}
-				{children}
+				{label}
 			</span>
 		);
 	},

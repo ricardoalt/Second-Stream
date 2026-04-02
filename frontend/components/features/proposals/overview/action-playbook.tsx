@@ -45,9 +45,9 @@ function getRiskSeverity(risk: string): "high" | "medium" | "low" {
 }
 
 const SEVERITY_CONFIG = {
-	high: { dot: "bg-red-500", text: "text-red-600 dark:text-red-400" },
-	medium: { dot: "bg-amber-500", text: "text-amber-600 dark:text-amber-400" },
-	low: { dot: "bg-yellow-400", text: "text-yellow-600 dark:text-yellow-400" },
+	high: { dot: "bg-destructive", text: "text-destructive" },
+	medium: { dot: "bg-warning", text: "text-warning" },
+	low: { dot: "bg-warning/70", text: "text-warning" },
 } as const;
 
 export function ActionPlaybook({
@@ -68,10 +68,10 @@ export function ActionPlaybook({
 					animate={{ opacity: 1, x: 0 }}
 					transition={{ duration: 0.5, delay: 0.3 }}
 				>
-					<Card className="h-full border-l-4 border-l-green-500 shadow-sm">
+					<Card className="h-full border-l-4 border-l-success shadow-sm">
 						<CardHeader className="pb-3">
 							<CardTitle className="flex items-center gap-2 text-base">
-								<ArrowUpRight className="h-5 w-5 text-green-600 dark:text-green-400" />
+								<ArrowUpRight className="h-5 w-5 text-success" />
 								Next Steps
 							</CardTitle>
 							<p className="text-xs text-muted-foreground">
@@ -82,8 +82,8 @@ export function ActionPlaybook({
 							<ul className="space-y-3">
 								{recommendations.map((item) => (
 									<li key={item} className="flex items-start gap-3">
-										<span className="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center mt-0.5">
-											<CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+										<span className="flex-shrink-0 w-6 h-6 rounded-full bg-success/15 flex items-center justify-center mt-0.5">
+											<CheckCircle className="h-4 w-4 text-success" />
 										</span>
 										<span className="text-sm leading-relaxed text-foreground/90">
 											{item}
@@ -101,10 +101,10 @@ export function ActionPlaybook({
 					animate={{ opacity: 1, x: 0 }}
 					transition={{ duration: 0.5, delay: 0.4 }}
 				>
-					<Card className="h-full border-l-4 border-l-amber-500 shadow-sm">
+					<Card className="h-full border-l-4 border-l-warning shadow-sm">
 						<CardHeader className="pb-3">
 							<CardTitle className="flex items-center gap-2 text-base">
-								<ShieldAlert className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+								<ShieldAlert className="h-5 w-5 text-warning" />
 								Risks to Monitor
 							</CardTitle>
 							<p className="text-xs text-muted-foreground">

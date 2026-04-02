@@ -5,7 +5,35 @@ import pytest
 from conftest import create_company, create_location, create_org, create_project, create_user
 from httpx import AsyncClient
 
+from app.models.proposal import Proposal
 from app.models.user import UserRole
+from app.templates.assessment_questionnaire import get_assessment_questionnaire
+
+
+def _complete_project_data_payload() -> dict[str, object]:
+    required_field_ids: list[str] = []
+    for section in get_assessment_questionnaire():
+        if not isinstance(section, dict):
+            continue
+        fields = section.get("fields")
+        if not isinstance(fields, list):
+            continue
+        for field in fields:
+            if not isinstance(field, dict) or not field.get("required"):
+                continue
+            field_id = field.get("id")
+            if isinstance(field_id, str):
+                required_field_ids.append(field_id)
+
+    return {
+        "technical_sections": [
+            {
+                "fields": [
+                    {"id": field_id, "value": "complete"} for field_id in required_field_ids
+                ],
+            }
+        ],
+    }
 
 
 @pytest.mark.asyncio
@@ -190,6 +218,232 @@ async def test_org_user_list_includes_open_streams_count_with_locked_semantics(
     assert scoped_by_email[admin.email]["open_streams_count"] == 2
     assert scoped_by_email[member.email]["open_streams_count"] == 1
     assert all(isinstance(row["open_streams_count"], int) for row in scoped_users)
+
+
+@pytest.mark.asyncio
+async def test_get_field_agent_detail_returns_truthful_kpis_and_paginated_owned_streams(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Agent Detail", f"org-agent-detail-{uid}")
+    admin = await create_user(
+        db_session,
+        email=f"org-admin-agent-detail-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    target_agent = await create_user(
+        db_session,
+        email=f"field-agent-agent-detail-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    company = await create_company(
+        db_session,
+        org_id=org.id,
+        name=f"Agent Detail Co {uid}",
+        created_by_user_id=admin.id,
+    )
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name=f"Agent Detail Site {uid}",
+        created_by_user_id=admin.id,
+    )
+
+    missing_info_project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=target_agent.id,
+        location_id=location.id,
+        name=f"Missing Info Stream {uid}",
+    )
+    offers_in_progress_project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=target_agent.id,
+        location_id=location.id,
+        name=f"Offer Pipeline Stream {uid}",
+    )
+    completed_project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=target_agent.id,
+        location_id=location.id,
+        name=f"Completed Stream Detail {uid}",
+    )
+    archived_project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=target_agent.id,
+        location_id=location.id,
+        name=f"Archived Stream Detail {uid}",
+    )
+
+    offers_in_progress_project.project_data = _complete_project_data_payload()
+    offers_in_progress_project.proposal_follow_up_state = "waiting_response"
+    offers_in_progress_proposal = Proposal(
+        organization_id=org.id,
+        project_id=offers_in_progress_project.id,
+        version="v1.0",
+        title=f"Offer Proposal {uid}",
+        proposal_type="Technical",
+        status="Current",
+    )
+    completed_project.status = "Completed"
+    completed_project.project_data = _complete_project_data_payload()
+    archived_project.archived_at = datetime.now(UTC)
+
+    db_session.add(missing_info_project)
+    db_session.add(offers_in_progress_project)
+    db_session.add(offers_in_progress_proposal)
+    db_session.add(completed_project)
+    db_session.add(archived_project)
+    await db_session.commit()
+
+    set_current_user(admin)
+    response = await client.get(
+        f"/api/v1/organizations/current/users/{target_agent.id}",
+        params={"page": 1, "size": 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["user"]["id"] == str(target_agent.id)
+    assert payload["user"]["open_streams_count"] == 2
+    assert payload["kpis"] == {
+        "openStreams": 2,
+        "missingInformation": 1,
+        "offersInProgress": 1,
+        "completedStreams": 1,
+    }
+
+    assert payload["total"] == 3
+    assert payload["page"] == 1
+    assert payload["size"] == 2
+    assert payload["pages"] == 2
+    assert len(payload["streams"]) == 2
+    assert {stream["streamName"] for stream in payload["streams"]}.issubset(
+        {
+            f"Missing Info Stream {uid}",
+            f"Offer Pipeline Stream {uid}",
+            f"Completed Stream Detail {uid}",
+        },
+    )
+
+    for stream in payload["streams"]:
+        assert stream["projectId"] != str(archived_project.id)
+
+    paged_response = await client.get(
+        f"/api/v1/organizations/current/users/{target_agent.id}",
+        params={"page": 2, "size": 1},
+    )
+
+    assert paged_response.status_code == 200
+    paged_payload = paged_response.json()
+    assert paged_payload["page"] == 2
+    assert paged_payload["size"] == 1
+    assert paged_payload["total"] == 3
+    assert paged_payload["pages"] == 3
+    assert len(paged_payload["streams"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_field_agent_detail_returns_404_for_non_field_agent_targets(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Agent Detail Role", f"org-agent-role-{uid}")
+    admin = await create_user(
+        db_session,
+        email=f"org-admin-agent-role-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    non_field_agent = await create_user(
+        db_session,
+        email=f"org-admin-target-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+
+    set_current_user(admin)
+    response = await client.get(
+        f"/api/v1/organizations/current/users/{non_field_agent.id}",
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_field_agent_detail_forbidden_for_non_admin_actor(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Agent Detail Forbidden", f"org-agent-forbidden-{uid}")
+    field_agent = await create_user(
+        db_session,
+        email=f"field-agent-forbidden-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    target_agent = await create_user(
+        db_session,
+        email=f"field-agent-target-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    set_current_user(field_agent)
+    response = await client.get(f"/api/v1/organizations/current/users/{target_agent.id}")
+
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_superadmin_org_scoped_field_agent_detail_enforces_org_scope(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Scoped Detail", f"org-scoped-detail-{uid}")
+    other_org = await create_org(db_session, "Org Scoped Other", f"org-scoped-other-{uid}")
+
+    superadmin = await create_user(
+        db_session,
+        email=f"superadmin-agent-detail-{uid}@example.com",
+        org_id=None,
+        role=UserRole.ADMIN.value,
+        is_superuser=True,
+    )
+    target_agent = await create_user(
+        db_session,
+        email=f"field-agent-scoped-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    set_current_user(superadmin)
+    scoped_response = await client.get(
+        f"/api/v1/organizations/{org.id}/users/{target_agent.id}",
+        headers={"X-Organization-Id": str(org.id)},
+    )
+    assert scoped_response.status_code == 200
+
+    cross_org_response = await client.get(
+        f"/api/v1/organizations/{other_org.id}/users/{target_agent.id}",
+        headers={"X-Organization-Id": str(org.id)},
+    )
+    assert cross_org_response.status_code == 403
 
 
 @pytest.mark.asyncio

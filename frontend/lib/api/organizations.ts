@@ -96,6 +96,76 @@ interface RawUserResponse {
 	openStreamsCount?: number;
 }
 
+interface RawAgentDetailKpisResponse {
+	open_streams?: number;
+	openStreams?: number;
+	missing_information?: number;
+	missingInformation?: number;
+	offers_in_progress?: number;
+	offersInProgress?: number;
+	completed_streams?: number;
+	completedStreams?: number;
+}
+
+interface RawAgentDetailStreamResponse {
+	project_id?: string;
+	projectId?: string;
+	stream_name?: string;
+	streamName?: string;
+	status: string;
+	company_label?: string | null;
+	companyLabel?: string | null;
+	location_label?: string | null;
+	locationLabel?: string | null;
+	last_activity_at?: string;
+	lastActivityAt?: string;
+	missing_required_info?: boolean;
+	missingRequiredInfo?: boolean;
+	missing_fields?: string[];
+	missingFields?: string[];
+	proposal_follow_up_state?: string | null;
+	proposalFollowUpState?: string | null;
+}
+
+interface RawAgentDetailResponse {
+	user: RawUserResponse;
+	kpis: RawAgentDetailKpisResponse;
+	streams: RawAgentDetailStreamResponse[];
+	page: number;
+	size: number;
+	total: number;
+	pages: number;
+}
+
+export interface AgentDetailKpis {
+	openStreams: number;
+	missingInformation: number;
+	offersInProgress: number;
+	completedStreams: number;
+}
+
+export interface AgentDetailStream {
+	projectId: string;
+	streamName: string;
+	status: string;
+	companyLabel: string | null;
+	locationLabel: string | null;
+	lastActivityAt: string;
+	missingRequiredInfo: boolean;
+	missingFields: string[];
+	proposalFollowUpState: string | null;
+}
+
+export interface AgentDetailResponse {
+	user: User;
+	kpis: AgentDetailKpis;
+	streams: AgentDetailStream[];
+	page: number;
+	size: number;
+	total: number;
+	pages: number;
+}
+
 interface RawPurgeForcePendingResponse {
 	error?: {
 		code?: string;
@@ -155,6 +225,45 @@ function transformUser(response: RawUserResponse): User {
 			response.permissions_version ?? "2026-02-28-role-authz-mvp-v1",
 		openStreamsCount:
 			response.openStreamsCount ?? response.open_streams_count ?? 0,
+	};
+}
+
+function transformAgentDetail(
+	response: RawAgentDetailResponse,
+): AgentDetailResponse {
+	return {
+		user: transformUser(response.user),
+		kpis: {
+			openStreams: response.kpis.openStreams ?? response.kpis.open_streams ?? 0,
+			missingInformation:
+				response.kpis.missingInformation ??
+				response.kpis.missing_information ??
+				0,
+			offersInProgress:
+				response.kpis.offersInProgress ?? response.kpis.offers_in_progress ?? 0,
+			completedStreams:
+				response.kpis.completedStreams ?? response.kpis.completed_streams ?? 0,
+		},
+		streams: response.streams.map((stream) => ({
+			projectId: stream.projectId ?? stream.project_id ?? "",
+			streamName: stream.streamName ?? stream.stream_name ?? "",
+			status: stream.status,
+			companyLabel: stream.companyLabel ?? stream.company_label ?? null,
+			locationLabel: stream.locationLabel ?? stream.location_label ?? null,
+			lastActivityAt:
+				stream.lastActivityAt ??
+				stream.last_activity_at ??
+				new Date().toISOString(),
+			missingRequiredInfo:
+				stream.missingRequiredInfo ?? stream.missing_required_info ?? false,
+			missingFields: stream.missingFields ?? stream.missing_fields ?? [],
+			proposalFollowUpState:
+				stream.proposalFollowUpState ?? stream.proposal_follow_up_state ?? null,
+		})),
+		page: response.page,
+		size: response.size,
+		total: response.total,
+		pages: response.pages,
 	};
 }
 
@@ -249,6 +358,45 @@ export const organizationsAPI = {
 			"/organizations/current/users",
 		);
 		return data.map(transformUser);
+	},
+
+	async getMyOrgUserDetail(
+		userId: string,
+		params?: { page?: number; size?: number },
+	): Promise<AgentDetailResponse> {
+		const search = new URLSearchParams();
+		if (params?.page !== undefined) {
+			search.set("page", String(params.page));
+		}
+		if (params?.size !== undefined) {
+			search.set("size", String(params.size));
+		}
+		const query = search.toString();
+		const endpoint = query
+			? `/organizations/current/users/${userId}?${query}`
+			: `/organizations/current/users/${userId}`;
+		const data = await apiClient.get<RawAgentDetailResponse>(endpoint);
+		return transformAgentDetail(data);
+	},
+
+	async getOrgUserDetail(
+		orgId: string,
+		userId: string,
+		params?: { page?: number; size?: number },
+	): Promise<AgentDetailResponse> {
+		const search = new URLSearchParams();
+		if (params?.page !== undefined) {
+			search.set("page", String(params.page));
+		}
+		if (params?.size !== undefined) {
+			search.set("size", String(params.size));
+		}
+		const query = search.toString();
+		const endpoint = query
+			? `/organizations/${orgId}/users/${userId}?${query}`
+			: `/organizations/${orgId}/users/${userId}`;
+		const data = await apiClient.get<RawAgentDetailResponse>(endpoint);
+		return transformAgentDetail(data);
 	},
 
 	/**

@@ -93,9 +93,9 @@ function DraftField({
 	return (
 		<div
 			className={cn(
-				"relative rounded-lg border border-sky-100 bg-sky-50/80 px-3 py-2 transition-all",
-				"hover:border-sky-200 hover:bg-sky-50",
-				"focus-within:border-sky-300 focus-within:bg-sky-50 focus-within:ring-2 focus-within:ring-sky-100",
+				"relative rounded-lg border border-primary/10 bg-primary/5 px-3 py-2 transition-all",
+				"hover:border-primary/20 hover:bg-primary/[0.07]",
+				"focus-within:border-primary/40 focus-within:bg-primary/[0.07] focus-within:ring-2 focus-within:ring-primary/10",
 				className,
 			)}
 		>
@@ -248,7 +248,8 @@ export function StreamsDraftsTable({
 							<TableCell className="px-6 py-5">
 								<DraftField
 									className={cn(
-										rowErrors.wasteType && "border-red-200 bg-red-50/50",
+										rowErrors.wasteType &&
+											"border-destructive/20 bg-destructive/5",
 									)}
 								>
 									<Input
@@ -261,12 +262,12 @@ export function StreamsDraftsTable({
 												event.target.value,
 											)
 										}
-										className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-slate-700 shadow-none focus-visible:ring-0"
+										className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-foreground shadow-none focus-visible:ring-0"
 										placeholder="Material name"
 									/>
 								</DraftField>
 								{rowErrors.wasteType ? (
-									<p className="mt-1.5 text-xs text-red-600">
+									<p className="mt-1.5 text-xs text-destructive">
 										{rowErrors.wasteType}
 									</p>
 								) : null}
@@ -277,7 +278,8 @@ export function StreamsDraftsTable({
 								<DraftField
 									className={cn(
 										"w-28",
-										rowErrors.volume && "border-red-200 bg-red-50/50",
+										rowErrors.volume &&
+											"border-destructive/20 bg-destructive/5",
 									)}
 								>
 									<div className="flex items-center gap-1">
@@ -297,7 +299,7 @@ export function StreamsDraftsTable({
 									</div>
 								</DraftField>
 								{rowErrors.volume ? (
-									<p className="mt-1.5 text-xs text-red-600">
+									<p className="mt-1.5 text-xs text-destructive">
 										{rowErrors.volume}
 									</p>
 								) : null}
@@ -308,7 +310,8 @@ export function StreamsDraftsTable({
 								<DraftField
 									className={cn(
 										"w-32",
-										rowErrors.frequency && "border-red-200 bg-red-50/50",
+										rowErrors.frequency &&
+											"border-destructive/20 bg-destructive/5",
 									)}
 								>
 									<Select
@@ -317,7 +320,7 @@ export function StreamsDraftsTable({
 											updateDraft(row.id, rowDraft, "frequency", value)
 										}
 									>
-										<SelectTrigger className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-slate-700 shadow-none focus:ring-0 [&>svg]:size-4 [&>svg]:text-sky-400">
+										<SelectTrigger className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-foreground shadow-none focus:ring-0 [&>svg]:size-4 [&>svg]:text-primary">
 											<SelectValue placeholder="Select" />
 										</SelectTrigger>
 										<SelectContent>
@@ -332,7 +335,7 @@ export function StreamsDraftsTable({
 									</Select>
 								</DraftField>
 								{rowErrors.frequency ? (
-									<p className="mt-1.5 text-xs text-red-600">
+									<p className="mt-1.5 text-xs text-destructive">
 										{rowErrors.frequency}
 									</p>
 								) : null}
@@ -343,7 +346,7 @@ export function StreamsDraftsTable({
 								<DraftField
 									className={cn(
 										"w-28",
-										rowErrors.units && "border-red-200 bg-red-50/50",
+										rowErrors.units && "border-destructive/20 bg-destructive/5",
 									)}
 								>
 									<Select
@@ -352,7 +355,7 @@ export function StreamsDraftsTable({
 											updateDraft(row.id, rowDraft, "units", value)
 										}
 									>
-										<SelectTrigger className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-slate-700 shadow-none focus:ring-0 [&>svg]:size-4 [&>svg]:text-sky-400">
+										<SelectTrigger className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-foreground shadow-none focus:ring-0 [&>svg]:size-4 [&>svg]:text-primary">
 											<SelectValue placeholder="Units" />
 										</SelectTrigger>
 										<SelectContent>
@@ -367,7 +370,7 @@ export function StreamsDraftsTable({
 									</Select>
 								</DraftField>
 								{rowErrors.units ? (
-									<p className="mt-1.5 text-xs text-red-600">
+									<p className="mt-1.5 text-xs text-destructive">
 										{rowErrors.units}
 									</p>
 								) : null}
@@ -379,7 +382,7 @@ export function StreamsDraftsTable({
 									<Button
 										onClick={() => handleConfirm(row)}
 										disabled={rowBusy}
-										className="h-8 gap-1.5 rounded-full bg-teal-600 px-4 text-xs font-semibold text-white shadow-sm transition-all hover:bg-teal-700 hover:shadow-md active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+										className="h-8 gap-1.5 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
 									>
 										{isConfirming ? (
 											<>

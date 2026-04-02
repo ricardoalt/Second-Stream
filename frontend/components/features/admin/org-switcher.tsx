@@ -125,7 +125,7 @@ export function OrgSwitcher({ onCreateNew }: OrgSwitcherProps) {
 						<TooltipTrigger asChild>
 							<Button
 								variant="outline"
-								className={`${WARNING_WIDTH_CLASS} justify-start gap-2 border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400`}
+								className={`${WARNING_WIDTH_CLASS} justify-start gap-2 border-warning/50 bg-warning/10 hover:bg-warning/20 text-warning`}
 							>
 								<AlertTriangle className="h-4 w-4 shrink-0" />
 								<span className="text-sm">
@@ -149,7 +149,7 @@ export function OrgSwitcher({ onCreateNew }: OrgSwitcherProps) {
 								variant="ghost"
 								size="icon"
 								onClick={clearSelection}
-								className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-500/20"
+								className="h-8 w-8 text-warning hover:text-warning/80 hover:bg-warning/20"
 								aria-label="Clear organization context"
 							>
 								<X className="h-4 w-4" />

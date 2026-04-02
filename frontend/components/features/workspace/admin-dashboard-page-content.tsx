@@ -3,13 +3,16 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import {
+	KpiCard,
+	KpiGrid,
+	PageSection,
+} from "@/components/system/page-template";
+import { StatusChip } from "@/components/system/status-chip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { DashboardSection, KpiGrid } from "@/components/ui/dashboard-section";
 import { DataTable, SectionDivider } from "@/components/ui/data-table";
-import { KpiCard } from "@/components/ui/kpi-card";
 import { ProgressCard } from "@/components/ui/progress-card";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { getAvatarColorForName, TeamAvatar } from "@/components/ui/team-avatar";
 import { dashboardAPI } from "@/lib/api/dashboard";
 import type { OfferPipelineResponseDTO } from "@/lib/api/offers";
@@ -131,11 +134,11 @@ function getDaysSince(dateString: string): number {
 	return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
-// Get badge variant based on queue priority
-function getBadgeVariantForPriority(
+// Get chip status based on queue priority
+function getChipStatusForPriority(
 	priority: PersistedStreamRow["queuePriority"],
-): "critical" | "warning" | "success" {
-	if (priority === "critical") return "critical";
+): "error" | "warning" | "success" {
+	if (priority === "critical") return "error";
 	if (priority === "high") return "warning";
 	return "success";
 }
@@ -245,7 +248,7 @@ export function AdminDashboardPageContent({
 								stage={streamStageLabel(stream)}
 								statusVariant={
 									stream.queuePriority === "critical"
-										? "critical"
+										? "error"
 										: stream.queuePriority === "high"
 											? "warning"
 											: "info"
@@ -270,44 +273,100 @@ export function AdminDashboardPageContent({
 				</Card>
 			) : null}
 
-			{/* Stream Lifecycle Summary - Using Design System */}
-			<DashboardSection
+			{/* Stream Lifecycle Summary */}
+			<PageSection
 				title="Stream Lifecycle Summary"
-				badge={{ text: "Live Flow Tracking", variant: "live" }}
-				variant="highlighted"
+				actions={
+					<div className="flex items-center gap-1.5">
+						<span className="inline-block h-1.5 w-1.5 rounded-full bg-success" />
+						<span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+							Live Flow Tracking
+						</span>
+					</div>
+				}
 			>
 				<KpiGrid>
 					<KpiCard
-						type="streams"
 						label="Total Streams"
 						value={dashboard.counts.total}
 						loading={loading}
+						icon={
+							<svg
+								className="size-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								strokeWidth={2}
+								aria-hidden="true"
+							>
+								<path d="M2 12h20M2 12c0-5 4-9 9-9s9 4 9 9M2 12c0 5 4 9 9 9s9-4 9-9" />
+								<path d="M12 2v20" />
+							</svg>
+						}
 					/>
 					<KpiCard
-						type="missing"
 						label="Missing Information"
 						value={dashboard.counts.missingInformation}
 						loading={loading}
+						icon={
+							<svg
+								className="size-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								strokeWidth={2}
+								aria-hidden="true"
+							>
+								<circle cx="12" cy="12" r="10" />
+								<line x1="12" y1="8" x2="12" y2="12" />
+								<line x1="12" y1="16" x2="12.01" y2="16" />
+							</svg>
+						}
 					/>
 					<KpiCard
-						type="offers"
 						label="In Negotiation"
 						value={pipeline.counts.underNegotiation}
 						loading={loading}
+						icon={
+							<svg
+								className="size-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								strokeWidth={2}
+								aria-hidden="true"
+							>
+								<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+								<polyline points="14 2 14 8 20 8" />
+								<line x1="16" y1="13" x2="8" y2="13" />
+							</svg>
+						}
 					/>
 					<KpiCard
-						type="revenue"
 						label="Pipeline Value"
 						value={pipelineValue}
 						loading={loading}
+						icon={
+							<svg
+								className="size-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								strokeWidth={2}
+								aria-hidden="true"
+							>
+								<line x1="12" y1="1" x2="12" y2="23" />
+								<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+							</svg>
+						}
 					/>
 				</KpiGrid>
-			</DashboardSection>
+			</PageSection>
 
-			{/* Team Performance - Using Design System */}
-			<DashboardSection
+			{/* Team Performance */}
+			<PageSection
 				title="Team Performance"
-				action={
+				actions={
 					<Button
 						asChild
 						variant="ghost"
@@ -366,21 +425,27 @@ export function AdminDashboardPageContent({
 									const days = primary.lastActivityAt
 										? getDaysSince(primary.lastActivityAt)
 										: 0;
-									const badgeVariant = getBadgeVariantForPriority(
+									const chipStatus = getChipStatusForPriority(
 										primary.queuePriority,
 									);
 
 									return (
-										<StatusBadge
-											variant={badgeVariant}
-											days={days > 0 ? Math.min(days, 28) : undefined}
+										<StatusChip
+											status={chipStatus}
+											variant="subtle"
+											size="sm"
+											{...(days > 0 ? { days: Math.min(days, 28) } : {})}
 										>
 											{queueReasonLabel(primary.queuePriorityReason)}
-										</StatusBadge>
+										</StatusChip>
 									);
 								}
 
-								return <StatusBadge variant="success">On Track</StatusBadge>;
+								return (
+									<StatusChip status="success" variant="subtle" size="sm">
+										On Track
+									</StatusChip>
+								);
 							},
 						},
 						{
@@ -411,7 +476,7 @@ export function AdminDashboardPageContent({
 										asChild
 										variant="ghost"
 										size="sm"
-										className="h-auto px-0 text-sm text-cyan-600 hover:bg-transparent hover:text-foreground"
+										className="h-auto px-0 text-sm text-primary hover:bg-transparent hover:text-foreground"
 									>
 										<Link href={routes.streams.all}>View All</Link>
 									</Button>
@@ -427,11 +492,11 @@ export function AdminDashboardPageContent({
 						disabled: { previous: true, next: teamGroups.length <= 6 },
 					}}
 				/>
-			</DashboardSection>
+			</PageSection>
 
 			{/* Critical Supervision Queue */}
 			{queueRows.length > 0 && (
-				<DashboardSection title="Critical Supervision Queue">
+				<PageSection title="Critical Supervision Queue">
 					<Card className="border border-border/60 bg-white shadow-sm">
 						<CardContent className="space-y-1 p-0">
 							{queueRows.map((row) => (
@@ -444,8 +509,8 @@ export function AdminDashboardPageContent({
 											<span
 												className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${
 													row.queuePriority === "critical"
-														? "bg-destructive text-white"
-														: "bg-orange-500 text-white"
+														? "bg-destructive text-destructive-foreground"
+														: "bg-warning text-warning-foreground"
 												}`}
 											>
 												!
@@ -466,7 +531,7 @@ export function AdminDashboardPageContent({
 											className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${
 												row.queuePriority === "critical"
 													? "text-destructive"
-													: "text-orange-500"
+													: "text-warning"
 											}`}
 										>
 											{queueReasonLabel(row.queuePriorityReason)}
@@ -478,7 +543,7 @@ export function AdminDashboardPageContent({
 											className={`h-auto px-2 text-sm ${
 												row.queuePriority === "critical"
 													? "text-destructive hover:bg-destructive/10 hover:text-destructive"
-													: "text-orange-500 hover:bg-orange-500/10 hover:text-orange-500"
+													: "text-warning hover:bg-warning/10 hover:text-warning"
 											}`}
 										>
 											<Link href={routes.streams.detail(row.projectId)}>
@@ -500,7 +565,7 @@ export function AdminDashboardPageContent({
 							</div>
 						</CardContent>
 					</Card>
-				</DashboardSection>
+				</PageSection>
 			)}
 		</div>
 	);

@@ -68,10 +68,10 @@ export function ProposalAISection({ proposal }: ProposalAISectionProps) {
 
 			{/* AI Creative Insights */}
 			{aiInsights.length > 0 && (
-				<Card className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20">
+				<Card className="border-info/20 bg-info/5">
 					<CardHeader>
 						<CardTitle className="flex items-center gap-2">
-							<Lightbulb className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+							<Lightbulb className="h-5 w-5 text-info" />
 							AI Creative Insights
 						</CardTitle>
 						<p className="text-sm text-muted-foreground">
@@ -82,8 +82,8 @@ export function ProposalAISection({ proposal }: ProposalAISectionProps) {
 						<ul className="space-y-3">
 							{aiInsights.map((insight: string) => (
 								<li key={insight} className="flex items-start gap-3">
-									<div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-										<Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+									<div className="flex-shrink-0 w-8 h-8 rounded-full bg-info/15 flex items-center justify-center">
+										<Sparkles className="h-4 w-4 text-info" />
 									</div>
 									<p className="text-sm flex-1 leading-relaxed">{insight}</p>
 								</li>

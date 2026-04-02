@@ -82,16 +82,16 @@ export function OrphanStreamPicker({
 	}, [selectedLocationId, selectedLocation, orphanItems, excluded, onAssign]);
 
 	return (
-		<Card className="border-amber-500/20 bg-amber-500/[0.02] animate-in fade-in slide-in-from-top-2 duration-300">
+		<Card className="border-warning/20 bg-warning/[0.02] animate-in fade-in slide-in-from-top-2 duration-300">
 			<CardContent className="py-6 space-y-4">
 				{/* Header */}
 				<div className="flex items-start gap-3">
-					<div className="p-2.5 rounded-full bg-amber-500/10 shrink-0">
-						<Sparkles className="h-5 w-5 text-amber-400" />
+					<div className="p-2.5 rounded-full bg-warning/10 shrink-0">
+						<Sparkles className="h-5 w-5 text-warning" />
 					</div>
 					<div>
 						<h3 className="text-base font-semibold">
-							Found <span className="text-amber-400">{orphanItems.length}</span>{" "}
+							Found <span className="text-warning">{orphanItems.length}</span>{" "}
 							unassigned waste stream
 							{orphanItems.length === 1 ? "" : "s"}
 						</h3>

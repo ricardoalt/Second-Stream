@@ -2,8 +2,9 @@
 Organization (tenant) endpoints.
 """
 
+from functools import cache
 from time import perf_counter
-from typing import Annotated, NoReturn
+from typing import Annotated, Any, NoReturn, cast
 from uuid import UUID
 
 import structlog
@@ -17,10 +18,19 @@ from app.authz import permissions
 from app.authz.authz import raise_org_access_denied, require_permission
 from app.core.user_manager import UserManager, get_user_manager
 from app.main import limiter
+from app.models.company import Company
+from app.models.location import Location
 from app.models.organization import Organization
 from app.models.project import Project
+from app.models.proposal import Proposal
 from app.models.user import User, UserRole
 from app.schemas.org_user import OrgUserCreate, OrgUserCreateRequest, OrgUserUpdate
+from app.schemas.org_user_detail import (
+    AgentDetailKPIs,
+    AgentDetailResponse,
+    AgentDetailStreamRow,
+    ProposalFollowUpState,
+)
 from app.schemas.organization import (
     OrganizationArchiveRead,
     OrganizationArchiveRequest,
@@ -41,6 +51,13 @@ from app.services.organization_lifecycle_service import (
 
 router = APIRouter()
 logger = structlog.get_logger(__name__)
+
+OPEN_OFFER_PIPELINE_STATES = (
+    "uploaded",
+    "waiting_to_send",
+    "waiting_response",
+    "under_negotiation",
+)
 
 
 def _raise_forbidden_superadmin_required() -> NoReturn:
@@ -136,6 +153,198 @@ async def _list_users_with_open_streams_count(db: AsyncDB, org_id: UUID) -> list
     ]
 
 
+def _is_missing_value(value: Any) -> bool:
+    return value is None or value == "" or value == []
+
+
+@cache
+def _required_dashboard_field_labels() -> dict[str, str]:
+    from app.templates.assessment_questionnaire import get_assessment_questionnaire
+
+    labels: dict[str, str] = {}
+    for section in get_assessment_questionnaire():
+        if not isinstance(section, dict):
+            continue
+        section_data = cast(dict[str, Any], section)
+        fields = section_data.get("fields")
+        if not isinstance(fields, list):
+            continue
+        for field in fields:
+            if not isinstance(field, dict) or not field.get("required"):
+                continue
+            field_id = field.get("id")
+            label = field.get("label")
+            if isinstance(field_id, str) and isinstance(label, str):
+                labels[field_id] = label
+    return labels
+
+
+def _missing_required_field_labels(project: Project) -> list[str]:
+    required_fields = _required_dashboard_field_labels()
+    project_data = project.project_data if isinstance(project.project_data, dict) else {}
+    technical_sections = project_data.get("technical_sections")
+    if not isinstance(technical_sections, list):
+        return list(required_fields.values())
+
+    observed_values: dict[str, Any] = {}
+    for section in technical_sections:
+        if not isinstance(section, dict):
+            continue
+        section_data = cast(dict[str, Any], section)
+        fields = section_data.get("fields")
+        if not isinstance(fields, list):
+            continue
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            field_id = field.get("id")
+            if isinstance(field_id, str) and field_id in required_fields:
+                observed_values[field_id] = field.get("value")
+
+    missing_labels: list[str] = []
+    for field_id, label in required_fields.items():
+        if _is_missing_value(observed_values.get(field_id)):
+            missing_labels.append(label)
+    return missing_labels
+
+
+def _effective_proposal_follow_up_state(
+    *, stored_state: str | None, proposal_count: int
+) -> ProposalFollowUpState | None:
+    if proposal_count == 0:
+        return None
+    if stored_state is not None:
+        return cast(ProposalFollowUpState, stored_state)
+    return "uploaded"
+
+
+async def _get_field_agent_in_org_or_404(
+    *,
+    db: AsyncDB,
+    org_id: UUID,
+    user_id: UUID,
+) -> User:
+    user = await db.get(User, user_id)
+    if user is None or user.organization_id != org_id:
+        raise HTTPException(status_code=404, detail="User not found in this organization")
+    if user.role != UserRole.FIELD_AGENT.value:
+        raise HTTPException(status_code=404, detail="User not found in this organization")
+    return user
+
+
+async def _build_field_agent_detail_response(
+    *,
+    db: AsyncDB,
+    org_id: UUID,
+    target_user: User,
+    page: int,
+    size: int,
+) -> AgentDetailResponse:
+    proposal_counts = (
+        select(
+            Proposal.project_id.label("project_id"),
+            func.count(Proposal.id).label("proposal_count"),
+        )
+        .where(Proposal.organization_id == org_id)
+        .group_by(Proposal.project_id)
+        .subquery()
+    )
+
+    query = (
+        select(
+            Project,
+            Company.name.label("company_label"),
+            Location.name.label("location_label"),
+            func.coalesce(proposal_counts.c.proposal_count, 0).label("proposal_count"),
+        )
+        .outerjoin(
+            Location,
+            and_(
+                Project.location_id == Location.id,
+                Project.organization_id == Location.organization_id,
+            ),
+        )
+        .outerjoin(
+            Company,
+            and_(
+                Location.company_id == Company.id,
+                Company.organization_id == Project.organization_id,
+            ),
+        )
+        .outerjoin(proposal_counts, proposal_counts.c.project_id == Project.id)
+        .where(
+            Project.organization_id == org_id,
+            Project.user_id == target_user.id,
+            Project.archived_at.is_(None),
+        )
+        .order_by(Project.updated_at.desc())
+    )
+
+    result = await db.execute(query)
+
+    open_streams = 0
+    missing_information = 0
+    offers_in_progress = 0
+    completed_streams = 0
+    streams: list[AgentDetailStreamRow] = []
+
+    for project, company_label, location_label, proposal_count in result.all():
+        assert isinstance(project, Project)
+        missing_fields = _missing_required_field_labels(project)
+        effective_state = _effective_proposal_follow_up_state(
+            stored_state=project.proposal_follow_up_state,
+            proposal_count=int(proposal_count),
+        )
+        is_completed = project.status == "Completed"
+        if is_completed:
+            completed_streams += 1
+        else:
+            open_streams += 1
+            if missing_fields:
+                missing_information += 1
+            if effective_state in OPEN_OFFER_PIPELINE_STATES:
+                offers_in_progress += 1
+
+        streams.append(
+            AgentDetailStreamRow(
+                project_id=project.id,
+                stream_name=project.name,
+                status=project.status,
+                company_label=company_label or project.company_name,
+                location_label=location_label or project.location_name,
+                last_activity_at=project.updated_at,
+                missing_required_info=bool(missing_fields),
+                missing_fields=missing_fields,
+                proposal_follow_up_state=effective_state,
+            )
+        )
+
+    total = len(streams)
+    pages = (total + size - 1) // size if total > 0 else 1
+    start_index = (page - 1) * size
+    end_index = start_index + size
+    paged_streams = streams[start_index:end_index]
+
+    return AgentDetailResponse(
+        user=UserRead.from_user(
+            target_user,
+            organization_id=target_user.organization_id,
+            open_streams_count=open_streams,
+        ),
+        kpis=AgentDetailKPIs(
+            open_streams=open_streams,
+            missing_information=missing_information,
+            offers_in_progress=offers_in_progress,
+            completed_streams=completed_streams,
+        ),
+        streams=paged_streams,
+        page=page,
+        size=size,
+        total=total,
+        pages=pages,
+    )
+
+
 @router.get("", response_model=list[OrganizationRead])
 async def list_organizations(
     current_user: CurrentUser,
@@ -198,6 +407,26 @@ async def list_my_org_users(
     return await _list_users_with_open_streams_count(db, org.id)
 
 
+@router.get("/current/users/{user_id}", response_model=AgentDetailResponse)
+async def get_my_org_user_detail(
+    user_id: UUID,
+    org: OrganizationContext,
+    current_user: CurrentUser,
+    db: AsyncDB,
+    page: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+):
+    require_permission(current_user, permissions.ORG_USER_READ)
+    target_user = await _get_field_agent_in_org_or_404(db=db, org_id=org.id, user_id=user_id)
+    return await _build_field_agent_detail_response(
+        db=db,
+        org_id=org.id,
+        target_user=target_user,
+        page=page,
+        size=size,
+    )
+
+
 @router.post("/current/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_user_in_my_org(
     data: OrgUserCreateRequest,
@@ -258,6 +487,30 @@ async def list_org_users(
         raise_org_access_denied(org_id=str(org_id))
 
     return await _list_users_with_open_streams_count(db, org.id)
+
+
+@router.get("/{org_id}/users/{user_id}", response_model=AgentDetailResponse)
+async def get_org_user_detail(
+    org_id: UUID,
+    user_id: UUID,
+    org: OrganizationContext,
+    current_user: CurrentUser,
+    db: AsyncDB,
+    page: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+):
+    require_permission(current_user, permissions.ORG_USER_READ)
+    if org.id != org_id:
+        raise_org_access_denied(org_id=str(org_id))
+
+    target_user = await _get_field_agent_in_org_or_404(db=db, org_id=org.id, user_id=user_id)
+    return await _build_field_agent_detail_response(
+        db=db,
+        org_id=org.id,
+        target_user=target_user,
+        page=page,
+        size=size,
+    )
 
 
 @router.post("/{org_id}/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)

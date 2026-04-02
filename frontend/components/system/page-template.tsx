@@ -1,13 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -35,15 +29,10 @@ interface PageTemplateProps extends React.HTMLAttributes<HTMLDivElement> {
 	 * @default "lg"
 	 */
 	gap?: "sm" | "md" | "lg" | "xl";
-	/**
-	 * Ancho máximo del contenido
-	 * @default "xl"
-	 */
-	maxWidth?: "sm" | "md" | "lg" | "xl" | "full";
 }
 
 const PageTemplate = React.forwardRef<HTMLDivElement, PageTemplateProps>(
-	({ className, children, gap = "lg", maxWidth = "xl", ...props }, ref) => {
+	({ className, children, gap = "lg", ...props }, ref) => {
 		const gapClasses = {
 			sm: "gap-4",
 			md: "gap-6",
@@ -51,24 +40,10 @@ const PageTemplate = React.forwardRef<HTMLDivElement, PageTemplateProps>(
 			xl: "gap-10",
 		};
 
-		const widthClasses = {
-			sm: "max-w-3xl",
-			md: "max-w-4xl",
-			lg: "max-w-5xl",
-			xl: "max-w-7xl",
-			full: "max-w-full",
-		};
-
 		return (
 			<div
 				ref={ref}
-				className={cn(
-					"flex flex-col",
-					gapClasses[gap],
-					widthClasses[maxWidth],
-					"mx-auto w-full px-4 sm:px-6 lg:px-8",
-					className,
-				)}
+				className={cn("flex flex-col", gapClasses[gap], className)}
 				{...props}
 			>
 				{children}
