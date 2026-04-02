@@ -548,7 +548,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 									workspaceQuickCaptureFeedback.tone === "error"
 										? "border border-destructive/30 bg-destructive/5"
 										: workspaceQuickCaptureFeedback.tone === "success"
-											? "border border-emerald-300/40 bg-emerald-500/10"
+											? "border border-success/30 bg-success/10"
 											: "bg-surface-container-lowest",
 								)}
 							>

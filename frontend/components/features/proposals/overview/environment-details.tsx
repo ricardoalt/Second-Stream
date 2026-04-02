@@ -77,7 +77,7 @@ export function EnvironmentDetails({
 						{waterSavings && waterSavings !== "Not estimable" && (
 							<div className="p-4 rounded-xl bg-muted/50 border border-border">
 								<div className="flex items-center gap-2 mb-2">
-									<Droplets className="h-4 w-4 text-blue-500" />
+									<Droplets className="h-4 w-4 text-info" />
 									<span className="text-xs font-medium text-muted-foreground">
 										Water Saved
 									</span>

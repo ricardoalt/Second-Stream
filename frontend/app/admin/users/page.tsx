@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/system";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -204,24 +205,17 @@ export default function AdminUsersPage() {
 	return (
 		<TooltipProvider delayDuration={200}>
 			<div className="container mx-auto py-8 space-y-6">
-				<div className="flex items-center justify-between flex-wrap gap-4">
-					<div>
-						<h1 className="text-2xl font-bold flex items-center gap-2">
-							<ShieldCheck
-								className="h-6 w-6 text-amber-500"
-								aria-hidden="true"
-							/>
-							Platform Administrators
-						</h1>
-						<p className="text-muted-foreground">
-							Superuser accounts with full platform access.
-						</p>
-					</div>
-					<Button onClick={() => setModalOpen(true)}>
-						<UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-						New Admin
-					</Button>
-				</div>
+				<PageHeader
+					title="Platform Administrators"
+					subtitle="Superuser accounts with full platform access."
+					icon={<ShieldCheck className="h-6 w-6" aria-hidden="true" />}
+					actions={
+						<Button onClick={() => setModalOpen(true)}>
+							<UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+							New Admin
+						</Button>
+					}
+				/>
 
 				<Card>
 					<CardHeader>

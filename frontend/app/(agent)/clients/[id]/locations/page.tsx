@@ -144,7 +144,7 @@ export default function ClientLocationsPage(props: {
 					<Button
 						onClick={handleCreate}
 						size="lg"
-						className="shrink-0 bg-teal-700 text-white hover:bg-teal-800"
+						className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
 					>
 						<Plus className="mr-2 h-4 w-4" />
 						New Location
@@ -176,7 +176,7 @@ export default function ClientLocationsPage(props: {
 
 					{!loading && companyLocations.length === 0 ? (
 						<div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed py-20 text-center">
-							<div className="rounded-full bg-teal-50 p-4 text-teal-700">
+							<div className="rounded-full bg-primary/10 p-4 text-primary">
 								<Building2 className="h-6 w-6" />
 							</div>
 							<div className="space-y-1 max-w-sm">

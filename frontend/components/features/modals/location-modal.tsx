@@ -319,7 +319,7 @@ export function LocationModal({
 						<Button
 							type="submit"
 							disabled={isSubmitting}
-							className="bg-teal-700 text-white hover:bg-teal-800"
+							className="bg-primary text-primary-foreground hover:bg-primary/90"
 						>
 							{isSubmitting
 								? isEdit

@@ -402,7 +402,7 @@ export function StreamQuickCaptureModal({
 								captureStatusMessage.variant === "error"
 									? "border border-destructive/30 bg-destructive/5 text-destructive"
 									: captureStatusMessage.variant === "success"
-										? "border border-emerald-300/40 bg-emerald-500/10 text-emerald-800"
+										? "border border-success/30 bg-success/10 text-success"
 										: "border border-secondary/20 bg-secondary/10 text-secondary",
 							)}
 						>

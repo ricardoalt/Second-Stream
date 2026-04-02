@@ -5,7 +5,6 @@ import type React from "react";
 import { ClientLayout } from "@/components/providers/client-layout";
 import { ThemeProvider } from "@/components/shared/common/theme-provider";
 import "./globals.css";
-import "./theme-overrides.css";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -54,7 +53,8 @@ export default function RootLayout({
 
 				<ThemeProvider
 					attribute="class"
-					forcedTheme="light"
+					defaultTheme="light"
+					enableSystem
 					disableTransitionOnChange
 				>
 					<ClientLayout>{children}</ClientLayout>

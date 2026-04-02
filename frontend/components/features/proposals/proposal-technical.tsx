@@ -82,8 +82,8 @@ export function ProposalTechnical({ proposal }: ProposalTechnicalProps) {
 					variant={hazardLevel === "High" ? "destructive" : "default"}
 					className={
 						hazardLevel === "High"
-							? "border-red-500 bg-red-50 dark:bg-red-950"
-							: "border-yellow-500 bg-yellow-50 dark:bg-yellow-950"
+							? "border-destructive bg-destructive/5"
+							: "border-warning bg-warning/5"
 					}
 				>
 					<AlertCircle className="h-4 w-4" />

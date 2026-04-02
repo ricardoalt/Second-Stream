@@ -293,7 +293,7 @@ export function StreamsDraftsTable({
 													event.target.value,
 												)
 											}
-											className="h-7 w-full border-0 bg-transparent px-0 text-sm font-medium tabular-nums text-slate-700 shadow-none focus-visible:ring-0"
+											className="h-7 w-full border-0 bg-transparent px-0 text-sm font-medium tabular-nums text-foreground shadow-none focus-visible:ring-0"
 											placeholder="0.0"
 										/>
 									</div>

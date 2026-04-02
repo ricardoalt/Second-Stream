@@ -60,7 +60,7 @@ export function getColumns(deps: ColumnDeps): ColumnDef<User>[] {
 								</Badge>
 							)}
 							{user.isSuperuser && (
-								<Badge className="text-xs bg-amber-500/15 text-amber-600 border-amber-500/40">
+								<Badge className="text-xs bg-warning/15 text-warning border-warning/40">
 									Admin
 								</Badge>
 							)}
@@ -99,7 +99,7 @@ export function getColumns(deps: ColumnDeps): ColumnDef<User>[] {
 					<div className="flex flex-col space-y-0.5">
 						<span
 							className={
-								user.isActive ? "text-green-600" : "text-muted-foreground"
+								user.isActive ? "text-success" : "text-muted-foreground"
 							}
 						>
 							{user.isActive ? "Active" : "Disabled"}

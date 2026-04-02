@@ -19,7 +19,7 @@ export function DSRLogo({
 	return (
 		<SecondStreamLogo
 			className={className}
-			width={width}
+			size={width}
 			showTagline={showText}
 			variant="full"
 		/>

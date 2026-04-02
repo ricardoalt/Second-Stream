@@ -195,11 +195,11 @@ function ImageAnalysisSection({ analysis }: { analysis: ImageAIAnalysis }) {
 						</div>
 					</div>
 					{analysis.co2Savings > 0 && (
-						<div className="rounded-lg border bg-emerald-500/10 p-3">
-							<p className="text-xs font-medium text-emerald-500">
+						<div className="rounded-lg border bg-success/10 p-3">
+							<p className="text-xs font-medium text-success">
 								Estimated savings
 							</p>
-							<p className="text-sm text-emerald-500">
+							<p className="text-sm text-success">
 								~{formatTco2(analysis.co2Savings)} tCO2e/year
 							</p>
 						</div>

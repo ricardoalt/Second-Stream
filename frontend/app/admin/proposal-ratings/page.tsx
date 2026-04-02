@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/system";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -278,25 +279,22 @@ export default function AdminProposalRatingsPage() {
 
 	return (
 		<div className="space-y-6">
-			{/* Header */}
-			<div className="flex items-start justify-between">
-				<div>
-					<h1 className="text-xl font-semibold">Proposal Ratings</h1>
-					<p className="mt-0.5 text-sm text-muted-foreground">
-						Monitor AI proposal quality and reviewer sentiment.
-					</p>
-				</div>
-				<Button
-					variant="ghost"
-					size="icon"
-					className="h-8 w-8 text-muted-foreground hover:text-foreground"
-					onClick={loadList}
-					disabled={loading}
-					aria-label="Refresh"
-				>
-					<RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-				</Button>
-			</div>
+			<PageHeader
+				title="Proposal Ratings"
+				subtitle="Monitor AI proposal quality and reviewer sentiment."
+				actions={
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8 text-muted-foreground hover:text-foreground"
+						onClick={loadList}
+						disabled={loading}
+						aria-label="Refresh"
+					>
+						<RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+					</Button>
+				}
+			/>
 
 			{/* KPI cards — page-scoped */}
 			<div className="grid grid-cols-3 gap-3">

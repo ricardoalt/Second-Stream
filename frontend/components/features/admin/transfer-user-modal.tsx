@@ -264,7 +264,7 @@ export function TransferUserModal({
 								</SelectContent>
 							</Select>
 							{reassignCandidates.length === 0 ? (
-								<p className="text-sm text-amber-700">
+								<p className="text-sm text-warning">
 									No active org admin available in source org. Promote one
 									first.
 								</p>

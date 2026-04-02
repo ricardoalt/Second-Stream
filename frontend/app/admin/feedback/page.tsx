@@ -25,6 +25,7 @@ import React, {
 } from "react";
 import { toast } from "sonner";
 import { AdminStatsCard } from "@/components/features/admin";
+import { PageHeader } from "@/components/system";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -382,25 +383,23 @@ export default function AdminFeedbackPage() {
 						</AlertDialogFooter>
 					</AlertDialogContent>
 				</AlertDialog>
-				<div className="flex items-center justify-between">
-					<div>
-						<h1 className="text-2xl font-bold">User Feedback</h1>
-						<p className="text-sm text-muted-foreground">
-							Review and manage user feedback
-						</p>
-					</div>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={loadFeedback}
-						disabled={loading}
-					>
-						<RefreshCw
-							className={cn("h-4 w-4 mr-2", loading && "animate-spin")}
-						/>
-						Refresh
-					</Button>
-				</div>
+				<PageHeader
+					title="User Feedback"
+					subtitle="Review and manage user feedback"
+					actions={
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={loadFeedback}
+							disabled={loading}
+						>
+							<RefreshCw
+								className={cn("h-4 w-4 mr-2", loading && "animate-spin")}
+							/>
+							Refresh
+						</Button>
+					}
+				/>
 
 				<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 					<AdminStatsCard
@@ -639,7 +638,7 @@ export default function AdminFeedbackPage() {
 																		className={cn(
 																			"h-8 w-8",
 																			!isResolved &&
-																				"text-green-600 hover:text-green-700 hover:bg-green-50",
+																				"text-success hover:text-success/80 hover:bg-success/10",
 																		)}
 																		onClick={() =>
 																			handleToggleResolved(item.id, !isResolved)

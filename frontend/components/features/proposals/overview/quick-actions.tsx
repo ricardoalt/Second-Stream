@@ -132,7 +132,7 @@ export function QuickActions({
 								size="sm"
 								className={cn(
 									"gap-2",
-									isApproved && "bg-green-600 hover:bg-green-700",
+									isApproved && "bg-success hover:bg-success/90",
 								)}
 								onClick={handleApprove}
 								disabled={isApproved}

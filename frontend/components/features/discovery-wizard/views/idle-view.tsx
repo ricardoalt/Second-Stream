@@ -713,11 +713,11 @@ export function IdleView({
 								</span>
 								<div className="flex items-center gap-5 text-sm text-muted-foreground">
 									<span className="flex items-center gap-2">
-										<CheckCircle2 className="size-4 text-emerald-600" />
+										<CheckCircle2 className="size-4 text-success" />
 										Ensure MSDS are available.
 									</span>
 									<span className="flex items-center gap-2">
-										<CheckCircle2 className="size-4 text-emerald-600" />
+										<CheckCircle2 className="size-4 text-success" />
 										Verify packaging compatibility.
 									</span>
 								</div>

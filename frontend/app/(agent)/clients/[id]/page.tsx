@@ -356,8 +356,8 @@ export default function ClientDetailPage() {
 							<p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
 								Total Tracked Streams
 							</p>
-							<div className="rounded-lg bg-amber-100 p-1.5">
-								<Activity className="h-4 w-4 text-amber-600" />
+							<div className="rounded-lg bg-warning/15 p-1.5">
+								<Activity className="h-4 w-4 text-warning" />
 							</div>
 						</div>
 					</CardHeader>
@@ -388,8 +388,8 @@ export default function ClientDetailPage() {
 							<p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
 								Needs Follow-up
 							</p>
-							<div className="rounded-lg bg-emerald-100 p-1.5">
-								<Flag className="h-4 w-4 text-emerald-600" />
+							<div className="rounded-lg bg-success/15 p-1.5">
+								<Flag className="h-4 w-4 text-success" />
 							</div>
 						</div>
 					</CardHeader>
@@ -413,8 +413,8 @@ export default function ClientDetailPage() {
 							<p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
 								Ready for Offer
 							</p>
-							<div className="rounded-lg bg-cyan-100 p-1.5">
-								<Target className="h-4 w-4 text-cyan-600" />
+							<div className="rounded-lg bg-info/15 p-1.5">
+								<Target className="h-4 w-4 text-info" />
 							</div>
 						</div>
 					</CardHeader>
@@ -453,7 +453,7 @@ export default function ClientDetailPage() {
 						<div className="space-y-2">
 							<div className="flex items-center justify-between text-sm">
 								<span className="font-medium">Data Completeness</span>
-								<span className="font-medium text-emerald-600">
+								<span className="font-medium text-success">
 									{dataCompleteness}%
 								</span>
 							</div>
@@ -478,11 +478,11 @@ export default function ClientDetailPage() {
 				</Card>
 
 				{/* Critical Alerts */}
-				<Card className="flex flex-col border-l-4 border-l-amber-500">
+				<Card className="flex flex-col border-l-4 border-l-warning">
 					<CardHeader className="pb-3">
 						<div className="flex items-center gap-2">
-							<div className="rounded-lg bg-amber-100 p-1.5">
-								<Flag className="h-4 w-4 text-amber-600" />
+							<div className="rounded-lg bg-warning/15 p-1.5">
+								<Flag className="h-4 w-4 text-warning" />
 							</div>
 							<CardTitle className="text-base font-semibold">
 								Critical Alerts
@@ -492,7 +492,7 @@ export default function ClientDetailPage() {
 					<CardContent className="flex-1 space-y-3">
 						{realAlerts.length === 0 ? (
 							<div className="rounded-lg border p-3">
-								<p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+								<p className="text-xs font-semibold uppercase tracking-wide text-success">
 									No critical blockers
 								</p>
 								<p className="text-xs leading-relaxed text-muted-foreground">
@@ -506,7 +506,7 @@ export default function ClientDetailPage() {
 										className={`text-xs font-semibold uppercase tracking-wide ${
 											alert.tone === "critical"
 												? "text-destructive"
-												: "text-amber-600"
+												: "text-warning"
 										}`}
 									>
 										{alert.title}
@@ -521,13 +521,13 @@ export default function ClientDetailPage() {
 				</Card>
 
 				{/* Strategic Next Steps */}
-				<Card className="flex flex-col bg-teal-700 text-white border-teal-600">
+				<Card className="flex flex-col bg-primary text-primary-foreground border-primary/80">
 					<CardHeader className="pb-3">
 						<div className="flex items-center gap-2">
-							<div className="rounded-lg bg-teal-600 p-1.5">
-								<Flag className="h-4 w-4 text-white" />
+							<div className="rounded-lg bg-primary-foreground/15 p-1.5">
+								<Flag className="h-4 w-4 text-primary-foreground" />
 							</div>
-							<CardTitle className="text-base font-semibold text-white">
+							<CardTitle className="text-base font-semibold text-primary-foreground">
 								Strategic Next Steps
 							</CardTitle>
 						</div>
@@ -541,16 +541,18 @@ export default function ClientDetailPage() {
 									]
 							).map((step, index) => (
 								<li key={step} className="flex gap-3">
-									<span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-medium">
+									<span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary-foreground/15 text-xs font-medium">
 										{index + 1}
 									</span>
-									<p className="text-sm leading-relaxed text-teal-50">{step}</p>
+									<p className="text-sm leading-relaxed text-primary-foreground/80">
+										{step}
+									</p>
 								</li>
 							))}
 						</ol>
 						<Button
 							variant="secondary"
-							className="mt-4 w-full bg-white text-teal-700 hover:bg-teal-50"
+							className="mt-4 w-full bg-primary-foreground text-primary hover:bg-primary-foreground/90"
 							onClick={() => setActiveStreamsTab(reviewAction.tab)}
 						>
 							<Flag className="mr-1.5 h-4 w-4" />

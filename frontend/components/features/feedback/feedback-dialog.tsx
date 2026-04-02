@@ -41,7 +41,7 @@ const FEEDBACK_TYPE_OPTIONS = Object.entries(FEEDBACK_TYPE_CONFIG).map(
 function getCharCountClass(length: number, max: number): string {
 	const percent = (length / max) * 100;
 	if (percent >= 95) return "text-destructive font-medium";
-	if (percent >= 80) return "text-amber-600";
+	if (percent >= 80) return "text-warning";
 	return "text-muted-foreground";
 }
 
@@ -319,7 +319,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 								</div>
 							) : null}
 							{pendingFeedbackId ? (
-								<p className="text-xs text-amber-600">
+								<p className="text-xs text-warning">
 									Feedback sent. Retry attachment upload below.
 								</p>
 							) : null}

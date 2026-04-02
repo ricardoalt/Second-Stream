@@ -375,7 +375,7 @@ export default function OrganizationDetailPage() {
 								variant={organization.isActive ? "default" : "secondary"}
 								className={cn(
 									organization.isActive
-										? "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
+										? "bg-success/10 text-success border-success/20"
 										: "bg-muted text-muted-foreground",
 								)}
 							>

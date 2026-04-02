@@ -64,7 +64,7 @@ export function CircularEconomySection({
 				return (
 					<Card
 						key={`option-${parsed.title.slice(0, 20)}-${idx}`}
-						className="border-l-4 border-l-green-500 hover:shadow-lg transition-shadow duration-300"
+						className="border-l-4 border-l-success hover:shadow-lg transition-shadow duration-300"
 					>
 						<CardHeader>
 							<div className="flex items-center justify-between gap-4">
@@ -77,7 +77,7 @@ export function CircularEconomySection({
 									</CardTitle>
 								</div>
 								{parsed.revenue && (
-									<div className="text-2xl font-bold text-green-600 dark:text-green-400 flex-shrink-0">
+									<div className="text-2xl font-bold text-success flex-shrink-0">
 										{parsed.revenue}
 									</div>
 								)}
