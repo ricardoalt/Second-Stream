@@ -3,6 +3,7 @@
 import {
 	Building2,
 	ChevronRight,
+	LayoutDashboard,
 	Loader2,
 	Search,
 	SlidersHorizontal,
@@ -10,29 +11,41 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AddClientDialog } from "@/components/features/clients/add-client-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
+	Avatar,
+	AvatarFallback,
+	Button,
+	Input,
 	Select,
 	SelectContent,
 	SelectGroup,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import {
 	Table,
 	TableBody,
 	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui";
 import { companiesAPI } from "@/lib/api/companies";
 import type { PortfolioRow } from "@/lib/mappers/company-client";
 import { toPortfolioRow } from "@/lib/mappers/company-client";
 import { cn } from "@/lib/utils";
+
+// ═══════════════════════════════════════════════════════════
+// NEW: Design System Patterns
+// ════════════════════════════════════════════════════════════
+
+import {
+	EmptyState,
+	HoverLift,
+	KpiCard,
+	PageHeader,
+	StaggerContainer,
+	StaggerItem,
+} from "@/components/patterns";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -46,12 +59,12 @@ function getInitials(name: string): string {
 }
 
 const AVATAR_COLORS = [
-	"bg-primary/15 text-primary",
-	"bg-success/15 text-success",
-	"bg-warning/15 text-warning",
-	"bg-destructive/15 text-destructive",
-	"bg-info/15 text-info",
-	"bg-accent/15 text-accent",
+	"bg-primary/10 text-primary border border-primary/30", // Primary teal
+	"bg-success/10 text-success border border-success/30", // Success
+	"bg-warning/10 text-warning border border-warning/30", // Warning
+	"bg-destructive/10 text-destructive border border-destructive/30", // Destructive
+	"bg-info/10 text-info border border-info/30", // Info
+	"bg-muted text-muted-foreground border border-muted-foreground/30", // Neutral
 ] as const;
 
 function getAvatarColor(name: string): string {
@@ -122,41 +135,45 @@ export default function ClientsPage() {
 			{/* ── Header ── */}
 			<section className="animate-fade-in-up relative overflow-hidden rounded-2xl bg-surface-container-lowest p-6 shadow-xs">
 				<div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-container" />
-				<div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-					<div className="flex flex-col gap-2">
-						<div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-secondary">
-							<Building2 aria-hidden="true" className="size-3.5" />
-							Client portfolio
-						</div>
-						<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-							Client Portfolio
-						</h1>
-						<p className="max-w-3xl text-sm text-muted-foreground">
-							Manage industrial accounts and monitor active locations.
-						</p>
-					</div>
-					<AddClientDialog onSubmitted={fetchCompanies} />
-				</div>
+				<PageHeader
+					title="Client Portfolio"
+					subtitle="Manage industrial accounts and monitor active locations."
+					icon={Building2}
+					badge="Client portfolio"
+					breadcrumbs={[{ label: "Home", href: "/" }, { label: "Clients" }]}
+					actions={<AddClientDialog onSubmitted={fetchCompanies} />}
+					className="mb-0"
+				/>
 
-				{/* ── KPI row ── */}
-				<div className="animate-stagger mt-6 grid gap-3 md:grid-cols-2">
-					<div className="rounded-xl bg-surface-container-low p-4">
-						<p className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
-							Total clients
-						</p>
-						<p className="mt-1 font-display text-3xl font-semibold text-foreground">
-							{loading ? "—" : companies.length}
-						</p>
-					</div>
-					<div className="rounded-xl bg-surface-container-low p-4">
-						<p className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
-							Visible clients
-						</p>
-						<p className="mt-1 font-display text-3xl font-semibold text-foreground">
-							{loading ? "—" : filteredClients.length}
-						</p>
-					</div>
-				</div>
+				{/* ── KPI row using patterns/KpiCard with animations ── */}
+				<StaggerContainer
+					staggerDelay={0.1}
+					initialDelay={0.2}
+					className="mt-6 grid gap-3 md:grid-cols-2"
+				>
+					<StaggerItem>
+						<HoverLift>
+							<KpiCard
+								title="Total Clients"
+								value={loading ? "—" : companies.length}
+								icon={Building2}
+								variant="default"
+								className="border-0 bg-surface-container-low"
+							/>
+						</HoverLift>
+					</StaggerItem>
+					<StaggerItem>
+						<HoverLift>
+							<KpiCard
+								title="Visible Clients"
+								value={loading ? "—" : filteredClients.length}
+								icon={LayoutDashboard}
+								variant="accent"
+								className="border-0 bg-surface-container-low"
+							/>
+						</HoverLift>
+					</StaggerItem>
+				</StaggerContainer>
 			</section>
 
 			{/* ── Filter bar ── */}
@@ -218,13 +235,31 @@ export default function ClientsPage() {
 						</Button>
 					</div>
 				) : filteredClients.length === 0 ? (
-					<div className="flex items-center justify-center px-6 py-16">
-						<p className="text-sm text-muted-foreground">
-							{companies.length === 0
-								? "No clients yet. Use the Discovery Wizard to create waste streams for a company."
-								: "No clients match your search."}
-						</p>
-					</div>
+					<EmptyState
+						title={
+							companies.length === 0
+								? "No clients yet"
+								: "No clients match your search"
+						}
+						description={
+							companies.length === 0
+								? "Use the Discovery Wizard to create waste streams for a company."
+								: "Try adjusting your search terms."
+						}
+						icon={Building2}
+						action={
+							companies.length === 0 ? (
+								<Button onClick={() => router.push("/streams")}>
+									Go to Streams
+								</Button>
+							) : (
+								<Button variant="outline" onClick={() => setSearchValue("")}>
+									Clear Search
+								</Button>
+							)
+						}
+						className="rounded-2xl bg-surface-container-lowest"
+					/>
 				) : (
 					<Table>
 						<TableHeader>
@@ -252,7 +287,7 @@ export default function ClientsPage() {
 									key={row.id}
 									onClick={() => router.push(`/clients/${row.id}`)}
 									className={cn(
-										"cursor-pointer transition-colors hover:bg-surface-container-low/60",
+										"cursor-pointer transition-all duration-200 hover:bg-surface-container-low/80 hover:translate-x-[2px]",
 										index % 2 === 0 ? "bg-surface" : "bg-surface-container-low",
 									)}
 								>

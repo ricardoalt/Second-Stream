@@ -210,7 +210,7 @@ export function AddClientDialog({
 			)}
 
 			<DialogContent
-				className="w-[min(94vw,780px)] max-w-none gap-0 overflow-hidden rounded-2xl border-0 bg-white/90 p-0 shadow-lg backdrop-blur-2xl"
+				className="w-[min(94vw,780px)] max-w-none gap-0 overflow-hidden rounded-2xl border border-border/40 bg-surface-container-lowest p-0 shadow-lg"
 				showCloseButton={true}
 			>
 				<form onSubmit={onSubmit}>
@@ -569,7 +569,7 @@ export function AddClientDialog({
 							<Button
 								type="submit"
 								disabled={submitting}
-								className="btn-primary-gradient min-w-[140px] gap-2 px-6 font-semibold uppercase tracking-wider"
+								className="btn-primary-solid min-w-[140px] gap-2 px-6 font-semibold uppercase tracking-wider"
 							>
 								{submitting && <Loader2 className="size-4 animate-spin" />}
 								Create Client

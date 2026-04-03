@@ -12,8 +12,16 @@ import {
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AdminStatsCard, OrgCard } from "@/components/features/admin";
+import { OrgCard } from "@/components/features/admin";
 import { ConfirmOrgPurgeForceDialog } from "@/components/features/admin/confirm-org-purge-force-dialog";
+import { KpiCard } from "@/components/patterns";
+import {
+	FadeIn,
+	HoverLift,
+	Pressable,
+	StaggerContainer,
+	StaggerItem,
+} from "@/components/patterns/animations/motion-components";
 import { ConfirmArchiveDialog } from "@/components/ui/confirm-archive-dialog";
 import { ConfirmRestoreDialog } from "@/components/ui/confirm-restore-dialog";
 
@@ -25,19 +33,19 @@ const EditOrgModal = dynamic(
 	{ ssr: false, loading: () => null },
 );
 
-import { Button } from "@/components/ui/button";
 import {
+	Button,
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
+	Input,
+	Label,
+	Skeleton,
+	Switch,
+} from "@/components/ui";
 import {
 	type Organization,
 	type OrganizationCreateInput,
@@ -291,44 +299,63 @@ export default function AdminOrganizationsPage() {
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="icon"
-						onClick={fetchOrganizations}
-						disabled={isLoading}
-						aria-label="Refresh organizations list"
-					>
-						<RefreshCcw
-							className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-						/>
-					</Button>
-					<Button onClick={() => setCreateModalOpen(true)}>
-						<Plus className="h-4 w-4 mr-2" />
-						New Organization
-					</Button>
+					<Pressable>
+						<Button
+							variant="outline"
+							size="icon"
+							onClick={fetchOrganizations}
+							disabled={isLoading}
+							aria-label="Refresh organizations list"
+						>
+							<RefreshCcw
+								className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+							/>
+						</Button>
+					</Pressable>
+					<Pressable>
+						<Button onClick={() => setCreateModalOpen(true)}>
+							<Plus className="h-4 w-4 mr-2" />
+							New Organization
+						</Button>
+					</Pressable>
 				</div>
 			</div>
 
-			<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-				<AdminStatsCard
-					label="Total"
-					value={stats.total}
-					icon={Building2}
-					variant="default"
-				/>
-				<AdminStatsCard
-					label="Active"
-					value={stats.active}
-					icon={CheckCircle}
-					variant="success"
-				/>
-				<AdminStatsCard
-					label="Inactive"
-					value={stats.inactive}
-					icon={XCircle}
-					variant="muted"
-				/>
-			</div>
+			<StaggerContainer
+				staggerDelay={0.08}
+				className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+			>
+				<StaggerItem>
+					<HoverLift>
+						<KpiCard
+							title="Total"
+							value={stats.total}
+							icon={Building2}
+							variant="default"
+						/>
+					</HoverLift>
+				</StaggerItem>
+				<StaggerItem>
+					<HoverLift>
+						<KpiCard
+							title="Active"
+							value={stats.active}
+							icon={CheckCircle}
+							variant="success"
+						/>
+					</HoverLift>
+				</StaggerItem>
+				<StaggerItem>
+					<HoverLift>
+						<KpiCard
+							title="Inactive"
+							value={stats.inactive}
+							icon={XCircle}
+							variant="muted"
+						/>
+					</HoverLift>
+				</StaggerItem>
+			</StaggerContainer>
 
 			<div className="flex items-center gap-3">
 				<div className="relative flex-1 max-w-sm">
@@ -400,28 +427,34 @@ export default function AdminOrganizationsPage() {
 					)}
 				</div>
 			) : (
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+				<StaggerContainer
+					staggerDelay={0.06}
+					className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+				>
 					{filteredOrganizations.map((org) => (
-						<OrgCard
-							key={org.id}
-							organization={org}
-							onEdit={(org) => setEditingOrg(org)}
-							actionLoading={lifecycleLoading}
-							onArchive={(org) => {
-								setSelectedOrg(org);
-								setArchiveDialogOpen(true);
-							}}
-							onRestore={(org) => {
-								setSelectedOrg(org);
-								setRestoreDialogOpen(true);
-							}}
-							onPurge={(org) => {
-								setSelectedOrg(org);
-								setPurgeDialogOpen(true);
-							}}
-						/>
+						<StaggerItem key={org.id}>
+							<HoverLift>
+								<OrgCard
+									organization={org}
+									onEdit={(org) => setEditingOrg(org)}
+									actionLoading={lifecycleLoading}
+									onArchive={(org) => {
+										setSelectedOrg(org);
+										setArchiveDialogOpen(true);
+									}}
+									onRestore={(org) => {
+										setSelectedOrg(org);
+										setRestoreDialogOpen(true);
+									}}
+									onPurge={(org) => {
+										setSelectedOrg(org);
+										setPurgeDialogOpen(true);
+									}}
+								/>
+							</HoverLift>
+						</StaggerItem>
 					))}
-				</div>
+				</StaggerContainer>
 			)}
 
 			<Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>

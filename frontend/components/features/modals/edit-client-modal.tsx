@@ -102,7 +102,7 @@ export function EditClientModal({
 
 	return (
 		<Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-			<DialogContent className="w-[min(92vw,900px)] max-w-none rounded-xl border-0 bg-white/85 p-0 backdrop-blur-xl">
+			<DialogContent className="w-[min(92vw,900px)] max-w-none rounded-xl border border-border/40 bg-surface-container-lowest p-0 shadow-lg">
 				<DialogHeader className="flex flex-col gap-2 bg-surface-container-low px-6 py-5 text-left">
 					<div className="flex items-center gap-2">
 						<Building2 aria-hidden className="text-primary" />

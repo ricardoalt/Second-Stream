@@ -21,6 +21,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/system";
+import {
+	FadeIn,
+	Pressable,
+	StaggerContainer,
+	StaggerItem,
+} from "@/components/patterns/animations/motion-components";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -205,181 +211,187 @@ export default function AdminUsersPage() {
 	return (
 		<TooltipProvider delayDuration={200}>
 			<div className="container mx-auto py-8 space-y-6">
-				<PageHeader
-					title="Platform Administrators"
-					subtitle="Superuser accounts with full platform access."
-					icon={<ShieldCheck className="h-6 w-6" aria-hidden="true" />}
-					actions={
-						<Button onClick={() => setModalOpen(true)}>
-							<UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-							New Admin
-						</Button>
-					}
-				/>
+				<FadeIn direction="up">
+					<PageHeader
+						title="Platform Administrators"
+						subtitle="Superuser accounts with full platform access."
+						icon={<ShieldCheck className="h-6 w-6" aria-hidden="true" />}
+						actions={
+							<Pressable>
+								<Button onClick={() => setModalOpen(true)}>
+									<UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+									New Admin
+								</Button>
+							</Pressable>
+						}
+					/>
+				</FadeIn>
 
-				<Card>
-					<CardHeader>
-						<CardTitle>Administrator Directory</CardTitle>
-						<CardDescription>
-							{users.length} administrators with full platform access.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						{isLoading ? (
-							<div className="space-y-3">
-								<Skeleton className="h-10 w-64" />
-								{Array.from({ length: 4 }).map((_, idx) => (
-									// biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton placeholders never reorder
-									<Skeleton key={`skeleton-${idx}`} className="h-16 w-full" />
-								))}
-							</div>
-						) : users.length === 0 ? (
-							<div className="text-center py-8 text-muted-foreground">
-								<p>No administrators yet. Create the first one.</p>
-							</div>
-						) : (
-							<>
-								{/* Search and Filters */}
-								<div className="flex flex-col sm:flex-row gap-3">
-									<div className="relative flex-1">
-										<Search
-											className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-											aria-hidden="true"
-										/>
-										<Input
-											type="search"
-											name="search"
-											placeholder="Search administrators\u2026"
-											aria-label="Search administrators"
-											value={globalFilter}
-											onChange={(e) => setGlobalFilter(e.target.value)}
-											className="pl-9 pr-9 max-w-sm"
-										/>
-										{globalFilter && (
-											<button
-												type="button"
-												onClick={() => setGlobalFilter("")}
-												className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
-												aria-label="Clear search"
-											>
-												<X className="h-4 w-4" aria-hidden="true" />
-											</button>
-										)}
-									</div>
-									<Select
-										value={
-											(table
-												.getColumn("isActive")
-												?.getFilterValue() as string) ?? "all"
-										}
-										onValueChange={(value) =>
-											table
-												.getColumn("isActive")
-												?.setFilterValue(value === "all" ? undefined : value)
-										}
-									>
-										<SelectTrigger
-											className="w-[130px]"
-											aria-label="Filter by status"
-										>
-											<SelectValue placeholder="All Status" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All Status</SelectItem>
-											<SelectItem value="active">Active</SelectItem>
-											<SelectItem value="inactive">Disabled</SelectItem>
-										</SelectContent>
-									</Select>
+				<FadeIn direction="up" delay={0.15}>
+					<Card>
+						<CardHeader>
+							<CardTitle>Administrator Directory</CardTitle>
+							<CardDescription>
+								{users.length} administrators with full platform access.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							{isLoading ? (
+								<div className="space-y-3">
+									<Skeleton className="h-10 w-64" />
+									{Array.from({ length: 4 }).map((_, idx) => (
+										// biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton placeholders never reorder
+										<Skeleton key={`skeleton-${idx}`} className="h-16 w-full" />
+									))}
 								</div>
+							) : users.length === 0 ? (
+								<div className="text-center py-8 text-muted-foreground">
+									<p>No administrators yet. Create the first one.</p>
+								</div>
+							) : (
+								<>
+									{/* Search and Filters */}
+									<div className="flex flex-col sm:flex-row gap-3">
+										<div className="relative flex-1">
+											<Search
+												className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+												aria-hidden="true"
+											/>
+											<Input
+												type="search"
+												name="search"
+												placeholder="Search administrators\u2026"
+												aria-label="Search administrators"
+												value={globalFilter}
+												onChange={(e) => setGlobalFilter(e.target.value)}
+												className="pl-9 pr-9 max-w-sm"
+											/>
+											{globalFilter && (
+												<button
+													type="button"
+													onClick={() => setGlobalFilter("")}
+													className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+													aria-label="Clear search"
+												>
+													<X className="h-4 w-4" aria-hidden="true" />
+												</button>
+											)}
+										</div>
+										<Select
+											value={
+												(table
+													.getColumn("isActive")
+													?.getFilterValue() as string) ?? "all"
+											}
+											onValueChange={(value) =>
+												table
+													.getColumn("isActive")
+													?.setFilterValue(value === "all" ? undefined : value)
+											}
+										>
+											<SelectTrigger
+												className="w-[130px]"
+												aria-label="Filter by status"
+											>
+												<SelectValue placeholder="All Status" />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="all">All Status</SelectItem>
+												<SelectItem value="active">Active</SelectItem>
+												<SelectItem value="inactive">Disabled</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
 
-								{/* Table */}
-								<div className="rounded-md border overflow-x-auto">
-									<Table>
-										<TableHeader>
-											{table.getHeaderGroups().map((headerGroup) => (
-												<TableRow key={headerGroup.id}>
-													{headerGroup.headers.map((header) => (
-														<TableHead
-															key={header.id}
-															className="whitespace-nowrap"
-														>
-															{header.isPlaceholder
-																? null
-																: flexRender(
-																		header.column.columnDef.header,
-																		header.getContext(),
-																	)}
-														</TableHead>
-													))}
-												</TableRow>
-											))}
-										</TableHeader>
-										<TableBody>
-											{table.getRowModel().rows.length ? (
-												table.getRowModel().rows.map((row) => (
-													<TableRow key={row.id}>
-														{row.getVisibleCells().map((cell) => (
-															<TableCell key={cell.id}>
-																{flexRender(
-																	cell.column.columnDef.cell,
-																	cell.getContext(),
-																)}
-															</TableCell>
+									{/* Table */}
+									<div className="rounded-md border overflow-x-auto">
+										<Table>
+											<TableHeader>
+												{table.getHeaderGroups().map((headerGroup) => (
+													<TableRow key={headerGroup.id}>
+														{headerGroup.headers.map((header) => (
+															<TableHead
+																key={header.id}
+																className="whitespace-nowrap"
+															>
+																{header.isPlaceholder
+																	? null
+																	: flexRender(
+																			header.column.columnDef.header,
+																			header.getContext(),
+																		)}
+															</TableHead>
 														))}
 													</TableRow>
-												))
-											) : (
-												<TableRow>
-													<TableCell
-														colSpan={columns.length}
-														className="h-24 text-center"
-													>
-														No administrators match your search.
-													</TableCell>
-												</TableRow>
-											)}
-										</TableBody>
-									</Table>
-								</div>
-
-								{/* Pagination */}
-								<div className="flex items-center justify-between">
-									<output
-										className="text-sm text-muted-foreground tabular-nums"
-										aria-live="polite"
-									>
-										Showing {table.getRowModel().rows.length} of{" "}
-										{table.getFilteredRowModel().rows.length} administrators
-									</output>
-									<div className="flex items-center gap-2">
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => table.previousPage()}
-											disabled={!table.getCanPreviousPage()}
-										>
-											<ChevronLeft className="h-4 w-4" aria-hidden="true" />
-											Previous
-										</Button>
-										<span className="text-sm text-muted-foreground tabular-nums">
-											Page {table.getState().pagination.pageIndex + 1} of{" "}
-											{table.getPageCount()}
-										</span>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => table.nextPage()}
-											disabled={!table.getCanNextPage()}
-										>
-											Next
-											<ChevronRight className="h-4 w-4" aria-hidden="true" />
-										</Button>
+												))}
+											</TableHeader>
+											<TableBody>
+												{table.getRowModel().rows.length ? (
+													table.getRowModel().rows.map((row) => (
+														<TableRow key={row.id}>
+															{row.getVisibleCells().map((cell) => (
+																<TableCell key={cell.id}>
+																	{flexRender(
+																		cell.column.columnDef.cell,
+																		cell.getContext(),
+																	)}
+																</TableCell>
+															))}
+														</TableRow>
+													))
+												) : (
+													<TableRow>
+														<TableCell
+															colSpan={columns.length}
+															className="h-24 text-center"
+														>
+															No administrators match your search.
+														</TableCell>
+													</TableRow>
+												)}
+											</TableBody>
+										</Table>
 									</div>
-								</div>
-							</>
-						)}
-					</CardContent>
-				</Card>
+
+									{/* Pagination */}
+									<div className="flex items-center justify-between">
+										<output
+											className="text-sm text-muted-foreground tabular-nums"
+											aria-live="polite"
+										>
+											Showing {table.getRowModel().rows.length} of{" "}
+											{table.getFilteredRowModel().rows.length} administrators
+										</output>
+										<div className="flex items-center gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => table.previousPage()}
+												disabled={!table.getCanPreviousPage()}
+											>
+												<ChevronLeft className="h-4 w-4" aria-hidden="true" />
+												Previous
+											</Button>
+											<span className="text-sm text-muted-foreground tabular-nums">
+												Page {table.getState().pagination.pageIndex + 1} of{" "}
+												{table.getPageCount()}
+											</span>
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => table.nextPage()}
+												disabled={!table.getCanNextPage()}
+											>
+												Next
+												<ChevronRight className="h-4 w-4" aria-hidden="true" />
+											</Button>
+										</div>
+									</div>
+								</>
+							)}
+						</CardContent>
+					</Card>
+				</FadeIn>
 
 				<CreateAdminDialog
 					open={modalOpen}

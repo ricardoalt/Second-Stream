@@ -1,5 +1,23 @@
 "use client";
 
+/**
+ * @deprecated Use `ConfirmDialog` from `@/components/patterns` instead.
+ *
+ * This component has been replaced by the standardized ConfirmDialog pattern.
+ * The new component is more flexible and handles all confirmation scenarios.
+ *
+ * Still used in:
+ * - app/admin/organizations/[id]/page.tsx
+ * - app/admin/organizations/page.tsx
+ *
+ * Migration path:
+ * - Replace `ConfirmArchiveDialog` with `ConfirmDialog`
+ * - Use props: `title`, `description`, `confirmText="Archive"`, `variant="destructive"`
+ * - Remove entityType/entityName props, inline the text in `description`
+ *
+ * TODO: Migrate admin pages and delete this file
+ */
+
 import { Archive, Users } from "lucide-react";
 import type { MouseEvent } from "react";
 import {

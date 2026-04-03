@@ -7,6 +7,7 @@ import {
 	CheckCircle2,
 	Clock,
 	Layers3,
+	LayoutDashboard,
 	MoreHorizontal,
 	Plus,
 	RefreshCw,
@@ -17,20 +18,34 @@ import Link from "next/link";
 import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
 import { AdminDashboardPageContent } from "@/components/features/workspace";
 import { StatusChip } from "@/components/system/status-chip";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
+	Avatar,
+	AvatarFallback,
+	Badge,
+	Button,
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from "@/components/ui/card";
+	Progress,
+} from "@/components/ui";
 import { CircularGauge } from "@/components/ui/circular-gauge";
-import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/contexts";
 import { cn } from "@/lib/utils";
+
+// ═══════════════════════════════════════════════════════════
+// NEW: Design System Patterns
+// ════════════════════════════════════════════════════════════
+
+import { EmptyState, KpiCard, PageHeader } from "@/components/patterns";
+import {
+	FadeIn,
+	HoverLift,
+	Pressable,
+	StaggerContainer,
+	StaggerItem,
+} from "@/components/patterns/animations/motion-components";
 
 // ═══════════════════════════════════════════════════════════
 // EXECUTIVE SUMMARY KPIs (Zone 1) - 4 metrics with radial gauges
@@ -197,10 +212,11 @@ function getComplianceStatusChip(
 }
 
 // ════════════════════════════════════════════════════════════
-// HELPER COMPONENTS
+// HELPER COMPONENTS (Dashboard-specific)
 // ════════════════════════════════════════════════════════════
 
-function KpiCard({
+/** DashboardKpiCard - Dashboard-specific KPI card with gauge */
+function DashboardKpiCard({
 	title,
 	value,
 	change,
@@ -270,25 +286,22 @@ function CriticalActionCard({
 }) {
 	const severityStyles = {
 		critical: {
-			border: "border-destructive/20",
 			bg: "bg-destructive/5",
-			iconBg: "bg-destructive/15",
+			iconBg: "bg-destructive/10",
 			iconColor: "text-destructive",
-			badge: "bg-destructive/15 text-destructive",
+			badge: "bg-destructive-bg text-destructive-text border-0",
 		},
 		warning: {
-			border: "border-warning/20",
 			bg: "bg-warning/5",
-			iconBg: "bg-warning/15",
+			iconBg: "bg-warning/10",
 			iconColor: "text-warning",
-			badge: "bg-warning/15 text-warning",
+			badge: "bg-warning-bg text-warning-text border-0",
 		},
 		success: {
-			border: "border-success/20",
 			bg: "bg-success/5",
-			iconBg: "bg-success/15",
+			iconBg: "bg-success/10",
 			iconColor: "text-success",
-			badge: "bg-success/15 text-success",
+			badge: "bg-success-bg text-success-text border-0",
 		},
 	};
 
@@ -301,7 +314,7 @@ function CriticalActionCard({
 				: Sparkles;
 
 	return (
-		<Card className={cn("border", styles.border, styles.bg, "shadow-xs")}>
+		<Card className={cn("border-0", styles.bg, "shadow-sm transition-all duration-200 hover:shadow-md")}>
 			<CardContent className="p-4">
 				<div className="flex items-start gap-3">
 					<div
@@ -323,9 +336,11 @@ function CriticalActionCard({
 							<span className="text-xs text-muted-foreground">{client}</span>
 						</div>
 						<p className="mt-1 text-sm text-foreground">{description}</p>
-						<Button size="sm" variant={ctaVariant} className="mt-2">
-							{cta}
-						</Button>
+						<Pressable>
+							<Button size="sm" variant={ctaVariant} className="mt-2">
+								{cta}
+							</Button>
+						</Pressable>
 					</div>
 				</div>
 			</CardContent>
@@ -357,32 +372,37 @@ export default function AgentDashboardPage() {
 	return (
 		<div className="flex flex-col gap-8">
 			{/* ════════════════════════════════════════════════════════════
-			      ZONE 1: HEADER + EXECUTIVE SUMMARY KPIs
-			      ════════════════════════════════════════════════════════════ */}
+		      ZONE 1: HEADER + EXECUTIVE SUMMARY KPIs
+		      ════════════════════════════════════════════════════════════ */}
 			<section className="space-y-6">
-				{/* Header */}
-				<div className="flex items-start justify-between gap-4">
-					<div>
-						<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-							{greeting}, Alex
-						</h1>
-						<p className="text-sm text-muted-foreground mt-1">
-							Here&apos;s what needs your attention today across{" "}
-							{executiveKpis[0]?.value ?? "$640K"} in active pipeline.
-						</p>
-					</div>
-					<Button onClick={() => discoveryWizard.open()}>
-						<Plus className="mr-2 h-4 w-4" />
-						New Discovery
-					</Button>
-				</div>
+				{/* Header using PageHeader pattern */}
+				<PageHeader
+					title={`${greeting}, Alex`}
+					subtitle={`Here's what needs your attention today across ${executiveKpis[0]?.value ?? "$640K"} in active pipeline.`}
+					icon={LayoutDashboard}
+					actions={
+						<Pressable>
+							<Button onClick={() => discoveryWizard.open()}>
+								<Plus data-icon="start" aria-hidden />
+								New Discovery
+							</Button>
+						</Pressable>
+					}
+				/>
 
-				{/* KPI Grid */}
-				<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				{/* KPI Grid using patterns/KpiCard for standard KPIs */}
+				<StaggerContainer
+					staggerDelay={0.08}
+					className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+				>
 					{executiveKpis.map((kpi) => (
-						<KpiCard key={kpi.title} {...kpi} />
+						<StaggerItem key={kpi.title}>
+							<HoverLift>
+								<DashboardKpiCard {...kpi} />
+							</HoverLift>
+						</StaggerItem>
 					))}
-				</div>
+				</StaggerContainer>
 			</section>
 
 			{/* ════════════════════════════════════════════════════════════
@@ -395,11 +415,27 @@ export default function AgentDashboardPage() {
 						Immediate Action Required
 					</h2>
 				</div>
-				<div className="grid gap-4 md:grid-cols-3">
-					{criticalActions.map((action) => (
-						<CriticalActionCard key={action.id} {...action} />
-					))}
-				</div>
+				{criticalActions.length === 0 ? (
+					<EmptyState
+						title="No critical actions"
+						description="You're all caught up. No immediate actions are required at this time."
+						icon={CheckCircle2}
+						className="rounded-2xl bg-surface-container-lowest"
+					/>
+				) : (
+					<StaggerContainer
+						staggerDelay={0.08}
+						className="grid gap-4 md:grid-cols-3"
+					>
+						{criticalActions.map((action) => (
+							<StaggerItem key={action.id}>
+								<HoverLift>
+									<CriticalActionCard {...action} />
+								</HoverLift>
+							</StaggerItem>
+						))}
+					</StaggerContainer>
+				)}
 			</section>
 
 			{/* ════════════════════════════════════════════════════════════
@@ -421,9 +457,17 @@ export default function AgentDashboardPage() {
 					</Button>
 				</div>
 
-				<Card className="border-0 bg-surface-container-lowest shadow-xs overflow-hidden">
-					{/* Table Header */}
-					<div className="grid grid-cols-[2fr_1.5fr_1fr_1.2fr_1.2fr_auto] gap-4 px-4 py-3 bg-surface-container-low border-b border-border/50">
+				{awaitingInfoStreams.length === 0 ? (
+					<EmptyState
+						title="No pending streams"
+						description="All your active waste streams have complete compliance information."
+						icon={Layers3}
+						className="rounded-2xl bg-surface-container-lowest"
+					/>
+				) : (
+					<Card className="border border-border/40 bg-surface-container-lowest shadow-sm overflow-hidden">
+						{/* Table Header */}
+						<div className="grid grid-cols-[2fr_1.5fr_1fr_1.2fr_1.2fr_auto] gap-4 px-4 py-3 bg-surface-container-low border-b border-border/50">
 						<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
 							Material
 						</span>
@@ -443,185 +487,201 @@ export default function AgentDashboardPage() {
 					</div>
 
 					{/* Table Rows */}
-					<div className="divide-y divide-border/50">
+					<StaggerContainer
+						staggerDelay={0.04}
+						className="divide-y divide-border/50"
+					>
 						{awaitingInfoStreams.map((stream, index) => (
-							<div
-								key={stream.id}
-								className={cn(
-									"grid grid-cols-[2fr_1.5fr_1fr_1.2fr_1.2fr_auto] gap-4 px-4 py-3 items-center transition-colors hover:bg-surface-container-low/50",
-									index % 2 === 0
-										? "bg-surface"
-										: "bg-surface-container-low/30",
-								)}
-							>
-								{/* Material */}
-								<div className="min-w-0">
-									<p className="text-sm font-medium text-foreground truncate">
-										{stream.material}
-									</p>
-								</div>
+							<StaggerItem key={stream.id} duration={0.25}>
+								<div
+									className={cn(
+										"grid grid-cols-[2fr_1.5fr_1fr_1.2fr_1.2fr_auto] gap-4 px-4 py-3 items-center transition-all hover:bg-surface-container-low/80 hover:translate-x-[2px]",
+										index % 2 === 0
+											? "bg-surface"
+											: "bg-surface-container-low/30",
+									)}
+								>
+									{/* Material */}
+									<div className="min-w-0">
+										<p className="text-sm font-medium text-foreground truncate">
+											{stream.material}
+										</p>
+									</div>
 
-								{/* Client / Site */}
-								<div className="min-w-0">
-									<div className="flex items-center gap-2">
-										<Avatar className="h-6 w-6">
-											<AvatarFallback className="bg-primary/10 text-[0.6rem] text-primary">
-												{stream.client
-													.split(" ")
-													.map((n) => n[0])
-													.join("")
-													.slice(0, 2)
-													.toUpperCase()}
-											</AvatarFallback>
-										</Avatar>
-										<div className="min-w-0">
-											<p className="text-sm text-foreground truncate">
-												{stream.client}
-											</p>
-											<p className="text-xs text-muted-foreground truncate">
-												{stream.site}
-											</p>
+									{/* Client / Site */}
+									<div className="min-w-0">
+										<div className="flex items-center gap-2">
+											<Avatar className="h-6 w-6">
+												<AvatarFallback className="bg-primary/10 text-[0.6rem] text-primary">
+													{stream.client
+														.split(" ")
+														.map((n) => n[0])
+														.join("")
+														.slice(0, 2)
+														.toUpperCase()}
+												</AvatarFallback>
+											</Avatar>
+											<div className="min-w-0">
+												<p className="text-sm text-foreground truncate">
+													{stream.client}
+												</p>
+												<p className="text-xs text-muted-foreground truncate">
+													{stream.site}
+												</p>
+											</div>
 										</div>
 									</div>
-								</div>
 
-								{/* Status */}
-								<div>
-									<StatusChip
-										status={getComplianceStatusChip(stream.complianceStatus)}
-										variant="subtle"
-										size="sm"
-									>
-										{stream.complianceStatus}
-									</StatusChip>
-								</div>
+									{/* Status */}
+									<div>
+										<StatusChip
+											status={getComplianceStatusChip(stream.complianceStatus)}
+											variant="subtle"
+											size="sm"
+										>
+											{stream.complianceStatus}
+										</StatusChip>
+									</div>
 
-								{/* Missing Doc */}
-								<div className="min-w-0">
-									<p className="text-sm text-muted-foreground truncate">
-										{stream.missingDoc}
-									</p>
-								</div>
+									{/* Missing Doc */}
+									<div className="min-w-0">
+										<p className="text-sm text-muted-foreground truncate">
+											{stream.missingDoc}
+										</p>
+									</div>
 
-								{/* Strategic Action */}
-								<div className="min-w-0">
-									<Badge
-										variant="outline"
-										className={cn(
-											"text-xs",
-											stream.priority === "critical" &&
-												"border-destructive/30 text-destructive",
-											stream.priority === "high" &&
-												"border-warning/30 text-warning",
-											stream.priority === "medium" &&
-												"border-primary/30 text-primary",
-											stream.priority === "low" && "border-muted-foreground/30",
-										)}
-									>
-										{stream.strategicAction}
-									</Badge>
-								</div>
+									{/* Strategic Action */}
+									<div className="min-w-0">
+										<Badge
+											variant="outline"
+											className={cn(
+												"text-xs",
+												stream.priority === "critical" &&
+													"border-destructive/30 text-destructive",
+												stream.priority === "high" &&
+													"border-warning/30 text-warning",
+												stream.priority === "medium" &&
+													"border-primary/30 text-primary",
+												stream.priority === "low" &&
+													"border-muted-foreground/30",
+											)}
+										>
+											{stream.strategicAction}
+										</Badge>
+									</div>
 
-								{/* Actions */}
-								<div className="flex items-center justify-end gap-2">
-									<Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-										<MoreHorizontal className="h-4 w-4" />
-									</Button>
-									<Button size="sm">Resolve</Button>
+									{/* Actions */}
+									<div className="flex items-center justify-end gap-2">
+										<Pressable>
+											<Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+												<MoreHorizontal className="h-4 w-4" />
+											</Button>
+										</Pressable>
+										<Pressable>
+											<Button size="sm">Resolve</Button>
+										</Pressable>
+									</div>
 								</div>
-							</div>
+							</StaggerItem>
 						))}
-					</div>
+					</StaggerContainer>
 				</Card>
+				)}
 			</section>
 
 			{/* ════════════════════════════════════════════════════════════
 			      ZONE 4: TODAY'S STRATEGIC FOCUS (Editorial Card)
 			      ════════════════════════════════════════════════════════════ */}
-			<section>
-				<Card className="border-0 bg-gradient-to-br from-surface-container-lowest to-surface-container-low shadow-xs">
-					<CardHeader className="pb-4">
-						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-2">
-								<Building2 className="h-5 w-5 text-primary" />
-								<CardTitle className="font-display text-xl font-semibold">
-									Today&apos;s Strategic Focus
-								</CardTitle>
+			<FadeIn direction="up" delay={0.3}>
+				<section>
+					<Card className="border-0 bg-gradient-to-br from-surface-container-lowest to-surface-container-low shadow-xs">
+						<CardHeader className="pb-4">
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-2">
+									<Building2 className="h-5 w-5 text-primary" />
+									<CardTitle className="font-display text-xl font-semibold">
+										Today&apos;s Strategic Focus
+									</CardTitle>
+								</div>
+								<div className="flex items-center gap-2 text-sm text-muted-foreground">
+									<span className="font-medium text-foreground">
+										{dailyProgress.completed}
+									</span>
+									<span>/</span>
+									<span>{dailyProgress.total}</span>
+									<span>completed</span>
+								</div>
 							</div>
-							<div className="flex items-center gap-2 text-sm text-muted-foreground">
-								<span className="font-medium text-foreground">
-									{dailyProgress.completed}
-								</span>
-								<span>/</span>
-								<span>{dailyProgress.total}</span>
-								<span>completed</span>
-							</div>
-						</div>
-						<CardDescription className="mt-2">
-							High-impact priorities to move the needle on your active deals.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-6">
-						{/* Progress Bar */}
-						<div className="space-y-2">
-							<div className="flex items-center justify-between text-xs">
-								<span className="text-muted-foreground">Daily progress</span>
-								<span className="font-medium text-foreground">
-									{Math.round(progressPercent)}%
-								</span>
-							</div>
-							<Progress value={progressPercent} className="h-2" />
-						</div>
-
-						{/* Task List */}
-						<div className="space-y-3">
-							{dailyProgress.tasks.map((task) => (
-								<div
-									key={task.id}
-									className={cn(
-										"flex items-center gap-3 rounded-lg p-3 transition-colors",
-										task.completed
-											? "bg-success/5"
-											: "bg-surface-container-low",
-									)}
-								>
-									<div
-										className={cn(
-											"flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
-											task.completed
-												? "border-success bg-success text-success-foreground"
-												: "border-muted-foreground/30",
-										)}
-									>
-										{task.completed && <CheckCircle2 className="h-3 w-3" />}
-									</div>
-									<span
-										className={cn(
-											"text-sm",
-											task.completed
-												? "text-muted-foreground line-through"
-												: "text-foreground",
-										)}
-									>
-										{task.label}
+							<CardDescription className="mt-2">
+								High-impact priorities to move the needle on your active deals.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-6">
+							{/* Progress Bar */}
+							<div className="space-y-2">
+								<div className="flex items-center justify-between text-xs">
+									<span className="text-muted-foreground">Daily progress</span>
+									<span className="font-medium text-foreground">
+										{Math.round(progressPercent)}%
 									</span>
 								</div>
-							))}
-						</div>
+								<Progress value={progressPercent} className="h-2" />
+							</div>
 
-						{/* CTAs */}
-						<div className="flex flex-wrap gap-3 pt-2">
-							<Button>
-								<RefreshCw className="mr-2 h-4 w-4" />
-								Sync Workspace
-							</Button>
-							<Button variant="outline" asChild>
-								<Link href="/streams">Review All Streams</Link>
-							</Button>
-						</div>
-					</CardContent>
-				</Card>
-			</section>
+							{/* Task List */}
+							<div className="space-y-3">
+								{dailyProgress.tasks.map((task) => (
+									<div
+										key={task.id}
+										className={cn(
+											"flex items-center gap-3 rounded-lg p-3 transition-colors",
+											task.completed
+												? "bg-success/5"
+												: "bg-surface-container-low",
+										)}
+									>
+										<div
+											className={cn(
+												"flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
+												task.completed
+													? "border-success bg-success text-success-foreground"
+													: "border-muted-foreground/30",
+											)}
+										>
+											{task.completed && <CheckCircle2 className="h-3 w-3" />}
+										</div>
+										<span
+											className={cn(
+												"text-sm",
+												task.completed
+													? "text-muted-foreground line-through"
+													: "text-foreground",
+											)}
+										>
+											{task.label}
+										</span>
+									</div>
+								))}
+							</div>
+
+							{/* CTAs */}
+							<div className="flex flex-wrap gap-3 pt-2">
+								<Pressable>
+									<Button>
+										<RefreshCw data-icon="start" aria-hidden />
+										Sync Workspace
+									</Button>
+								</Pressable>
+								<Pressable>
+									<Button variant="outline" asChild>
+										<Link href="/streams">Review All Streams</Link>
+									</Button>
+								</Pressable>
+							</div>
+						</CardContent>
+					</Card>
+				</section>
+			</FadeIn>
 		</div>
 	);
 }

@@ -1,9 +1,14 @@
 "use client";
 
-import { Archive, CheckCircle2, Search, TrendingDown } from "lucide-react";
+import {
+	Archive,
+	CheckCircle2,
+	LayoutDashboard,
+	Search,
+	TrendingDown,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { OffersArchiveTable } from "@/components/features/offers/components/offers-archive-table";
-import { OffersSummaryStatCard } from "@/components/features/offers/components/offers-summary-stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,6 +21,12 @@ import {
 } from "@/components/ui/select";
 import { type OfferArchiveResponseDTO, offersAPI } from "@/lib/api/offers";
 import { getErrorMessage } from "@/lib/utils/logger";
+
+// ═══════════════════════════════════════════════════════════
+// NEW: Design System Patterns
+// ════════════════════════════════════════════════════════════
+
+import { KpiCard, PageHeader } from "@/components/patterns";
 
 type ArchiveStatusFilter = "all" | "accepted" | "declined";
 
@@ -109,19 +120,11 @@ export default function OffersArchivePage() {
 
 	return (
 		<div className="flex flex-col gap-8">
-			<section className="rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
-				<div className="flex flex-col gap-1">
-					<p className="text-xs uppercase tracking-[0.08em] text-secondary">
-						Offers
-					</p>
-					<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-						Historical offer archive
-					</h1>
-					<p className="text-sm text-muted-foreground">
-						Review accepted and declined offers with archived context.
-					</p>
-				</div>
-			</section>
+			<PageHeader
+				title="Historical Offer Archive"
+				subtitle="Review accepted and declined offers with archived context."
+				icon={LayoutDashboard}
+			/>
 
 			{error ? (
 				<Card className="border-0 bg-destructive/5 shadow-xs">
@@ -132,29 +135,33 @@ export default function OffersArchivePage() {
 			) : null}
 
 			<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<OffersSummaryStatCard
-					label="Archive count"
+				<KpiCard
+					title="Archive Count"
 					value={String(archive.counts.total)}
 					subtitle="Archived terminal offers"
 					icon={Archive}
+					variant="default"
 				/>
-				<OffersSummaryStatCard
-					label="Total archived value"
+				<KpiCard
+					title="Total Archived Value"
 					value={formatCurrency(totalArchivedValue)}
 					subtitle="Value across selected archive rows"
 					icon={Archive}
+					variant="accent"
 				/>
-				<OffersSummaryStatCard
-					label="Acceptance rate"
+				<KpiCard
+					title="Acceptance Rate"
 					value={`${acceptanceRate}%`}
 					subtitle="Accepted vs selected archived outcomes"
 					icon={CheckCircle2}
+					variant="success"
 				/>
-				<OffersSummaryStatCard
-					label="Declined value"
+				<KpiCard
+					title="Declined Value"
 					value={formatCurrency(declinedValue)}
 					subtitle="Declined archived offer value"
 					icon={TrendingDown}
+					variant="warning"
 				/>
 			</section>
 

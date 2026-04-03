@@ -12,6 +12,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { KpiCard } from "@/components/patterns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -59,63 +60,6 @@ const UsersTable = dynamic(
 
 // Extended user with real calculated streams count
 type UserWithStreams = User & { openStreamsCount: number };
-
-// Metric Card - Horizontal layout como la referencia
-function MetricCard({
-	icon: Icon,
-	label,
-	value,
-	loading,
-	accent,
-}: {
-	icon: typeof Users;
-	label: string;
-	value: string | number;
-	loading?: boolean;
-	accent?: "blue" | "emerald" | "slate" | "violet";
-}) {
-	const accentStyles = {
-		blue: "border-t-info",
-		emerald: "border-t-success",
-		slate: "border-t-primary/20",
-		violet: "border-t-avatar-7",
-	};
-
-	const iconStyles = {
-		blue: "bg-info/10 text-info",
-		emerald: "bg-success/10 text-success",
-		slate: "bg-primary/5 text-primary/70",
-		violet: "bg-avatar-7/10 text-avatar-7",
-	};
-
-	return (
-		<div
-			className={cn(
-				"relative flex flex-col justify-between rounded-xl border border-border bg-background p-5 shadow-sm border-t-2",
-				accentStyles[accent ?? "slate"],
-			)}
-		>
-			<div className="flex items-center justify-between mb-4">
-				<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-					{label}
-				</p>
-				<div
-					className={cn(
-						"flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
-						iconStyles[accent ?? "slate"],
-					)}
-				>
-					<Icon className="h-4 w-4" />
-				</div>
-			</div>
-			<div className="min-w-0">
-				<p className="text-3xl font-bold tracking-tight text-foreground">
-					{loading ? "—" : value}
-				</p>
-			</div>
-		</div>
-	);
-}
 
 type TeamMembersPageContentProps = {
 	organizationId?: string;
@@ -360,33 +304,33 @@ export function WorkspaceTeamMembersPageContent({
 
 			{/* Metric Cards - Horizontal layout */}
 			<div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-				<MetricCard
-					icon={Users}
-					label="TOTAL MEMBERS"
+				<KpiCard
+					title="Total Members"
 					value={stats.total}
+					icon={Users}
 					loading={isLoading}
-					accent="slate"
+					variant="default"
 				/>
-				<MetricCard
-					icon={UserCheck}
-					label="ACTIVE MEMBERS"
+				<KpiCard
+					title="Active Members"
 					value={stats.active}
+					icon={UserCheck}
 					loading={isLoading}
-					accent="slate"
+					variant="success"
 				/>
-				<MetricCard
-					icon={UserX}
-					label="INACTIVE MEMBERS"
+				<KpiCard
+					title="Inactive Members"
 					value={stats.inactive}
+					icon={UserX}
 					loading={isLoading}
-					accent="slate"
+					variant="warning"
 				/>
-				<MetricCard
-					icon={Layers}
-					label="OPEN STREAMS"
+				<KpiCard
+					title="Open Streams"
 					value={stats.totalOpenStreams}
+					icon={Layers}
 					loading={isLoading}
-					accent="slate"
+					variant="accent"
 				/>
 			</div>
 

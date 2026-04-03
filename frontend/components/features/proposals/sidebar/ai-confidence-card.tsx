@@ -23,7 +23,7 @@ export function AIConfidenceCard({
 	confidenceProgress,
 }: AIConfidenceCardProps) {
 	return (
-		<Card className="bg-card/80 backdrop-blur">
+		<Card className="bg-card border border-border/50 shadow-sm">
 			<CardHeader className="pb-4">
 				<CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
 					<Brain className="h-4 w-4" />

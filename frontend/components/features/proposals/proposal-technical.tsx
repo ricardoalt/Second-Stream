@@ -1,8 +1,8 @@
 "use client";
 
 import { AlertCircle, DollarSign, Recycle, Target } from "lucide-react";
+import { KpiCard } from "@/components/patterns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { MetricCard } from "@/components/ui/metric-card";
 import { Separator } from "@/components/ui/separator";
 import { CompactDecisionHeader } from "./compact-decision-header";
 import {
@@ -101,26 +101,26 @@ export function ProposalTechnical({ proposal }: ProposalTechnicalProps) {
 
 			{/* HERO METRICS SECTION */}
 			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-				<MetricCard
-					icon={DollarSign}
-					label="Revenue Potential"
+				<KpiCard
+					title="Revenue Potential"
 					value={revenueEstimate}
 					subtitle="High estimate (annual)"
+					icon={DollarSign}
 					variant="success"
 				/>
-				<MetricCard
-					icon={Recycle}
-					label="Business Ideas"
+				<KpiCard
+					title="Business Ideas"
 					value={circularEconomyOptions.length}
 					subtitle="Circular economy pathways"
-					variant="primary"
+					icon={Recycle}
+					variant="default"
 				/>
-				<MetricCard
-					icon={Target}
-					label="Landfill Diversion"
+				<KpiCard
+					title="Landfill Diversion"
 					value={landfillDiversion}
 					subtitle="Waste recovery potential"
-					variant="chart-2"
+					icon={Target}
+					variant="accent"
 				/>
 			</div>
 

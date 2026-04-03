@@ -166,8 +166,8 @@ export function AuthLayout({
 							}}
 						/>
 
-						{/* Main card */}
-						<Card className="relative bg-background/95 backdrop-blur-xl border-2 border-primary/20 shadow-2xl rounded-2xl ring-1 ring-white/5">
+						{/* Main card - Sin glassmorphism */}
+						<Card className="relative bg-card border border-border shadow-xl rounded-2xl">
 							<CardHeader className="space-y-3 text-center">
 								{/* Mobile Logo (shown when brand panel is hidden) */}
 								{!showBrandPanel && (

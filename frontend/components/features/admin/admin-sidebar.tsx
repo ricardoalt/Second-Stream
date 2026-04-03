@@ -214,7 +214,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 
 export function AdminSidebar() {
 	return (
-		<aside className="hidden md:flex w-64 flex-col border-r border-border/50 bg-card/30 backdrop-blur-sm">
+		<aside className="hidden md:flex w-64 flex-col border-r border-border/50 bg-sidebar">
 			<SidebarContent />
 		</aside>
 	);

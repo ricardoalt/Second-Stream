@@ -24,7 +24,14 @@ import React, {
 	useState,
 } from "react";
 import { toast } from "sonner";
-import { AdminStatsCard } from "@/components/features/admin";
+import { KpiCard } from "@/components/patterns";
+import {
+	FadeIn,
+	HoverLift,
+	Pressable,
+	StaggerContainer,
+	StaggerItem,
+} from "@/components/patterns/animations/motion-components";
 import { PageHeader } from "@/components/system";
 import {
 	AlertDialog,
@@ -35,35 +42,31 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
+	Badge,
+	Button,
+	Card,
+	CardContent,
+	CardHeader,
+	EmptyState,
+	Input,
+	Label,
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
+	Skeleton,
 	Table,
 	TableBody,
 	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@/components/ui/table";
-import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@/components/ui";
 import {
 	type AdminFeedbackAttachment,
 	type AdminFeedbackItem,
@@ -387,39 +390,57 @@ export default function AdminFeedbackPage() {
 					title="User Feedback"
 					subtitle="Review and manage user feedback"
 					actions={
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={loadFeedback}
-							disabled={loading}
-						>
-							<RefreshCw
-								className={cn("h-4 w-4 mr-2", loading && "animate-spin")}
-							/>
-							Refresh
-						</Button>
+						<Pressable>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={loadFeedback}
+								disabled={loading}
+							>
+								<RefreshCw
+									className={cn("h-4 w-4 mr-2", loading && "animate-spin")}
+								/>
+								Refresh
+							</Button>
+						</Pressable>
 					}
 				/>
 
-				<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-					<AdminStatsCard
-						label="Total"
-						value={stats.total}
-						icon={MessageSquare}
-					/>
-					<AdminStatsCard
-						label="Open"
-						value={stats.open}
-						icon={AlertCircle}
-						variant="warning"
-					/>
-					<AdminStatsCard
-						label="Resolved"
-						value={stats.resolved}
-						icon={CheckCircle2}
-						variant="success"
-					/>
-				</div>
+				<StaggerContainer
+					staggerDelay={0.08}
+					className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+				>
+					<StaggerItem>
+						<HoverLift>
+							<KpiCard
+								title="Total"
+								value={stats.total}
+								icon={MessageSquare}
+								variant="default"
+							/>
+						</HoverLift>
+					</StaggerItem>
+					<StaggerItem>
+						<HoverLift>
+							<KpiCard
+								title="Open"
+								value={stats.open}
+								icon={AlertCircle}
+								variant="warning"
+							/>
+						</HoverLift>
+					</StaggerItem>
+					<StaggerItem>
+						<HoverLift>
+							<KpiCard
+								title="Resolved"
+								value={stats.resolved}
+								icon={CheckCircle2}
+								variant="success"
+							/>
+						</HoverLift>
+					</StaggerItem>
+				</StaggerContainer>
 
 				{/* Search */}
 				<div className="relative">

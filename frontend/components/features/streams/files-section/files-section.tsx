@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { ConfirmDialog } from "@/components/patterns";
 import { projectsAPI } from "@/lib/api/projects";
 import type { ProjectFile } from "@/lib/project-types";
 import { FilePreviewModal } from "./file-preview-modal";
@@ -245,15 +245,16 @@ export function StreamFilesSection({
 				onDelete={handleDeleteFromModal}
 			/>
 
-			<ConfirmDeleteDialog
+			<ConfirmDialog
 				open={fileToDelete !== null}
 				onOpenChange={(open) => !open && setFileToDelete(null)}
 				onConfirm={() => {
 					void handleConfirmDelete();
 				}}
 				title="Delete file?"
-				description="This action cannot be undone. The file will be permanently removed from the stream workspace."
-				itemName={fileToDelete?.name}
+				description={`This action cannot be undone. The file "${fileToDelete?.name}" will be permanently removed from the stream workspace.`}
+				confirmText="Delete"
+				variant="destructive"
 				loading={isDeleting}
 			/>
 		</>

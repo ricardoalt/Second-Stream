@@ -1,6 +1,5 @@
 export { AddUserModal } from "./add-user-modal";
 export { AdminMobileNav, AdminSidebar } from "./admin-sidebar";
-export { AdminStatsCard } from "./admin-stats-card";
 export { EditOrgModal } from "./edit-org-modal";
 export { OrgAvatar } from "./org-avatar";
 export { OrgCard } from "./org-card";

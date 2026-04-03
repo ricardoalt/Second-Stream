@@ -86,8 +86,8 @@ export const ProposalPage = memo(function ProposalPage({
 
 	return (
 		<div className="min-h-screen bg-muted/10">
-			{/* Header */}
-			<header className="sticky top-0 z-40 border-b border-border/70 bg-background/95 backdrop-blur-md">
+			{/* Header - Sólido sin glassmorphism */}
+			<header className="sticky top-0 z-40 border-b border-border bg-background">
 				<div className="container mx-auto flex flex-wrap items-center justify-between gap-4 px-4 py-4">
 					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
 						<Link

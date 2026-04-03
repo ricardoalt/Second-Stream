@@ -677,7 +677,7 @@ export function IdleView({
 													onChange={(event) =>
 														setQe({ ...qe, units: event.target.value })
 													}
-													className="rounded-lg bg-white px-3 py-3 text-sm border border-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 min-w-[100px]"
+													className="rounded-lg bg-surface-container-lowest px-3 py-3 text-sm border border-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 min-w-[100px]"
 												>
 													<option>Gallons</option>
 													<option>Tons</option>
@@ -695,7 +695,7 @@ export function IdleView({
 												onChange={(event) =>
 													setQe({ ...qe, frequency: event.target.value })
 												}
-												className="w-full rounded-lg bg-white px-3 py-3 text-sm border border-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+												className="w-full rounded-lg bg-surface-container-lowest px-3 py-3 text-sm border border-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
 											>
 												<option>Weekly</option>
 												<option>Bi-Weekly</option>
@@ -748,7 +748,7 @@ export function IdleView({
 							<Button
 								onClick={handleQuickEntrySave}
 								disabled={!canSaveQuickEntryDraft}
-								className="btn-primary-gradient min-w-[130px] font-semibold uppercase tracking-wider"
+								className="btn-primary-solid min-w-[130px] font-semibold uppercase tracking-wider"
 							>
 								{isSavingQuickEntry ? "Saving…" : "Save Stream"}
 							</Button>
@@ -1067,7 +1067,7 @@ export function IdleView({
 									})
 								}
 								disabled={!canDiscover || isSubmitting}
-								className="bg-gradient-to-r from-primary to-primary/90 shadow-water hover:shadow-glow transition-shadow duration-300"
+								className="btn-primary-solid shadow-sm hover:shadow-md transition-all duration-300"
 							>
 								{isSubmitting ? (
 									<>

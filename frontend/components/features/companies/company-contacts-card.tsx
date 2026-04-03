@@ -3,9 +3,9 @@
 import { Crown, Mail, Pencil, Phone, Plus, Trash2, User } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CompanyContactDialog } from "@/components/features/companies/company-contact-dialog";
+import { ConfirmDialog } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { isForbiddenError } from "@/lib/api/client";
 import { companiesAPI } from "@/lib/api/companies";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -292,7 +292,7 @@ export function CompanyContactsCard({
 				)}
 			</div>
 			{canManageContacts && (
-				<ConfirmDeleteDialog
+				<ConfirmDialog
 					open={deleteDialogOpen}
 					onOpenChange={(open) => {
 						setDeleteDialogOpen(open);
@@ -300,8 +300,9 @@ export function CompanyContactsCard({
 					}}
 					onConfirm={handleDelete}
 					title="Delete Contact"
-					description="This will permanently delete this contact."
-					itemName={contactToDelete?.name || "Unnamed"}
+					description={`This will permanently delete "${contactToDelete?.name || "Unnamed"}".`}
+					confirmText="Delete"
+					variant="destructive"
 					loading={loading}
 				/>
 			)}

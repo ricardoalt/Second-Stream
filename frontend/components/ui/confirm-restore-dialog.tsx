@@ -1,5 +1,21 @@
 "use client";
 
+/**
+ * @deprecated Use `ConfirmDialog` from `@/components/patterns` instead.
+ *
+ * This component has been replaced by the standardized ConfirmDialog pattern.
+ *
+ * Still used in:
+ * - app/admin/organizations/[id]/page.tsx
+ * - app/admin/organizations/page.tsx
+ *
+ * Migration path:
+ * - Replace `ConfirmRestoreDialog` with `ConfirmDialog`
+ * - Use props: `title`, `description`, `confirmText="Restore"`, `variant="default"`
+ *
+ * TODO: Migrate admin pages and delete this file
+ */
+
 import { RotateCcw } from "lucide-react";
 import type { MouseEvent } from "react";
 import {

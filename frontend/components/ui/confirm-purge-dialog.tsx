@@ -1,5 +1,19 @@
 "use client";
 
+/**
+ * @deprecated Use `ConfirmDialog` from `@/components/patterns` instead.
+ *
+ * This component has been replaced by the standardized ConfirmDialog pattern.
+ *
+ * This purge dialog has extra complexity (requires typing entity name to confirm).
+ * The pattern version can handle this with additional props if needed.
+ *
+ * Check if still used anywhere with:
+ * grep -r "ConfirmPurgeDialog" --include="*.tsx"
+ *
+ * TODO: Check usage, migrate if needed, then delete
+ */
+
 import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import {

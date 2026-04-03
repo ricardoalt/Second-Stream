@@ -62,7 +62,7 @@ export function DataTable<T>({
 	return (
 		<Card
 			className={cn(
-				"overflow-hidden border border-border/60 bg-white shadow-sm",
+				"overflow-hidden border border-border/60 bg-surface-container-lowest shadow-sm",
 				className,
 			)}
 		>
@@ -129,7 +129,7 @@ export function DataTable<T>({
 								key={key}
 								className={cn(
 									"grid items-center gap-4 px-6 py-4",
-									index % 2 === 0 ? "bg-white" : "bg-muted/50",
+									index % 2 === 0 ? "bg-surface-container-lowest" : "bg-surface-container-low/50",
 								)}
 								style={{
 									gridTemplateColumns: columns

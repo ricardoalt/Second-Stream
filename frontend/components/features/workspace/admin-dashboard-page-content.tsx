@@ -24,7 +24,6 @@ import type {
 	QueuePriority,
 } from "@/lib/types/dashboard";
 import {
-	buildSupervisionQueue,
 	groupStreamsByOwner,
 } from "./admin-dashboard-data";
 
@@ -191,23 +190,9 @@ export function AdminDashboardPageContent({
 		return () => controller.abort();
 	}, []);
 
-	const persistedRows = useMemo(
-		() =>
-			dashboard.items.filter(
-				(item): item is PersistedStreamRow => item.kind === "persisted_stream",
-			),
-		[dashboard.items],
-	);
 	const teamGroups = useMemo(
 		() => groupStreamsByOwner(dashboard.items),
 		[dashboard.items],
-	);
-	const queueRows = useMemo(
-		() =>
-			buildSupervisionQueue(persistedRows, 5).filter(
-				(row) => row.queuePriority !== "normal",
-			),
-		[persistedRows],
 	);
 	const pipelineValue = useMemo(
 		() => formatPipelineValue(pipeline.items),
@@ -493,80 +478,6 @@ export function AdminDashboardPageContent({
 					}}
 				/>
 			</PageSection>
-
-			{/* Critical Supervision Queue */}
-			{queueRows.length > 0 && (
-				<PageSection title="Critical Supervision Queue">
-					<Card className="border border-border/60 bg-white shadow-sm">
-						<CardContent className="space-y-1 p-0">
-							{queueRows.map((row) => (
-								<div
-									key={row.projectId}
-									className="flex flex-col gap-3 border-b border-border px-5 py-4 last:border-b-0 sm:flex-row sm:items-center"
-								>
-									<div className="min-w-0 flex-1">
-										<div className="flex items-center gap-2">
-											<span
-												className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${
-													row.queuePriority === "critical"
-														? "bg-destructive text-destructive-foreground"
-														: "bg-warning text-warning-foreground"
-												}`}
-											>
-												!
-											</span>
-											<p className="truncate font-medium text-foreground">
-												{row.streamName}
-											</p>
-											<span className="hidden text-muted-foreground sm:inline">
-												•
-											</span>
-											<p className="truncate text-sm text-muted-foreground">
-												{row.ownerDisplayName || "Team member"}
-											</p>
-										</div>
-									</div>
-									<div className="flex items-center gap-4 self-end sm:self-auto">
-										<p
-											className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${
-												row.queuePriority === "critical"
-													? "text-destructive"
-													: "text-warning"
-											}`}
-										>
-											{queueReasonLabel(row.queuePriorityReason)}
-										</p>
-										<Button
-											asChild
-											variant="ghost"
-											size="sm"
-											className={`h-auto px-2 text-sm ${
-												row.queuePriority === "critical"
-													? "text-destructive hover:bg-destructive/10 hover:text-destructive"
-													: "text-warning hover:bg-warning/10 hover:text-warning"
-											}`}
-										>
-											<Link href={routes.streams.detail(row.projectId)}>
-												View Stream
-											</Link>
-										</Button>
-									</div>
-								</div>
-							))}
-							<div className="flex flex-wrap gap-2 border-t border-border px-5 py-4">
-								<Button
-									asChild
-									size="sm"
-									variant="outline"
-									className="border-border text-foreground hover:bg-muted"
-								>
-									<Link href={routes.streams.all}>Open streams board</Link>
-								</Button>
-							</div>
-						</CardContent>
-					</Card>
-				</PageSection>
-			)}
 		</div>
 	);
 }

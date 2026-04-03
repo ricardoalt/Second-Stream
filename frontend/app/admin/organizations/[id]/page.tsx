@@ -20,9 +20,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-
-import { AdminStatsCard, OrgAvatar } from "@/components/features/admin";
+import { OrgAvatar } from "@/components/features/admin";
 import { ConfirmOrgPurgeForceDialog } from "@/components/features/admin/confirm-org-purge-force-dialog";
+import { KpiCard } from "@/components/patterns";
 import { ArchivedBanner } from "@/components/shared/archived-banner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -473,20 +473,20 @@ export default function OrganizationDetailPage() {
 			)}
 
 			<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-				<AdminStatsCard
-					label="Total Members"
+				<KpiCard
+					title="Total Members"
 					value={stats.total}
 					icon={Users}
 					variant="default"
 				/>
-				<AdminStatsCard
-					label="Active Members"
+				<KpiCard
+					title="Active Members"
 					value={stats.active}
 					icon={CheckCircle}
 					variant="success"
 				/>
-				<AdminStatsCard
-					label="Inactive"
+				<KpiCard
+					title="Inactive"
 					value={stats.inactive}
 					icon={XCircle}
 					variant="muted"

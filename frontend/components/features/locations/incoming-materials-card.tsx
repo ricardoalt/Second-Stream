@@ -11,10 +11,10 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { IncomingMaterialDialog } from "@/components/features/locations/incoming-material-dialog";
+import { ConfirmDialog } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { isForbiddenError } from "@/lib/api/client";
 import { locationsAPI } from "@/lib/api/companies";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -339,7 +339,7 @@ export function IncomingMaterialsCard({
 			)}
 
 			{canDeleteMaterials && (
-				<ConfirmDeleteDialog
+				<ConfirmDialog
 					open={deleteDialogOpen}
 					onOpenChange={(open) => {
 						setDeleteDialogOpen(open);
@@ -347,8 +347,9 @@ export function IncomingMaterialsCard({
 					}}
 					onConfirm={handleDelete}
 					title="Delete Incoming Material"
-					description="This will permanently delete this incoming material."
-					itemName={materialToDelete?.name}
+					description={`This will permanently delete "${materialToDelete?.name}".`}
+					confirmText="Delete"
+					variant="destructive"
 					loading={loading}
 				/>
 			)}

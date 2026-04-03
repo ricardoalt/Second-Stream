@@ -33,6 +33,8 @@ import {
 } from "@/components/features/streams/streams-drafts-table";
 import { StreamsFollowUpBoard } from "@/components/features/streams/streams-follow-up-board";
 import type { StreamRow } from "@/components/features/streams/types";
+import { KpiCard } from "@/components/patterns";
+import { Pressable } from "@/components/patterns/animations/motion-components";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,7 +45,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { MetricCard } from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { bulkImportAPI } from "@/lib/api/bulk-import";
@@ -324,111 +325,73 @@ export default function ClientDetailPage() {
 					</div>
 
 					<div className="flex flex-wrap items-center gap-2">
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setEditModalOpen(true)}
-						>
-							<Edit3 className="mr-1.5 h-4 w-4" />
-							Edit
-						</Button>
-						<Button variant="outline" size="sm" asChild>
-							<Link href={`/clients/${companyId}/locations`}>
-								<MapPin className="mr-1.5 h-4 w-4" />
-								Locations
-							</Link>
-						</Button>
-						<Button size="sm" asChild>
-							<Link href={`/clients/${companyId}/contacts`}>
-								<Users className="mr-1.5 h-4 w-4" />
-								Contacts
-							</Link>
-						</Button>
+						<Pressable>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setEditModalOpen(true)}
+							>
+								<Edit3 className="mr-1.5 h-4 w-4" />
+								Edit
+							</Button>
+						</Pressable>
+						<Pressable>
+							<Button variant="outline" size="sm" asChild>
+								<Link href={`/clients/${companyId}/locations`}>
+									<MapPin className="mr-1.5 h-4 w-4" />
+									Locations
+								</Link>
+							</Button>
+						</Pressable>
+						<Pressable>
+							<Button size="sm" asChild>
+								<Link href={`/clients/${companyId}/contacts`}>
+									<Users className="mr-1.5 h-4 w-4" />
+									Contacts
+								</Link>
+							</Button>
+						</Pressable>
 					</div>
 				</div>
 			</section>
 
 			{/* ── KPI Stats Cards (4 columns) ── */}
 			<section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-				<Card className="relative overflow-hidden">
-					<CardHeader className="pb-2">
-						<div className="flex items-center justify-between">
-							<p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-								Total Tracked Streams
-							</p>
-							<div className="rounded-lg bg-warning/15 p-1.5">
-								<Activity className="h-4 w-4 text-warning" />
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent>
-						<div className="flex items-baseline gap-2">
-							<p className="text-3xl font-bold tracking-tight">
-								{totalTrackedStreams}
-							</p>
-							<Badge variant="muted" className="rounded-full text-xs">
-								{draftStreamsCount} draft
-								{draftStreamsCount === 1 ? "" : "s"}
-							</Badge>
-						</div>
-					</CardContent>
-				</Card>
-
-				<MetricCard
+				<KpiCard
+					title="Total Tracked Streams"
+					value={totalTrackedStreams}
+					subtitle={`${draftStreamsCount} draft${draftStreamsCount === 1 ? "" : "s"}`}
 					icon={Activity}
-					label="Active Streams"
-					value={activeStreamsCount}
-					subtitle={`Across ${profile.locations.length} facilities`}
-					variant="primary"
+					variant="warning"
 				/>
 
-				<Card className="relative overflow-hidden">
-					<CardHeader className="pb-2">
-						<div className="flex items-center justify-between">
-							<p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-								Needs Follow-up
-							</p>
-							<div className="rounded-lg bg-success/15 p-1.5">
-								<Flag className="h-4 w-4 text-success" />
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent>
-						<div className="flex items-baseline gap-2">
-							<p className="text-3xl font-bold tracking-tight">
-								{missingInfoStreamsCount}
-							</p>
-						</div>
-						<p className="mt-1 text-xs text-muted-foreground">
-							{missingInfoStreamsCount === 0
-								? "No stream follow-ups pending"
-								: "Streams missing required details"}
-						</p>
-					</CardContent>
-				</Card>
+				<KpiCard
+					title="Active Streams"
+					value={activeStreamsCount}
+					subtitle={`Across ${profile.locations.length} facilities`}
+					icon={Activity}
+					variant="default"
+				/>
 
-				<Card className="relative overflow-hidden">
-					<CardHeader className="pb-2">
-						<div className="flex items-center justify-between">
-							<p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-								Ready for Offer
-							</p>
-							<div className="rounded-lg bg-info/15 p-1.5">
-								<Target className="h-4 w-4 text-info" />
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent>
-						<div className="flex items-center justify-between">
-							<p className="text-3xl font-bold tracking-tight">
-								{readyForOfferCount}
-							</p>
-							<Badge variant="muted" className="rounded-full text-xs">
-								{facilityCoverage}% facility coverage
-							</Badge>
-						</div>
-					</CardContent>
-				</Card>
+				<KpiCard
+					title="Needs Follow-up"
+					value={missingInfoStreamsCount}
+					subtitle={
+						missingInfoStreamsCount === 0
+							? "No stream follow-ups pending"
+							: "Streams missing required details"
+					}
+					icon={Flag}
+					variant="success"
+				/>
+
+				<KpiCard
+					title="Ready for Offer"
+					value={readyForOfferCount}
+					subtitle={`${facilityCoverage}% facility coverage`}
+					icon={Target}
+					variant="accent"
+				/>
 			</section>
 
 			{/* ── Three Column Insights Grid ── */}

@@ -11,6 +11,13 @@ import {
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+	FadeIn,
+	HoverLift,
+	Pressable,
+	StaggerContainer,
+	StaggerItem,
+} from "@/components/patterns/animations/motion-components";
 import { PageHeader } from "@/components/system";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -279,66 +286,88 @@ export default function AdminProposalRatingsPage() {
 
 	return (
 		<div className="space-y-6">
-			<PageHeader
-				title="Proposal Ratings"
-				subtitle="Monitor AI proposal quality and reviewer sentiment."
-				actions={
-					<Button
-						variant="ghost"
-						size="icon"
-						className="h-8 w-8 text-muted-foreground hover:text-foreground"
-						onClick={loadList}
-						disabled={loading}
-						aria-label="Refresh"
-					>
-						<RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-					</Button>
-				}
-			/>
+			<FadeIn direction="up">
+				<PageHeader
+					title="Proposal Ratings"
+					subtitle="Monitor AI proposal quality and reviewer sentiment."
+					actions={
+						<Pressable>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-8 w-8 text-muted-foreground hover:text-foreground"
+								onClick={loadList}
+								disabled={loading}
+								aria-label="Refresh"
+							>
+								<RefreshCw
+									className={cn("h-4 w-4", loading && "animate-spin")}
+								/>
+							</Button>
+						</Pressable>
+					}
+				/>
+			</FadeIn>
 
-			{/* KPI cards — page-scoped */}
-			<div className="grid grid-cols-3 gap-3">
-				<div className="rounded-xl border border-border/60 bg-card px-5 py-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-						Total
-					</p>
-					<div className="mt-1.5 text-3xl font-semibold tabular-nums">
-						{loading ? <Skeleton className="h-8 w-12" /> : total}
-					</div>
-				</div>
+			{/* KPI cards — page-scoped with 2026 Animations */}
+			<StaggerContainer staggerDelay={0.08} className="grid grid-cols-3 gap-3">
+				<StaggerItem>
+					<HoverLift>
+						<div className="rounded-xl border border-border/60 bg-card px-5 py-4">
+							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								Total
+							</p>
+							<div className="mt-1.5 text-3xl font-semibold tabular-nums">
+								{loading ? <Skeleton className="h-8 w-12" /> : total}
+							</div>
+						</div>
+					</HoverLift>
+				</StaggerItem>
 
-				<div
-					className={cn(
-						"rounded-xl border px-5 py-4 transition-colors duration-200",
-						!loading && lowRatedCount > 0
-							? "border-destructive/25 bg-destructive/5"
-							: "border-border/60 bg-card",
-					)}
-				>
-					<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-						Low-rated{totalPages > 1 ? " *" : ""}
-					</p>
-					<div
-						className={cn(
-							"mt-1.5 text-3xl font-semibold tabular-nums",
-							!loading && lowRatedCount > 0
-								? "text-destructive"
-								: "text-foreground",
-						)}
-					>
-						{loading ? <Skeleton className="h-8 w-10" /> : lowRatedCount}
-					</div>
-				</div>
+				<StaggerItem>
+					<HoverLift>
+						<div
+							className={cn(
+								"rounded-xl border px-5 py-4 transition-colors duration-200",
+								!loading && lowRatedCount > 0
+									? "border-destructive/25 bg-destructive/5"
+									: "border-border/60 bg-card",
+							)}
+						>
+							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								Low-rated{totalPages > 1 ? " *" : ""}
+							</p>
+							<div
+								className={cn(
+									"mt-1.5 text-3xl font-semibold tabular-nums",
+									!loading && lowRatedCount > 0
+										? "text-destructive"
+										: "text-foreground",
+								)}
+							>
+								{loading ? <Skeleton className="h-8 w-10" /> : lowRatedCount}
+							</div>
+						</div>
+					</HoverLift>
+				</StaggerItem>
 
-				<div className="rounded-xl border border-border/60 bg-card px-5 py-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-						With comments{totalPages > 1 ? " *" : ""}
-					</p>
-					<div className="mt-1.5 text-3xl font-semibold tabular-nums">
-						{loading ? <Skeleton className="h-8 w-10" /> : withCommentsCount}
-					</div>
-				</div>
-			</div>
+				<StaggerItem>
+					<HoverLift>
+						<div className="rounded-xl border border-border/60 bg-card px-5 py-4">
+							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								With comments{totalPages > 1 ? " *" : ""}
+							</p>
+							<div className="mt-1.5 text-3xl font-semibold tabular-nums">
+								{loading ? (
+									<Skeleton className="h-8 w-10" />
+								) : (
+									withCommentsCount
+								)}
+							</div>
+						</div>
+					</HoverLift>
+				</StaggerItem>
+			</StaggerContainer>
 			{totalPages > 1 && (
 				<p className="-mt-4 text-xs text-muted-foreground">
 					* metrics reflect current page only

@@ -1,14 +1,22 @@
 "use client";
 
-import { Building2, ChevronLeft, Plus, Trash2, Users } from "lucide-react";
+import {
+	Building2,
+	ChevronLeft,
+	MapPin,
+	Plus,
+	Trash2,
+	Users,
+} from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { LocationContactsManagerDialog } from "@/components/features/locations/location-contacts-manager-dialog";
 import { LocationModal } from "@/components/features/modals/location-modal";
+import { PageHeader } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/lib/hooks/use-toast";
 import { useLocationStore } from "@/lib/stores/location-store";
 import { ADDRESS_TYPE_LABELS, type LocationSummary } from "@/lib/types/company";
 
@@ -18,7 +26,6 @@ export default function ClientLocationsPage(props: {
 	const params = use(props.params);
 	const companyId = Array.isArray(params.id) ? params.id[0] : params.id;
 	const searchParams = useSearchParams();
-	const { toast } = useToast();
 	const {
 		locations,
 		loading,
@@ -100,47 +107,31 @@ export default function ClientLocationsPage(props: {
 
 		try {
 			await deleteLocation(location.id);
-			toast({
-				title: "Location archived",
+			toast.success("Location archived", {
 				description: `${location.name} was archived successfully.`,
 			});
 		} catch (archiveError) {
-			toast({
-				title: "Failed to archive location",
+			toast.error("Failed to archive location", {
 				description:
 					archiveError instanceof Error
 						? archiveError.message
 						: "Please try again.",
-				variant: "destructive",
 			});
 		}
 	};
 
 	return (
 		<div className="flex flex-col gap-8">
-			<section className="flex flex-col gap-4">
-				<Button
-					variant="ghost"
-					size="sm"
-					asChild
-					className="w-fit -ml-2 text-muted-foreground hover:text-foreground"
-				>
-					<Link href={`/clients/${companyId}`}>
-						<ChevronLeft className="mr-1 h-4 w-4" />
-						Back to Client Profile
-					</Link>
-				</Button>
-
-				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-					<div className="flex flex-col gap-2">
-						<h1 className="font-display text-4xl font-semibold tracking-tight text-foreground">
-							Manage Locations
-						</h1>
-						<p className="max-w-2xl text-lg text-muted-foreground">
-							Add and organize operational sites for this client, and track
-							associated projects.
-						</p>
-					</div>
+			<PageHeader
+				title="Manage Locations"
+				subtitle="Add and organize operational sites for this client, and track associated projects."
+				icon={MapPin}
+				breadcrumbs={[
+					{ label: "Clients", href: "/clients" },
+					{ label: "Client Details", href: `/clients/${companyId}` },
+					{ label: "Locations" },
+				]}
+				actions={
 					<Button
 						onClick={handleCreate}
 						size="lg"
@@ -149,8 +140,8 @@ export default function ClientLocationsPage(props: {
 						<Plus className="mr-2 h-4 w-4" />
 						New Location
 					</Button>
-				</div>
-			</section>
+				}
+			/>
 
 			{error ? (
 				<div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">

@@ -1,4 +1,5 @@
 import { AlertCircle, ShieldAlert } from "lucide-react";
+import { KpiCard } from "@/components/patterns";
 import {
 	Card,
 	CardContent,
@@ -73,15 +74,17 @@ export function RiskHighlightsCard({
 				{hasOperationalData ? (
 					<div className="grid gap-3 sm:grid-cols-2">
 						{energyConsumption !== undefined && (
-							<MetricCard
-								label="Estimated energy"
+							<KpiCard
+								title="Estimated energy"
 								value={`${formatNumber(energyConsumption)} kWh/m³`}
+								variant="default"
 							/>
 						)}
 						{sludgeProduction !== undefined && (
-							<MetricCard
-								label="Projected sludge"
+							<KpiCard
+								title="Projected sludge"
 								value={`${formatNumber(sludgeProduction)} kg/day`}
+								variant="default"
 							/>
 						)}
 					</div>
@@ -93,15 +96,5 @@ export function RiskHighlightsCard({
 				)}
 			</CardContent>
 		</Card>
-	);
-}
-
-// Simple metric card for operational data
-function MetricCard({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="rounded-lg border border-border/70 bg-muted/30 p-3">
-			<p className="text-xs text-muted-foreground">{label}</p>
-			<p className="mt-1 text-sm font-semibold">{value}</p>
-		</div>
 	);
 }
