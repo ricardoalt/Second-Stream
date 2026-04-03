@@ -13,6 +13,12 @@ from app.schemas.location import (
     LocationSummary,
     LocationUpdate,
 )
+from app.schemas.offer import (
+    OfferDetailDTO,
+    OfferDocumentMetadataDTO,
+    OfferInsightsDTO,
+    OfferInsightsFreshnessDTO,
+)
 from app.schemas.project import (
     ProjectCreate,
     ProjectDetail,
@@ -37,6 +43,10 @@ __all__ = [
     "LocationDetail",
     "LocationSummary",
     "LocationUpdate",
+    "OfferDetailDTO",
+    "OfferDocumentMetadataDTO",
+    "OfferInsightsDTO",
+    "OfferInsightsFreshnessDTO",
     # Common
     "PaginatedResponse",
     # Project

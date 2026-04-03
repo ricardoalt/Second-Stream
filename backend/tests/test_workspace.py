@@ -4,10 +4,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from conftest import create_company, create_location, create_org, create_project, create_user
 from httpx import AsyncClient
-from sqlalchemy import func, select
 
 from app.models.file import ProjectFile
-from app.models.proposal import Proposal
 from app.models.user import UserRole
 from app.schemas.workspace import (
     WORKSPACE_PROPOSAL_BATCH_MAX_ITEMS,
@@ -1561,8 +1559,8 @@ async def test_workspace_hydrate_returns_seeded_values(
 
 
 @pytest.mark.asyncio
-async def test_workspace_complete_discovery_with_zero_active_proposals_creates_offer(
-    client: AsyncClient, db_session, set_current_user
+async def test_workspace_complete_discovery_seeds_offer_insights_and_returns_offer_navigation(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
 ):
     uid = uuid.uuid4().hex[:8]
     org = await create_org(db_session, "Org Workspace Complete", f"org-workspace-complete-{uid}")
@@ -1585,24 +1583,28 @@ async def test_workspace_complete_discovery_with_zero_active_proposals_creates_o
         name="Workspace Complete Project",
     )
 
+    async def _fake_offer_analysis(*_args, **_kwargs):
+        from app.models.offer_insights_output import OfferInsightsOutput
+
+        return OfferInsightsOutput(
+            summary="Discovery evidence supports rapid offer preparation.",
+            key_points=["Volume is documented"],
+            risks=["Permit data pending confirmation"],
+            recommendations=["Validate compliance annex before send"],
+        )
+
+    monkeypatch.setattr(
+        "app.agents.offer_insights_agent.analyze_offer_insights",
+        _fake_offer_analysis,
+    )
+
     set_current_user(user)
     response = await client.post(f"/api/v1/projects/{project.id}/workspace/complete-discovery")
     assert response.status_code == 200
     payload = response.json()
     assert payload["message"] == "Discovery marked complete"
     assert payload["offer"]["projectId"] == str(project.id)
-    assert isinstance(payload["offer"]["proposalId"], str)
-
-    created_proposal_id = payload["offer"]["proposalId"]
-    proposal_result = await db_session.execute(
-        select(Proposal).where(Proposal.id == created_proposal_id)
-    )
-    created_proposal = proposal_result.scalar_one_or_none()
-    assert created_proposal is not None
-    assert created_proposal.project_id == project.id
-    assert created_proposal.organization_id == org.id
-    assert created_proposal.status == "Draft"
-    assert created_proposal.ai_metadata is not None
+    assert "proposalId" not in payload["offer"]
 
     await db_session.refresh(project)
     project_data = _project_data_dict(project)
@@ -1612,10 +1614,16 @@ async def test_workspace_complete_discovery_with_zero_active_proposals_creates_o
     parsed = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
     assert parsed.tzinfo is not None
 
+    offer_data = _require_dict(project_data.get("offer_v1"))
+    insights = _require_dict(offer_data.get("insights"))
+    freshness = _require_dict(offer_data.get("freshness"))
+    assert insights["summary"] == "Discovery evidence supports rapid offer preparation."
+    assert isinstance(freshness.get("generated_at"), str)
+
 
 @pytest.mark.asyncio
-async def test_workspace_complete_discovery_reuses_existing_active_proposal(
-    client: AsyncClient, db_session, set_current_user
+async def test_workspace_complete_discovery_keeps_existing_proposals_but_not_navigation_contract(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
 ):
     uid = uuid.uuid4().hex[:8]
     org = await create_org(
@@ -1644,6 +1652,8 @@ async def test_workspace_complete_discovery_reuses_existing_active_proposal(
         location_id=location.id,
         name="Workspace Complete Reuse Project",
     )
+    from app.models.proposal import Proposal
+
     existing = Proposal(
         organization_id=org.id,
         project_id=project.id,
@@ -1662,24 +1672,31 @@ async def test_workspace_complete_discovery_reuses_existing_active_proposal(
     await db_session.commit()
     await db_session.refresh(existing)
 
+    async def _fake_offer_analysis(*_args, **_kwargs):
+        from app.models.offer_insights_output import OfferInsightsOutput
+
+        return OfferInsightsOutput(
+            summary="Offer-ready baseline extracted from workspace.",
+            key_points=["Base fields complete"],
+            risks=["Pending legal checks"],
+            recommendations=["Confirm pricing assumptions"],
+        )
+
+    monkeypatch.setattr(
+        "app.agents.offer_insights_agent.analyze_offer_insights",
+        _fake_offer_analysis,
+    )
+
     set_current_user(user)
     response = await client.post(f"/api/v1/projects/{project.id}/workspace/complete-discovery")
     assert response.status_code == 200
     payload = response.json()
-    assert payload["offer"]["proposalId"] == str(existing.id)
-
-    proposal_count = await db_session.scalar(
-        select(func.count(Proposal.id)).where(
-            Proposal.project_id == project.id,
-            Proposal.organization_id == org.id,
-        )
-    )
-    assert proposal_count == 1
+    assert payload["offer"] == {"projectId": str(project.id)}
 
 
 @pytest.mark.asyncio
-async def test_workspace_complete_discovery_with_multiple_active_proposals_returns_ambiguity(
-    client: AsyncClient, db_session, set_current_user
+async def test_workspace_complete_discovery_with_multiple_active_proposals_still_completes(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
 ):
     uid = uuid.uuid4().hex[:8]
     org = await create_org(
@@ -1708,6 +1725,8 @@ async def test_workspace_complete_discovery_with_multiple_active_proposals_retur
         location_id=location.id,
         name="Workspace Complete Ambiguous Project",
     )
+    from app.models.proposal import Proposal
+
     first_active = Proposal(
         organization_id=org.id,
         project_id=project.id,
@@ -1739,27 +1758,31 @@ async def test_workspace_complete_discovery_with_multiple_active_proposals_retur
     db_session.add_all([first_active, second_active])
     await db_session.commit()
 
+    async def _fake_offer_analysis(*_args, **_kwargs):
+        from app.models.offer_insights_output import OfferInsightsOutput
+
+        return OfferInsightsOutput(
+            summary="Insights generated without proposal coupling.",
+            key_points=["Discovery completed"],
+            risks=["Commercial terms pending"],
+            recommendations=["Schedule client review"],
+        )
+
+    monkeypatch.setattr(
+        "app.agents.offer_insights_agent.analyze_offer_insights",
+        _fake_offer_analysis,
+    )
+
     set_current_user(user)
     response = await client.post(f"/api/v1/projects/{project.id}/workspace/complete-discovery")
-    assert response.status_code == 409
+    assert response.status_code == 200
     payload = response.json()
-    assert payload["code"] == "WORKSPACE_ACTIVE_PROPOSAL_AMBIGUOUS"
-    assert payload["details"]["activeProposalCount"] == 2
-
-    proposal_count = await db_session.scalar(
-        select(func.count(Proposal.id)).where(
-            Proposal.project_id == project.id,
-            Proposal.organization_id == org.id,
-        )
-    )
-    assert proposal_count == 2
+    assert payload["offer"] == {"projectId": str(project.id)}
 
     await db_session.refresh(project)
     project_data = _project_data_dict(project)
-    workspace_data = project_data.get("workspace_v1")
-    if workspace_data is not None:
-        workspace_dict = _require_dict(workspace_data)
-        assert "discovery_completed_at" not in workspace_dict
+    workspace_data = _require_dict(project_data.get("workspace_v1"))
+    assert isinstance(workspace_data.get("discovery_completed_at"), str)
 
 
 def test_questionnaire_phase_progress_marks_completion_by_phase_requirements():

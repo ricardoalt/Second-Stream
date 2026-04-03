@@ -37,6 +37,10 @@ from app.models.timeline import TimelineEvent
 from app.schemas.common import ErrorResponse
 from app.schemas.file import FileDetailResponse, FileListResponse, FileUploadResponse
 from app.services.intake_ingestion_service import IntakeIngestionService
+from app.services.project_file_service import (
+    normalize_file_category,
+    replace_single_active_category_file,
+)
 from app.services.s3_service import USE_S3, get_presigned_url, upload_file_to_s3
 from app.services.storage_delete_service import (
     StorageDeleteError,
@@ -190,6 +194,14 @@ async def upload_file(
         ownership=Ownership.OWN,
         owner_user_id=project.user_id,
     )
+    normalized_category = normalize_file_category(category)
+
+    if normalized_category == "offer_document" and process_with_ai:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Offer document uploads cannot be processed with AI",
+        )
+
     # Validate file
     validate_file(file)
 
@@ -286,6 +298,14 @@ async def upload_file(
                 logger.warning("uploaded_file_cleanup_failed", path=file_path, error=str(exc))
             raise
 
+        replaced_files = await replace_single_active_category_file(
+            db,
+            project_id=project.id,
+            organization_id=project.organization_id,
+            category=normalized_category,
+        )
+        replaced_storage_keys = [f.file_path for f in replaced_files]
+
         # Determine processing defaults
         from datetime import UTC, datetime
 
@@ -302,7 +322,7 @@ async def upload_file(
             file_size=file_size,
             file_type=file_ext.lstrip("."),
             mime_type=file.content_type or "application/octet-stream",
-            category=category,
+            category=normalized_category,
             uploaded_by=current_user.id,
             file_hash=file_hash,
             processing_status=initial_status,
@@ -333,7 +353,8 @@ async def upload_file(
                 "file_id": str(project_file.id),
                 "filename": file.filename,
                 "file_size": file_size,
-                "category": category,
+                "category": normalized_category,
+                "replaced_file_ids": [str(existing.id) for existing in replaced_files],
                 "user_id": str(current_user.id),
             },
         )
@@ -343,12 +364,22 @@ async def upload_file(
 
         logger.info("File uploaded", filename=file.filename, project_id=str(project.id))
 
+        if replaced_storage_keys:
+            try:
+                await delete_storage_keys(replaced_storage_keys)
+            except Exception as exc:
+                logger.warning(
+                    "replaced_file_storage_delete_failed",
+                    paths=replaced_storage_keys,
+                    error=str(exc),
+                )
+
         return FileUploadResponse(
             id=project_file.id,
             filename=project_file.filename,
             file_size=file_size,
             file_type=project_file.file_type or file_ext.lstrip("."),
-            category=category,
+            category=normalized_category,
             processing_status=processing_status,
             uploaded_at=project_file.created_at,
             is_deduplicated=is_deduplicated,

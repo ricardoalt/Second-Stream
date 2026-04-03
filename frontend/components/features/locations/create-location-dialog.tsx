@@ -1,8 +1,9 @@
 "use client";
 
-import { useForm } from "@tanstack/react-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { MapPin } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { type FieldErrors, useForm } from "react-hook-form";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -12,9 +13,7 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import {
+	Button,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -22,24 +21,24 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { LoadingButton } from "@/components/ui/loading-button";
-import {
+	Form,
+	FormControl,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+	Input,
+	LoadingButton,
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+	Textarea,
+} from "@/components/ui";
 import { isForbiddenError } from "@/lib/api/client";
-import {
-	isValidZipCode,
-	locationSchema,
-	parseZipCode,
-} from "@/lib/forms/schemas";
+import { buildLocationFormDefaults } from "@/lib/forms/client-form-mappers";
+import { type LocationFormData, locationSchema } from "@/lib/forms/schemas";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useLocationStore } from "@/lib/stores/location-store";
 import {
@@ -66,11 +65,6 @@ interface CreateLocationDialogProps {
 	};
 }
 
-/**
- * CreateLocationDialog - Modal for creating/editing locations.
- * Uses TanStack Form with field-level onBlur validators for UX
- * and Zod (locationSchema) as final safety net on submit.
- */
 export function CreateLocationDialog({
 	companyId,
 	onSuccess,
@@ -83,94 +77,38 @@ export function CreateLocationDialog({
 	const { createLocation, updateLocation } = useLocationStore();
 	const { toast } = useToast();
 
-	const form = useForm({
-		defaultValues: {
-			name: locationToEdit?.name ?? "",
-			addressType: locationToEdit?.addressType ?? "headquarters",
-			city: locationToEdit?.city ?? "",
-			state: locationToEdit?.state ?? "",
-			address: locationToEdit?.address ?? "",
-			zipCode: locationToEdit?.zipCode ?? "",
-			notes: locationToEdit?.notes ?? "",
-		},
-		onSubmit: async ({ value }) => {
-			const result = locationSchema.safeParse(value);
-			if (!result.success) {
-				const errorPaths = new Set(result.error.errors.map((e) => e.path[0]));
-				for (const fieldName of REQUIRED_FIELDS) {
-					if (errorPaths.has(fieldName)) {
-						// Mark touched so the field renders its error state
-						form.setFieldMeta(fieldName, (meta) => ({
-							...meta,
-							isTouched: true,
-						}));
-						// Trigger onBlur validator to populate errorMap → errors array
-						form.validateField(fieldName, "blur");
-					}
-				}
+	const defaultValues = useMemo(
+		() => buildLocationFormDefaults(locationToEdit),
+		[locationToEdit],
+	);
 
-				const firstErrorPath = result.error.errors[0]?.path[0];
-				if (typeof firstErrorPath === "string") {
-					document.getElementById(firstErrorPath)?.focus();
-				}
-				return;
-			}
-
-			try {
-				if (isEditMode && locationToEdit) {
-					const location = await updateLocation(locationToEdit.id, {
-						...result.data,
-						zipCode: result.data.zipCode.trim(),
-					});
-					toast({
-						title: "Location updated",
-						description: `${result.data.name} has been updated successfully.`,
-					});
-					setOpen(false);
-					form.reset();
-					onSuccess?.(location);
-					return;
-				}
-
-				const location = await createLocation(companyId, {
-					...result.data,
-					zipCode: result.data.zipCode.trim(),
-					companyId,
-				});
-
-				toast({
-					title: "Location created",
-					description: `${result.data.name} has been created successfully.`,
-				});
-				setOpen(false);
-				form.reset();
-				onSuccess?.(location);
-			} catch (error) {
-				if (!isForbiddenError(error)) {
-					toast({
-						title: "Error",
-						description:
-							error instanceof Error
-								? error.message
-								: "Failed to create location",
-						variant: "destructive",
-					});
-				}
-			}
-		},
+	const form = useForm<LocationFormData>({
+		resolver: zodResolver(locationSchema),
+		defaultValues,
+		mode: "onBlur",
 	});
+
+	useEffect(() => {
+		if (open) {
+			form.reset(defaultValues);
+		}
+	}, [defaultValues, open, form]);
+
+	const closeAndReset = () => {
+		setOpen(false);
+		form.reset(defaultValues);
+		if (isEditMode) {
+			onSuccess?.(null);
+		}
+	};
 
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen) {
-			if (form.state.isDirty) {
+			if (form.formState.isDirty) {
 				setShowDiscardConfirm(true);
 				return;
 			}
-			setOpen(false);
-			form.reset();
-			if (isEditMode) {
-				onSuccess?.(null);
-			}
+			closeAndReset();
 			return;
 		}
 		setOpen(true);
@@ -178,10 +116,59 @@ export function CreateLocationDialog({
 
 	const handleDiscardConfirm = () => {
 		setShowDiscardConfirm(false);
-		setOpen(false);
-		form.reset();
-		if (isEditMode) {
-			onSuccess?.(null);
+		closeAndReset();
+	};
+
+	const handleInvalidSubmit = (errors: FieldErrors<LocationFormData>) => {
+		const firstRequiredField = REQUIRED_FIELDS.find((field) => errors[field]);
+		const firstField = firstRequiredField ?? Object.keys(errors)[0];
+		if (firstField) {
+			form.setFocus(firstField as keyof LocationFormData);
+		}
+	};
+
+	const handleSubmit = async (values: LocationFormData) => {
+		try {
+			if (isEditMode && locationToEdit) {
+				const location = await updateLocation(locationToEdit.id, {
+					...values,
+					zipCode: values.zipCode.trim(),
+				});
+
+				toast({
+					title: "Location updated",
+					description: `${values.name} has been updated successfully.`,
+				});
+
+				setOpen(false);
+				form.reset(defaultValues);
+				onSuccess?.(location);
+				return;
+			}
+
+			const location = await createLocation(companyId, {
+				...values,
+				zipCode: values.zipCode.trim(),
+				companyId,
+			});
+
+			toast({
+				title: "Location created",
+				description: `${values.name} has been created successfully.`,
+			});
+
+			setOpen(false);
+			form.reset(defaultValues);
+			onSuccess?.(location);
+		} catch (error) {
+			if (!isForbiddenError(error)) {
+				toast({
+					title: "Error",
+					description:
+						error instanceof Error ? error.message : "Failed to create location",
+					variant: "destructive",
+				});
+			}
 		}
 	};
 
@@ -200,314 +187,197 @@ export function CreateLocationDialog({
 				)}
 
 				<DialogContent className="sm:max-w-[500px]">
-					<form
-						onSubmit={(e) => {
-							e.preventDefault();
-							e.stopPropagation();
-							form.handleSubmit();
-						}}
-					>
-						<DialogHeader>
-							<DialogTitle>
-								{isEditMode ? "Edit Location" : "Create New Location"}
-							</DialogTitle>
-							<DialogDescription>
-								{isEditMode
-									? "Update location information."
-									: "Add a new location/site for this company."}
-							</DialogDescription>
-						</DialogHeader>
+					<Form {...form}>
+						<form
+							onSubmit={form.handleSubmit(handleSubmit, handleInvalidSubmit)}
+						>
+							<DialogHeader>
+								<DialogTitle>
+									{isEditMode ? "Edit Location" : "Create New Location"}
+								</DialogTitle>
+								<DialogDescription>
+									{isEditMode
+										? "Update location information."
+										: "Add a new location/site for this company."}
+								</DialogDescription>
+							</DialogHeader>
 
-						<div className="grid gap-4 py-4">
-							{/* Location Name */}
-							<form.Field
-								name="name"
-								validators={{
-									onBlur: ({ value }) => {
-										if (!value?.trim()) return "Location name is required";
-										return undefined;
-									},
-								}}
-							>
-								{(field) => {
-									const hasError =
-										field.state.meta.isTouched &&
-										field.state.meta.errors.length > 0;
+							<div className="grid gap-4 py-4">
+								<FormField
+									control={form.control}
+									name="name"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>
+												Location Name <span className="text-destructive">*</span>
+											</FormLabel>
+											<FormControl>
+												<Input
+													placeholder="e.g. Main Plant, Warehouse #3"
+													{...field}
+												/>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
 
-									return (
-										<div className="grid gap-2">
-											<Label htmlFor={field.name}>
-												Location Name{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id={field.name}
-												placeholder="e.g. Main Plant, Warehouse #3"
-												value={field.state.value}
-												onChange={(e) => field.handleChange(e.target.value)}
-												onBlur={field.handleBlur}
-												aria-invalid={hasError}
-												aria-required="true"
-												aria-describedby={
-													hasError ? `${field.name}-error` : undefined
-												}
-											/>
-											{hasError && (
-												<p
-													id={`${field.name}-error`}
-													className="text-xs text-destructive"
-													role="alert"
+								<FormField
+									control={form.control}
+									name="addressType"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>
+												Address Type <span className="text-destructive">*</span>
+											</FormLabel>
+											<FormControl>
+												<Select
+													value={field.value}
+													onValueChange={(value) => {
+														if (isAddressType(value)) {
+															field.onChange(value);
+														}
+													}}
 												>
-													{field.state.meta.errors[0]}
-												</p>
+													<SelectTrigger>
+														<SelectValue placeholder="Select type…" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="headquarters">Headquarters</SelectItem>
+														<SelectItem value="pickup">Pick-up</SelectItem>
+														<SelectItem value="delivery">Delivery</SelectItem>
+														<SelectItem value="billing">Billing</SelectItem>
+													</SelectContent>
+												</Select>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<FormField
+									control={form.control}
+									name="address"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Address</FormLabel>
+											<FormControl>
+												<Input
+													placeholder="123 Main Street"
+													autoComplete="street-address"
+													{...field}
+												/>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+									<div className="col-span-1 md:col-span-2">
+										<FormField
+											control={form.control}
+											name="city"
+											render={({ field }) => (
+												<FormItem>
+													<FormLabel>
+														City <span className="text-destructive">*</span>
+													</FormLabel>
+													<FormControl>
+														<Input
+															placeholder="Los Angeles"
+															autoComplete="address-level2"
+															{...field}
+														/>
+													</FormControl>
+													<FormMessage />
+												</FormItem>
 											)}
-										</div>
-									);
-								}}
-							</form.Field>
-
-							{/* Address Type */}
-							<form.Field name="addressType">
-								{(field) => (
-									<div className="grid gap-2">
-										<Label htmlFor={field.name}>
-											Address Type <span className="text-destructive">*</span>
-										</Label>
-										<Select
-											value={field.state.value}
-											onValueChange={(v) => {
-												if (!isAddressType(v)) {
-													return;
-												}
-												field.handleChange(v);
-											}}
-										>
-											<SelectTrigger id={field.name}>
-												<SelectValue placeholder="Select type…" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="headquarters">
-													Headquarters
-												</SelectItem>
-												<SelectItem value="pickup">Pick-up</SelectItem>
-												<SelectItem value="delivery">Delivery</SelectItem>
-												<SelectItem value="billing">Billing</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
-								)}
-							</form.Field>
-
-							{/* Address */}
-							<form.Field name="address">
-								{(field) => (
-									<div className="grid gap-2">
-										<Label htmlFor={field.name}>Address</Label>
-										<Input
-											id={field.name}
-											placeholder="123 Main Street"
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											onBlur={field.handleBlur}
-											autoComplete="street-address"
 										/>
 									</div>
-								)}
-							</form.Field>
 
-							{/* City, State & ZIP */}
-							<div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-								<form.Field
-									name="city"
-									validators={{
-										onBlur: ({ value }) => {
-											if (!value?.trim()) return "Required";
-											return undefined;
-										},
-									}}
-								>
-									{(field) => {
-										const hasError =
-											field.state.meta.isTouched &&
-											field.state.meta.errors.length > 0;
-
-										return (
-											<div className="col-span-1 md:col-span-2 grid gap-2">
-												<Label htmlFor={field.name}>
-													City <span className="text-destructive">*</span>
-												</Label>
-												<Input
-													id={field.name}
-													placeholder="Los Angeles"
-													value={field.state.value}
-													onChange={(e) => field.handleChange(e.target.value)}
-													onBlur={field.handleBlur}
-													aria-invalid={hasError}
-													aria-required="true"
-													autoComplete="address-level2"
-													aria-describedby={
-														hasError ? `${field.name}-error` : undefined
-													}
-												/>
-												{hasError && (
-													<p
-														id={`${field.name}-error`}
-														className="text-xs text-destructive"
-														role="alert"
-													>
-														{field.state.meta.errors[0]}
-													</p>
-												)}
-											</div>
-										);
-									}}
-								</form.Field>
-
-								<form.Field
-									name="state"
-									validators={{
-										onBlur: ({ value }) => {
-											if (!value?.trim()) return "Required";
-											return undefined;
-										},
-									}}
-								>
-									{(field) => {
-										const hasError =
-											field.state.meta.isTouched &&
-											field.state.meta.errors.length > 0;
-
-										return (
-											<div className="grid gap-2">
-												<Label htmlFor={field.name}>
+									<FormField
+										control={form.control}
+										name="state"
+										render={({ field }) => (
+											<FormItem>
+												<FormLabel>
 													State <span className="text-destructive">*</span>
-												</Label>
-												<Input
-													id={field.name}
-													placeholder="CA"
-													value={field.state.value}
-													onChange={(e) => field.handleChange(e.target.value)}
-													onBlur={field.handleBlur}
-													aria-invalid={hasError}
-													aria-required="true"
-													autoComplete="address-level1"
-													aria-describedby={
-														hasError ? `${field.name}-error` : undefined
-													}
-												/>
-												{hasError && (
-													<p
-														id={`${field.name}-error`}
-														className="text-xs text-destructive"
-														role="alert"
-													>
-														{field.state.meta.errors[0]}
-													</p>
-												)}
-											</div>
-										);
-									}}
-								</form.Field>
+												</FormLabel>
+												<FormControl>
+													<Input
+														placeholder="CA"
+														autoComplete="address-level1"
+														{...field}
+													/>
+												</FormControl>
+												<FormMessage />
+											</FormItem>
+										)}
+									/>
 
-								<form.Field
-									name="zipCode"
-									validators={{
-										onBlur: ({ value }) => {
-											const trimmed = parseZipCode(value ?? "");
-											if (!trimmed) return "Required";
-											if (!isValidZipCode(trimmed)) {
-												return "Use 12345 or 12345-6789";
-											}
-											return undefined;
-										},
-									}}
-								>
-									{(field) => {
-										const hasError =
-											field.state.meta.isTouched &&
-											field.state.meta.errors.length > 0;
-
-										return (
-											<div className="grid gap-2">
-												<Label htmlFor={field.name}>
+									<FormField
+										control={form.control}
+										name="zipCode"
+										render={({ field }) => (
+											<FormItem>
+												<FormLabel>
 													ZIP <span className="text-destructive">*</span>
-												</Label>
-												<Input
-													id={field.name}
-													type="text"
-													inputMode="text"
-													autoComplete="postal-code"
-													placeholder="90210"
-													maxLength={10}
-													value={field.state.value}
-													onChange={(e) => field.handleChange(e.target.value)}
-													onBlur={field.handleBlur}
-													aria-invalid={hasError}
-													aria-required="true"
-													aria-describedby={
-														hasError ? `${field.name}-error` : undefined
-													}
+												</FormLabel>
+												<FormControl>
+													<Input
+														type="text"
+														inputMode="text"
+														autoComplete="postal-code"
+														placeholder="90210"
+														maxLength={10}
+														{...field}
+													/>
+												</FormControl>
+												<FormMessage />
+											</FormItem>
+										)}
+									/>
+								</div>
+
+								<FormField
+									control={form.control}
+									name="notes"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Notes</FormLabel>
+											<FormControl>
+												<Textarea
+													placeholder="Site-specific notes..."
+													rows={3}
+													{...field}
 												/>
-												{hasError && (
-													<p
-														id={`${field.name}-error`}
-														className="text-xs text-destructive"
-														role="alert"
-													>
-														{field.state.meta.errors[0]}
-													</p>
-												)}
-											</div>
-										);
-									}}
-								</form.Field>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
 							</div>
 
-							{/* Notes */}
-							<form.Field name="notes">
-								{(field) => (
-									<div className="grid gap-2">
-										<Label htmlFor={field.name}>Notes</Label>
-										<Textarea
-											id={field.name}
-											placeholder="Site-specific notes..."
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											onBlur={field.handleBlur}
-											rows={3}
-										/>
-									</div>
-								)}
-							</form.Field>
-						</div>
-
-						<DialogFooter>
-							<form.Subscribe selector={(state) => state.isSubmitting}>
-								{(isSubmitting) => (
-									<>
-										<Button
-											type="button"
-											variant="outline"
-											onClick={() => handleOpenChange(false)}
-											disabled={isSubmitting}
-										>
-											Cancel
-										</Button>
-										<LoadingButton type="submit" loading={isSubmitting}>
-											{isEditMode ? "Update Location" : "Create Location"}
-										</LoadingButton>
-									</>
-								)}
-							</form.Subscribe>
-						</DialogFooter>
-					</form>
+							<DialogFooter>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => handleOpenChange(false)}
+									disabled={form.formState.isSubmitting}
+								>
+									Cancel
+								</Button>
+								<LoadingButton type="submit" loading={form.formState.isSubmitting}>
+									{isEditMode ? "Update Location" : "Create Location"}
+								</LoadingButton>
+							</DialogFooter>
+						</form>
+					</Form>
 				</DialogContent>
 			</Dialog>
 
-			<AlertDialog
-				open={showDiscardConfirm}
-				onOpenChange={setShowDiscardConfirm}
-			>
+			<AlertDialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>

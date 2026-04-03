@@ -376,6 +376,7 @@ def _build_error_payload(
     message: str,
     code: str,
     details: dict | None = None,
+    legacy_detail: str | dict | None = None,
 ) -> dict:
     """
     Backward-compatible error payload.
@@ -393,7 +394,7 @@ def _build_error_payload(
     payload = error_response.model_dump(mode="json")
     payload["code"] = code
     payload["message"] = message
-    payload["detail"] = message
+    payload["detail"] = legacy_detail if legacy_detail is not None else message
     if details is not None:
         payload["details"] = details
     return payload
@@ -415,14 +416,25 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         # Use custom code from detail if provided (e.g., RATE_LIMITED)
         error_code = exc.detail.get("code") or HTTP_ERROR_CODES.get(exc.status_code, "ERROR")
         details = exc.detail.get("details")
+        legacy_detail: str | dict | None = {
+            "message": message,
+            "code": error_code,
+            "details": details,
+        }
     else:
         message = str(exc.detail)
         error_code = HTTP_ERROR_CODES.get(exc.status_code, "ERROR")
         details = None
+        legacy_detail = message
 
     return JSONResponse(
         status_code=exc.status_code,
-        content=_build_error_payload(message=message, code=error_code, details=details),
+        content=_build_error_payload(
+            message=message,
+            code=error_code,
+            details=details,
+            legacy_detail=legacy_detail,
+        ),
         headers=exc.headers,  # Preserve headers like Retry-After
     )
 
@@ -510,6 +522,7 @@ from app.api.v1 import (
     files,
     health,
     intake,
+    offers,
     organizations,
     project_data,
     projects,
@@ -570,6 +583,12 @@ app.include_router(
     workspace.router,
     prefix=f"{settings.API_V1_PREFIX}/projects",
     tags=["Workspace"],
+)
+
+app.include_router(
+    offers.router,
+    prefix=f"{settings.API_V1_PREFIX}/projects",
+    tags=["Offers"],
 )
 
 app.include_router(

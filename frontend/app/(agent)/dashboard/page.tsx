@@ -17,7 +17,7 @@ import {
 import Link from "next/link";
 import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
 import { AdminDashboardPageContent } from "@/components/features/workspace";
-import { StatusChip } from "@/components/system/status-chip";
+import { StatusChip } from "@/components/patterns";
 import {
 	Avatar,
 	AvatarFallback,
@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils";
 // NEW: Design System Patterns
 // ════════════════════════════════════════════════════════════
 
-import { EmptyState, KpiCard, PageHeader } from "@/components/patterns";
+import { EmptyState, PageHeader } from "@/components/patterns";
 import {
 	FadeIn,
 	HoverLift,
@@ -314,7 +314,13 @@ function CriticalActionCard({
 				: Sparkles;
 
 	return (
-		<Card className={cn("border-0", styles.bg, "shadow-sm transition-all duration-200 hover:shadow-md")}>
+		<Card
+			className={cn(
+				"border-0",
+				styles.bg,
+				"shadow-sm transition-all duration-200 hover:shadow-md",
+			)}
+		>
 			<CardContent className="p-4">
 				<div className="flex items-start gap-3">
 					<div
@@ -465,127 +471,133 @@ export default function AgentDashboardPage() {
 						className="rounded-2xl bg-surface-container-lowest"
 					/>
 				) : (
-					<Card className="border border-border/40 bg-surface-container-lowest shadow-sm overflow-hidden">
+					<div className="overflow-hidden rounded-xl border border-border/50 bg-surface-container-lowest">
 						{/* Table Header */}
 						<div className="grid grid-cols-[2fr_1.5fr_1fr_1.2fr_1.2fr_auto] gap-4 px-4 py-3 bg-surface-container-low border-b border-border/50">
-						<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
-							Material
-						</span>
-						<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
-							Client / Site
-						</span>
-						<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
-							Status
-						</span>
-						<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
-							Missing
-						</span>
-						<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
-							Next Action
-						</span>
-						<span className="sr-only">Actions</span>
-					</div>
+							<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
+								Material
+							</span>
+							<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
+								Client / Site
+							</span>
+							<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
+								Status
+							</span>
+							<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
+								Missing
+							</span>
+							<span className="text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
+								Next Action
+							</span>
+							<span className="sr-only">Actions</span>
+						</div>
 
-					{/* Table Rows */}
-					<StaggerContainer
-						staggerDelay={0.04}
-						className="divide-y divide-border/50"
-					>
-						{awaitingInfoStreams.map((stream, index) => (
-							<StaggerItem key={stream.id} duration={0.25}>
-								<div
-									className={cn(
-										"grid grid-cols-[2fr_1.5fr_1fr_1.2fr_1.2fr_auto] gap-4 px-4 py-3 items-center transition-all hover:bg-surface-container-low/80 hover:translate-x-[2px]",
-										index % 2 === 0
-											? "bg-surface"
-											: "bg-surface-container-low/30",
-									)}
-								>
-									{/* Material */}
-									<div className="min-w-0">
-										<p className="text-sm font-medium text-foreground truncate">
-											{stream.material}
-										</p>
-									</div>
+						{/* Table Rows */}
+						<StaggerContainer
+							staggerDelay={0.04}
+							className="divide-y divide-border/50"
+						>
+							{awaitingInfoStreams.map((stream, index) => (
+								<StaggerItem key={stream.id} duration={0.25}>
+									<div
+										className={cn(
+											"grid grid-cols-[2fr_1.5fr_1fr_1.2fr_1.2fr_auto] gap-4 px-4 py-3 items-center transition-all hover:bg-surface-container-low/80 hover:translate-x-[2px]",
+											index % 2 === 0
+												? "bg-surface"
+												: "bg-surface-container-low/30",
+										)}
+									>
+										{/* Material */}
+										<div className="min-w-0">
+											<p className="text-sm font-medium text-foreground truncate">
+												{stream.material}
+											</p>
+										</div>
 
-									{/* Client / Site */}
-									<div className="min-w-0">
-										<div className="flex items-center gap-2">
-											<Avatar className="h-6 w-6">
-												<AvatarFallback className="bg-primary/10 text-[0.6rem] text-primary">
-													{stream.client
-														.split(" ")
-														.map((n) => n[0])
-														.join("")
-														.slice(0, 2)
-														.toUpperCase()}
-												</AvatarFallback>
-											</Avatar>
-											<div className="min-w-0">
-												<p className="text-sm text-foreground truncate">
-													{stream.client}
-												</p>
-												<p className="text-xs text-muted-foreground truncate">
-													{stream.site}
-												</p>
+										{/* Client / Site */}
+										<div className="min-w-0">
+											<div className="flex items-center gap-2">
+												<Avatar className="h-6 w-6">
+													<AvatarFallback className="bg-primary/10 text-[0.6rem] text-primary">
+														{stream.client
+															.split(" ")
+															.map((n) => n[0])
+															.join("")
+															.slice(0, 2)
+															.toUpperCase()}
+													</AvatarFallback>
+												</Avatar>
+												<div className="min-w-0">
+													<p className="text-sm text-foreground truncate">
+														{stream.client}
+													</p>
+													<p className="text-xs text-muted-foreground truncate">
+														{stream.site}
+													</p>
+												</div>
 											</div>
 										</div>
-									</div>
 
-									{/* Status */}
-									<div>
-										<StatusChip
-											status={getComplianceStatusChip(stream.complianceStatus)}
-											variant="subtle"
-											size="sm"
-										>
-											{stream.complianceStatus}
-										</StatusChip>
-									</div>
+										{/* Status */}
+										<div>
+											<StatusChip
+												status={getComplianceStatusChip(
+													stream.complianceStatus,
+												)}
+												variant="subtle"
+												size="sm"
+											>
+												{stream.complianceStatus}
+											</StatusChip>
+										</div>
 
-									{/* Missing Doc */}
-									<div className="min-w-0">
-										<p className="text-sm text-muted-foreground truncate">
-											{stream.missingDoc}
-										</p>
-									</div>
+										{/* Missing Doc */}
+										<div className="min-w-0">
+											<p className="text-sm text-muted-foreground truncate">
+												{stream.missingDoc}
+											</p>
+										</div>
 
-									{/* Strategic Action */}
-									<div className="min-w-0">
-										<Badge
-											variant="outline"
-											className={cn(
-												"text-xs",
-												stream.priority === "critical" &&
-													"border-destructive/30 text-destructive",
-												stream.priority === "high" &&
-													"border-warning/30 text-warning",
-												stream.priority === "medium" &&
-													"border-primary/30 text-primary",
-												stream.priority === "low" &&
-													"border-muted-foreground/30",
-											)}
-										>
-											{stream.strategicAction}
-										</Badge>
-									</div>
+										{/* Strategic Action */}
+										<div className="min-w-0">
+											<Badge
+												variant="outline"
+												className={cn(
+													"text-xs",
+													stream.priority === "critical" &&
+														"border-destructive/30 text-destructive",
+													stream.priority === "high" &&
+														"border-warning/30 text-warning",
+													stream.priority === "medium" &&
+														"border-primary/30 text-primary",
+													stream.priority === "low" &&
+														"border-muted-foreground/30",
+												)}
+											>
+												{stream.strategicAction}
+											</Badge>
+										</div>
 
-									{/* Actions */}
-									<div className="flex items-center justify-end gap-2">
-										<Pressable>
-											<Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-												<MoreHorizontal className="h-4 w-4" />
-											</Button>
-										</Pressable>
-										<Pressable>
-											<Button size="sm">Resolve</Button>
-										</Pressable>
+										{/* Actions */}
+										<div className="flex items-center justify-end gap-2">
+											<Pressable>
+												<Button
+													size="sm"
+													variant="ghost"
+													className="h-8 w-8 p-0"
+												>
+													<MoreHorizontal className="h-4 w-4" />
+												</Button>
+											</Pressable>
+											<Pressable>
+												<Button size="sm">Resolve</Button>
+											</Pressable>
+										</div>
 									</div>
-								</div>
-							</StaggerItem>
-						))}
-					</StaggerContainer>
-				</Card>
+								</StaggerItem>
+							))}
+						</StaggerContainer>
+					</div>
 				)}
 			</section>
 

@@ -1,6 +1,8 @@
-// Data Display Patterns
+// ── Data Display ──
+export { AnimatedNumber } from "./data-display/animated-number";
+export { KpiCard } from "./data-display/kpi-card";
 
-// Animation Components
+// ── Animations ──
 export {
 	FadeIn,
 	HoverLift,
@@ -8,14 +10,27 @@ export {
 	StaggerContainer,
 	StaggerItem,
 } from "./animations/motion-components";
-export { AnimatedNumber } from "./data-display/animated-number";
-export { KpiCard } from "./data-display/kpi-card";
-// Dialog Patterns
+
+// ── Dialogs ──
 export { ConfirmDialog } from "./dialogs/confirm-dialog";
 export { Modal, ModalFooter, ConfirmModal } from "./dialogs/modal";
-// Feedback Patterns
-export { EmptyState } from "./feedback/empty-state";
-// Layout Patterns
+
+// ── Feedback ──
+export {
+	EmptyState,
+	ErrorEmptyState,
+	SearchEmptyState,
+	TableEmptyState,
+} from "./feedback/empty-state";
+export { StatusChip, StatusChipGroup } from "./feedback/status-chip";
+export type { StatusChipGroupProps } from "./feedback/status-chip";
+
+// ── Inputs ──
+export { SearchBar } from "./inputs/search-bar";
+
+// ── Layout ──
 export { PageHeader } from "./layout/page-header";
-// Table Patterns
+export { SectionHeader } from "./layout/section-header";
+
+// ── Tables ──
 export { DataTable } from "./tables/data-table";

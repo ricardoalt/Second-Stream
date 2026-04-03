@@ -10,7 +10,7 @@ import {
 	MoreHorizontal,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { StatusChip } from "@/components/system/status-chip";
+import { StatusChip } from "@/components/patterns";
 import { Button } from "@/components/ui/button";
 import {
 	Table,

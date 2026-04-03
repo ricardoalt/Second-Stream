@@ -7,6 +7,11 @@
 4) Add Pydantic schemas: `backend/app/schemas/`
 5) Add tests: `backend/tests/test_<feature>.py`
 
+### Offer detail and offer document rules (v1)
+1) Offer detail is project-rooted: `GET /api/v1/projects/{project_id}/offer`.
+2) Required primary surface data in contract/UI: `streamSnapshot`, `insights`, `followUpState`, `offerDocument`.
+3) Offer document uploads must use `category=offer_document` and must not run ingestion/AI (`process_with_ai=true` is rejected server-side).
+
 ### Adding a frontend feature
 1) Page: `frontend/app/<feature>/page.tsx`
 2) Components: `frontend/components/features/<feature>/`

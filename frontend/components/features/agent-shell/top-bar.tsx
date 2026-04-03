@@ -39,11 +39,11 @@ const pageTitleMap: Record<string, string> = {
 };
 
 function getInitials(name?: string): string {
-	if (!name) return "AG";
+	if (!name) return "";
 	const parts = name.split(" ").filter(Boolean);
 	const first = parts[0] ?? "";
 	const second = parts[1] ?? "";
-	if (!first) return "AG";
+	if (!first) return "";
 	if (parts.length === 1) return first.slice(0, 2).toUpperCase();
 	return `${first[0]}${second[0] ?? ""}`.toUpperCase();
 }
@@ -65,6 +65,7 @@ export function TopBar({ user, onLogout }: TopBarProps) {
 	const discoveryWizard = useDiscoveryWizard();
 	const title = getTitle(pathname);
 	const fullName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim();
+	const email = user?.email ?? "";
 
 	return (
 		<header className="sticky top-0 z-30 h-14 bg-surface-container-lowest px-6 shadow-xs">
@@ -103,20 +104,24 @@ export function TopBar({ user, onLogout }: TopBarProps) {
 								<Avatar className="size-8">
 									<AvatarFallback>{getInitials(fullName)}</AvatarFallback>
 								</Avatar>
-								<span className="hidden max-w-32 truncate text-sm md:block">
-									{fullName || "Field Agent"}
-								</span>
+								{fullName ? (
+									<span className="hidden max-w-32 truncate text-sm md:block">
+										{fullName}
+									</span>
+								) : null}
 								<ChevronDown className="text-muted-foreground" />
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="glass-popover w-56">
 							<DropdownMenuLabel className="flex flex-col gap-1">
-								<span className="text-sm font-semibold text-foreground">
-									{fullName || "Field Agent"}
-								</span>
-								<span className="text-xs text-muted-foreground">
-									{user?.email}
-								</span>
+								{fullName ? (
+									<span className="text-sm font-semibold text-foreground">
+										{fullName}
+									</span>
+								) : null}
+								{email ? (
+									<span className="text-xs text-muted-foreground">{email}</span>
+								) : null}
 							</DropdownMenuLabel>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem asChild>

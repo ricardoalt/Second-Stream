@@ -20,12 +20,12 @@ type AppSidebarProps = {
 };
 
 function getInitials(name?: string): string {
-	if (!name) return "AG";
+	if (!name) return "";
 	const parts = name.split(" ").filter(Boolean);
-	if (parts.length === 0) return "AG";
+	if (parts.length === 0) return "";
 	const first = parts[0];
 	const second = parts[1];
-	if (!first) return "AG";
+	if (!first) return "";
 	if (parts.length === 1) return first.slice(0, 2).toUpperCase();
 	return `${first[0]}${second?.[0] ?? ""}`.toUpperCase();
 }
@@ -133,16 +133,20 @@ export function AppSidebar({ userName, userEmail }: AppSidebarProps) {
 					<Avatar className="size-8">
 						<AvatarFallback>{getInitials(userName)}</AvatarFallback>
 					</Avatar>
-					{!collapsed && (
+					{!collapsed && (userName || userEmail) ? (
 						<div className="min-w-0">
-							<p className="truncate text-xs font-medium text-foreground">
-								{userName || "Field Agent"}
-							</p>
-							<p className="truncate text-[11px] text-muted-foreground">
-								{userEmail || "agent@secondstream.ai"}
-							</p>
+							{userName ? (
+								<p className="truncate text-xs font-medium text-foreground">
+									{userName}
+								</p>
+							) : null}
+							{userEmail ? (
+								<p className="truncate text-[11px] text-muted-foreground">
+									{userEmail}
+								</p>
+							) : null}
 						</div>
-					)}
+					) : null}
 				</div>
 			</div>
 		</aside>

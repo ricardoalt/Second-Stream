@@ -4,18 +4,17 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime, timedelta
-from typing import Any, ClassVar, Literal, Protocol, TypeAlias
-from uuid import uuid4
+from typing import Any, ClassVar, Literal, Protocol, TypeAlias, cast
+from uuid import UUID, uuid4
 
 import structlog
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.file import ProjectFile
 from app.models.intake_note import IntakeNote
 from app.models.project import Project
-from app.models.proposal import Proposal
 from app.models.user import User
 from app.schemas.workspace import (
     WORKSPACE_PROPOSAL_BATCH_MAX_ITEMS,
@@ -37,9 +36,11 @@ from app.schemas.workspace import (
     WorkspaceQuestionSuggestionReviewRequest,
     WorkspaceReadiness,
     WorkspaceRefreshInsightsResponse,
+    WorkspaceSuggestionPhase,
 )
 from app.services.cache_service import cache_service
 from app.services.intake_service import IntakeService
+from app.services.offer_service import OfferService
 from app.services.project_data_service import ProjectDataService
 
 WORKSPACE_PROJECT_DATA_KEY = "workspace_v1"
@@ -47,6 +48,7 @@ WORKSPACE_BASE_FIELDS_KEY = "base_fields"
 WORKSPACE_CUSTOM_FIELDS_KEY = "custom_fields"
 WORKSPACE_DERIVED_KEY = "derived"
 WORKSPACE_DISCOVERY_COMPLETED_AT_KEY = "discovery_completed_at"
+WORKSPACE_UPDATED_AT_KEY = "updated_at"
 WORKSPACE_QUESTIONNAIRE_ANSWERS_KEY = "questionnaire_answers"
 WORKSPACE_QUESTIONNAIRE_SUGGESTIONS_KEY = "questionnaire_suggestions"
 WORKSPACE_PHASE_PROGRESS_KEY = "phase_progress"
@@ -93,13 +95,16 @@ QUESTIONNAIRE_BASE_FIELD_INFERENCE_MAP: dict[WorkspaceBaseFieldKey, str] = {
     "composition": "q17",
 }
 
-QUESTIONNAIRE_QUESTION_META: dict[str, tuple[int, str]] = {
-    **{f"q{index}": (1, "Stream Snapshot") for index in range(1, 10)},
-    **{f"q{index}": (2, "Current Handling") for index in range(10, 15)},
-    **{f"q{index}": (3, "Technical Confidence") for index in range(15, 21)},
-    **{f"q{index}": (4, "Project Driver") for index in range(21, 26)},
-    **{f"q{index}": (4, "Later-stage commercial fields") for index in range(26, 32)},
-}
+QUESTIONNAIRE_QUESTION_META = cast(
+    dict[str, tuple[WorkspaceSuggestionPhase, str]],
+    {
+        **{f"q{index}": (1, "Stream Snapshot") for index in range(1, 10)},
+        **{f"q{index}": (2, "Current Handling") for index in range(10, 15)},
+        **{f"q{index}": (3, "Technical Confidence") for index in range(15, 21)},
+        **{f"q{index}": (4, "Project Driver") for index in range(21, 26)},
+        **{f"q{index}": (4, "Later-stage commercial fields") for index in range(26, 32)},
+    },
+)
 
 
 class WorkspaceBatchScope(Protocol):
@@ -769,11 +774,6 @@ class WorkspaceService:
         project: Project,
         current_user: User,
     ) -> WorkspaceCompleteDiscoveryResponse:
-        proposal = await WorkspaceService._get_or_create_completion_proposal(
-            db=db,
-            project=project,
-        )
-
         await WorkspaceService._persist_workspace_patch(
             db=db,
             project=project,
@@ -782,90 +782,19 @@ class WorkspaceService:
                 WORKSPACE_DISCOVERY_COMPLETED_AT_KEY: datetime.now(UTC).isoformat(),
             },
         )
+        await db.refresh(project)
+        await OfferService.refresh_offer_insights(
+            db=db,
+            project=project,
+            current_user=current_user,
+        )
 
         return WorkspaceCompleteDiscoveryResponse(
             message="Discovery marked complete",
             offer=WorkspaceOfferNavigationTarget(
                 project_id=project.id,
-                proposal_id=proposal.id,
             ),
         )
-
-    @staticmethod
-    async def _get_or_create_completion_proposal(
-        *,
-        db: AsyncSession,
-        project: Project,
-    ) -> Proposal:
-        active_count = await db.scalar(
-            select(func.count(Proposal.id)).where(
-                Proposal.project_id == project.id,
-                Proposal.organization_id == project.organization_id,
-                Proposal.status.in_(["Draft", "Current"]),
-            )
-        )
-        active_count_int = int(active_count or 0)
-
-        if active_count_int > 1:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "message": "Multiple active proposals found for project",
-                    "code": "WORKSPACE_ACTIVE_PROPOSAL_AMBIGUOUS",
-                    "details": {
-                        "activeProposalCount": active_count_int,
-                    },
-                },
-            )
-
-        if active_count_int == 1:
-            reusable_result = await db.execute(
-                select(Proposal)
-                .where(
-                    Proposal.project_id == project.id,
-                    Proposal.organization_id == project.organization_id,
-                    Proposal.status.in_(["Draft", "Current"]),
-                )
-                .order_by(Proposal.created_at.desc())
-                .limit(1)
-            )
-            reusable = reusable_result.scalar_one_or_none()
-            if reusable is not None:
-                return reusable
-
-        count = await db.scalar(
-            select(func.count(Proposal.id)).where(
-                Proposal.project_id == project.id,
-                Proposal.organization_id == project.organization_id,
-            )
-        )
-        next_version = f"v{int(count or 0) + 1}.0"
-        ai_metadata = {
-            "proposal": {
-                "headline": "Offer draft created from completed discovery.",
-            },
-            "transparency": {
-                "generatedAt": datetime.now(UTC).isoformat(),
-                "reportType": "workspace_completion_handoff",
-            },
-        }
-        created = Proposal(
-            organization_id=project.organization_id,
-            project_id=project.id,
-            version=next_version,
-            title=f"Offer Draft - {project.name}",
-            proposal_type="Technical",
-            status="Draft",
-            author="AI",
-            capex=0.0,
-            opex=0.0,
-            executive_summary="Offer draft created after workspace discovery completion.",
-            technical_approach="Complete discovery to generate the detailed offer report.",
-            ai_metadata=ai_metadata,
-        )
-        db.add(created)
-        await db.flush()
-        return created
 
     @staticmethod
     def _build_base_field_items(project: Project) -> list[WorkspaceBaseFieldItem]:
@@ -1272,6 +1201,7 @@ class WorkspaceService:
         if not isinstance(raw_refs, list):
             return []
         refs: list[WorkspaceEvidenceRef] = []
+        file_id = file.id if isinstance(file.id, UUID) else uuid4()
         for raw_ref in raw_refs:
             if not isinstance(raw_ref, dict):
                 continue
@@ -1281,7 +1211,7 @@ class WorkspaceService:
             excerpt = excerpt_raw if isinstance(excerpt_raw, str) else None
             refs.append(
                 WorkspaceEvidenceRef(
-                    file_id=file.id,
+                    file_id=file_id,
                     filename=file.filename,
                     page=page,
                     excerpt=excerpt,
@@ -1463,7 +1393,8 @@ class WorkspaceService:
             meta = QUESTIONNAIRE_QUESTION_META.get(mapped_question_id)
             if meta is None:
                 continue
-            phase, section = meta
+            phase_int, section = meta
+            phase: WorkspaceSuggestionPhase = phase_int
             current = candidates.get(mapped_question_id)
             candidate = WorkspaceQuestionSuggestionItem(
                 question_id=mapped_question_id,
@@ -1607,7 +1538,11 @@ class WorkspaceService:
             else {}
         )
         current_workspace = WorkspaceService._load_workspace_section(current_data)
-        next_workspace = {**current_workspace, **patch}
+        next_workspace = {
+            **current_workspace,
+            **patch,
+            WORKSPACE_UPDATED_AT_KEY: datetime.now(UTC).isoformat(),
+        }
         next_project_data = {**current_data, WORKSPACE_PROJECT_DATA_KEY: next_workspace}
 
         await ProjectDataService.update_project_data(

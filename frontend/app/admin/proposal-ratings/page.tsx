@@ -18,10 +18,10 @@ import {
 	StaggerContainer,
 	StaggerItem,
 } from "@/components/patterns/animations/motion-components";
-import { PageHeader } from "@/components/system";
+import { PageHeader } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState } from "@/components/patterns";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -543,13 +543,13 @@ export default function AdminProposalRatingsPage() {
 							icon={Star}
 							title="No ratings found"
 							description="Try adjusting filters or wait for users to submit ratings."
-							{...(isAnyFilterActive && {
-								action: {
-									label: "Reset filters",
-									onClick: resetFilters,
-									variant: "outline" as const,
-								},
-							})}
+							action={
+								isAnyFilterActive ? (
+									<Button variant="outline" size="sm" onClick={resetFilters}>
+										Reset filters
+									</Button>
+								) : undefined
+							}
 						/>
 					</div>
 				) : (

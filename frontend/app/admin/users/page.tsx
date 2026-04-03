@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/system";
+import { PageHeader } from "@/components/patterns";
 import {
 	FadeIn,
 	Pressable,
@@ -215,7 +215,7 @@ export default function AdminUsersPage() {
 					<PageHeader
 						title="Platform Administrators"
 						subtitle="Superuser accounts with full platform access."
-						icon={<ShieldCheck className="h-6 w-6" aria-hidden="true" />}
+						icon={ShieldCheck}
 						actions={
 							<Pressable>
 								<Button onClick={() => setModalOpen(true)}>

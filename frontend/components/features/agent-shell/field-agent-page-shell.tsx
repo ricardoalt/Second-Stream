@@ -2,7 +2,8 @@
 
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight } from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state";
+import { EmptyState } from "@/components/patterns";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type FieldAgentPageShellProps = {
@@ -43,11 +44,11 @@ export function FieldAgentPageShell({
 				icon={icon}
 				title={emptyTitle}
 				description={emptyDescription}
-				action={{
-					label: "Continue in Sprint 1B",
-					onClick: () => undefined,
-					variant: "secondary",
-				}}
+				action={
+					<Button variant="secondary" size="sm" onClick={() => undefined}>
+						Continue in Sprint 1B
+					</Button>
+				}
 				className="border-0 bg-surface-container-lowest shadow-sm"
 			/>
 

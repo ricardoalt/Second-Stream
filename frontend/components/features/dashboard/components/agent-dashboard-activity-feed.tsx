@@ -1,6 +1,6 @@
 import { ArrowUpRight, CheckCircle2, Clock3, Sparkles } from "lucide-react";
 import type React from "react";
-import { StatusChip } from "@/components/system/status-chip";
+import { StatusChip } from "@/components/patterns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
 	Card,

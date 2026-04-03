@@ -6,6 +6,8 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field
 
+from app.schemas.offer import OfferV1Data
+
 
 class WaterQualityParameter(BaseModel):
     """Individual water quality parameter"""
@@ -69,6 +71,7 @@ class ProjectDataStructure(BaseModel):
     requirements: ProjectRequirements = Field(default_factory=ProjectRequirements)
     objectives: list[str] = Field(default_factory=list)
     sections: list[CustomSection] = Field(default_factory=list)
+    offer_v1: OfferV1Data = Field(default_factory=OfferV1Data)
 
 
 class ProjectDataUpdate(BaseModel):

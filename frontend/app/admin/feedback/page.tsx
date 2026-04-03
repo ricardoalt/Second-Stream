@@ -32,7 +32,7 @@ import {
 	StaggerContainer,
 	StaggerItem,
 } from "@/components/patterns/animations/motion-components";
-import { PageHeader } from "@/components/system";
+import { PageHeader, EmptyState } from "@/components/patterns";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -47,7 +47,6 @@ import {
 	Card,
 	CardContent,
 	CardHeader,
-	EmptyState,
 	Input,
 	Label,
 	Select,

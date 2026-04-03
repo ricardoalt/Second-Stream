@@ -13,19 +13,16 @@ import type {
 	OfferStage,
 } from "@/components/features/offers/types";
 import { mapProjectFollowUpToOfferStage } from "@/components/features/offers/utils";
-import { KpiCard, PageHeader } from "@/components/patterns";
+import { EmptyState, KpiCard, PageHeader } from "@/components/patterns";
 import {
 	FadeIn,
 	HoverLift,
-	Pressable,
 	StaggerContainer,
 	StaggerItem,
 } from "@/components/patterns/animations/motion-components";
 import {
 	Card,
 	CardContent,
-	CardHeader,
-	CardTitle,
 	Input,
 	Select,
 	SelectContent,
@@ -33,6 +30,7 @@ import {
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
+	Skeleton,
 } from "@/components/ui";
 import { offersAPI } from "@/lib/api/offers";
 import { getErrorMessage } from "@/lib/utils/logger";
@@ -158,10 +156,36 @@ export default function OffersPage() {
 
 	if (loading) {
 		return (
-			<div className="rounded-2xl bg-surface-container-lowest p-8 shadow-xs">
-				<h1 className="font-display text-2xl font-semibold text-foreground">
-					Loading Offers pipeline...
-				</h1>
+			<div className="flex flex-col gap-6">
+				<section className="overflow-hidden rounded-2xl border border-border/50 bg-surface-container-lowest p-6">
+					<Skeleton className="h-6 w-56" />
+					<Skeleton className="mt-3 h-4 w-96" />
+				</section>
+				<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+					{Array.from({ length: 4 }).map((_, index) => (
+						<Skeleton
+							key={`offers-kpi-skeleton-${index + 1}`}
+							className="h-28 w-full rounded-xl"
+						/>
+					))}
+				</section>
+				<section className="grid gap-3 lg:grid-cols-5">
+					{Array.from({ length: 5 }).map((_, index) => (
+						<Skeleton
+							key={`offers-stage-skeleton-${index + 1}`}
+							className="h-44 w-full rounded-xl"
+						/>
+					))}
+				</section>
+				<section className="rounded-xl border border-border/50 bg-surface-container-lowest p-4">
+					<Skeleton className="mb-3 h-10 w-full" />
+					{Array.from({ length: 5 }).map((_, index) => (
+						<Skeleton
+							key={`offers-table-skeleton-${index + 1}`}
+							className="mb-2 h-12 w-full last:mb-0"
+						/>
+					))}
+				</section>
 			</div>
 		);
 	}
@@ -209,7 +233,7 @@ export default function OffersPage() {
 							<KpiCard
 								title="Pipeline value"
 								value={formatCurrency(totalValue)}
-								subtitle="Selected latest proposal CAPEX"
+								subtitle="Selected latest commercial estimate"
 								icon={Wallet}
 								variant="accent"
 							/>
@@ -252,12 +276,12 @@ export default function OffersPage() {
 			</FadeIn>
 
 			<FadeIn direction="up" delay={0.25}>
-				<Card className="border-0 bg-surface-container-lowest shadow-xs">
-					<CardHeader className="flex flex-col gap-4">
+				<section className="overflow-hidden rounded-xl border border-border/50 bg-surface-container-lowest">
+					<div className="flex flex-col gap-4 border-b border-border/50 p-6 pb-5">
 						<div className="flex flex-col gap-1">
-							<CardTitle className="font-display text-xl font-semibold text-foreground">
+							<h2 className="font-display text-xl font-semibold text-foreground">
 								Active offers
-							</CardTitle>
+							</h2>
 							<p className="text-sm text-muted-foreground">
 								Search and filter by client and active stage.
 							</p>
@@ -304,7 +328,7 @@ export default function OffersPage() {
 										<SelectItem value="all">All stages</SelectItem>
 										<SelectItem value="requires_data">Requires data</SelectItem>
 										<SelectItem value="proposal_ready">
-											Proposal ready
+											Ready to send
 										</SelectItem>
 										<SelectItem value="offer_sent">Offer sent</SelectItem>
 										<SelectItem value="in_negotiation">
@@ -314,11 +338,22 @@ export default function OffersPage() {
 								</SelectContent>
 							</Select>
 						</div>
-					</CardHeader>
-					<CardContent className="pt-0">
-						<OffersPipelineTable offers={filteredOffers} />
-					</CardContent>
-				</Card>
+					</div>
+					<div className="p-0">
+						{filteredOffers.length > 0 ? (
+							<OffersPipelineTable offers={filteredOffers} />
+						) : (
+							<div className="p-6">
+								<EmptyState
+									icon={Search}
+									title="No offers match your filters"
+									description="Try another search term or reset stage/client filters."
+									className="border-0 bg-transparent py-6"
+								/>
+							</div>
+						)}
+					</div>
+				</section>
 			</FadeIn>
 		</div>
 	);

@@ -13,24 +13,25 @@
  * ============================================================================ */
 
 :root {
-	/* ── Core (Vibrante y Premium) ── */
-	--background: #f8fafc; /* Slate sutil, profesional, nítido */
-	--foreground: #0f172a; /* Slate 900 - más profundo que #0a0a0a */
+	/* ── Core (Premium 2026 — warm neutrals with brand tint) ── */
+	--background: oklch(0.98 0.003 200); /* Near-white with faint teal warmth */
+	--foreground: oklch(0.15 0.02 240); /* Deep navy-slate — never pure black */
 	--card: #ffffff;
 	--card-foreground: #0f172a;
 	--popover: #ffffff;
 	--popover-foreground: #0f172a;
 
-	/* ── Surface Hierarchy Premium (Slate sutil) ── */
-	--surface: #f8fafc;
-	--surface-container: #f1f5f9; /* Slate 100 - más cálido que gris puro */
-	--surface-container-low: #f8fafc;
-	--surface-container-high: #e2e8f0; /* Slate 200 */
-	--surface-container-highest: #cbd5e1; /* Slate 300 */
+	/* ── Surface Hierarchy Premium (perceptually uniform OKLCH steps) ── */
+	--surface: oklch(0.98 0.003 200);
+	--surface-container: oklch(0.96 0.004 200); /* Subtle teal warmth */
+	--surface-container-low: oklch(0.975 0.003 200);
+	--surface-container-high: oklch(0.92 0.005 210); /* Clear separation */
+	--surface-container-highest: oklch(0.86 0.008 220);
 	--surface-container-lowest: #ffffff;
-	--surface-dim: #94a3b8; /* Slate 400 */
-	--surface-tint: #0d9488; /* Teal 600 - vibrante y moderno */
-	--surface-bright: #f8fafc;
+	--surface-dim: oklch(0.65 0.015 230);
+	--surface-tint: #0d9488; /* Teal 600 */
+	--surface-bright: oklch(0.98 0.003 200);
+	--surface-elevated: color-mix(in srgb, #ffffff 92%, var(--primary) 8%); /* Floating elements */
 
 	/* ── Primary — Teal Vibrante ── */
 	--primary: #0d9488; /* Teal 600 - energético y premium */
@@ -49,10 +50,10 @@
 	--tertiary: #435c79;
 	--tertiary-container: #5c7593;
 
-	/* ── Neutral (Slate sutil, no gris sucio) ── */
-	--muted: #f1f5f9; /* Slate 100 */
-	--muted-foreground: #64748b; /* Slate 500 - más legible */
-	--accent: #e2e8f0; /* Slate 200 */
+	/* ── Neutral (Clean neutrals, never muddy) ── */
+	--muted: oklch(0.96 0.004 200);
+	--muted-foreground: oklch(0.55 0.015 240); /* Balanced readable */
+	--accent: oklch(0.92 0.006 210);
 	--accent-foreground: #0f172a;
 
 	/* ── Outline ── */
@@ -172,15 +173,15 @@
 	/* ── Radius ── */
 	--radius: 0.625rem;
 
-	/* ── Shadows Premium (doble capa para profundidad) ── */
-	--shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-	--shadow-xs: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
-	--shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-	--shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
-	--shadow-md: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05);
-	--shadow-lg: 0 25px 50px -12px rgb(0 0 0 / 0.08);
-	--shadow-xl: 0 32px 64px -12px rgb(0 0 0 / 0.1);
-	--shadow-2xl: 0 40px 80px -12px rgb(0 0 0 / 0.12);
+	/* ── Shadows Premium 2026 (richer depth, teal-tinted for brand cohesion) ── */
+	--shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+	--shadow-xs: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+	--shadow-sm: 0 2px 8px -2px rgb(0 0 0 / 0.08), 0 1px 3px -1px rgb(0 0 0 / 0.04);
+	--shadow: 0 4px 16px -4px rgb(0 0 0 / 0.1), 0 2px 6px -2px rgb(0 0 0 / 0.05);
+	--shadow-md: 0 8px 24px -6px rgb(0 0 0 / 0.1), 0 4px 10px -4px rgb(0 0 0 / 0.05);
+	--shadow-lg: 0 16px 40px -10px rgb(0 0 0 / 0.12), 0 6px 16px -6px rgb(0 0 0 / 0.06);
+	--shadow-xl: 0 24px 56px -12px rgb(0 0 0 / 0.14), 0 8px 24px -8px rgb(0 0 0 / 0.07);
+	--shadow-2xl: 0 32px 72px -16px rgb(0 0 0 / 0.18), 0 12px 32px -12px rgb(0 0 0 / 0.08);
 
 	/* ── Spacing ── */
 	--space-xs: 0.375rem;
@@ -197,31 +198,26 @@
 
 	--tracking-normal: 0rem;
 
-	/* ── Badge System 2026 (sólidos con contraste) ── */
-	/* Success: Emerald 100 bg + 800 text */
-	--badge-success-bg: #dcfce7;
-	--badge-success-text: #166534;
-	--badge-success-border: #86efac;
+	/* ── Badge System 2026 (semantic references, not hardcoded hex) ── */
+	--badge-success-bg: color-mix(in srgb, var(--success) 14%, var(--background));
+	--badge-success-text: oklch(0.35 0.12 155);
+	--badge-success-border: color-mix(in srgb, var(--success) 35%, transparent);
 
-	/* Warning: Amber 100 bg + 800 text */
-	--badge-warning-bg: #fef3c7;
-	--badge-warning-text: #92400e;
-	--badge-warning-border: #fcd34d;
+	--badge-warning-bg: color-mix(in srgb, var(--warning) 14%, var(--background));
+	--badge-warning-text: oklch(0.38 0.1 70);
+	--badge-warning-border: color-mix(in srgb, var(--warning) 35%, transparent);
 
-	/* Destructive: Red 100 bg + 800 text */
-	--badge-destructive-bg: #fee2e2;
-	--badge-destructive-text: #991b1b;
-	--badge-destructive-border: #fca5a5;
+	--badge-destructive-bg: color-mix(in srgb, var(--destructive) 12%, var(--background));
+	--badge-destructive-text: oklch(0.38 0.15 25);
+	--badge-destructive-border: color-mix(in srgb, var(--destructive) 30%, transparent);
 
-	/* Primary/Info: Teal 100 bg + 800 text */
-	--badge-primary-bg: #ccfbf1;
-	--badge-primary-text: #0f766e;
-	--badge-primary-border: #5eead4;
+	--badge-primary-bg: color-mix(in srgb, var(--primary) 12%, var(--background));
+	--badge-primary-text: oklch(0.38 0.08 175);
+	--badge-primary-border: color-mix(in srgb, var(--primary) 30%, transparent);
 
-	/* Neutral: Gray 100 bg + 800 text */
-	--badge-neutral-bg: #f3f4f6;
-	--badge-neutral-text: #1f2937;
-	--badge-neutral-border: #d1d5db;
+	--badge-neutral-bg: color-mix(in srgb, var(--foreground) 6%, var(--background));
+	--badge-neutral-text: oklch(0.3 0.01 240);
+	--badge-neutral-border: color-mix(in srgb, var(--foreground) 14%, transparent);
 }
 
 /* ── Dark Mode ── */
@@ -391,6 +387,7 @@
 	--color-surface-dim: var(--surface-dim);
 	--color-surface-tint: var(--surface-tint);
 	--color-surface-bright: var(--surface-bright);
+	--color-surface-elevated: var(--surface-elevated);
 	--color-primary-container: var(--primary-container);
 	--color-tertiary: var(--tertiary);
 	--color-tertiary-container: var(--tertiary-container);
@@ -483,7 +480,7 @@
 		}
 	}
 
-	--font-heading: var(--font-sans);
+	--font-heading: var(--font-display);
 }
 
 /* ============================================================================
@@ -1014,4 +1011,36 @@ body {
 	.glass-liquid-strong {
 		backdrop-filter: none;
 	}
+}
+
+/* ── Custom Scrollbars (Premium Detail) ── */
+/* Estilo fino y nativo como Linear/Vercel */
+
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--outline-variant);
+	border-radius: 4px;
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--outline);
+	border-radius: 4px;
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+
+/* Firefox */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--outline-variant) transparent;
 }

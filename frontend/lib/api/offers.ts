@@ -1,10 +1,4 @@
-import {
-	resolveEffectiveProposalFollowUpState,
-	selectDeterministicOfferProposal,
-} from "@/components/features/offers/utils";
-import { projectsAPI } from "@/lib/api/projects";
 import type { ProposalFollowUpState } from "@/lib/types/dashboard";
-import type { ProposalDTO } from "@/lib/types/proposal-dto";
 import { apiClient } from "./client";
 
 type OfferPipelineBackendState =
@@ -94,16 +88,37 @@ export function normalizeOfferArchiveState(
 
 export interface OfferDetailDTO {
 	projectId: string;
-	projectName: string;
-	companyLabel: string | null;
-	locationLabel: string | null;
-	proposalFollowUpState: ProposalFollowUpState;
-	proposal: ProposalDTO;
+	streamSnapshot: {
+		materialType: string | null;
+		materialName: string | null;
+		composition: string | null;
+		volume: string | null;
+		frequency: string | null;
+	};
+	followUpState: ProposalFollowUpState | null;
+	insights: {
+		summary: string;
+		keyPoints: string[];
+		risks: string[];
+		recommendations: string[];
+		freshness: {
+			generatedAt: string | null;
+			sourceUpdatedAt: string | null;
+			isStale: boolean;
+		};
+	} | null;
+	offerDocument: {
+		fileId: string;
+		filename: string;
+		mimeType: string | null;
+		fileSize: number | null;
+		uploadedAt: string;
+	} | null;
 }
 
 export interface OfferFollowUpStateUpdateResponse {
 	projectId: string;
-	proposalFollowUpState: ProposalFollowUpState;
+	followUpState: ProposalFollowUpState;
 	updatedAt: string;
 }
 
@@ -141,38 +156,37 @@ export const offersAPI = {
 	},
 
 	async getOfferDetail(projectId: string): Promise<OfferDetailDTO> {
-		const project = await projectsAPI.getProject(projectId);
-		const selected = selectDeterministicOfferProposal(project.proposals);
-		if (!selected) {
-			throw new Error("No active offer proposal found for this project.");
-		}
-
-		const effectiveFollowUpState = resolveEffectiveProposalFollowUpState(
-			project.proposalFollowUpState,
-			project.proposals.length,
-		);
-		if (!effectiveFollowUpState) {
-			throw new Error("Offer follow-up state is unavailable for this project.");
-		}
-
-		return {
-			projectId: project.id,
-			projectName: project.name,
-			companyLabel: project.companyName ?? null,
-			locationLabel: project.locationName ?? null,
-			proposalFollowUpState: effectiveFollowUpState,
-			proposal: selected,
-		};
+		return apiClient.get<OfferDetailDTO>(`/projects/${projectId}/offer`);
 	},
 
 	async updateOfferFollowUpState(
 		projectId: string,
 		state: ProposalFollowUpState,
 	): Promise<OfferFollowUpStateUpdateResponse> {
-		return apiClient.patch<OfferFollowUpStateUpdateResponse>(
-			`/projects/${projectId}/proposal-follow-up-state`,
-			{ state },
+		const response = await apiClient.patch<{
+			projectId: string;
+			proposalFollowUpState: ProposalFollowUpState;
+			updatedAt: string;
+		}>(`/projects/${projectId}/proposal-follow-up-state`, { state });
+
+		return {
+			projectId: response.projectId,
+			followUpState: response.proposalFollowUpState,
+			updatedAt: response.updatedAt,
+		};
+	},
+
+	async refreshOfferInsights(projectId: string): Promise<OfferDetailDTO> {
+		return apiClient.post<OfferDetailDTO>(
+			`/projects/${projectId}/offer/refresh-insights`,
 		);
+	},
+
+	async uploadOfferDocument(projectId: string, file: File) {
+		return apiClient.uploadFile(`/projects/${projectId}/files`, file, {
+			category: "offer_document",
+			process_with_ai: false,
+		});
 	},
 
 	async transitionOfferFollowUpState(

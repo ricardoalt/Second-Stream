@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { StatusChip } from "@/components/system/status-chip";
+import { StatusChip } from "@/components/patterns";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 

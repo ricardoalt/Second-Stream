@@ -272,4 +272,5 @@ class ProjectDataService:
             "requirements": {},
             "objectives": [],
             "sections": [],
+            "offer_v1": {},
         }

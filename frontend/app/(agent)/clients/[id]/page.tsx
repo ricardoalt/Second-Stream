@@ -14,12 +14,12 @@ import {
 	Target,
 	Users,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ClientCreateBanner } from "@/components/features/clients/client-create-banner";
-import { EditClientModal } from "@/components/features/modals/edit-client-modal";
 import {
 	mapEditorStateToDraftCandidate,
 	rejectSingleDraftWithConfirmation,
@@ -63,6 +63,14 @@ import {
 	useStreamsLoading,
 	useStreamsMissingInfo,
 } from "@/lib/stores/streams-store";
+
+const EditClientModal = dynamic(
+	() =>
+		import("@/components/features/modals/edit-client-modal").then(
+			(mod) => mod.EditClientModal,
+		),
+	{ ssr: false, loading: () => null },
+);
 
 export default function ClientDetailPage() {
 	const params = useParams<{ id: string }>();

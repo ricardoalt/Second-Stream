@@ -1,5 +1,6 @@
 import { ArrowUpRight, Check, Clock3 } from "lucide-react";
 import Link from "next/link";
+import { EmptyState } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -140,9 +141,12 @@ export function StreamsFollowUpBoard({
 				})}
 
 				{prioritizedItems.length === 0 && (
-					<div className="rounded-lg bg-surface-container-lowest p-8 text-center text-sm text-muted-foreground">
-						No items requiring follow-up.
-					</div>
+					<EmptyState
+						icon={Check}
+						title="No items requiring follow-up"
+						description="All current streams have the required information."
+						className="border border-border/50 bg-surface-container-lowest py-8"
+					/>
 				)}
 			</div>
 

@@ -19,15 +19,16 @@ const PROPOSAL_FOLLOW_UP_TRANSITIONS: Record<
 	rejected: [],
 };
 
-export const PROPOSAL_FOLLOW_UP_LABELS: Record<ProposalFollowUpState, string> =
-	{
-		uploaded: "Uploaded",
-		waiting_to_send: "Waiting to send",
-		waiting_response: "Waiting response",
-		under_negotiation: "Under negotiation",
-		accepted: "Accepted",
-		rejected: "Rejected",
-	};
+export const OFFER_FOLLOW_UP_LABELS: Record<ProposalFollowUpState, string> = {
+	uploaded: "Offer drafted",
+	waiting_to_send: "Ready to send",
+	waiting_response: "Awaiting response",
+	under_negotiation: "In negotiation",
+	accepted: "Accepted",
+	rejected: "Declined",
+};
+
+export const PROPOSAL_FOLLOW_UP_LABELS = OFFER_FOLLOW_UP_LABELS;
 
 export function mapProjectFollowUpToOfferStage(
 	state: ProposalFollowUpState,

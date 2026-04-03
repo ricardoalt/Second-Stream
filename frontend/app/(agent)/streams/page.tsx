@@ -32,7 +32,7 @@ import {
 	useSharedStreamFilter,
 	useStreamFilters,
 } from "@/components/features/streams/use-stream-filters";
-import { KpiCard } from "@/components/patterns";
+import { EmptyState, KpiCard } from "@/components/patterns";
 import {
 	FadeIn,
 	HoverLift,
@@ -40,6 +40,30 @@ import {
 	StaggerContainer,
 	StaggerItem,
 } from "@/components/patterns/animations/motion-components";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { bulkImportAPI } from "@/lib/api/bulk-import";
+import { toDiscoveryNormalizedData } from "@/lib/discovery-confirmation-utils";
 import {
 	useStreamsActions,
 	useStreamsAll,
@@ -51,32 +75,6 @@ import {
 	useStreamsMissingInfo,
 } from "@/lib/stores/streams-store";
 import { computeWasteStreamsKpis } from "@/lib/utils/compute-waste-streams-kpis";
-import { bulkImportAPI } from "@/lib/api/bulk-import";
-import { toDiscoveryNormalizedData } from "@/lib/discovery-confirmation-utils";
-import { cn } from "@/lib/utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { EmptyState } from "@/components/ui/empty-state";
 
 export default function AgentStreamsPage() {
 	const discoveryWizard = useDiscoveryWizard();
@@ -332,9 +330,20 @@ export default function AgentStreamsPage() {
 			</section>
 
 			{loading && !isInitialized ? (
-				<div className="flex items-center gap-2 rounded-lg bg-surface-container-low px-4 py-3 text-sm text-muted-foreground">
-					<Loader2 aria-hidden className="size-4 animate-spin" />
-					Loading streams…
+				<div className="rounded-xl border border-border/50 bg-surface-container-lowest p-4">
+					<div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+						<Loader2 aria-hidden className="size-4 animate-spin" />
+						Loading streams…
+					</div>
+					<div className="space-y-2">
+						<Skeleton className="h-10 w-full" />
+						{Array.from({ length: 4 }).map((_, index) => (
+							<Skeleton
+								key={`streams-loading-row-${index + 1}`}
+								className="h-14 w-full"
+							/>
+						))}
+					</div>
 				</div>
 			) : null}
 
@@ -380,122 +389,124 @@ export default function AgentStreamsPage() {
 					</div>
 
 					{/* ── Tab: All Active ── */}
-					<TabsContent value="all" className="mt-6">
-						<div className="overflow-hidden rounded-xl border border-border/40 bg-surface-container-lowest/50 backdrop-blur-sm">
-							{/* Search / Filters */}
-							{activeTab === "all" && (
-								<div className="grid gap-3 border-b border-border/40 bg-surface-container/30 p-4 lg:grid-cols-[1.4fr_repeat(2,minmax(0,1fr))]">
-									<div className="relative">
-										<Search
-											aria-hidden
-											className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-										/>
-										<Input
-											value={search}
-											onChange={(event) => setSearch(event.target.value)}
-											placeholder="Search stream, client, waste type"
-											className="border-border/40 bg-surface-container-lowest pl-9 transition-colors focus:bg-surface"
-										/>
-									</div>
-
-									<Select value={clientFilter} onValueChange={setClientFilter}>
-										<SelectTrigger className="border-border/40 bg-surface-container-lowest">
-											<SelectValue placeholder="Client" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectGroup>
-												<SelectItem value="all">All clients</SelectItem>
-												{[
-													...new Set(
-														operationalStreams.map((stream) => stream.client),
-													),
-												].map((client) => (
-													<SelectItem key={client} value={client}>
-														{client}
-													</SelectItem>
-												))}
-											</SelectGroup>
-										</SelectContent>
-									</Select>
-
-									<Select value={statusFilter} onValueChange={setStatusFilter}>
-										<SelectTrigger className="border-border/40 bg-surface-container-lowest">
-											<SelectValue placeholder="Status" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectGroup>
-												<SelectItem value="all">All statuses</SelectItem>
-												<SelectItem value="active">Active</SelectItem>
-												<SelectItem value="draft">Draft</SelectItem>
-												<SelectItem value="missing_info">
-													Missing info
-												</SelectItem>
-												<SelectItem value="blocked">Blocked</SelectItem>
-												<SelectItem value="ready_for_offer">
-													Ready for offer
-												</SelectItem>
-											</SelectGroup>
-										</SelectContent>
-									</Select>
+					<TabsContent
+						value="all"
+						className="mt-6 overflow-hidden rounded-xl border border-border/50 bg-surface-container-lowest"
+					>
+						{/* Search / Filters */}
+						{activeTab === "all" && (
+							<div className="grid gap-3 border-b border-border/50 bg-surface-container/30 p-4 lg:grid-cols-[1.4fr_repeat(2,minmax(0,1fr))]">
+								<div className="relative">
+									<Search
+										aria-hidden
+										className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+									/>
+									<Input
+										value={search}
+										onChange={(event) => setSearch(event.target.value)}
+										placeholder="Search stream, client, waste type"
+										className="border-border/40 bg-surface-container-lowest pl-9 transition-colors focus:bg-surface"
+									/>
 								</div>
-							)}
 
-							{filteredStreams.length > 0 ? (
-								<StreamsAllTable
-									rows={filteredStreams}
-									onOpenDraft={handleOpenDraft}
-								/>
-							) : (
-								<div className="p-6">
-									<EmptyState
-										icon={Search}
-										title="No streams found"
-										description="Try adjusting your filters or search term."
-										action={{
-											label: "Clear filters",
-											onClick: () => {
+								<Select value={clientFilter} onValueChange={setClientFilter}>
+									<SelectTrigger className="border-border/40 bg-surface-container-lowest">
+										<SelectValue placeholder="Client" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectGroup>
+											<SelectItem value="all">All clients</SelectItem>
+											{[
+												...new Set(
+													operationalStreams.map((stream) => stream.client),
+												),
+											].map((client) => (
+												<SelectItem key={client} value={client}>
+													{client}
+												</SelectItem>
+											))}
+										</SelectGroup>
+									</SelectContent>
+								</Select>
+
+								<Select value={statusFilter} onValueChange={setStatusFilter}>
+									<SelectTrigger className="border-border/40 bg-surface-container-lowest">
+										<SelectValue placeholder="Status" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectGroup>
+											<SelectItem value="all">All statuses</SelectItem>
+											<SelectItem value="active">Active</SelectItem>
+											<SelectItem value="draft">Draft</SelectItem>
+											<SelectItem value="missing_info">Missing info</SelectItem>
+											<SelectItem value="blocked">Blocked</SelectItem>
+											<SelectItem value="ready_for_offer">
+												Ready for offer
+											</SelectItem>
+										</SelectGroup>
+									</SelectContent>
+								</Select>
+							</div>
+						)}
+
+						{filteredStreams.length > 0 ? (
+							<StreamsAllTable
+								rows={filteredStreams}
+								onOpenDraft={handleOpenDraft}
+							/>
+						) : (
+							<div className="p-6">
+								<EmptyState
+									icon={Search}
+									title="No streams found"
+									description="Try adjusting your filters or search term."
+									action={
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => {
 												setSearch("");
 												setClientFilter("all");
 												setStatusFilter("all");
-											},
-											variant: "outline",
-										}}
-										severity="info"
-										compact
-									/>
-								</div>
-							)}
+											}}
+										>
+											Clear filters
+										</Button>
+									}
+									className="border-0 bg-transparent py-6"
+								/>
+							</div>
+						)}
 
-							{/* Pagination Footer */}
-							<div className="flex items-center justify-between border-t border-border/40 bg-surface-container/30 px-4 py-3">
-								<p className="text-xs text-secondary">
-									Showing{" "}
-									<span className="font-medium text-foreground">
-										{filteredStreams.length}
-									</span>{" "}
-									of{" "}
-									<span className="font-medium text-foreground">
-										{operationalStreams.length}
-									</span>{" "}
-									active streams
-								</p>
-								<div className="flex items-center gap-1">
-									<button
-										type="button"
-										className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-surface-container hover:text-foreground disabled:opacity-50"
-									>
-										<ChevronLeft aria-hidden className="size-4" />
-									</button>
-									<span className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-medium text-primary-foreground">
-										1
-									</span>
-									<button
-										type="button"
-										className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-surface-container hover:text-foreground disabled:opacity-50"
-									>
-										<ChevronRight aria-hidden className="size-4" />
-									</button>
-								</div>
+						{/* Pagination Footer */}
+						<div className="flex items-center justify-between border-t border-border/50 bg-surface-container/30 px-4 py-3">
+							<p className="text-xs text-secondary">
+								Showing{" "}
+								<span className="font-medium text-foreground">
+									{filteredStreams.length}
+								</span>{" "}
+								of{" "}
+								<span className="font-medium text-foreground">
+									{operationalStreams.length}
+								</span>{" "}
+								active streams
+							</p>
+							<div className="flex items-center gap-1">
+								<button
+									type="button"
+									className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-surface-container hover:text-foreground disabled:opacity-50"
+								>
+									<ChevronLeft aria-hidden className="size-4" />
+								</button>
+								<span className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-medium text-primary-foreground">
+									1
+								</span>
+								<button
+									type="button"
+									className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-surface-container hover:text-foreground disabled:opacity-50"
+								>
+									<ChevronRight aria-hidden className="size-4" />
+								</button>
 							</div>
 						</div>
 
@@ -534,127 +545,138 @@ export default function AgentStreamsPage() {
 					</TabsContent>
 
 					{/* ── Tab: Drafts ── */}
-					<TabsContent value="drafts" className="mt-6">
-						<div className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm">
-							<div className="flex items-start justify-between gap-4 p-4">
-								<div>
-									<h2 className="font-display text-xl font-semibold text-foreground">
-										Pending Drafts
-									</h2>
-									<p className="mt-1 text-sm text-muted-foreground">
-										Review and finalize these waste stream declarations before
-										submission.
-									</p>
-								</div>
+					<TabsContent
+						value="drafts"
+						className="mt-6 overflow-hidden rounded-xl border border-border/50 bg-surface-container-lowest"
+					>
+						<div className="flex items-start justify-between gap-4 p-4">
+							<div>
+								<h2 className="font-display text-xl font-semibold text-foreground">
+									Pending Drafts
+								</h2>
+								<p className="mt-1 text-sm text-muted-foreground">
+									Review and finalize these waste stream declarations before
+									submission.
+								</p>
+							</div>
 
-								<AlertDialog
-									open={deleteAllOpen}
-									onOpenChange={setDeleteAllOpen}
-								>
-									<Pressable>
-										<Button
-											variant="destructive"
-											size="sm"
-											onClick={() => setDeleteAllOpen(true)}
+							<AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+								<Pressable>
+									<Button
+										variant="destructive"
+										size="sm"
+										onClick={() => setDeleteAllOpen(true)}
+										disabled={draftStreams.length === 0 || isDeletingAllDrafts}
+									>
+										{isDeletingAllDrafts ? (
+											<Loader2 className="mr-1.5 size-4 animate-spin" />
+										) : (
+											<Trash2 className="mr-1.5 size-4" />
+										)}
+										Delete All Drafts
+									</Button>
+								</Pressable>
+								<AlertDialogContent>
+									<AlertDialogHeader>
+										<AlertDialogTitle>
+											Delete all pending drafts?
+										</AlertDialogTitle>
+										<AlertDialogDescription>
+											This will reject <strong>{draftStreams.length}</strong>{" "}
+											draft
+											{draftStreams.length === 1 ? "" : "s"}. This action cannot
+											be undone. Type <strong>DELETE</strong> to confirm.
+										</AlertDialogDescription>
+									</AlertDialogHeader>
+									<Input
+										value={deleteAllConfirmation}
+										onChange={(event) =>
+											setDeleteAllConfirmation(event.target.value)
+										}
+										placeholder="Type DELETE"
+										className="mt-2"
+									/>
+									<AlertDialogFooter>
+										<AlertDialogCancel disabled={isDeletingAllDrafts}>
+											Cancel
+										</AlertDialogCancel>
+										<AlertDialogAction
+											onClick={(event) => {
+												event.preventDefault();
+												if (deleteAllConfirmation !== "DELETE") {
+													toast.error("Type DELETE to confirm this action");
+													return;
+												}
+												void handleDeleteAllDrafts();
+											}}
 											disabled={
-												draftStreams.length === 0 || isDeletingAllDrafts
+												isDeletingAllDrafts ||
+												deleteAllConfirmation !== "DELETE"
 											}
 										>
-											{isDeletingAllDrafts ? (
-												<Loader2 className="mr-1.5 size-4 animate-spin" />
-											) : (
-												<Trash2 className="mr-1.5 size-4" />
-											)}
-											Delete All Drafts
-										</Button>
-									</Pressable>
-									<AlertDialogContent>
-										<AlertDialogHeader>
-											<AlertDialogTitle>
-												Delete all pending drafts?
-											</AlertDialogTitle>
-											<AlertDialogDescription>
-												This will reject <strong>{draftStreams.length}</strong>{" "}
-												draft
-												{draftStreams.length === 1 ? "" : "s"}. This action
-												cannot be undone. Type <strong>DELETE</strong> to
-												confirm.
-											</AlertDialogDescription>
-										</AlertDialogHeader>
-										<Input
-											value={deleteAllConfirmation}
-											onChange={(event) =>
-												setDeleteAllConfirmation(event.target.value)
-											}
-											placeholder="Type DELETE"
-											className="mt-2"
-										/>
-										<AlertDialogFooter>
-											<AlertDialogCancel disabled={isDeletingAllDrafts}>
-												Cancel
-											</AlertDialogCancel>
-											<AlertDialogAction
-												onClick={(event) => {
-													event.preventDefault();
-													if (deleteAllConfirmation !== "DELETE") {
-														toast.error("Type DELETE to confirm this action");
-														return;
-													}
-													void handleDeleteAllDrafts();
-												}}
-												disabled={
-													isDeletingAllDrafts ||
-													deleteAllConfirmation !== "DELETE"
-												}
-											>
-												{isDeletingAllDrafts
-													? "Deleting..."
-													: "Delete all drafts"}
-											</AlertDialogAction>
-										</AlertDialogFooter>
-									</AlertDialogContent>
-								</AlertDialog>
-							</div>
-
-							<StreamsDraftsTable
-								rows={filteredDrafts}
-								onConfirm={handleConfirmDraft}
-								onDelete={handleDeleteDraft}
-								highlightedId={highlightedDraftId}
-								confirmingIds={confirmingDraftIds}
-								deletingIds={deletingDraftIds}
-								disableActions={isDeletingAllDrafts}
-							/>
-
-							{/* Pagination Footer */}
-							<div className="flex items-center justify-between px-4 py-3">
-								<p className="text-xs text-muted-foreground">
-									Showing {filteredDrafts.length} of {draftStreams.length}{" "}
-									pending drafts
-								</p>
-								<div className="flex items-center gap-1">
-									<button
-										type="button"
-										className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-surface-container hover:text-foreground"
-									>
-										<ChevronLeft aria-hidden className="size-4" />
-									</button>
-									<span className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground">
-										1
-									</span>
-									<button
-										type="button"
-										className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-surface-container hover:text-foreground"
-									>
-										<ChevronRight aria-hidden className="size-4" />
-									</button>
-								</div>
-							</div>
+											{isDeletingAllDrafts
+												? "Deleting..."
+												: "Delete all drafts"}
+										</AlertDialogAction>
+									</AlertDialogFooter>
+								</AlertDialogContent>
+							</AlertDialog>
 						</div>
+
+						{filteredDrafts.length > 0 ? (
+							<>
+								<StreamsDraftsTable
+									rows={filteredDrafts}
+									onConfirm={handleConfirmDraft}
+									onDelete={handleDeleteDraft}
+									highlightedId={highlightedDraftId}
+									confirmingIds={confirmingDraftIds}
+									deletingIds={deletingDraftIds}
+									disableActions={isDeletingAllDrafts}
+								/>
+
+								{/* Pagination Footer */}
+								<div className="flex items-center justify-between border-t border-border/50 px-4 py-3">
+									<p className="text-xs text-muted-foreground">
+										Showing {filteredDrafts.length} of {draftStreams.length}{" "}
+										pending drafts
+									</p>
+									<div className="flex items-center gap-1">
+										<button
+											type="button"
+											className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-surface-container hover:text-foreground"
+										>
+											<ChevronLeft aria-hidden className="size-4" />
+										</button>
+										<span className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground">
+											1
+										</span>
+										<button
+											type="button"
+											className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-surface-container hover:text-foreground"
+										>
+											<ChevronRight aria-hidden className="size-4" />
+										</button>
+									</div>
+								</div>
+							</>
+						) : (
+							<div className="p-6">
+								<EmptyState
+									icon={Trash2}
+									title="No drafts pending review"
+									description="Incoming drafts will appear here for validation."
+									className="border-0 bg-transparent py-6"
+								/>
+							</div>
+						)}
 					</TabsContent>
 
 					{/* ── Tab: Missing Information ── */}
-					<TabsContent value="missing-info" className="mt-6">
+					<TabsContent
+						value="missing-info"
+						className="mt-6 rounded-xl border border-border/50 bg-surface-container-lowest p-4"
+					>
 						<StreamsFollowUpBoard
 							items={filteredFollowUps}
 							selectedId={selectedFollowUpId}

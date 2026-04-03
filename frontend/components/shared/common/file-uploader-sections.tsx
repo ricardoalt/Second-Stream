@@ -12,7 +12,7 @@ import {
 	XCircle,
 } from "lucide-react";
 import type { HTMLAttributes, InputHTMLAttributes } from "react";
-import { StatusChip } from "@/components/system/status-chip";
+import { StatusChip } from "@/components/patterns";
 import {
 	Accordion,
 	AccordionContent,

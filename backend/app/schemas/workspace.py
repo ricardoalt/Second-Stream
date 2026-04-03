@@ -16,6 +16,7 @@ WorkspaceBaseFieldId = Literal[
     "frequency",
 ]
 WORKSPACE_PROPOSAL_BATCH_MAX_ITEMS = 50
+WorkspaceSuggestionPhase = Literal[1, 2, 3, 4]
 
 
 class WorkspaceBaseFieldItem(BaseSchema):
@@ -158,7 +159,7 @@ class WorkspaceQuestionSuggestionItem(BaseSchema):
     question_id: str = Field(pattern=r"^q([1-9]|[12][0-9]|3[01])$")
     suggested_value: str = Field(min_length=1, max_length=2000)
     status: WorkspaceQuestionSuggestionStatus = "pending"
-    phase: Literal[1, 2, 3, 4]
+    phase: WorkspaceSuggestionPhase
     section: str = Field(min_length=1, max_length=120)
     evidence_refs: list[WorkspaceEvidenceRef] = Field(default_factory=list)
     confidence: int | None = Field(default=None, ge=0, le=100)
@@ -325,7 +326,6 @@ class WorkspaceConfirmProposalResponse(BaseSchema):
 
 class WorkspaceOfferNavigationTarget(BaseSchema):
     project_id: UUID
-    proposal_id: UUID
 
 
 class WorkspaceCompleteDiscoveryResponse(BaseSchema):

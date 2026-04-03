@@ -4,7 +4,6 @@ import {
 	Building2,
 	ChevronRight,
 	LayoutDashboard,
-	Loader2,
 	Search,
 	SlidersHorizontal,
 } from "lucide-react";
@@ -22,6 +21,7 @@ import {
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
+	Skeleton,
 	Table,
 	TableBody,
 	TableCell,
@@ -221,11 +221,16 @@ export default function ClientsPage() {
 			</section>
 
 			{/* ── Operations table ── */}
-			<section className="overflow-hidden rounded-2xl bg-surface-container-lowest shadow-xs">
+			<section className="overflow-hidden rounded-xl border border-border/50 bg-surface-container-lowest">
 				{loading ? (
-					<div className="flex items-center justify-center gap-3 px-6 py-16">
-						<Loader2 className="size-5 animate-spin text-primary" />
-						<p className="text-sm text-muted-foreground">Loading clients…</p>
+					<div className="space-y-3 px-6 py-5">
+						<Skeleton className="h-10 w-full" />
+						{Array.from({ length: 5 }).map((_, index) => (
+							<Skeleton
+								key={`clients-skeleton-row-${index + 1}`}
+								className="h-14 w-full"
+							/>
+						))}
 					</div>
 				) : error ? (
 					<div className="flex flex-col items-center gap-3 px-6 py-16">
@@ -258,7 +263,7 @@ export default function ClientsPage() {
 								</Button>
 							)
 						}
-						className="rounded-2xl bg-surface-container-lowest"
+						className="border-0 bg-transparent"
 					/>
 				) : (
 					<Table>

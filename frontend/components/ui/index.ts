@@ -100,6 +100,19 @@ export { RadioGroup, RadioGroupItem } from "./radio-group";
 // Popover
 export { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
+// Command
+export {
+	Command,
+	CommandDialog,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+	CommandSeparator,
+	CommandShortcut,
+} from "./command";
+
 // Tooltip
 export {
 	Tooltip,
@@ -166,3 +179,21 @@ export { Toggle, toggleVariants } from "./toggle";
 
 // Empty State
 export { EmptyState } from "./empty-state";
+
+// Textarea
+export { Textarea } from "./textarea";
+
+// Loading Button
+export { LoadingButton, type LoadingButtonProps } from "./loading-button";
+
+// Form (react-hook-form integration)
+export {
+	useFormField,
+	Form,
+	FormItem,
+	FormLabel,
+	FormControl,
+	FormDescription,
+	FormMessage,
+	FormField,
+} from "./form";

@@ -13,7 +13,6 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrgCard } from "@/components/features/admin";
-import { ConfirmOrgPurgeForceDialog } from "@/components/features/admin/confirm-org-purge-force-dialog";
 import { KpiCard } from "@/components/patterns";
 import {
 	FadeIn,
@@ -22,13 +21,35 @@ import {
 	StaggerContainer,
 	StaggerItem,
 } from "@/components/patterns/animations/motion-components";
-import { ConfirmArchiveDialog } from "@/components/ui/confirm-archive-dialog";
-import { ConfirmRestoreDialog } from "@/components/ui/confirm-restore-dialog";
 
 const EditOrgModal = dynamic(
 	() =>
 		import("@/components/features/admin/edit-org-modal").then(
 			(mod) => mod.EditOrgModal,
+		),
+	{ ssr: false, loading: () => null },
+);
+
+const ConfirmArchiveDialog = dynamic(
+	() =>
+		import("@/components/ui/confirm-archive-dialog").then(
+			(mod) => mod.ConfirmArchiveDialog,
+		),
+	{ ssr: false, loading: () => null },
+);
+
+const ConfirmRestoreDialog = dynamic(
+	() =>
+		import("@/components/ui/confirm-restore-dialog").then(
+			(mod) => mod.ConfirmRestoreDialog,
+		),
+	{ ssr: false, loading: () => null },
+);
+
+const ConfirmOrgPurgeForceDialog = dynamic(
+	() =>
+		import("@/components/features/admin/confirm-org-purge-force-dialog").then(
+			(mod) => mod.ConfirmOrgPurgeForceDialog,
 		),
 	{ ssr: false, loading: () => null },
 );

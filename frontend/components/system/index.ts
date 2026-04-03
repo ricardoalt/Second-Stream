@@ -1,33 +1,22 @@
 /**
- * Editorial Design System - Componentes de Sistema
+ * System Component Library — Transition Layer
  *
- * Componentes que implementan el Design System Editorial.
- * Todos usan tokens semánticos de CSS, nunca colores hardcodeados.
+ * ⚠️  DEPRECATED: This barrel re-exports from `@/components/patterns` where possible.
+ * Components unique to system/ (PageTemplate, PageSection, KpiGrid, KpiCard from page-template)
+ * remain here until the admin dashboard is fully migrated.
  *
- * @example
- * ```tsx
- * import { PageTemplate, PageHeader, PageSection, KpiGrid, KpiCard, StatusChip } from "@/components/system";
- * ```
+ * For NEW code, always import from `@/components/patterns`.
  */
 
-// Tablas
+// Re-exports from patterns (canonical source)
+export { PageHeader } from "@/components/patterns/layout/page-header";
+export { StatusChip } from "@/components/patterns/feedback/status-chip";
+
+// System-only components (pending migration to patterns)
 export {
-	EditorialDataTable,
-	EditorialTableCell,
-	EditorialTableHead,
-	EditorialTableHeader,
-	EditorialTableRow,
-	EditorialTableStyles,
-} from "./data-table";
-// Page Templates
-export {
-	ActionCard,
-	KpiCard,
-	KpiGrid,
-	PageHeader,
-	PageSection,
 	PageTemplate,
+	PageSection,
+	KpiGrid,
+	KpiCard,
+	ActionCard,
 } from "./page-template";
-export type { StatusChipGroupProps } from "./status-chip";
-// Componentes de estado
-export { StatusChip, StatusChipGroup } from "./status-chip";

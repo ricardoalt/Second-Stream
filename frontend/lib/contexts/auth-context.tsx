@@ -165,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		resetProjectStore();
 		resetOrganizationStore();
 		toast.success("Session closed");
-		router.push("/login");
+		router.replace("/login");
 	};
 
 	const updateUser = async (data: Partial<User>) => {

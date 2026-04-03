@@ -2,7 +2,7 @@ import type { OfferRecord, OfferStage } from "./types";
 
 export const OFFER_STAGE_LABELS: Record<OfferStage, string> = {
 	requires_data: "Requires data",
-	proposal_ready: "Proposal ready",
+	proposal_ready: "Ready to send",
 	offer_sent: "Offer sent",
 	in_negotiation: "In negotiation",
 	accepted: "Accepted",
