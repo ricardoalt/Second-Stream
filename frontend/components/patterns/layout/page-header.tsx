@@ -81,8 +81,7 @@ export function PageHeader({
 					"sm:flex-row sm:items-start sm:justify-between",
 				variant === "compact" &&
 					"sm:flex-row sm:items-center sm:justify-between",
-				variant === "hero" &&
-					"lg:flex-row lg:items-start lg:justify-between",
+				variant === "hero" && "lg:flex-row lg:items-start lg:justify-between",
 			)}
 		>
 			<div className="flex items-start gap-3">

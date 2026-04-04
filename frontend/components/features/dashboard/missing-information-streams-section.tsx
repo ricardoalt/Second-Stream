@@ -1,4 +1,4 @@
-import { ChevronDown, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import {
 	Alert,
@@ -45,10 +45,13 @@ export function MissingInformationStreamsSection({
 							<AlertTriangle className="size-6 text-foreground" />
 						</div>
 						<h2 className="text-2xl font-semibold tracking-tight text-foreground">
-							Missing Information Streams <span className="text-muted-foreground text-xl font-normal ml-1">({streams.length})</span>
+							Missing Information Streams{" "}
+							<span className="text-muted-foreground text-xl font-normal ml-1">
+								({streams.length})
+							</span>
 						</h2>
 					</div>
-					
+
 					{streams.length > 0 ? (
 						<div className="flex items-center gap-8">
 							<div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -60,14 +63,20 @@ export function MissingInformationStreamsSection({
 
 				<CardContent className="p-0">
 					{error ? (
-						<Alert variant="warning" className="mb-4 border-border/40 bg-surface-container-low">
+						<Alert
+							variant="warning"
+							className="mb-4 border-border/40 bg-surface-container-low"
+						>
 							<AlertDescription>{error}</AlertDescription>
 						</Alert>
 					) : null}
 
 					{loading
 						? MISSING_INFO_SKELETON_KEYS.map((key) => (
-								<Skeleton key={key} className="h-20 w-full mb-2 rounded-[1.25rem]" />
+								<Skeleton
+									key={key}
+									className="h-20 w-full mb-2 rounded-[1.25rem]"
+								/>
 							))
 						: null}
 
@@ -102,7 +111,9 @@ export function MissingInformationStreamsSection({
 								variant="default"
 								className="rounded-xl px-6 py-6 font-semibold"
 								onClick={() =>
-									setVisibleCount((current) => current + INITIAL_VISIBLE_STREAMS)
+									setVisibleCount(
+										(current) => current + INITIAL_VISIBLE_STREAMS,
+									)
 								}
 							>
 								LOAD {Math.min(INITIAL_VISIBLE_STREAMS, remaining)} MORE STREAMS

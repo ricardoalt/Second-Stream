@@ -1,9 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui";
 import { DashboardInsightCard } from "./dashboard-insight-card";
-import type {
-	DashboardInsight,
-} from "./field-agent-dashboard.types";
+import type { DashboardInsight } from "./field-agent-dashboard.types";
 
 export function FieldAgentDashboardHero({
 	insights,
@@ -22,11 +20,14 @@ export function FieldAgentDashboardHero({
 									Coming Soon
 								</div>
 							</div>
-							
+
 							<div className="flex items-center gap-12 mt-8 opacity-60 grayscale transition-opacity hover:opacity-100">
 								{/* Circular Progress Placeholder */}
 								<div className="relative">
-									<svg className="size-40 -rotate-90 transform" aria-label="Progress preview">
+									<svg
+										className="size-40 -rotate-90 transform"
+										aria-label="Progress preview"
+									>
 										<title>Progress preview</title>
 										<circle
 											className="text-primary/10"
@@ -61,10 +62,13 @@ export function FieldAgentDashboardHero({
 								<div className="space-y-8">
 									<div>
 										<h2 className="text-3xl font-semibold tracking-tight text-foreground">
-											Monthly Streams<br/>Progress
+											Monthly Streams
+											<br />
+											Progress
 										</h2>
 										<p className="text-sm text-muted-foreground mt-2 max-w-sm leading-relaxed">
-											Progress metrics will appear here once admin-defined goals are enabled.
+											Progress metrics will appear here once admin-defined goals
+											are enabled.
 										</p>
 									</div>
 								</div>
@@ -76,7 +80,9 @@ export function FieldAgentDashboardHero({
 							<div className="flex items-center justify-between mb-6">
 								<div className="flex items-center gap-2">
 									<Sparkles className="size-4 text-foreground" aria-hidden />
-									<h2 className="text-base font-semibold text-foreground">AI Insights</h2>
+									<h2 className="text-base font-semibold text-foreground">
+										AI Insights
+									</h2>
 								</div>
 								<span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
 									LIVE UPDATES

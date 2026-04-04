@@ -1,14 +1,6 @@
 "use client";
 
-import {
-	Building2,
-	ChevronLeft,
-	MapPin,
-	Plus,
-	Trash2,
-	Users,
-} from "lucide-react";
-import Link from "next/link";
+import { Building2, MapPin, Plus, Trash2, Users } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";

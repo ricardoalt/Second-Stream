@@ -2,7 +2,7 @@ import { memo } from "react";
 import { cn } from "@/lib/utils";
 
 // Design System: Industrial Precision & Fluidity
-// Team Avatar - Consistent color palette
+// Team Avatar - Consistent color palette via CSS design tokens
 
 type AvatarColor =
 	| "teal"
@@ -24,7 +24,8 @@ interface TeamAvatarProps {
 /**
  * Team Avatar - Design System Color Palette
  *
- * 8 consistent colors for team member avatars.
+ * 8 consistent colors mapped to CSS avatar tokens from globals.css.
+ * Respects dark mode automatically.
  *
  * @example
  * <TeamAvatar name="Sarah Jenkins" color="teal" />
@@ -44,32 +45,32 @@ export const TeamAvatar = memo(function TeamAvatar({
 		.join("")
 		.toUpperCase();
 
-	// Tailwind color classes with dark mode support
-	const colorMap: Record<AvatarColor, string> = {
-		teal: "bg-teal-500 text-white",
-		blue: "bg-blue-500 text-white",
-		orange: "bg-orange-500 text-white",
-		purple: "bg-purple-500 text-white",
-		green: "bg-emerald-500 text-white",
-		pink: "bg-pink-500 text-white",
-		indigo: "bg-indigo-500 text-white",
-		cyan: "bg-cyan-500 text-white",
+	// Mapped to CSS variable avatar palette (defined in globals.css as --avatar-1..--avatar-8)
+	const colorVarMap: Record<AvatarColor, string> = {
+		teal: "var(--avatar-1)", // primary teal
+		green: "var(--avatar-2)", // success green
+		pink: "var(--avatar-3)", // rose/pink
+		orange: "var(--avatar-4)", // warning amber
+		purple: "var(--avatar-5)", // destructive/red
+		blue: "var(--avatar-6)", // info blue
+		indigo: "var(--avatar-7)", // indigo/violet
+		cyan: "var(--avatar-8)", // teal-light
 	};
 
 	const sizeMap = {
-		sm: "h-8 w-8 text-xs",
-		md: "h-10 w-10 text-sm",
-		lg: "h-12 w-12 text-base",
+		sm: "size-8 text-xs",
+		md: "size-10 text-sm",
+		lg: "size-12 text-base",
 	};
 
 	return (
 		<span
 			className={cn(
-				"flex shrink-0 items-center justify-center rounded-full font-semibold",
+				"flex shrink-0 items-center justify-center rounded-full font-semibold text-white",
 				sizeMap[size],
-				colorMap[color],
 				className,
 			)}
+			style={{ backgroundColor: colorVarMap[color] }}
 			role="img"
 			aria-label={`${name} avatar`}
 		>

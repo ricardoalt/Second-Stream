@@ -3,6 +3,7 @@
 import { Paperclip, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { LoadingButton } from "@/components/patterns/feedback/loading-button";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -13,7 +14,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { LoadingButton } from "@/components/ui/loading-button";
 import {
 	Select,
 	SelectContent,

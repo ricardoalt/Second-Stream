@@ -236,7 +236,9 @@ export function EditClientModal({
 							<div className="rounded-xl bg-surface p-4">
 								<div className="mb-3 flex items-center gap-2">
 									<MapPin aria-hidden className="size-4 text-primary" />
-									<p className="text-sm font-semibold text-foreground">Locations</p>
+									<p className="text-sm font-semibold text-foreground">
+										Locations
+									</p>
 								</div>
 								<div className="flex flex-col gap-2">
 									{profile.locations.length === 0 ? (
@@ -258,7 +260,10 @@ export function EditClientModal({
 														{location.city}, {location.state}
 													</p>
 												</div>
-												<Badge variant="outline" className="rounded-full text-xs">
+												<Badge
+													variant="outline"
+													className="rounded-full text-xs"
+												>
 													{location.projectCount} project
 													{location.projectCount !== 1 ? "s" : ""}
 												</Badge>
@@ -273,7 +278,12 @@ export function EditClientModal({
 
 						<DialogFooter className="bg-surface-container-low px-6 py-4 sm:flex-row sm:justify-end">
 							<div className="flex items-center gap-2">
-								<Button variant="ghost" type="button" onClick={onClose} disabled={saving}>
+								<Button
+									variant="ghost"
+									type="button"
+									onClick={onClose}
+									disabled={saving}
+								>
 									Cancel
 								</Button>
 								<Button type="submit" disabled={saving}>

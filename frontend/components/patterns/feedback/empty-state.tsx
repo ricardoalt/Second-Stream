@@ -93,10 +93,7 @@ export function EmptyState({
 				)}
 			>
 				<div
-					className={cn(
-						"rounded-full p-4",
-						severityStyles[resolvedSeverity],
-					)}
+					className={cn("rounded-full p-4", severityStyles[resolvedSeverity])}
 				>
 					<DisplayIcon
 						className={cn(compact ? "h-6 w-6" : "h-10 w-10")}

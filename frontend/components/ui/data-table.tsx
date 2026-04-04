@@ -129,7 +129,9 @@ export function DataTable<T>({
 								key={key}
 								className={cn(
 									"grid items-center gap-4 px-6 py-4",
-									index % 2 === 0 ? "bg-surface-container-lowest" : "bg-surface-container-low/50",
+									index % 2 === 0
+										? "bg-surface-container-lowest"
+										: "bg-surface-container-low/50",
 								)}
 								style={{
 									gridTemplateColumns: columns

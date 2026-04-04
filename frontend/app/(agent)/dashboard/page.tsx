@@ -28,9 +28,7 @@ export default function AgentDashboardPage() {
 
 	return (
 		<div className="flex flex-col gap-6">
-			<FieldAgentDashboardHero
-				insights={DASHBOARD_AI_INSIGHTS_PLACEHOLDERS}
-			/>
+			<FieldAgentDashboardHero insights={DASHBOARD_AI_INSIGHTS_PLACEHOLDERS} />
 
 			<MissingInformationStreamsSection
 				streams={missingInformationStreams}

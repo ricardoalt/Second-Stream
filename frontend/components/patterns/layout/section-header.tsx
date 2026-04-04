@@ -26,7 +26,13 @@ interface SectionHeaderProps {
 	/** Icon from lucide-react */
 	icon?: LucideIcon;
 	/** Icon color override */
-	iconColor?: "primary" | "warning" | "destructive" | "success" | "info" | "muted";
+	iconColor?:
+		| "primary"
+		| "warning"
+		| "destructive"
+		| "success"
+		| "info"
+		| "muted";
 	/** Action buttons or elements */
 	actions?: ReactNode;
 	/** Additional classes */

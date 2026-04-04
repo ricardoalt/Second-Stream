@@ -152,11 +152,11 @@ export function AuthLayout({
 							className="absolute -inset-1 rounded-2xl blur-2xl opacity-20 group-hover:opacity-30 transition duration-500"
 							animate={{
 								background: [
-									"linear-gradient(45deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.5) 100%)",
-									"linear-gradient(90deg, hsl(var(--primary) / 0.8) 0%, hsl(var(--primary)) 100%)",
-									"linear-gradient(180deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.6) 100%)",
-									"linear-gradient(270deg, hsl(var(--primary) / 0.7) 0%, hsl(var(--primary)) 100%)",
-									"linear-gradient(45deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.5) 100%)",
+									"linear-gradient(45deg, oklch(0.60 0.16 175) 0%, oklch(0.60 0.16 175 / 0.5) 100%)",
+									"linear-gradient(90deg, oklch(0.60 0.16 175 / 0.8) 0%, oklch(0.60 0.16 175) 100%)",
+									"linear-gradient(180deg, oklch(0.60 0.16 175) 0%, oklch(0.60 0.16 175 / 0.6) 100%)",
+									"linear-gradient(270deg, oklch(0.60 0.16 175 / 0.7) 0%, oklch(0.60 0.16 175) 100%)",
+									"linear-gradient(45deg, oklch(0.60 0.16 175) 0%, oklch(0.60 0.16 175 / 0.5) 100%)",
 								],
 							}}
 							transition={{

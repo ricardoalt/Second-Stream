@@ -19,17 +19,17 @@ const badgeVariants = cva(
 				warning:
 					"border-transparent bg-warning text-warning-foreground shadow hover:bg-warning/80",
 				muted: "border-muted-foreground/30 bg-muted text-muted-foreground",
-				// Variantes Digital Curator (Sin bordes, alto contraste tonal)
+				// Variantes Digital Curator (semantic badge tokens — from @theme inline)
 				"success-subtle":
-					"border-transparent bg-success-bg text-success-text hover:opacity-80",
+					"border-transparent bg-badge-success-bg text-badge-success-text hover:opacity-80",
 				"warning-subtle":
-					"border-transparent bg-warning-bg text-warning-text hover:opacity-80",
+					"border-transparent bg-badge-warning-bg text-badge-warning-text hover:opacity-80",
 				"destructive-subtle":
-					"border-transparent bg-destructive-bg text-destructive-text hover:opacity-80",
+					"border-transparent bg-badge-destructive-bg text-badge-destructive-text hover:opacity-80",
 				"primary-subtle":
-					"border-transparent bg-primary-bg text-primary-text hover:opacity-80",
+					"border-transparent bg-badge-primary-bg text-badge-primary-text hover:opacity-80",
 				"neutral-subtle":
-					"border-transparent bg-neutral-bg text-neutral-text hover:opacity-80",
+					"border-transparent bg-badge-neutral-bg text-badge-neutral-text hover:opacity-80",
 			},
 		},
 		defaultVariants: {

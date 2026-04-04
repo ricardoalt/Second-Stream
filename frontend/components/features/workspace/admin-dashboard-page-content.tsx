@@ -3,12 +3,10 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import {
-	KpiCard,
-	KpiGrid,
-	PageSection,
-} from "@/components/system/page-template";
-import { StatusChip } from "@/components/system/status-chip";
+import { KpiCard } from "@/components/patterns/data-display/kpi-card";
+import { StatRail } from "@/components/patterns/data-display/stat-rail";
+import { StatusChip } from "@/components/patterns/feedback/status-chip";
+import { PageSection } from "@/components/patterns/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DataTable, SectionDivider } from "@/components/ui/data-table";
@@ -25,9 +23,7 @@ import type {
 	QueuePriority,
 } from "@/lib/types/dashboard";
 import type { User } from "@/lib/types/user";
-import {
-	buildTeamOwnerGroups,
-} from "./admin-dashboard-data";
+import { buildTeamOwnerGroups } from "./admin-dashboard-data";
 
 type AdminDashboardPageContentProps = {
 	className?: string;
@@ -163,14 +159,14 @@ export function AdminDashboardPageContent({
 			try {
 				const [dashboardResult, pipelineResult, teamMembersResult] =
 					await Promise.allSettled([
-					dashboardAPI.getDashboard({
-						bucket: "total",
-						size: DASHBOARD_PAGE_SIZE,
-						signal: controller.signal,
-					}),
-					offersAPI.getPipeline(),
-					organizationsAPI.listMyOrgUsers(),
-				]);
+						dashboardAPI.getDashboard({
+							bucket: "total",
+							size: DASHBOARD_PAGE_SIZE,
+							signal: controller.signal,
+						}),
+						offersAPI.getPipeline(),
+						organizationsAPI.listMyOrgUsers(),
+					]);
 
 				if (dashboardResult.status === "fulfilled") {
 					setDashboard(dashboardResult.value);
@@ -209,9 +205,7 @@ export function AdminDashboardPageContent({
 	);
 
 	// Render expanded stream content
-	const renderExpandedStreams = (
-		group: typeof teamGroups[number],
-	) => {
+	const renderExpandedStreams = (group: (typeof teamGroups)[number]) => {
 		if (group.streams.length === 0) {
 			return (
 				<>
@@ -226,7 +220,7 @@ export function AdminDashboardPageContent({
 		return (
 			<>
 				<SectionDivider label="Active waste streams" />
-				<div className="space-y-2">
+				<div className="flex flex-col gap-2">
 					{group.streams.slice(0, 3).map((stream) => (
 						<Link
 							key={stream.projectId}
@@ -268,7 +262,7 @@ export function AdminDashboardPageContent({
 	};
 
 	return (
-		<div className={`space-y-10 ${className || ""}`}>
+		<div className={`flex flex-col gap-10 ${className || ""}`}>
 			{/* Error State */}
 			{error ? (
 				<Card className="border-border/60 shadow-none">
@@ -290,7 +284,7 @@ export function AdminDashboardPageContent({
 					</div>
 				}
 			>
-				<KpiGrid>
+				<StatRail>
 					<KpiCard
 						label="Total Streams"
 						value={dashboard.counts.total}
@@ -365,7 +359,7 @@ export function AdminDashboardPageContent({
 							</svg>
 						}
 					/>
-				</KpiGrid>
+				</StatRail>
 			</PageSection>
 
 			{/* Team Performance */}
@@ -379,7 +373,7 @@ export function AdminDashboardPageContent({
 						className="h-auto px-2 text-muted-foreground hover:bg-transparent hover:text-foreground"
 					>
 						<Link href={routes.streams.all}>
-							<ArrowRight className="h-4 w-4" />
+							<ArrowRight className="size-4" />
 						</Link>
 					</Button>
 				}

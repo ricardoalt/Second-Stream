@@ -1,11 +1,11 @@
 import type { OfferPipelineResponseDTO } from "@/lib/api/offers";
-import type { User } from "@/lib/types/user";
 import type {
 	DashboardListResponse,
 	DashboardRow,
 	PersistedStreamRow,
 	QueuePriority,
 } from "@/lib/types/dashboard";
+import type { User } from "@/lib/types/user";
 
 export type AdminKpiCard = {
 	id:
@@ -110,7 +110,9 @@ export function buildTeamOwnerGroups(
 	users: User[],
 ): TeamOwnerGroup[] {
 	const groups = new Map(
-		groupStreamsByOwner(rows).map((group) => [group.ownerUserId, group] as const),
+		groupStreamsByOwner(rows).map(
+			(group) => [group.ownerUserId, group] as const,
+		),
 	);
 
 	for (const user of users) {

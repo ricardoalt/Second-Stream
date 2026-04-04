@@ -1,6 +1,5 @@
 "use client";
 
-import { X } from "lucide-react";
 import type * as React from "react";
 import {
 	Dialog,
@@ -14,9 +13,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * Modal - Standardized Modal for SecondStream
- * 
+ *
  * All modals in the application should use this component for consistency.
- * 
+ *
  * @example
  * <Modal
  *   open={isOpen}
@@ -120,7 +119,7 @@ export function ModalFooter({ children, className }: ModalFooterProps) {
 
 /**
  * ConfirmModal - Pre-built confirmation modal
- * 
+ *
  * @example
  * <ConfirmModal
  *   open={showConfirm}

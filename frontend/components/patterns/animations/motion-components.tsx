@@ -351,12 +351,7 @@ interface AnimatedCounterProps {
 	className?: string;
 }
 
-import {
-	useInView,
-	useMotionValue,
-	useSpring,
-	useTransform,
-} from "framer-motion";
+import { useInView, useMotionValue, useSpring } from "framer-motion";
 
 export function AnimatedCounter({
 	value,

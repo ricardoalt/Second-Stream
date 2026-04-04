@@ -24,15 +24,17 @@ import React, {
 	useState,
 } from "react";
 import { toast } from "sonner";
-import { KpiCard } from "@/components/patterns";
 import {
-	FadeIn,
+	EmptyState,
+	KpiCard,
+	PageHeader,
+	PageShell,
+	StatRail,
+} from "@/components/patterns";
+import {
 	HoverLift,
 	Pressable,
-	StaggerContainer,
-	StaggerItem,
 } from "@/components/patterns/animations/motion-components";
-import { PageHeader, EmptyState } from "@/components/patterns";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -333,7 +335,7 @@ export default function AdminFeedbackPage() {
 
 	return (
 		<TooltipProvider delayDuration={200}>
-			<div className="space-y-6">
+			<PageShell>
 				<AlertDialog
 					open={!!deleteTarget}
 					onOpenChange={handleDeleteOpenChange}
@@ -405,41 +407,32 @@ export default function AdminFeedbackPage() {
 					}
 				/>
 
-				<StaggerContainer
-					staggerDelay={0.08}
-					className="grid grid-cols-1 sm:grid-cols-3 gap-4"
-				>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard
-								title="Total"
-								value={stats.total}
-								icon={MessageSquare}
-								variant="default"
-							/>
-						</HoverLift>
-					</StaggerItem>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard
-								title="Open"
-								value={stats.open}
-								icon={AlertCircle}
-								variant="warning"
-							/>
-						</HoverLift>
-					</StaggerItem>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard
-								title="Resolved"
-								value={stats.resolved}
-								icon={CheckCircle2}
-								variant="success"
-							/>
-						</HoverLift>
-					</StaggerItem>
-				</StaggerContainer>
+				<StatRail columns={3}>
+					<HoverLift>
+						<KpiCard
+							title="Total"
+							value={stats.total}
+							icon={MessageSquare}
+							variant="default"
+						/>
+					</HoverLift>
+					<HoverLift>
+						<KpiCard
+							title="Open"
+							value={stats.open}
+							icon={AlertCircle}
+							variant="warning"
+						/>
+					</HoverLift>
+					<HoverLift>
+						<KpiCard
+							title="Resolved"
+							value={stats.resolved}
+							icon={CheckCircle2}
+							variant="success"
+						/>
+					</HoverLift>
+				</StatRail>
 
 				{/* Search */}
 				<div className="relative">
@@ -528,22 +521,22 @@ export default function AdminFeedbackPage() {
 									icon={Search}
 									title="No matches"
 									description="Try a different search term or clear your filters."
-									action={{
-										label: "Clear filters",
-										onClick: clearFilters,
-										variant: "outline",
-									}}
+									action={
+										<Button variant="outline" size="sm" onClick={clearFilters}>
+											Clear filters
+										</Button>
+									}
 								/>
 							) : (
 								<EmptyState
 									icon={MessageSquare}
 									title="No feedback yet"
 									description="Feedback submitted by users will appear here."
-									action={{
-										label: "Refresh",
-										onClick: loadFeedback,
-										variant: "outline",
-									}}
+									action={
+										<Button variant="outline" size="sm" onClick={loadFeedback}>
+											Refresh
+										</Button>
+									}
 								/>
 							)
 						) : (
@@ -798,7 +791,7 @@ export default function AdminFeedbackPage() {
 						)}
 					</CardContent>
 				</Card>
-			</div>
+			</PageShell>
 		</TooltipProvider>
 	);
 }

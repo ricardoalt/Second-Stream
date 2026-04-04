@@ -130,18 +130,25 @@ export function DataTable<TData, TValue>({
 						<TableHeader>
 							<TableRow>
 								{columns.map((column) => (
-									<TableHead key={column.id || column.accessorKey?.toString()}>
+									<TableHead
+										key={
+											column.id ||
+											("accessorKey" in column
+												? String(column.accessorKey)
+												: undefined)
+										}
+									>
 										<Skeleton className="h-4 w-20" />
 									</TableHead>
 								))}
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{Array.from({ length: 3 }).map((_, rowIndex) => (
-								<TableRow key={`skeleton-row-${rowIndex}`}>
+							{(["a", "b", "c"] as const).map((rowKey) => (
+								<TableRow key={`skeleton-row-${rowKey}`}>
 									{columns.map((column) => (
 										<TableCell
-											key={`skeleton-cell-${column.id || column.accessorKey?.toString()}`}
+											key={`skeleton-cell-${column.id || ("accessorKey" in column ? String(column.accessorKey) : "")}`}
 										>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>

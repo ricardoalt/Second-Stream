@@ -2,6 +2,7 @@
 
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useState } from "react";
+import { LoadingButton } from "@/components/patterns/feedback/loading-button";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -14,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoadingButton } from "@/components/ui/loading-button";
 import {
 	Select,
 	SelectContent,

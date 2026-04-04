@@ -23,6 +23,8 @@ import { toast } from "sonner";
 import { OrgAvatar } from "@/components/features/admin";
 import { ConfirmOrgPurgeForceDialog } from "@/components/features/admin/confirm-org-purge-force-dialog";
 import { KpiCard } from "@/components/patterns";
+import { ConfirmArchiveDialog } from "@/components/patterns/dialogs/confirm-archive-dialog";
+import { ConfirmRestoreDialog } from "@/components/patterns/dialogs/confirm-restore-dialog";
 import { ArchivedBanner } from "@/components/shared/archived-banner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,8 +35,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { ConfirmArchiveDialog } from "@/components/ui/confirm-archive-dialog";
-import { ConfirmRestoreDialog } from "@/components/ui/confirm-restore-dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,

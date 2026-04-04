@@ -56,8 +56,8 @@ export function ConfirmRestoreDialog({
 			<AlertDialogContent>
 				<AlertDialogHeader>
 					<div className="flex items-center gap-3">
-						<div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10">
-							<RotateCcw className="h-5 w-5 text-success" />
+						<div className="flex size-10 items-center justify-center rounded-full bg-success/10">
+							<RotateCcw className="size-5 text-success" />
 						</div>
 						<AlertDialogTitle>Restore {entityType}?</AlertDialogTitle>
 					</div>

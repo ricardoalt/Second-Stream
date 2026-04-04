@@ -6,9 +6,9 @@ import type {
 } from "@/lib/types/dashboard";
 import type { User } from "@/lib/types/user";
 import {
-	buildTeamOwnerGroups,
 	buildKpiCards,
 	buildSupervisionQueue,
+	buildTeamOwnerGroups,
 	groupStreamsByOwner,
 } from "./admin-dashboard-data";
 

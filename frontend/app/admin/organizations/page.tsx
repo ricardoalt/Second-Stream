@@ -6,21 +6,25 @@ import {
 	Loader2,
 	Plus,
 	RefreshCcw,
-	Search,
 	XCircle,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrgCard } from "@/components/features/admin";
-import { KpiCard } from "@/components/patterns";
 import {
+	EmptyState,
 	FadeIn,
+	FilterBar,
 	HoverLift,
+	KpiCard,
+	PageHeader,
+	PageShell,
 	Pressable,
 	StaggerContainer,
 	StaggerItem,
-} from "@/components/patterns/animations/motion-components";
+	StatRail,
+} from "@/components/patterns";
 
 const EditOrgModal = dynamic(
 	() =>
@@ -32,7 +36,7 @@ const EditOrgModal = dynamic(
 
 const ConfirmArchiveDialog = dynamic(
 	() =>
-		import("@/components/ui/confirm-archive-dialog").then(
+		import("@/components/patterns/dialogs/confirm-archive-dialog").then(
 			(mod) => mod.ConfirmArchiveDialog,
 		),
 	{ ssr: false, loading: () => null },
@@ -40,7 +44,7 @@ const ConfirmArchiveDialog = dynamic(
 
 const ConfirmRestoreDialog = dynamic(
 	() =>
-		import("@/components/ui/confirm-restore-dialog").then(
+		import("@/components/patterns/dialogs/confirm-restore-dialog").then(
 			(mod) => mod.ConfirmRestoreDialog,
 		),
 	{ ssr: false, loading: () => null },
@@ -309,99 +313,75 @@ export default function AdminOrganizationsPage() {
 	};
 
 	return (
-		<div className="space-y-6">
-			<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-				<div>
-					<h2 className="text-2xl font-semibold tracking-tight">
-						Organizations
-					</h2>
-					<p className="text-sm text-muted-foreground mt-1">
-						Manage tenant organizations and their users
-					</p>
-				</div>
-				<div className="flex items-center gap-2">
-					<Pressable>
-						<Button
-							variant="outline"
-							size="icon"
-							onClick={fetchOrganizations}
-							disabled={isLoading}
-							aria-label="Refresh organizations list"
-						>
-							<RefreshCcw
-								className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-							/>
-						</Button>
-					</Pressable>
-					<Pressable>
-						<Button onClick={() => setCreateModalOpen(true)}>
-							<Plus className="h-4 w-4 mr-2" />
-							New Organization
-						</Button>
-					</Pressable>
-				</div>
-			</div>
+		<PageShell>
+			<FadeIn direction="up">
+				<PageHeader
+					title="Organizations"
+					subtitle="Manage tenant organizations and their users."
+					icon={Building2}
+					actions={
+						<div className="flex items-center gap-2">
+							<Pressable>
+								<Button
+									variant="outline"
+									size="icon"
+									onClick={fetchOrganizations}
+									disabled={isLoading}
+									aria-label="Refresh organizations list"
+								>
+									<RefreshCcw
+										className={`size-4 ${isLoading ? "animate-spin" : ""}`}
+									/>
+								</Button>
+							</Pressable>
+							<Pressable>
+								<Button onClick={() => setCreateModalOpen(true)}>
+									<Plus className="size-4 mr-2" />
+									New Organization
+								</Button>
+							</Pressable>
+						</div>
+					}
+				/>
+			</FadeIn>
 
-			<StaggerContainer
-				staggerDelay={0.08}
-				className="grid grid-cols-1 sm:grid-cols-3 gap-4"
-			>
-				<StaggerItem>
-					<HoverLift>
-						<KpiCard
-							title="Total"
-							value={stats.total}
-							icon={Building2}
-							variant="default"
-						/>
-					</HoverLift>
-				</StaggerItem>
-				<StaggerItem>
-					<HoverLift>
-						<KpiCard
-							title="Active"
-							value={stats.active}
-							icon={CheckCircle}
-							variant="success"
-						/>
-					</HoverLift>
-				</StaggerItem>
-				<StaggerItem>
-					<HoverLift>
-						<KpiCard
-							title="Inactive"
-							value={stats.inactive}
-							icon={XCircle}
-							variant="muted"
-						/>
-					</HoverLift>
-				</StaggerItem>
-			</StaggerContainer>
-
-			<div className="flex items-center gap-3">
-				<div className="relative flex-1 max-w-sm">
-					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						placeholder="Search organizations..."
-						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
-						className="pl-9"
+			<StatRail columns={3}>
+				<HoverLift>
+					<KpiCard title="Total" value={stats.total} icon={Building2} />
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Active"
+						value={stats.active}
+						icon={CheckCircle}
+						variant="success"
 					/>
-				</div>
-				<div className="flex items-center gap-2 rounded-md border px-3 py-2">
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Inactive"
+						value={stats.inactive}
+						icon={XCircle}
+						variant="muted"
+					/>
+				</HoverLift>
+			</StatRail>
+
+			<div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+				<FilterBar
+					search={{
+						value: searchQuery,
+						onChange: setSearchQuery,
+						placeholder: "Search organizations…",
+					}}
+					activeFilterCount={searchQuery ? 1 : 0}
+					onClear={() => setSearchQuery("")}
+					className="flex-1"
+				/>
+				<div className="flex items-center gap-2 rounded-md border px-3 py-2 shrink-0">
 					<Switch checked={showArchived} onCheckedChange={setShowArchived} />
 					<Label className="text-sm font-normal">Show archived</Label>
 				</div>
-				{searchQuery && (
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => setSearchQuery("")}
-						className="text-muted-foreground"
-					>
-						Clear
-					</Button>
-				)}
 			</div>
 
 			{isLoading ? (
@@ -424,29 +404,29 @@ export default function AdminOrganizationsPage() {
 					))}
 				</div>
 			) : filteredOrganizations.length === 0 ? (
-				<div className="flex flex-col items-center justify-center py-16 border rounded-xl bg-muted/20">
-					<div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
-						<Building2 className="h-8 w-8 text-primary/60" />
-					</div>
-					<h3 className="font-medium text-lg mb-1">
-						{searchQuery
+				<EmptyState
+					icon={Building2}
+					title={
+						searchQuery
 							? "No organizations found"
 							: selectedOrgId
-								? "No organization matches the filter"
-								: "No organizations yet"}
-					</h3>
-					<p className="text-sm text-muted-foreground mb-4">
-						{searchQuery
-							? "Try adjusting your search query"
-							: "Create your first organization to get started"}
-					</p>
-					{!searchQuery && !selectedOrgId && (
-						<Button onClick={() => setCreateModalOpen(true)}>
-							<Plus className="h-4 w-4 mr-2" />
-							Create Organization
-						</Button>
-					)}
-				</div>
+								? "No organization matches"
+								: "No organizations yet"
+					}
+					description={
+						searchQuery
+							? "Try adjusting your search."
+							: "Create your first organization to get started."
+					}
+					action={
+						!searchQuery && !selectedOrgId ? (
+							<Button onClick={() => setCreateModalOpen(true)}>
+								<Plus className="size-4 mr-2" />
+								Create Organization
+							</Button>
+						) : undefined
+					}
+				/>
 			) : (
 				<StaggerContainer
 					staggerDelay={0.06}
@@ -601,6 +581,6 @@ export default function AdminOrganizationsPage() {
 				orgSlug={selectedOrg?.slug ?? ""}
 				loading={lifecycleLoading}
 			/>
-		</div>
+		</PageShell>
 	);
 }

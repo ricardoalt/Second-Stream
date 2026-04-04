@@ -123,15 +123,15 @@ export function SecondStreamLogo({
 					<linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
 						<stop
 							offset="0%"
-							className="[stop-color:hsl(var(--logo-primary))]"
+							className="[stop-color:var(--color-logo-primary)]"
 						/>
 						<stop
 							offset="50%"
-							className="[stop-color:hsl(var(--logo-accent))]"
+							className="[stop-color:var(--color-logo-accent)]"
 						/>
 						<stop
 							offset="100%"
-							className="[stop-color:hsl(var(--logo-primary))]"
+							className="[stop-color:var(--color-logo-primary)]"
 						/>
 					</linearGradient>
 				</defs>
@@ -187,9 +187,9 @@ export function SecondStreamLogo({
 							letterSpacing="0.01em"
 							textAnchor="middle"
 							className={cn(
-								"fill-[hsl(var(--logo-text))] transition-colors duration-200",
+								"fill-[var(--color-logo-text)] transition-colors duration-200",
 								!noAnimation &&
-									"group-hover/logo:fill-[hsl(var(--logo-primary))]",
+									"group-hover/logo:fill-[var(--color-logo-primary)]",
 							)}
 						>
 							SecondStream
@@ -236,7 +236,7 @@ export function SecondStreamLogo({
 							fontSize="10"
 							fontWeight="600"
 							className={cn(
-								"fill-[hsl(var(--logo-primary))] transition-transform duration-300",
+								"fill-[var(--color-logo-primary)] transition-transform duration-300",
 								!noAnimation && "group-hover/logo:-translate-y-0.5",
 							)}
 						>
@@ -258,7 +258,7 @@ export function SecondStreamLogo({
 							y1="25"
 							x2="20"
 							y2="25"
-							className="stroke-[hsl(var(--logo-primary))]"
+							className="stroke-[var(--color-logo-primary)]"
 							strokeWidth="3"
 							strokeLinecap="round"
 						/>
@@ -267,7 +267,7 @@ export function SecondStreamLogo({
 							y1="33"
 							x2="17"
 							y2="33"
-							className="stroke-[hsl(var(--logo-primary))]"
+							className="stroke-[var(--color-logo-primary)]"
 							strokeWidth="3"
 							strokeLinecap="round"
 							opacity="0.7"
@@ -277,7 +277,7 @@ export function SecondStreamLogo({
 							y="34"
 							fontFamily="Georgia, serif"
 							fontSize="20"
-							className="fill-[hsl(var(--logo-text))]"
+							className="fill-[var(--color-logo-text)]"
 						>
 							S
 						</text>
@@ -286,7 +286,7 @@ export function SecondStreamLogo({
 							y1="25"
 							x2="55"
 							y2="25"
-							className="stroke-[hsl(var(--logo-primary))]"
+							className="stroke-[var(--color-logo-primary)]"
 							strokeWidth="3"
 							strokeLinecap="round"
 						/>
@@ -295,7 +295,7 @@ export function SecondStreamLogo({
 							y1="33"
 							x2="55"
 							y2="33"
-							className="stroke-[hsl(var(--logo-primary))]"
+							className="stroke-[var(--color-logo-primary)]"
 							strokeWidth="3"
 							strokeLinecap="round"
 							opacity="0.7"
@@ -314,9 +314,9 @@ export function SecondStreamLogo({
 						letterSpacing="0.01em"
 						textAnchor="middle"
 						className={cn(
-							"fill-[hsl(var(--logo-text))] transition-colors duration-200",
+							"fill-[var(--color-logo-text)] transition-colors duration-200",
 							!noAnimation &&
-								"group-hover/logo:fill-[hsl(var(--logo-primary))]",
+								"group-hover/logo:fill-[var(--color-logo-primary)]",
 						)}
 					>
 						SecondStream

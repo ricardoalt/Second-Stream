@@ -10,23 +10,18 @@ import {
 	type SortingState,
 	useReactTable,
 } from "@tanstack/react-table";
-import {
-	ChevronLeft,
-	ChevronRight,
-	Search,
-	ShieldCheck,
-	UserPlus,
-	X,
-} from "lucide-react";
+import { ShieldCheck, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/patterns";
 import {
+	EmptyState,
 	FadeIn,
+	FilterBar,
+	PageHeader,
+	PageShell,
 	Pressable,
-	StaggerContainer,
-	StaggerItem,
-} from "@/components/patterns/animations/motion-components";
+	TablePagination,
+} from "@/components/patterns";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -35,14 +30,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -184,33 +171,29 @@ export default function AdminUsersPage() {
 
 	if (authLoading) {
 		return (
-			<div className="container mx-auto py-8">
-				<div className="space-y-3">
-					<Skeleton className="h-10 w-64" />
-					<Skeleton className="h-64 w-full" />
-				</div>
+			<div className="flex flex-col gap-4">
+				<Skeleton className="h-10 w-64" />
+				<Skeleton className="h-64 w-full" />
 			</div>
 		);
 	}
 
 	if (!isSuperAdmin) {
 		return (
-			<div className="container mx-auto py-8">
-				<Card>
-					<CardHeader>
-						<CardTitle>Access denied</CardTitle>
-						<CardDescription>
-							You need admin permissions to view this page.
-						</CardDescription>
-					</CardHeader>
-				</Card>
-			</div>
+			<EmptyState
+				icon={ShieldCheck}
+				title="Access denied"
+				description="You need superadmin permissions to view this page."
+			/>
 		);
 	}
 
+	const statusFilterValue =
+		(table.getColumn("isActive")?.getFilterValue() as string) ?? "all";
+
 	return (
 		<TooltipProvider delayDuration={200}>
-			<div className="container mx-auto py-8 space-y-6">
+			<PageShell>
 				<FadeIn direction="up">
 					<PageHeader
 						title="Platform Administrators"
@@ -219,7 +202,7 @@ export default function AdminUsersPage() {
 						actions={
 							<Pressable>
 								<Button onClick={() => setModalOpen(true)}>
-									<UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+									<UserPlus className="mr-2 size-4" aria-hidden />
 									New Admin
 								</Button>
 							</Pressable>
@@ -227,84 +210,69 @@ export default function AdminUsersPage() {
 					/>
 				</FadeIn>
 
-				<FadeIn direction="up" delay={0.15}>
+				<FadeIn direction="up" delay={0.1}>
 					<Card>
 						<CardHeader>
 							<CardTitle>Administrator Directory</CardTitle>
 							<CardDescription>
-								{users.length} administrators with full platform access.
+								{users.length} administrator{users.length !== 1 ? "s" : ""} with
+								full platform access.
 							</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-4">
+						<CardContent className="flex flex-col gap-4">
 							{isLoading ? (
-								<div className="space-y-3">
-									<Skeleton className="h-10 w-64" />
+								<div className="flex flex-col gap-3">
+									<Skeleton className="h-10 w-full max-w-sm" />
 									{Array.from({ length: 4 }).map((_, idx) => (
-										// biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton placeholders never reorder
+										// biome-ignore lint/suspicious/noArrayIndexKey: Static skeleton placeholders
 										<Skeleton key={`skeleton-${idx}`} className="h-16 w-full" />
 									))}
 								</div>
 							) : users.length === 0 ? (
-								<div className="text-center py-8 text-muted-foreground">
-									<p>No administrators yet. Create the first one.</p>
-								</div>
+								<EmptyState
+									icon={ShieldCheck}
+									title="No administrators yet"
+									description="Create the first superadmin account."
+									action={
+										<Button onClick={() => setModalOpen(true)}>
+											<UserPlus className="mr-2 size-4" aria-hidden />
+											Create Admin
+										</Button>
+									}
+									className="border-0 bg-transparent py-8"
+								/>
 							) : (
 								<>
-									{/* Search and Filters */}
-									<div className="flex flex-col sm:flex-row gap-3">
-										<div className="relative flex-1">
-											<Search
-												className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-												aria-hidden="true"
-											/>
-											<Input
-												type="search"
-												name="search"
-												placeholder="Search administrators\u2026"
-												aria-label="Search administrators"
-												value={globalFilter}
-												onChange={(e) => setGlobalFilter(e.target.value)}
-												className="pl-9 pr-9 max-w-sm"
-											/>
-											{globalFilter && (
-												<button
-													type="button"
-													onClick={() => setGlobalFilter("")}
-													className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
-													aria-label="Clear search"
-												>
-													<X className="h-4 w-4" aria-hidden="true" />
-												</button>
-											)}
-										</div>
-										<Select
-											value={
-												(table
-													.getColumn("isActive")
-													?.getFilterValue() as string) ?? "all"
-											}
-											onValueChange={(value) =>
-												table
-													.getColumn("isActive")
-													?.setFilterValue(value === "all" ? undefined : value)
-											}
-										>
-											<SelectTrigger
-												className="w-[130px]"
-												aria-label="Filter by status"
-											>
-												<SelectValue placeholder="All Status" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="all">All Status</SelectItem>
-												<SelectItem value="active">Active</SelectItem>
-												<SelectItem value="inactive">Disabled</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
+									{/* ── Unified filter bar ── */}
+									<FilterBar
+										search={{
+											value: globalFilter,
+											onChange: setGlobalFilter,
+											placeholder: "Search administrators…",
+										}}
+										filters={[
+											{
+												key: "status",
+												placeholder: "All statuses",
+												value: statusFilterValue,
+												onChange: (value) =>
+													table
+														.getColumn("isActive")
+														?.setFilterValue(
+															value === "all" ? undefined : value,
+														),
+												options: [
+													{ value: "all", label: "All statuses" },
+													{ value: "active", label: "Active" },
+													{ value: "inactive", label: "Disabled" },
+												],
+												width: "w-full sm:w-[150px]",
+											},
+										]}
+									/>
 
-									{/* Table */}
-									<div className="rounded-md border overflow-x-auto">
+									{/* ── Table ── */}
+									<div className="overflow-x-auto rounded-lg border border-border/60">
 										<Table>
 											<TableHeader>
 												{table.getHeaderGroups().map((headerGroup) => (
@@ -343,7 +311,7 @@ export default function AdminUsersPage() {
 													<TableRow>
 														<TableCell
 															colSpan={columns.length}
-															className="h-24 text-center"
+															className="h-24 text-center text-muted-foreground text-sm"
 														>
 															No administrators match your search.
 														</TableCell>
@@ -353,40 +321,17 @@ export default function AdminUsersPage() {
 										</Table>
 									</div>
 
-									{/* Pagination */}
-									<div className="flex items-center justify-between">
-										<output
-											className="text-sm text-muted-foreground tabular-nums"
-											aria-live="polite"
-										>
-											Showing {table.getRowModel().rows.length} of{" "}
-											{table.getFilteredRowModel().rows.length} administrators
-										</output>
-										<div className="flex items-center gap-2">
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() => table.previousPage()}
-												disabled={!table.getCanPreviousPage()}
-											>
-												<ChevronLeft className="h-4 w-4" aria-hidden="true" />
-												Previous
-											</Button>
-											<span className="text-sm text-muted-foreground tabular-nums">
-												Page {table.getState().pagination.pageIndex + 1} of{" "}
-												{table.getPageCount()}
-											</span>
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() => table.nextPage()}
-												disabled={!table.getCanNextPage()}
-											>
-												Next
-												<ChevronRight className="h-4 w-4" aria-hidden="true" />
-											</Button>
-										</div>
-									</div>
+									{/* ── Pagination ── */}
+									<TablePagination
+										total={table.getFilteredRowModel().rows.length}
+										showing={table.getRowModel().rows.length}
+										page={table.getState().pagination.pageIndex + 1}
+										pageCount={table.getPageCount()}
+										onPrevious={() => table.previousPage()}
+										onNext={() => table.nextPage()}
+										itemLabel="administrators"
+										className="border-0 px-0 pt-0"
+									/>
 								</>
 							)}
 						</CardContent>
@@ -405,7 +350,7 @@ export default function AdminUsersPage() {
 					onClose={() => setResetUserId(null)}
 					onUpdateUser={handleUpdateUser}
 				/>
-			</div>
+			</PageShell>
 		</TooltipProvider>
 	);
 }

@@ -10,6 +10,7 @@
 import { useForm } from "@tanstack/react-form";
 import { Building2 } from "lucide-react";
 import { useState } from "react";
+import { LoadingButton } from "@/components/patterns/feedback/loading-button";
 import {
 	CompactSectorSelect,
 	formatSubsector,
@@ -36,7 +37,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoadingButton } from "@/components/ui/loading-button";
 import {
 	Select,
 	SelectContent,

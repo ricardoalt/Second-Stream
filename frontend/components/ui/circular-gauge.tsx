@@ -34,7 +34,7 @@ const GAUGE_SIZES = {
 export function CircularGauge({
 	value,
 	size = "md",
-	color = "hsl(var(--primary))",
+	color = "var(--color-primary)",
 	label,
 	className,
 }: CircularGaugeProps) {
@@ -72,7 +72,7 @@ export function CircularGauge({
 					cy={diameter / 2}
 					r={radius}
 					fill="none"
-					stroke="hsl(var(--muted))"
+					stroke="var(--color-muted)"
 					strokeWidth={stroke}
 					opacity={0.2}
 				/>

@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { MapPin } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { type FieldErrors, useForm } from "react-hook-form";
+import { LoadingButton } from "@/components/patterns/feedback/loading-button";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -28,7 +29,6 @@ import {
 	FormLabel,
 	FormMessage,
 	Input,
-	LoadingButton,
 	Select,
 	SelectContent,
 	SelectItem,
@@ -165,7 +165,9 @@ export function CreateLocationDialog({
 				toast({
 					title: "Error",
 					description:
-						error instanceof Error ? error.message : "Failed to create location",
+						error instanceof Error
+							? error.message
+							: "Failed to create location",
 					variant: "destructive",
 				});
 			}
@@ -209,7 +211,8 @@ export function CreateLocationDialog({
 									render={({ field }) => (
 										<FormItem>
 											<FormLabel>
-												Location Name <span className="text-destructive">*</span>
+												Location Name{" "}
+												<span className="text-destructive">*</span>
 											</FormLabel>
 											<FormControl>
 												<Input
@@ -243,7 +246,9 @@ export function CreateLocationDialog({
 														<SelectValue placeholder="Select type…" />
 													</SelectTrigger>
 													<SelectContent>
-														<SelectItem value="headquarters">Headquarters</SelectItem>
+														<SelectItem value="headquarters">
+															Headquarters
+														</SelectItem>
 														<SelectItem value="pickup">Pick-up</SelectItem>
 														<SelectItem value="delivery">Delivery</SelectItem>
 														<SelectItem value="billing">Billing</SelectItem>
@@ -368,7 +373,10 @@ export function CreateLocationDialog({
 								>
 									Cancel
 								</Button>
-								<LoadingButton type="submit" loading={form.formState.isSubmitting}>
+								<LoadingButton
+									type="submit"
+									loading={form.formState.isSubmitting}
+								>
 									{isEditMode ? "Update Location" : "Create Location"}
 								</LoadingButton>
 							</DialogFooter>
@@ -377,7 +385,10 @@ export function CreateLocationDialog({
 				</DialogContent>
 			</Dialog>
 
-			<AlertDialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
+			<AlertDialog
+				open={showDiscardConfirm}
+				onOpenChange={setShowDiscardConfirm}
+			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>

@@ -10,6 +10,7 @@
 
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useState } from "react";
+import { LoadingButton } from "@/components/patterns/feedback/loading-button";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -32,7 +33,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoadingButton } from "@/components/ui/loading-button";
 import { Textarea } from "@/components/ui/textarea";
 import { isValidEmail, isValidPhone } from "@/lib/forms/schemas";
 import { useToast } from "@/lib/hooks/use-toast";

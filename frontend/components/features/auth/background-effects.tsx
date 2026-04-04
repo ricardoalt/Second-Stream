@@ -50,15 +50,15 @@ const ANIMATION_CONFIG = {
 const COLORS = {
 	// Water tints (very subtle, for overlays)
 	waterTint: {
-		primary: "hsl(var(--primary) / 0.3)",
-		secondary: "hsl(var(--primary) / 0.2)",
-		tertiary: "hsl(var(--primary) / 0.15)",
+		primary: "oklch(0.60 0.16 175 / 0.3)",
+		secondary: "oklch(0.60 0.16 175 / 0.2)",
+		tertiary: "oklch(0.60 0.16 175 / 0.15)",
 	},
 	// Grid and effects
-	grid: "rgba(255, 255, 255, 0.06)",
-	gridDot: "rgba(255, 255, 255, 0.12)",
-	flow: "rgba(255, 255, 255, 0.1)",
-	bubble: "rgba(255, 255, 255, 0.12)",
+	grid: "oklch(1 0 0 / 0.06)",
+	gridDot: "oklch(1 0 0 / 0.12)",
+	flow: "oklch(1 0 0 / 0.1)",
+	bubble: "oklch(1 0 0 / 0.12)",
 } as const;
 
 // ============================================================================

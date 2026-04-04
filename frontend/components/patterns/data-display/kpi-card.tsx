@@ -1,6 +1,8 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
+import type * as React from "react";
+import { isValidElement } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -48,8 +50,8 @@ interface KpiCardProps {
 	badge?: string;
 	/** Badge variant type */
 	badgeType?: "success" | "destructive" | "warning" | "primary" | "neutral";
-	/** Icon from lucide-react */
-	icon?: LucideIcon;
+	/** Icon — accepts LucideIcon component, SVG element, or any ReactNode */
+	icon?: React.ReactNode | LucideIcon;
 	/** Visual variant */
 	variant?:
 		| "default"
@@ -69,12 +71,18 @@ interface KpiCardProps {
 }
 
 const variantStyles = {
-	default: "bg-card border-border/60 shadow-sm hover:shadow-md transition-all duration-200",
-	accent: "bg-primary/5 border-primary/30 shadow-sm hover:shadow-md transition-all duration-200",
-	success: "bg-success/5 border-success/30 shadow-sm hover:shadow-md transition-all duration-200",
-	warning: "bg-warning/5 border-warning/30 shadow-sm hover:shadow-md transition-all duration-200",
-	destructive: "bg-destructive/5 border-destructive/30 shadow-sm hover:shadow-md transition-all duration-200",
-	muted: "bg-muted/50 border-muted-foreground/20 shadow-sm hover:shadow-md transition-all duration-200",
+	default:
+		"bg-card border-border/60 shadow-sm hover:shadow-md transition-all duration-200",
+	accent:
+		"bg-primary/5 border-primary/30 shadow-sm hover:shadow-md transition-all duration-200",
+	success:
+		"bg-success/5 border-success/30 shadow-sm hover:shadow-md transition-all duration-200",
+	warning:
+		"bg-warning/5 border-warning/30 shadow-sm hover:shadow-md transition-all duration-200",
+	destructive:
+		"bg-destructive/5 border-destructive/30 shadow-sm hover:shadow-md transition-all duration-200",
+	muted:
+		"bg-muted/50 border-muted-foreground/20 shadow-sm hover:shadow-md transition-all duration-200",
 };
 
 const changeVariantStyles = {
@@ -82,6 +90,37 @@ const changeVariantStyles = {
 	negative: "bg-destructive/10 text-destructive",
 	neutral: "bg-muted text-muted-foreground",
 };
+
+function isIconComponent(
+	icon: KpiCardProps["icon"],
+): icon is React.ComponentType<{ className?: string }> {
+	if (!icon || typeof icon !== "object") {
+		return typeof icon === "function";
+	}
+
+	if (isValidElement(icon)) {
+		return false;
+	}
+
+	return "$$typeof" in icon;
+}
+
+function renderIconContent(icon: KpiCardProps["icon"]) {
+	if (icon === null || icon === undefined || typeof icon === "boolean") {
+		return null;
+	}
+
+	if (isIconComponent(icon)) {
+		const Icon = icon;
+		return <Icon className="size-4" />;
+	}
+
+	if (isValidElement(icon) || typeof icon === "string" || typeof icon === "number") {
+		return <span className="size-4 flex items-center justify-center">{icon}</span>;
+	}
+
+	return null;
+}
 
 export function KpiCard({
 	title,
@@ -93,7 +132,7 @@ export function KpiCard({
 	trend,
 	badge,
 	badgeType = "neutral",
-	icon: Icon,
+	icon,
 	variant = "default",
 	className,
 	loading = false,
@@ -102,6 +141,7 @@ export function KpiCard({
 }: KpiCardProps) {
 	// Support both label (simple) and title (legacy) props
 	const displayTitle = label ?? title ?? "Untitled";
+	const renderedIcon = renderIconContent(icon);
 
 	// Badge variant mapping to Badge component variants
 	const badgeVariantMap = {
@@ -114,10 +154,16 @@ export function KpiCard({
 
 	if (loading) {
 		return (
-			<Card className={cn("relative overflow-hidden border-border/60 shadow-sm", variantStyles[variant], className)}>
+			<Card
+				className={cn(
+					"relative overflow-hidden border-border/60 shadow-sm",
+					variantStyles[variant],
+					className,
+				)}
+			>
 				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
 					<div className="h-3 w-24 animate-pulse rounded bg-muted" />
-					{Icon && <div className="h-4 w-4 animate-pulse rounded bg-muted" />}
+					{icon && <div className="size-4 animate-pulse rounded bg-muted" />}
 				</CardHeader>
 				<CardContent>
 					<div className="h-10 w-32 animate-pulse rounded bg-muted" />
@@ -127,21 +173,25 @@ export function KpiCard({
 	}
 
 	return (
-		<Card className={cn("relative overflow-hidden", variantStyles[variant], className)}>
+		<Card
+			className={cn(
+				"relative overflow-hidden",
+				variantStyles[variant],
+				className,
+			)}
+		>
 			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
 				<CardTitle className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
 					{displayTitle}
 				</CardTitle>
-				{Icon && (
+				{renderedIcon && (
 					<div
 						className={cn(
 							"rounded-md p-1.5",
-							variant === "muted"
-								? "text-muted-foreground"
-								: "text-primary",
-							)}
+							variant === "muted" ? "text-muted-foreground" : "text-primary",
+						)}
 					>
-						<Icon className="h-4 w-4" />
+						{renderedIcon}
 					</div>
 				)}
 			</CardHeader>

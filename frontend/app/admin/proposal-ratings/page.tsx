@@ -12,16 +12,18 @@ import Link from "next/link";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+	EmptyState,
+	PageHeader,
+	PageShell,
+	StatRail,
+} from "@/components/patterns";
+import {
 	FadeIn,
 	HoverLift,
 	Pressable,
-	StaggerContainer,
-	StaggerItem,
 } from "@/components/patterns/animations/motion-components";
-import { PageHeader } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/patterns";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -285,7 +287,7 @@ export default function AdminProposalRatingsPage() {
 	}
 
 	return (
-		<div className="space-y-6">
+		<PageShell>
 			<FadeIn direction="up">
 				<PageHeader
 					title="Proposal Ratings"
@@ -309,65 +311,55 @@ export default function AdminProposalRatingsPage() {
 				/>
 			</FadeIn>
 
-			{/* KPI cards — page-scoped with 2026 Animations */}
-			<StaggerContainer staggerDelay={0.08} className="grid grid-cols-3 gap-3">
-				<StaggerItem>
-					<HoverLift>
-						<div className="rounded-xl border border-border/60 bg-card px-5 py-4">
-							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-								Total
-							</p>
-							<div className="mt-1.5 text-3xl font-semibold tabular-nums">
-								{loading ? <Skeleton className="h-8 w-12" /> : total}
-							</div>
+			{/* KPI stats rail */}
+			<StatRail columns={3}>
+				<HoverLift>
+					<div className="rounded-xl border border-border/60 bg-card px-5 py-4">
+						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							Total
+						</p>
+						<div className="mt-1.5 text-3xl font-semibold tabular-nums">
+							{loading ? <Skeleton className="h-8 w-12" /> : total}
 						</div>
-					</HoverLift>
-				</StaggerItem>
+					</div>
+				</HoverLift>
 
-				<StaggerItem>
-					<HoverLift>
+				<HoverLift>
+					<div
+						className={cn(
+							"rounded-xl border px-5 py-4 transition-colors duration-200",
+							!loading && lowRatedCount > 0
+								? "border-destructive/25 bg-destructive/5"
+								: "border-border/60 bg-card",
+						)}
+					>
+						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							Low-rated{totalPages > 1 ? " *" : ""}
+						</p>
 						<div
 							className={cn(
-								"rounded-xl border px-5 py-4 transition-colors duration-200",
+								"mt-1.5 text-3xl font-semibold tabular-nums",
 								!loading && lowRatedCount > 0
-									? "border-destructive/25 bg-destructive/5"
-									: "border-border/60 bg-card",
+									? "text-destructive"
+									: "text-foreground",
 							)}
 						>
-							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-								Low-rated{totalPages > 1 ? " *" : ""}
-							</p>
-							<div
-								className={cn(
-									"mt-1.5 text-3xl font-semibold tabular-nums",
-									!loading && lowRatedCount > 0
-										? "text-destructive"
-										: "text-foreground",
-								)}
-							>
-								{loading ? <Skeleton className="h-8 w-10" /> : lowRatedCount}
-							</div>
+							{loading ? <Skeleton className="h-8 w-10" /> : lowRatedCount}
 						</div>
-					</HoverLift>
-				</StaggerItem>
+					</div>
+				</HoverLift>
 
-				<StaggerItem>
-					<HoverLift>
-						<div className="rounded-xl border border-border/60 bg-card px-5 py-4">
-							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-								With comments{totalPages > 1 ? " *" : ""}
-							</p>
-							<div className="mt-1.5 text-3xl font-semibold tabular-nums">
-								{loading ? (
-									<Skeleton className="h-8 w-10" />
-								) : (
-									withCommentsCount
-								)}
-							</div>
+				<HoverLift>
+					<div className="rounded-xl border border-border/60 bg-card px-5 py-4">
+						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							With comments{totalPages > 1 ? " *" : ""}
+						</p>
+						<div className="mt-1.5 text-3xl font-semibold tabular-nums">
+							{loading ? <Skeleton className="h-8 w-10" /> : withCommentsCount}
 						</div>
-					</HoverLift>
-				</StaggerItem>
-			</StaggerContainer>
+					</div>
+				</HoverLift>
+			</StatRail>
 			{totalPages > 1 && (
 				<p className="-mt-4 text-xs text-muted-foreground">
 					* metrics reflect current page only
@@ -743,7 +735,7 @@ export default function AdminProposalRatingsPage() {
 					</>
 				)}
 			</div>
-		</div>
+		</PageShell>
 	);
 }
 

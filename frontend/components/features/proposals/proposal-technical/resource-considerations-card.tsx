@@ -105,7 +105,7 @@ export function ResourceConsiderationsCard({
 								<CircularGauge
 									value={85}
 									size="lg"
-									color="hsl(142, 76%, 36%)"
+									color="var(--color-success)"
 									label="CO2 Avoided"
 								/>
 							</div>

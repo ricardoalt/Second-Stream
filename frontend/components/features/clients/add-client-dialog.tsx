@@ -186,7 +186,9 @@ export function AddClientDialog({
 						<div className="max-h-[min(64vh,560px)] overflow-y-auto bg-surface-container-lowest/60">
 							<div className="flex flex-col gap-6 px-7 py-6">
 								<section className="space-y-5">
-									<SectionHeading icon={<Building2 aria-hidden className="size-3.5" />}>
+									<SectionHeading
+										icon={<Building2 aria-hidden className="size-3.5" />}
+									>
 										Company
 									</SectionHeading>
 
@@ -197,7 +199,8 @@ export function AddClientDialog({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Company name <span className="text-destructive">*</span>
+														Company name{" "}
+														<span className="text-destructive">*</span>
 													</FormLabel>
 													<FormControl>
 														<InputWithIcon
@@ -217,7 +220,8 @@ export function AddClientDialog({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Industry type <span className="text-destructive">*</span>
+														Industry type{" "}
+														<span className="text-destructive">*</span>
 													</FormLabel>
 													<FormControl>
 														<IndustryPicker
@@ -244,19 +248,24 @@ export function AddClientDialog({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Client type <span className="text-destructive">*</span>
+														Client type{" "}
+														<span className="text-destructive">*</span>
 													</FormLabel>
 													<FormControl>
 														<SelectWithIcon
 															icon={<Building2 className="size-4" />}
 															value={field.value}
 															onValueChange={(value) =>
-																field.onChange(value as AddClientFormData["customerType"])
+																field.onChange(
+																	value as AddClientFormData["customerType"],
+																)
 															}
 															placeholder="Select type"
 														>
 															<SelectItem value="buyer">Buyer</SelectItem>
-															<SelectItem value="generator">Generator</SelectItem>
+															<SelectItem value="generator">
+																Generator
+															</SelectItem>
 															<SelectItem value="both">Both</SelectItem>
 														</SelectWithIcon>
 													</FormControl>
@@ -310,7 +319,8 @@ export function AddClientDialog({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Sub-industry <span className="text-destructive">*</span>
+														Sub-industry{" "}
+														<span className="text-destructive">*</span>
 													</FormLabel>
 													<FormControl>
 														<SubIndustryPicker
@@ -351,7 +361,9 @@ export function AddClientDialog({
 								<Separator className="bg-border/20" />
 
 								<section className="space-y-5">
-									<SectionHeading icon={<Phone aria-hidden className="size-3.5" />}>
+									<SectionHeading
+										icon={<Phone aria-hidden className="size-3.5" />}
+									>
 										Primary contact
 									</SectionHeading>
 
@@ -382,7 +394,8 @@ export function AddClientDialog({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Email address <span className="text-destructive">*</span>
+														Email address{" "}
+														<span className="text-destructive">*</span>
 													</FormLabel>
 													<FormControl>
 														<InputWithIcon
@@ -405,7 +418,8 @@ export function AddClientDialog({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Phone number <span className="text-destructive">*</span>
+														Phone number{" "}
+														<span className="text-destructive">*</span>
 													</FormLabel>
 													<FormControl>
 														<InputWithIcon
@@ -444,7 +458,9 @@ export function AddClientDialog({
 								<Separator className="bg-border/20" />
 
 								<section className="space-y-5">
-									<SectionHeading icon={<MapPin aria-hidden className="size-3.5" />}>
+									<SectionHeading
+										icon={<MapPin aria-hidden className="size-3.5" />}
+									>
 										Shipping location & logistics hub
 									</SectionHeading>
 
@@ -455,7 +471,8 @@ export function AddClientDialog({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Location name <span className="text-destructive">*</span>
+														Location name{" "}
+														<span className="text-destructive">*</span>
 													</FormLabel>
 													<FormControl>
 														<Input
@@ -517,7 +534,8 @@ export function AddClientDialog({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														State / Province <span className="text-destructive">*</span>
+														State / Province{" "}
+														<span className="text-destructive">*</span>
 													</FormLabel>
 													<FormControl>
 														<Input
@@ -537,7 +555,8 @@ export function AddClientDialog({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														ZIP / Postal code <span className="text-destructive">*</span>
+														ZIP / Postal code{" "}
+														<span className="text-destructive">*</span>
 													</FormLabel>
 													<FormControl>
 														<Input
@@ -555,7 +574,9 @@ export function AddClientDialog({
 
 								{submitError && (
 									<div className="rounded-lg border border-destructive/20 bg-error-container/30 px-4 py-3">
-										<p className="text-sm text-on-error-container">{submitError}</p>
+										<p className="text-sm text-on-error-container">
+											{submitError}
+										</p>
 									</div>
 								)}
 							</div>
@@ -611,7 +632,9 @@ function IndustryPicker({
 	"id" | "aria-invalid" | "aria-describedby"
 >) {
 	const [open, setOpen] = useState(false);
-	const selectedLabel = sectorsConfig.find((sector) => sector.id === value)?.label;
+	const selectedLabel = sectorsConfig.find(
+		(sector) => sector.id === value,
+	)?.label;
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -695,7 +718,9 @@ function SubIndustryPicker({
 	"id" | "aria-invalid" | "aria-describedby"
 >) {
 	const [open, setOpen] = useState(false);
-	const selectedLabel = options.find((subsector) => subsector.id === value)?.label;
+	const selectedLabel = options.find(
+		(subsector) => subsector.id === value,
+	)?.label;
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -821,7 +846,10 @@ function SelectWithIcon({
 			onValueChange={onValueChange}
 			disabled={disabled ?? false}
 		>
-			<SelectTrigger className="h-10 bg-surface-container-low/60" {...triggerProps}>
+			<SelectTrigger
+				className="h-10 bg-surface-container-low/60"
+				{...triggerProps}
+			>
 				<div className="flex items-center gap-2.5">
 					<span className="text-muted-foreground/50">{icon}</span>
 					<SelectValue placeholder={placeholder} />

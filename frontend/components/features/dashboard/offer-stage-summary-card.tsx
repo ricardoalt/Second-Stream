@@ -39,7 +39,9 @@ export function OfferStageSummaryCard({
 				density === "featured" && "bg-surface-container-low",
 			)}
 		>
-			<CardContent className={cn("space-y-2 p-4", density === "featured" && "space-y-3")}>
+			<CardContent
+				className={cn("space-y-2 p-4", density === "featured" && "space-y-3")}
+			>
 				<div className="flex items-center justify-between gap-2">
 					<p className="text-sm font-medium text-foreground">{title}</p>
 					<StatusChip status={chipStatus} variant="subtle" size="xs">
