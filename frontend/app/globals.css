@@ -26,27 +26,27 @@
 
 	/* ── Surface Hierarchy — Visible steps (min 0.03 OKLCH Lightness delta) ── */
 	--surface: oklch(0.975 0.008 195); /* = background */
-	--surface-container-lowest: oklch(0.99 0.004 195); /* Cards / elevated */
-	--surface-container-low: oklch(0.965 0.009 195); /* Subtle sections */
-	--surface-container: oklch(0.945 0.012 200); /* Panels, sidebars */
-	--surface-container-high: oklch(0.915 0.015 205); /* Distinct zones */
-	--surface-container-highest: oklch(0.87 0.018 210); /* Strong separation */
+	--surface-container-lowest: oklch(0.99 0.006 190); /* Cards / elevated */
+	--surface-container-low: oklch(0.965 0.011 192); /* Subtle sections */
+	--surface-container: oklch(0.945 0.015 195); /* Panels, sidebars */
+	--surface-container-high: oklch(0.915 0.018 200); /* Distinct zones */
+	--surface-container-highest: oklch(0.87 0.022 205); /* Strong separation */
 	--surface-dim: oklch(0.62 0.018 225);
-	--surface-tint: oklch(0.6 0.16 175); /* = primary */
-	--surface-bright: oklch(0.99 0.004 195);
+	--surface-tint: oklch(0.58 0.17 172); /* = primary */
+	--surface-bright: oklch(0.99 0.006 190);
 	--surface-elevated: color-mix(
 		in oklch,
-		oklch(0.99 0.004 195) 92%,
-		oklch(0.55 0.14 175) 8%
+		oklch(0.99 0.006 190) 92%,
+		oklch(0.58 0.17 172) 8%
 	);
 
-	/* ── Primary — Teal, vibrant & chromatic ── */
-	--primary: oklch(0.6 0.16 175); /* Brighter, more saturated teal */
-	--primary-foreground: oklch(0.99 0.002 195);
-	--primary-container: oklch(0.4 0.13 175); /* Deep teal — hover/active */
-	--primary-fixed: oklch(0.84 0.1 175); /* Light teal — tinted surfaces */
-	--primary-fixed-dim: oklch(0.73 0.12 175);
-	--inverse-primary: oklch(0.84 0.1 175);
+	/* ── Primary — Teal, warmer & more vibrant (2026) ── */
+	--primary: oklch(0.58 0.17 172); /* Warmer teal, increased chroma */
+	--primary-foreground: oklch(0.99 0.003 172);
+	--primary-container: oklch(0.42 0.14 172); /* Deep teal — hover/active */
+	--primary-fixed: oklch(0.86 0.09 172); /* Light teal — tinted surfaces */
+	--primary-fixed-dim: oklch(0.74 0.12 172);
+	--inverse-primary: oklch(0.86 0.09 172);
 
 	/* ── Secondary — Slate blue, slightly chromatic ── */
 	--secondary: oklch(0.46 0.06 245);
@@ -77,13 +77,23 @@
 	--amber: oklch(0.75 0.16 78);
 	--amber-foreground: oklch(0.22 0.06 75);
 
+	/* ── Accent Warm — first-class warm accent for CTAs & premium highlights ── */
+	--accent-warm: oklch(0.78 0.15 75);
+	--accent-warm-foreground: oklch(0.2 0.06 72);
+	--accent-warm-container: oklch(0.9 0.08 75);
+	--accent-warm-subtle: oklch(0.95 0.04 75);
+
+	/* ── Inverse Surface — defined in :root for light mode ── */
+	--inverse-surface: oklch(0.22 0.022 225);
+	--inverse-on-surface: oklch(0.92 0.008 215);
+
 	/* ── Borders & Inputs ── */
 	--outline: oklch(0.68 0.012 220);
 	--outline-variant: oklch(0.8 0.008 210);
 	--border: oklch(0.87 0.01 210 / 0.7); /* Subtle — not heavy black */
 	--input: oklch(0.905 0.012 205);
-	--ring: oklch(0.6 0.16 175);
-	--focus-ring: 0 0 0 3px oklch(0.6 0.16 175 / 0.18);
+	--ring: oklch(0.58 0.17 172);
+	--focus-ring: 0 0 0 3px oklch(0.58 0.17 172 / 0.18);
 
 	/* ── State Backgrounds ── */
 	--state-success-bg: color-mix(in oklch, var(--success) 15%, transparent);
@@ -130,28 +140,49 @@
 	--strength-good: var(--info);
 	--strength-strong: var(--success);
 
-	/* ── Charts — Multi-stop teal ramp + accent slate ── */
-	--chart-1: oklch(0.55 0.14 175); /* Primary teal */
-	--chart-2: oklch(0.68 0.13 175); /* Mid teal */
-	--chart-3: oklch(0.78 0.11 175); /* Light teal */
-	--chart-4: oklch(0.88 0.07 175); /* Pale teal */
-	--chart-5: oklch(0.52 0.07 240); /* Slate accent */
+	/* ── Charts — Multi-hue palette (not monochromatic) ── */
+	--chart-1: oklch(0.55 0.16 172); /* Primary teal */
+	--chart-2: oklch(0.62 0.14 145); /* Green-teal */
+	--chart-3: oklch(0.72 0.15 75); /* Amber accent */
+	--chart-4: oklch(0.58 0.12 240); /* Slate blue */
+	--chart-5: oklch(0.65 0.1 320); /* Mauve */
 
 	/* ── Sidebar — Brand-tinted, not flat grey ── */
 	--sidebar: oklch(0.955 0.01 200);
 	--sidebar-foreground: oklch(0.44 0.018 225);
-	--sidebar-primary: oklch(0.42 0.12 175);
-	--sidebar-primary-foreground: oklch(0.99 0.002 195);
+	--sidebar-primary: oklch(0.42 0.14 172);
+	--sidebar-primary-foreground: oklch(0.99 0.003 172);
 	--sidebar-accent: oklch(0.91 0.022 195);
 	--sidebar-accent-foreground: oklch(0.13 0.025 230);
 	--sidebar-border: oklch(0.9 0.01 200 / 0.5);
-	--sidebar-ring: oklch(0.55 0.14 175);
+	--sidebar-ring: oklch(0.55 0.15 172);
 
 	/* ── Gradients ── */
 	--gradient-primary: linear-gradient(
 		135deg,
-		oklch(0.44 0.14 175) 0%,
-		oklch(0.6 0.16 175) 100%
+		oklch(0.44 0.14 172) 0%,
+		oklch(0.58 0.17 172) 100%
+	);
+	--gradient-hero: linear-gradient(
+		135deg,
+		oklch(0.44 0.14 172) 0%,
+		oklch(0.52 0.12 200) 50%,
+		oklch(0.58 0.17 172) 100%
+	);
+	--gradient-warm: linear-gradient(
+		135deg,
+		oklch(0.58 0.17 172) 0%,
+		oklch(0.7 0.14 120) 100%
+	);
+	--gradient-surface: linear-gradient(
+		180deg,
+		oklch(0.975 0.01 190) 0%,
+		oklch(0.965 0.006 210) 100%
+	);
+	--gradient-glass: linear-gradient(
+		135deg,
+		oklch(1 0 0 / 0.12) 0%,
+		oklch(1 0 0 / 0.04) 100%
 	);
 
 	/* ── Logo Brand — converted from HSL ── */
@@ -296,18 +327,18 @@
 	--surface-container-high: oklch(0.28 0.026 225);
 	--surface-container-highest: oklch(0.33 0.028 225);
 	--surface-dim: oklch(0.12 0.016 225);
-	--surface-tint: oklch(0.72 0.12 175);
+	--surface-tint: oklch(0.76 0.12 172);
 	--surface-bright: oklch(0.33 0.028 225);
 	--surface-elevated: color-mix(
 		in oklch,
 		oklch(0.22 0.022 225) 92%,
-		oklch(0.72 0.12 175) 8%
+		oklch(0.76 0.12 172) 8%
 	);
 
-	--primary: oklch(0.75 0.11 175); /* Lighter teal for dark backgrounds */
-	--primary-foreground: oklch(0.18 0.03 175);
-	--primary-container: oklch(0.38 0.1 175);
-	--inverse-primary: oklch(0.55 0.14 175);
+	--primary: oklch(0.76 0.12 172); /* Lighter teal for dark backgrounds */
+	--primary-foreground: oklch(0.18 0.03 172);
+	--primary-container: oklch(0.38 0.1 172);
+	--inverse-primary: oklch(0.56 0.15 172);
 
 	--secondary: oklch(0.74 0.06 240);
 	--secondary-foreground: oklch(0.2 0.03 240);
@@ -337,8 +368,8 @@
 	--outline-variant: oklch(0.35 0.022 225);
 	--border: oklch(0.88 0.008 215 / 0.12);
 	--input: oklch(0.88 0.008 215 / 0.16);
-	--ring: oklch(0.75 0.11 175);
-	--focus-ring: 0 0 0 3px oklch(0.75 0.11 175 / 0.3);
+	--ring: oklch(0.76 0.12 172);
+	--focus-ring: 0 0 0 3px oklch(0.76 0.12 172 / 0.3);
 
 	--state-success-bg: color-mix(in oklch, var(--success) 22%, transparent);
 	--state-warning-bg: color-mix(in oklch, var(--warning) 22%, transparent);
@@ -348,25 +379,36 @@
 		transparent
 	);
 
-	--chart-1: oklch(0.75 0.11 175);
-	--chart-2: oklch(0.65 0.13 175);
-	--chart-3: oklch(0.74 0.06 240);
-	--chart-4: oklch(0.68 0.16 145);
-	--chart-5: oklch(0.78 0.15 80);
+	--chart-1: oklch(0.76 0.12 172); /* Primary teal */
+	--chart-2: oklch(0.7 0.14 145); /* Green-teal */
+	--chart-3: oklch(0.82 0.14 75); /* Amber accent */
+	--chart-4: oklch(0.68 0.12 240); /* Slate blue */
+	--chart-5: oklch(0.72 0.1 320); /* Mauve */
 
 	--sidebar: oklch(0.2 0.022 225);
 	--sidebar-foreground: oklch(0.72 0.01 220);
-	--sidebar-primary: oklch(0.75 0.11 175);
-	--sidebar-primary-foreground: oklch(0.18 0.03 175);
+	--sidebar-primary: oklch(0.76 0.12 172);
+	--sidebar-primary-foreground: oklch(0.18 0.03 172);
 	--sidebar-accent: oklch(0.28 0.026 220);
 	--sidebar-accent-foreground: oklch(0.9 0.006 215);
 	--sidebar-border: oklch(0.88 0.008 215 / 0.1);
-	--sidebar-ring: oklch(0.75 0.11 175);
+	--sidebar-ring: oklch(0.76 0.12 172);
 
 	--gradient-primary: linear-gradient(
 		135deg,
-		oklch(0.38 0.1 175) 0%,
-		oklch(0.55 0.14 175) 100%
+		oklch(0.38 0.1 172) 0%,
+		oklch(0.55 0.15 172) 100%
+	);
+	--gradient-hero: linear-gradient(
+		135deg,
+		oklch(0.3 0.1 172) 0%,
+		oklch(0.38 0.09 200) 50%,
+		oklch(0.44 0.12 172) 100%
+	);
+	--gradient-warm: linear-gradient(
+		135deg,
+		oklch(0.55 0.15 172) 0%,
+		oklch(0.65 0.13 120) 100%
 	);
 
 	--logo-primary: oklch(0.65 0.1 240);
@@ -401,6 +443,12 @@
 	/* ── Amber dark mode ── */
 	--amber: oklch(0.82 0.16 78);
 	--amber-foreground: oklch(0.2 0.06 75);
+
+	/* ── Accent Warm dark mode ── */
+	--accent-warm: oklch(0.82 0.14 75);
+	--accent-warm-foreground: oklch(0.18 0.06 72);
+	--accent-warm-container: oklch(0.35 0.08 75);
+	--accent-warm-subtle: oklch(0.28 0.05 75);
 
 	/* ── Badge tokens dark mode — lighter text for dark backgrounds ── */
 	--badge-success-text: oklch(0.78 0.14 145);
@@ -439,6 +487,10 @@
 	--color-info-foreground: var(--info-foreground);
 	--color-amber: var(--amber);
 	--color-amber-foreground: var(--amber-foreground);
+	--color-accent-warm: var(--accent-warm);
+	--color-accent-warm-foreground: var(--accent-warm-foreground);
+	--color-accent-warm-container: var(--accent-warm-container);
+	--color-accent-warm-subtle: var(--accent-warm-subtle);
 	--color-logo-primary: var(--logo-primary);
 	--color-logo-accent: var(--logo-accent);
 	--color-logo-text: var(--logo-text);
@@ -471,6 +523,8 @@
 	--color-surface-bright: var(--surface-bright);
 	--color-surface-elevated: var(--surface-elevated);
 	--color-primary-container: var(--primary-container);
+	--color-primary-fixed: var(--primary-fixed);
+	--color-primary-fixed-dim: var(--primary-fixed-dim);
 	--color-tertiary: var(--tertiary);
 	--color-tertiary-container: var(--tertiary-container);
 	--color-outline: var(--outline);

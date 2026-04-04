@@ -3,6 +3,7 @@
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { KpiCard } from "@/components/patterns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,19 +41,6 @@ export function resolveAgentDetailErrorMessage(error: unknown): string {
 	return error instanceof Error
 		? error.message
 		: "Failed to load field agent detail.";
-}
-
-function KpiCard({ label, value }: { label: string; value: number }) {
-	return (
-		<div className="flex flex-col justify-between rounded-xl border border-border bg-background p-5 shadow-sm border-t-2 border-t-primary/20">
-			<p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-4">
-				{label}
-			</p>
-			<p className="text-3xl font-bold tracking-tight text-foreground">
-				{value}
-			</p>
-		</div>
-	);
 }
 
 export function AgentDetailLoadedState({
@@ -102,17 +90,17 @@ export function AgentDetailLoadedState({
 
 			{/* KPI Strip */}
 			<div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-				<KpiCard label="OPEN STREAMS" value={detail.kpis.openStreams} />
+				<KpiCard title="OPEN STREAMS" value={detail.kpis.openStreams} />
 				<KpiCard
-					label="MISSING INFORMATION"
+					title="MISSING INFORMATION"
 					value={detail.kpis.missingInformation}
 				/>
 				<KpiCard
-					label="OFFERS IN PROGRESS"
+					title="OFFERS IN PROGRESS"
 					value={detail.kpis.offersInProgress}
 				/>
 				<KpiCard
-					label="COMPLETED STREAMS"
+					title="COMPLETED STREAMS"
 					value={detail.kpis.completedStreams}
 				/>
 			</div>

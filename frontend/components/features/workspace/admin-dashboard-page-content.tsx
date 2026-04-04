@@ -6,7 +6,10 @@ import { useEffect, useMemo, useState } from "react";
 import { KpiCard } from "@/components/patterns/data-display/kpi-card";
 import { StatRail } from "@/components/patterns/data-display/stat-rail";
 import { StatusChip } from "@/components/patterns/feedback/status-chip";
-import { PageSection } from "@/components/patterns/layout/page-shell";
+import {
+	PageSection,
+	PageShell,
+} from "@/components/patterns/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DataTable, SectionDivider } from "@/components/ui/data-table";
@@ -262,7 +265,7 @@ export function AdminDashboardPageContent({
 	};
 
 	return (
-		<div className={`flex flex-col gap-10 ${className || ""}`}>
+		<PageShell gap="xl" className={className}>
 			{/* Error State */}
 			{error ? (
 				<Card className="border-border/60 shadow-none">
@@ -286,7 +289,7 @@ export function AdminDashboardPageContent({
 			>
 				<StatRail>
 					<KpiCard
-						label="Total Streams"
+						title="Total Streams"
 						value={dashboard.counts.total}
 						loading={loading}
 						icon={
@@ -304,7 +307,7 @@ export function AdminDashboardPageContent({
 						}
 					/>
 					<KpiCard
-						label="Missing Information"
+						title="Missing Information"
 						value={dashboard.counts.missingInformation}
 						loading={loading}
 						icon={
@@ -323,7 +326,7 @@ export function AdminDashboardPageContent({
 						}
 					/>
 					<KpiCard
-						label="In Negotiation"
+						title="In Negotiation"
 						value={pipeline.counts.underNegotiation}
 						loading={loading}
 						icon={
@@ -342,7 +345,7 @@ export function AdminDashboardPageContent({
 						}
 					/>
 					<KpiCard
-						label="Pipeline Value"
+						title="Pipeline Value"
 						value={pipelineValue}
 						loading={loading}
 						icon={
@@ -492,6 +495,6 @@ export function AdminDashboardPageContent({
 					}}
 				/>
 			</PageSection>
-		</div>
+		</PageShell>
 	);
 }

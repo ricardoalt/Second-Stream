@@ -8,13 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 /**
- * KpiCard - Standardized KPI Card for SecondStream
+ * KpiCard — Standardized KPI display for SecondStream.
  *
- * Replaces all variations of metric cards across the platform:
- * - metric-card.tsx
- * - admin-stats-card.tsx
- * - offers-summary-stat-card.tsx
- * - client-summary-stat-card.tsx
+ * Single source of truth for all metric/stat cards across the platform.
  *
  * @example
  * <KpiCard
@@ -22,37 +18,25 @@ import { cn } from "@/lib/utils";
  *   value="$124,500"
  *   change={{ value: "+12.5%", type: "positive" }}
  *   icon={DollarSign}
+ *   variant="accent"
  * />
  */
 
 interface KpiCardProps {
-	/** Card title (legacy: use label) */
-	title?: string;
-	/** Alternative to title (simpler naming) */
-	label?: string;
-	/** Main value to display */
+	/** Card title */
+	title: string;
+	/** Main value to display. Pass null to show an em-dash placeholder. */
 	value: string | number | null;
-	/** Optional subtitle or context */
+	/** Optional subtitle or context below the value */
 	subtitle?: string;
-	/** Alternative to subtitle */
-	subValue?: string;
-	/** Trend/change indicator */
+	/** Trend/change indicator badge */
 	change?: {
 		value: string;
 		type: "positive" | "negative" | "neutral";
 	};
-	/** Trend for admin views (with isPositive flag) */
-	trend?: {
-		value: number;
-		isPositive: boolean;
-	};
-	/** Badge text (simple status indicator) */
-	badge?: string;
-	/** Badge variant type */
-	badgeType?: "success" | "destructive" | "warning" | "primary" | "neutral";
 	/** Icon — accepts LucideIcon component, SVG element, or any ReactNode */
 	icon?: React.ReactNode | LucideIcon;
-	/** Visual variant */
+	/** Visual variant — controls background & border tint */
 	variant?:
 		| "default"
 		| "accent"
@@ -62,101 +46,77 @@ interface KpiCardProps {
 		| "muted";
 	/** Additional classes */
 	className?: string;
-	/** Loading state */
+	/** Show skeleton loading state */
 	loading?: boolean;
-	/** Highlight value as primary color */
-	isPrimary?: boolean;
-	/** Show action indicator arrow */
-	hasAction?: boolean;
 }
 
-const variantStyles = {
+const variantStyles: Record<NonNullable<KpiCardProps["variant"]>, string> = {
 	default:
-		"bg-card border-border/60 shadow-sm hover:shadow-md transition-all duration-200",
+		"bg-card border-border/60 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
 	accent:
-		"bg-primary/5 border-primary/30 shadow-sm hover:shadow-md transition-all duration-200",
+		"bg-primary/5 border-primary/30 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
 	success:
-		"bg-success/5 border-success/30 shadow-sm hover:shadow-md transition-all duration-200",
+		"bg-success/5 border-success/30 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
 	warning:
-		"bg-warning/5 border-warning/30 shadow-sm hover:shadow-md transition-all duration-200",
+		"bg-warning/5 border-warning/30 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
 	destructive:
-		"bg-destructive/5 border-destructive/30 shadow-sm hover:shadow-md transition-all duration-200",
+		"bg-destructive/5 border-destructive/30 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
 	muted:
-		"bg-muted/50 border-muted-foreground/20 shadow-sm hover:shadow-md transition-all duration-200",
+		"bg-muted/50 border-muted-foreground/20 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
 };
 
-const changeVariantStyles = {
+const changeStyles: Record<
+	NonNullable<KpiCardProps["change"]>["type"],
+	string
+> = {
 	positive: "bg-success/10 text-success",
 	negative: "bg-destructive/10 text-destructive",
 	neutral: "bg-muted text-muted-foreground",
 };
 
-function isIconComponent(
-	icon: KpiCardProps["icon"],
-): icon is React.ComponentType<{ className?: string }> {
-	if (!icon || typeof icon !== "object") {
-		return typeof icon === "function";
-	}
+const changeIcons: Record<NonNullable<KpiCardProps["change"]>["type"], string> =
+	{
+		positive: "↑",
+		negative: "↓",
+		neutral: "•",
+	};
 
-	if (isValidElement(icon)) {
-		return false;
-	}
-
-	return "$$typeof" in icon;
-}
-
-function renderIconContent(icon: KpiCardProps["icon"]) {
-	if (icon === null || icon === undefined || typeof icon === "boolean") {
+function renderIcon(icon: KpiCardProps["icon"]) {
+	if (icon === null || icon === undefined || typeof icon === "boolean")
 		return null;
-	}
-
-	if (isIconComponent(icon)) {
-		const Icon = icon;
+	if (typeof icon === "function") {
+		const Icon = icon as React.FC<{ className?: string }>;
 		return <Icon className="size-4" />;
 	}
-
-	if (isValidElement(icon) || typeof icon === "string" || typeof icon === "number") {
-		return <span className="size-4 flex items-center justify-center">{icon}</span>;
+	if (
+		isValidElement(icon) ||
+		typeof icon === "string" ||
+		typeof icon === "number"
+	) {
+		return (
+			<span className="size-4 flex items-center justify-center">{icon}</span>
+		);
 	}
-
 	return null;
 }
 
 export function KpiCard({
 	title,
-	label,
 	value,
 	subtitle,
-	subValue,
 	change,
-	trend,
-	badge,
-	badgeType = "neutral",
 	icon,
 	variant = "default",
 	className,
 	loading = false,
-	isPrimary = false,
-	hasAction = false,
 }: KpiCardProps) {
-	// Support both label (simple) and title (legacy) props
-	const displayTitle = label ?? title ?? "Untitled";
-	const renderedIcon = renderIconContent(icon);
-
-	// Badge variant mapping to Badge component variants
-	const badgeVariantMap = {
-		success: "success-subtle" as const,
-		destructive: "destructive-subtle" as const,
-		warning: "warning-subtle" as const,
-		primary: "primary-subtle" as const,
-		neutral: "neutral-subtle" as const,
-	};
+	const renderedIcon = renderIcon(icon);
 
 	if (loading) {
 		return (
 			<Card
 				className={cn(
-					"relative overflow-hidden border-border/60 shadow-sm",
+					"relative overflow-hidden",
 					variantStyles[variant],
 					className,
 				)}
@@ -180,9 +140,25 @@ export function KpiCard({
 				className,
 			)}
 		>
+			{/* Gradient accent strip for accent/success/warning/destructive variants */}
+			{variant !== "default" && variant !== "muted" && (
+				<div
+					className={cn(
+						"absolute inset-x-0 top-0 h-[2px]",
+						variant === "accent" &&
+							"bg-gradient-to-r from-primary/60 via-primary to-primary/60",
+						variant === "success" &&
+							"bg-gradient-to-r from-success/60 via-success to-success/60",
+						variant === "warning" &&
+							"bg-gradient-to-r from-warning/60 via-warning to-warning/60",
+						variant === "destructive" &&
+							"bg-gradient-to-r from-destructive/60 via-destructive to-destructive/60",
+					)}
+				/>
+			)}
 			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
 				<CardTitle className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
-					{displayTitle}
+					{title}
 				</CardTitle>
 				{renderedIcon && (
 					<div
@@ -202,81 +178,26 @@ export function KpiCard({
 							—
 						</span>
 					) : (
-						<span
-							className={cn(
-								"font-display text-4xl font-bold tracking-tighter",
-								isPrimary ? "text-primary" : "text-foreground",
-							)}
-						>
+						<span className="font-display text-4xl font-bold tracking-tighter text-foreground">
 							{value}
 						</span>
 					)}
 
-					{/* Legacy change/trend indicators */}
 					{change && (
 						<Badge
 							variant="secondary"
 							className={cn(
 								"rounded-full px-2 py-0.5 text-[0.7rem] font-bold border-0 shadow-none",
-								changeVariantStyles[change.type],
+								changeStyles[change.type],
 							)}
 						>
-							{change.type === "positive" && "↑"}
-							{change.type === "negative" && "↓"}
-							{change.type === "neutral" && "•"} {change.value}
+							{changeIcons[change.type]} {change.value}
 						</Badge>
-					)}
-					{trend && (
-						<Badge
-							variant="secondary"
-							className={cn(
-								"rounded-full px-2 py-0.5 text-[0.7rem] font-bold border-0 shadow-none",
-								trend.isPositive
-									? "bg-success/10 text-success"
-									: "bg-destructive/10 text-destructive",
-							)}
-						>
-							{trend.isPositive ? "↑" : "↓"} {Math.abs(trend.value)}%
-						</Badge>
-					)}
-
-					{/* New badge system */}
-					{badge && (
-						<Badge
-							variant={badgeVariantMap[badgeType]}
-							className="rounded-full px-2 py-0.5 text-[0.7rem] font-bold border-0 shadow-none"
-						>
-							{badge}
-						</Badge>
-					)}
-
-					{/* Sub value display */}
-					{subValue && (
-						<span className="text-xs text-muted-foreground">{subValue}</span>
-					)}
-
-					{/* Action indicator */}
-					{hasAction && (
-						<svg
-							aria-hidden="true"
-							className="ml-auto h-4 w-4 text-primary"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-								d="M7 17L17 7M17 7H7M17 7V17"
-							/>
-						</svg>
 					)}
 				</div>
 
-				{/* Subtitle display */}
-				{(subtitle || subValue) && (
-					<p className="text-xs text-muted-foreground mt-2">{subtitle}</p>
+				{subtitle && (
+					<p className="mt-2 text-xs text-muted-foreground">{subtitle}</p>
 				)}
 			</CardContent>
 		</Card>

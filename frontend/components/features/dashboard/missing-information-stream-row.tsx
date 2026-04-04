@@ -19,7 +19,7 @@ export function MissingInformationStreamRow({
 	onToggle: () => void;
 }) {
 	return (
-		<div className="rounded-[1.25rem] border border-border/40 bg-surface-container-lowest/80 shadow-sm overflow-hidden mb-2">
+		<div className="rounded-xl border border-border/40 bg-surface-container-lowest/80 shadow-sm overflow-hidden mb-2">
 			<button
 				type="button"
 				onClick={onToggle}

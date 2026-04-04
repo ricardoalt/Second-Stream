@@ -290,40 +290,35 @@ export default function AgentStreamsPage() {
 					<StaggerItem>
 						<HoverLift>
 							<KpiCard
-								label="Active Streams"
+								title="Active Streams"
 								value={formatKpi(kpis.activeStreams)}
-								isPrimary
+								variant="accent"
 							/>
 						</HoverLift>
 					</StaggerItem>
 					<StaggerItem>
 						<HoverLift>
 							<KpiCard
-								label="Critical Alerts"
+								title="Critical Alerts"
 								value={formatKpi(kpis.criticalAlerts)}
-								badge="Action Needed"
-								badgeType="destructive"
+								variant="destructive"
 							/>
 						</HoverLift>
 					</StaggerItem>
 					<StaggerItem>
 						<HoverLift>
 							<KpiCard
-								label="Monthly Volume"
+								title="Monthly Volume"
 								value={formatKpi(kpis.monthlyVolume)}
 								{...(kpis.monthlyVolume !== null
-									? { subValue: "Gallons" }
+									? { subtitle: "Gallons" }
 									: {})}
 							/>
 						</HoverLift>
 					</StaggerItem>
 					<StaggerItem>
 						<HoverLift>
-							<KpiCard
-								label="Open Offers"
-								value={formatKpi(kpis.openOffers)}
-								hasAction
-							/>
+							<KpiCard title="Open Offers" value={formatKpi(kpis.openOffers)} />
 						</HoverLift>
 					</StaggerItem>
 				</StaggerContainer>

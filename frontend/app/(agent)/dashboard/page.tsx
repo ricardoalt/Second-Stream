@@ -8,6 +8,7 @@ import {
 	useFieldAgentDashboardViewModel,
 } from "@/components/features/dashboard";
 import { AdminDashboardPageContent } from "@/components/features/workspace";
+import { PageShell } from "@/components/patterns";
 import { useAuth } from "@/lib/contexts";
 
 export default function AgentDashboardPage() {
@@ -27,7 +28,7 @@ export default function AgentDashboardPage() {
 	}
 
 	return (
-		<div className="flex flex-col gap-6">
+		<PageShell gap="lg">
 			<FieldAgentDashboardHero insights={DASHBOARD_AI_INSIGHTS_PLACEHOLDERS} />
 
 			<MissingInformationStreamsSection
@@ -42,6 +43,6 @@ export default function AgentDashboardPage() {
 				loading={loading}
 				error={error}
 			/>
-		</div>
+		</PageShell>
 	);
 }

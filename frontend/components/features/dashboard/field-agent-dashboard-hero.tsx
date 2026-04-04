@@ -10,7 +10,7 @@ export function FieldAgentDashboardHero({
 }) {
 	return (
 		<section className="space-y-4">
-			<Card className="overflow-hidden border-border/40 bg-surface-container-low shadow-sm rounded-[2rem]">
+			<Card className="overflow-hidden border-border/40 bg-surface-container-low shadow-sm rounded-2xl">
 				<CardContent className="p-0">
 					<div className="grid xl:grid-cols-[1fr_380px]">
 						{/* Left column: Progress Placeholder */}

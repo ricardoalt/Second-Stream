@@ -137,15 +137,15 @@ Current KpiCard has 15 props with dual naming (`title`/`label`, `subtitle`/`subV
 
 Update badge.tsx subtle variants to include borders (0F above). Search/replace all hardcoded `bg-success/10 text-success border-success/20` → `<Badge variant="success-subtle">`. Replace raw `<span>` pseudo-badges.
 
-### 1F. Forms → React Hook Form only
+### 1F. Forms → TanStack Form only
 
-Migrate 4 TanStack Form dialogs to RHF:
-- `create-company-dialog.tsx`
-- `company-contact-dialog.tsx`
-- `incoming-material-dialog.tsx`
-- `location-contact-dialog.tsx`
+Migrate React Hook Form dialogs to TanStack Form:
+- `add-client-dialog.tsx`
+- `create-location-dialog.tsx`
+- Any other RHF-based forms found
 
-Remove `@tanstack/react-form` from package.json.
+Remove `react-hook-form` and `@hookform/resolvers` from package.json. Keep `@tanstack/react-form`.
+Update shadcn `<Form>` wrapper or create a TanStack Form equivalent if needed.
 
 ### 1G. Dialogs → `patterns/dialogs/modal.tsx` with size prop
 
@@ -256,13 +256,13 @@ Currently only in auth. Apply `glass-liquid-subtle` to sidebar, `glass-popover` 
 12. **Offer Detail** — use PageHeader with breadcrumb
 
 ### Wave 4 — Forms & Dialogs
-13. Migrate TanStack Form dialogs → RHF (4 files)
+13. Migrate React Hook Form dialogs → TanStack Form (`add-client-dialog.tsx`, `create-location-dialog.tsx`)
 14. Migrate all dialogs to `<Modal size="...">` pattern
 15. Add `useUnsavedChanges` hook where missing
 
 ### Wave 5 — Cleanup
 16. Delete dead components: `ui/data-table.tsx`, `StreamsFamilyHeader`, duplicate `empty-state.tsx` and `confirm-purge-dialog.tsx` in ui/
-17. Remove `@tanstack/react-form` dependency
+17. Remove `react-hook-form` and `@hookform/resolvers` dependencies
 18. Replace all hardcoded badge classes and arbitrary rounded values
 
 ---
@@ -287,10 +287,13 @@ Currently only in auth. Apply `glass-liquid-subtle` to sidebar, `glass-popover` 
 
 ---
 
-## Unresolved Questions
+## Decisions Made
 
-1. **Dark mode priority?** — The dark tokens need updating too if we change primary hue. Do we invest in dark mode now or defer?
-2. **Storybook/docs page?** — Should we create a visual documentation page for the design system components? Worth the investment for consistency enforcement?
-3. **Scope of Phase 0 color changes** — Changing primary hue from 175→172 and bumping chroma affects EVERYTHING. Should we do a single big-bang CSS update or roll it gradually?
-4. **Form library migration timing** — The TanStack Form → RHF migration is mechanical but touches 4 dialogs. Do this in the same PR as visual changes or separate?
-5. **Do we want the `Empty` component from latest shadcn?** — We have a custom `EmptyState` in patterns. shadcn now ships its own `Empty` component. Keep ours or migrate?
+- **Color rollout:** Big-bang in globals.css (no users yet, clean single update)
+- **Dark mode:** Update dark tokens alongside light (maintain full parity)
+- **Form library:** TanStack Form is the standard. Migrate RHF dialogs to TanStack Form.
+- **Design docs:** No Storybook/docs page. Well-documented code with JSDoc only.
+
+## Open Questions
+
+1. **Do we want the `Empty` component from latest shadcn?** — We have a custom `EmptyState` in patterns. shadcn now ships its own `Empty` component. Keep ours or migrate?

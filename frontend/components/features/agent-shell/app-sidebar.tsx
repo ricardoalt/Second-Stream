@@ -44,7 +44,7 @@ export function AppSidebar({ userName, userEmail }: AppSidebarProps) {
 	return (
 		<aside
 			className={cn(
-				"sticky top-0 hidden h-screen shrink-0 flex-col bg-sidebar px-3 py-4 md:flex",
+				"sticky top-0 hidden h-screen shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-4 md:flex",
 				collapsed ? "w-[72px]" : "w-60",
 			)}
 		>

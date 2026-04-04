@@ -190,7 +190,7 @@ export function FieldAgentOfferPipelineSection({
 														{featuredItems[group.featuredState]?.map((item) => (
 															<div
 																key={item.id}
-																className="flex items-center justify-between bg-surface-container-lowest rounded-[1rem] p-4 shadow-sm border border-border/20"
+																className="flex items-center justify-between bg-surface-container-lowest rounded-lg p-4 shadow-sm border border-border/20"
 															>
 																<div className="flex items-center gap-3">
 																	<div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
@@ -312,7 +312,7 @@ export function FieldAgentOfferPipelineSection({
 														{featuredItems[group.featuredState]?.map((item) => (
 															<div
 																key={item.id}
-																className="flex items-center justify-between bg-surface-container-lowest rounded-[1rem] p-4 shadow-sm border border-border/20"
+																className="flex items-center justify-between bg-surface-container-lowest rounded-lg p-4 shadow-sm border border-border/20"
 															>
 																<div className="flex items-center gap-3">
 																	<div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">

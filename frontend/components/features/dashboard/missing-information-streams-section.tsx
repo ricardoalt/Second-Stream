@@ -38,7 +38,7 @@ export function MissingInformationStreamsSection({
 
 	return (
 		<section className="space-y-4">
-			<Card className="border-border/40 bg-surface-container-low shadow-sm rounded-[2rem] pt-6 pb-8 px-6">
+			<Card className="border-border/40 bg-surface-container-low shadow-sm rounded-2xl pt-6 pb-8 px-6">
 				<div className="flex items-center justify-between mb-8 px-2 flex-wrap gap-4">
 					<div className="flex items-center gap-4">
 						<div className="flex items-center justify-center">
@@ -73,15 +73,12 @@ export function MissingInformationStreamsSection({
 
 					{loading
 						? MISSING_INFO_SKELETON_KEYS.map((key) => (
-								<Skeleton
-									key={key}
-									className="h-20 w-full mb-2 rounded-[1.25rem]"
-								/>
+								<Skeleton key={key} className="h-20 w-full mb-2 rounded-xl" />
 							))
 						: null}
 
 					{!loading && streams.length === 0 ? (
-						<p className="rounded-[1.25rem] border border-border/40 bg-surface-container-lowest p-8 text-center text-sm text-muted-foreground">
+						<p className="rounded-xl border border-border/40 bg-surface-container-lowest p-8 text-center text-sm text-muted-foreground">
 							No streams currently require missing information follow-up.
 						</p>
 					) : null}
