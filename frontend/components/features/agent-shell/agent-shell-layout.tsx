@@ -12,6 +12,11 @@ type AgentShellLayoutProps = {
 
 export function AgentShellLayout({ children }: AgentShellLayoutProps) {
 	const { user, logout } = useAuth();
+
+	if (!user) {
+		return null;
+	}
+
 	const fullName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim();
 	const userEmail = user?.email || "";
 

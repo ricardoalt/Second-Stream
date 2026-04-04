@@ -1,4 +1,5 @@
 import type { OfferPipelineResponseDTO } from "@/lib/api/offers";
+import type { User } from "@/lib/types/user";
 import type {
 	DashboardListResponse,
 	DashboardRow,
@@ -22,6 +23,20 @@ export type TeamOwnerGroup = {
 	ownerLabel: string;
 	streams: PersistedStreamRow[];
 };
+
+function formatUserDisplayName(user: User): string {
+	const fullName = `${user.firstName} ${user.lastName}`.trim();
+	return fullName || user.email;
+}
+
+function sortOwnerGroups(groups: TeamOwnerGroup[]): TeamOwnerGroup[] {
+	return [...groups].sort((left, right) => {
+		if (right.streams.length !== left.streams.length) {
+			return right.streams.length - left.streams.length;
+		}
+		return left.ownerLabel.localeCompare(right.ownerLabel);
+	});
+}
 
 const QUEUE_PRIORITY_WEIGHT: Record<QueuePriority, number> = {
 	critical: 0,
@@ -87,12 +102,36 @@ export function groupStreamsByOwner(rows: DashboardRow[]): TeamOwnerGroup[] {
 		});
 	}
 
-	return [...groups.values()].sort((left, right) => {
-		if (right.streams.length !== left.streams.length) {
-			return right.streams.length - left.streams.length;
+	return sortOwnerGroups([...groups.values()]);
+}
+
+export function buildTeamOwnerGroups(
+	rows: DashboardRow[],
+	users: User[],
+): TeamOwnerGroup[] {
+	const groups = new Map(
+		groupStreamsByOwner(rows).map((group) => [group.ownerUserId, group] as const),
+	);
+
+	for (const user of users) {
+		if (user.role !== "field_agent" || !user.isActive) {
+			continue;
 		}
-		return left.ownerLabel.localeCompare(right.ownerLabel);
-	});
+
+		const existing = groups.get(user.id);
+		if (existing) {
+			existing.ownerLabel = formatUserDisplayName(user);
+			continue;
+		}
+
+		groups.set(user.id, {
+			ownerUserId: user.id,
+			ownerLabel: formatUserDisplayName(user),
+			streams: [],
+		});
+	}
+
+	return sortOwnerGroups([...groups.values()]);
 }
 
 export function buildSupervisionQueue(

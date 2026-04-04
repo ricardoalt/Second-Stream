@@ -17,14 +17,16 @@ import { getAvatarColorForName, TeamAvatar } from "@/components/ui/team-avatar";
 import { dashboardAPI } from "@/lib/api/dashboard";
 import type { OfferPipelineResponseDTO } from "@/lib/api/offers";
 import { offersAPI } from "@/lib/api/offers";
+import { organizationsAPI } from "@/lib/api/organizations";
 import { routes } from "@/lib/routes";
 import type {
 	DashboardListResponse,
 	PersistedStreamRow,
 	QueuePriority,
 } from "@/lib/types/dashboard";
+import type { User } from "@/lib/types/user";
 import {
-	groupStreamsByOwner,
+	buildTeamOwnerGroups,
 } from "./admin-dashboard-data";
 
 type AdminDashboardPageContentProps = {
@@ -149,6 +151,7 @@ export function AdminDashboardPageContent({
 		useState<DashboardListResponse>(EMPTY_DASHBOARD);
 	const [pipeline, setPipeline] =
 		useState<OfferPipelineResponseDTO>(EMPTY_PIPELINE);
+	const [teamMembers, setTeamMembers] = useState<User[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -158,13 +161,15 @@ export function AdminDashboardPageContent({
 			setLoading(true);
 			setError(null);
 			try {
-				const [dashboardResult, pipelineResult] = await Promise.allSettled([
+				const [dashboardResult, pipelineResult, teamMembersResult] =
+					await Promise.allSettled([
 					dashboardAPI.getDashboard({
 						bucket: "total",
 						size: DASHBOARD_PAGE_SIZE,
 						signal: controller.signal,
 					}),
 					offersAPI.getPipeline(),
+					organizationsAPI.listMyOrgUsers(),
 				]);
 
 				if (dashboardResult.status === "fulfilled") {
@@ -175,6 +180,10 @@ export function AdminDashboardPageContent({
 
 				if (pipelineResult.status === "fulfilled") {
 					setPipeline(pipelineResult.value);
+				}
+
+				if (teamMembersResult.status === "fulfilled") {
+					setTeamMembers(teamMembersResult.value);
 				}
 			} catch {
 				if (!controller.signal.aborted) {
@@ -191,8 +200,8 @@ export function AdminDashboardPageContent({
 	}, []);
 
 	const teamGroups = useMemo(
-		() => groupStreamsByOwner(dashboard.items),
-		[dashboard.items],
+		() => buildTeamOwnerGroups(dashboard.items, teamMembers),
+		[dashboard.items, teamMembers],
 	);
 	const pipelineValue = useMemo(
 		() => formatPipelineValue(pipeline.items),
@@ -201,8 +210,19 @@ export function AdminDashboardPageContent({
 
 	// Render expanded stream content
 	const renderExpandedStreams = (
-		group: ReturnType<typeof groupStreamsByOwner>[number],
+		group: typeof teamGroups[number],
 	) => {
+		if (group.streams.length === 0) {
+			return (
+				<>
+					<SectionDivider label="Active waste streams" />
+					<p className="text-sm text-muted-foreground">
+						No active waste streams assigned yet.
+					</p>
+				</>
+			);
+		}
+
 		return (
 			<>
 				<SectionDivider label="Active waste streams" />

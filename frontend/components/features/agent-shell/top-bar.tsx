@@ -52,7 +52,7 @@ function getTitle(pathname: string): string {
 	if (pathname.startsWith("/streams/")) return "Stream Workspace";
 	if (pathname.startsWith("/clients/")) return "Client Profile";
 	if (pathname.startsWith("/offers/")) return "Offer Detail";
-	return pageTitleMap[pathname] ?? "Field Agent";
+	return pageTitleMap[pathname] ?? "Workspace";
 }
 
 type TopBarProps = {

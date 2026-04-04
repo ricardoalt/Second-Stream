@@ -82,6 +82,9 @@ export {
 	AlertDialogTrigger,
 } from "./alert-dialog";
 
+// Alert
+export { Alert, AlertDescription, AlertTitle } from "./alert";
+
 // Toast/Sonner
 export { Toaster } from "./sonner";
 

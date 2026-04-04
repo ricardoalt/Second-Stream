@@ -1,7 +1,7 @@
 # Field-Agent Frontend Redesign — Canonical Implementation Plan
 
 **Date:** 2026-03-24  
-**Last updated:** 2026-03-30  
+**Last updated:** 2026-04-03  
 **Status:** Canonical frontend implementation plan (living, execution-ready)  
 **Scope:** Frontend `(agent)` field-agent experience (Stitch parity + quality uplift)  
 **Canonical baseline:** Stitch project `16271509822248673774` (SecondStream)
@@ -180,29 +180,21 @@ Normalization rules:
 
 Intent: triage-first command center, not a passive KPI wall or filtered streams list.
 
-Must-have requirements (based on actual Stitch wireframe):
-- **Zone 1 - Executive Summary**: 4 KPI cards:
-  - Monthly Pipeline Growth
-  - Conversion Rate
-  - Avg. Deal Cycle
-  - Compliance Score
-- **Zone 2 - Immediate Action Required: Critical Alerts**: 3 cards:
-  - Overdue
-  - Stagnant Deal
-  - New Opportunity
-  - Each with status label, client, short description, and single dominant CTA
-- **Zone 3 - Streams Awaiting Information**: Focused table centered on:
-  - Material
-  - Client / Origin Site
-  - Compliance Status
-  - Missing Documentation
-  - Strategic Action
-  - CTA per row
-- **Zone 4 - Today's Strategic Focus**: Single editorial card with:
-  - High-impact focus block
-  - Primary CTA
-  - Secondary CTA
-  - Daily progress indicator
+Must-have requirements (based on current Stitch-aligned dashboard definition):
+- **Hero split (left + right rail):**
+  - Left: greeting, discovery CTA, monthly operational KPIs
+  - Right: **AI Insights** with hardcoded but credible operational nudges
+- **Monthly Streams Progress** appears as an explicit **Coming soon** placeholder card (no fake progress model)
+- **Missing Information Streams** appears as an **expandable list** (not bucket tabs), where each row can expand to reveal missing artifacts + direct follow-up action
+- **Offer pipeline blocks:**
+  - **Pre-Offer Pipeline** grouped with user-facing labels:
+    - Not Sent = `uploaded + waiting_to_send`
+    - Sent = `waiting_response`
+    - In Negotiation = `under_negotiation`
+  - **Closing & Results** grouped with user-facing labels:
+    - Accepted = `accepted`
+    - Rejected = `declined/rejected`
+- **Excluded from dashboard scope:** Workspace Activity and Tasks blocks
 
 Dashboard does NOT have bucket tabs. Those belong to Waste Streams family.
 

@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isOrgExemptRoute } from "@/lib/constants";
+import { isOrgExemptRoute, isPublicRoute } from "@/lib/constants";
 import { useAuth } from "@/lib/contexts";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
 import { OrgRequiredScreen } from "./org-required-screen";
@@ -67,11 +67,12 @@ export function OrgContextGuard({ children }: OrgContextGuardProps) {
 
 	const [orgsStatus, setOrgsStatus] = useState<OrgsStatus>("idle");
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const isPublicPath = isPublicRoute(pathname);
 
 	// Single effect: load orgs when guard applies, then validate selection
 	useEffect(() => {
 		// Reset state when guard doesn't apply (logout, role change)
-		if (!isSuperAdmin || !isAuthenticated) {
+		if (isPublicPath || !isSuperAdmin || !isAuthenticated) {
 			if (orgsStatus !== "idle") {
 				setOrgsStatus("idle");
 				setErrorMessage(null);
@@ -109,6 +110,7 @@ export function OrgContextGuard({ children }: OrgContextGuardProps) {
 			void loadAndValidate();
 		}
 	}, [
+		isPublicPath,
 		isSuperAdmin,
 		isAuthenticated,
 		pathname,
@@ -130,6 +132,11 @@ export function OrgContextGuard({ children }: OrgContextGuardProps) {
 	);
 
 	// --- Guard Logic ---
+
+	// 0. Public routes should never be blocked by org context or auth loading UI
+	if (isPublicPath) {
+		return <>{children}</>;
+	}
 
 	// 1. Auth is loading - show loading shell
 	if (authLoading) {
