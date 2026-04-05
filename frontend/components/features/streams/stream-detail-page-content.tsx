@@ -42,8 +42,38 @@ import type { StreamPhase } from "./types";
 const QUESTIONNAIRE_AUTOSAVE_DELAY_MS = 500;
 type CompleteDiscoveryStatus = "idle" | "submitting" | "error";
 
+export function resolveCompleteDiscoveryDisabled({
+	completeDiscoveryStatus,
+	questionnaireAnswersDirty,
+	questionnaireSaveStatus,
+}: {
+	completeDiscoveryStatus: CompleteDiscoveryStatus;
+	questionnaireAnswersDirty: boolean;
+	questionnaireSaveStatus: "idle" | "saving" | "saved" | "error";
+}): boolean {
+	return (
+		completeDiscoveryStatus === "submitting" ||
+		questionnaireAnswersDirty ||
+		questionnaireSaveStatus === "saving"
+	);
+}
+
 export function buildOfferDetailHref({ projectId }: { projectId: string }) {
 	return `/offers/${projectId}`;
+}
+
+export function buildOfferDetailHandoffHref({
+	projectId,
+	insightsRefreshFailed,
+}: {
+	projectId: string;
+	insightsRefreshFailed: boolean;
+}) {
+	if (!insightsRefreshFailed) {
+		return buildOfferDetailHref({ projectId });
+	}
+
+	return `${buildOfferDetailHref({ projectId })}?insightsRefreshFailed=1`;
 }
 
 export function buildPhaseCompletion(
@@ -145,6 +175,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		reviewSuggestionsStatus,
 		phaseProgress,
 		firstIncompletePhase,
+		discoveryCompleted,
 		baseFields,
 		quickCaptureStatus,
 		backgroundHydrateError,
@@ -157,6 +188,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 			reviewSuggestionsStatus: state.reviewSuggestionsStatus,
 			phaseProgress: state.phaseProgress,
 			firstIncompletePhase: state.firstIncompletePhase,
+			discoveryCompleted: state.discoveryCompleted,
 			baseFields: state.baseFields,
 			quickCaptureStatus: state.quickCaptureStatus,
 			backgroundHydrateError: state.backgroundHydrateError,
@@ -199,12 +231,21 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 			return;
 		}
 
+		if (questionnaireSaveStatus === "saving") {
+			return;
+		}
+
 		const saveTimer = setTimeout(() => {
 			void saveQuestionnaireAnswers(id);
 		}, QUESTIONNAIRE_AUTOSAVE_DELAY_MS);
 
 		return () => clearTimeout(saveTimer);
-	}, [id, questionnaireAnswersDirty, saveQuestionnaireAnswers]);
+	}, [
+		id,
+		questionnaireAnswersDirty,
+		questionnaireSaveStatus,
+		saveQuestionnaireAnswers,
+	]);
 
 	const phaseCompletion = useMemo(
 		() => buildPhaseCompletion(phaseProgress),
@@ -305,8 +346,9 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		setCompleteDiscoveryError(null);
 		try {
 			const response = await workspaceAPI.completeDiscovery(id);
-			const href = buildOfferDetailHref({
+			const href = buildOfferDetailHandoffHref({
 				projectId: response.offer.projectId,
+				insightsRefreshFailed: response.insightsRefreshFailed,
 			});
 			setCompleteDiscoveryModalOpen(false);
 			router.push(href);
@@ -321,10 +363,11 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		}
 	};
 
-	const completeDiscoveryDisabled =
-		completeDiscoveryStatus === "submitting" ||
-		questionnaireAnswersDirty ||
-		questionnaireSaveStatus === "saving";
+	const completeDiscoveryDisabled = resolveCompleteDiscoveryDisabled({
+		completeDiscoveryStatus,
+		questionnaireAnswersDirty,
+		questionnaireSaveStatus,
+	});
 
 	const prevPhase = activePhase > 1 ? ((activePhase - 1) as StreamPhase) : null;
 	const nextPhase = activePhase < 4 ? ((activePhase + 1) as StreamPhase) : null;
@@ -355,7 +398,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 				<header className="animate-fade-in-up">
 					<div className="flex flex-col gap-1.5">
 						<p className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-							Waste Streams &rsaquo; Missing Information &rsaquo;{" "}
+							Waste Streams &rsaquo; Discovery Workspace &rsaquo;{" "}
 							<span className="font-bold text-foreground">{materialName}</span>
 						</p>
 						<div className="flex items-start justify-between gap-4">
@@ -365,7 +408,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 								</h1>
 								<div className="flex items-center gap-2.5">
 									<p className="text-sm text-muted-foreground">
-										Complete Stream Information
+										Discovery workspace
 									</p>
 									<Badge
 										variant="outline"
@@ -525,7 +568,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 													}}
 													disabled={completeDiscoveryDisabled}
 												>
-													Complete Discovery
+													{discoveryCompleted ? "Update Discovery" : "Complete Discovery"}
 													<ArrowRight className="size-4" aria-hidden />
 												</Button>
 											) : null}
@@ -592,7 +635,9 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 				}}
 			>
 				<DialogContent className="glass-popover w-[min(92vw,560px)] max-w-none rounded-2xl p-0">
-					<DialogTitle className="sr-only">Complete Discovery</DialogTitle>
+					<DialogTitle className="sr-only">
+						{discoveryCompleted ? "Update Discovery" : "Complete Discovery"}
+					</DialogTitle>
 					<DialogDescription className="sr-only">
 						Finalize this stream discovery and open the Offer detail.
 					</DialogDescription>
@@ -601,11 +646,12 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 							Phase 4 handoff
 						</p>
 						<h2 className="font-display text-2xl font-semibold text-foreground">
-							Complete Discovery?
+							{discoveryCompleted ? "Update Discovery?" : "Complete Discovery?"}
 						</h2>
 						<p className="text-sm text-muted-foreground">
-							This confirms discovery and opens the Offer detail for next-step
-							action.
+							{discoveryCompleted
+								? "This refreshes discovery context and opens the Offer detail for next-step action."
+								: "This confirms discovery and opens the Offer detail for next-step action."}
 						</p>
 					</div>
 					<div className="space-y-3 px-6 py-5">
@@ -630,7 +676,9 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 							>
 								{completeDiscoveryStatus === "submitting"
 									? "Completing..."
-									: "Complete Discovery"}
+									: discoveryCompleted
+										? "Update Discovery"
+										: "Complete Discovery"}
 							</Button>
 						</div>
 					</div>

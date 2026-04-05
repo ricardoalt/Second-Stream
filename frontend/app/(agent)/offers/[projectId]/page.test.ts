@@ -51,6 +51,7 @@ describe("offer detail runtime behavior", () => {
 	});
 
 	it("uses offer-oriented labels while preserving backend state keys", () => {
+		expect(OFFER_FOLLOW_UP_LABELS.uploaded).toBe("Offer started");
 		expect(OFFER_FOLLOW_UP_LABELS.waiting_to_send).toBe("Ready to send");
 		expect(OFFER_FOLLOW_UP_LABELS.waiting_response).toBe("Awaiting response");
 		expect(OFFER_FOLLOW_UP_LABELS.rejected).toBe("Declined");

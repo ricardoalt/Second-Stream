@@ -202,11 +202,52 @@ describe("stream workspace foundation verification", () => {
 
 	it("shows Complete Discovery CTA only in workspace shell", () => {
 		expect(workspaceShellSource.includes("Complete Discovery")).toBe(true);
+		expect(workspaceShellSource.includes("Update Discovery")).toBe(true);
 		expect(workspaceShellSource.includes("Complete Discovery?")).toBe(true);
+		expect(workspaceShellSource.includes("Update Discovery?")).toBe(true);
 		expect(
 			workspaceShellSource.includes(
 				"This confirms discovery and opens the Offer detail",
 			),
+		).toBe(true);
+		expect(
+			workspaceShellSource.includes(
+				"This refreshes discovery context and opens the Offer detail",
+			),
+		).toBe(true);
+	});
+
+	it("keeps Update Discovery enabled after completion while preserving save/submitting guards", () => {
+		expect(
+			streamDetailModule.resolveCompleteDiscoveryDisabled({
+				completeDiscoveryStatus: "idle",
+				questionnaireAnswersDirty: false,
+				questionnaireSaveStatus: "idle",
+			}),
+		).toBe(false);
+
+		expect(
+			streamDetailModule.resolveCompleteDiscoveryDisabled({
+				completeDiscoveryStatus: "submitting",
+				questionnaireAnswersDirty: false,
+				questionnaireSaveStatus: "idle",
+			}),
+		).toBe(true);
+
+		expect(
+			streamDetailModule.resolveCompleteDiscoveryDisabled({
+				completeDiscoveryStatus: "idle",
+				questionnaireAnswersDirty: true,
+				questionnaireSaveStatus: "idle",
+			}),
+		).toBe(true);
+
+		expect(
+			streamDetailModule.resolveCompleteDiscoveryDisabled({
+				completeDiscoveryStatus: "idle",
+				questionnaireAnswersDirty: false,
+				questionnaireSaveStatus: "saving",
+			}),
 		).toBe(true);
 	});
 
@@ -216,5 +257,10 @@ describe("stream workspace foundation verification", () => {
 				projectId: "project-123",
 			}),
 		).toBe("/offers/project-123");
+	});
+
+	it("keeps complete discovery aligned to project-scoped offer handoff", () => {
+		expect(workspaceShellSource.includes("response.offer.projectId")).toBe(true);
+		expect(workspaceShellSource.includes("response.offer.proposalId")).toBe(false);
 	});
 });

@@ -76,7 +76,7 @@ function streamStageLabel(stream: PersistedStreamRow): string {
 		return "In Negotiation";
 	if (stream.proposalFollowUpState === "waiting_response") return "Review";
 	if (stream.proposalFollowUpState === "waiting_to_send") return "Proposal";
-	if (stream.proposalFollowUpState === "uploaded") return "Intake";
+	if (stream.proposalFollowUpState === "uploaded") return "Offer started";
 	if (stream.missingRequiredInfo) return "Missing info";
 	if (stream.pendingConfirmation) return "Confirmation";
 	return "In progress";

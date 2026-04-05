@@ -140,6 +140,7 @@ class WorkspaceService:
         )
         return WorkspaceHydrateResponse(
             project_id=project.id,
+            discovery_completed=bool(project.proposal_follow_up_state),
             base_fields=base_fields,
             custom_fields=custom_fields,
             evidence_items=evidence_items,
@@ -774,6 +775,9 @@ class WorkspaceService:
         project: Project,
         current_user: User,
     ) -> WorkspaceCompleteDiscoveryResponse:
+        insights_refresh_failed = False
+        if project.proposal_follow_up_state is None:
+            project.proposal_follow_up_state = "uploaded"
         await WorkspaceService._persist_workspace_patch(
             db=db,
             project=project,
@@ -783,17 +787,33 @@ class WorkspaceService:
             },
         )
         await db.refresh(project)
-        await OfferService.refresh_offer_insights(
-            db=db,
-            project=project,
-            current_user=current_user,
-        )
+        try:
+            await OfferService.refresh_offer_insights(
+                db=db,
+                project=project,
+                current_user=current_user,
+            )
+        except HTTPException as exc:
+            detail = exc.detail if isinstance(exc.detail, dict) else {}
+            if (
+                exc.status_code == status.HTTP_502_BAD_GATEWAY
+                and detail.get("code") == "OFFER_INSIGHTS_GENERATION_FAILED"
+            ):
+                insights_refresh_failed = True
+                logger.warning(
+                    "workspace_complete_discovery_offer_insights_refresh_failed",
+                    project_id=str(project.id),
+                    error=detail.get("message", str(exc.detail)),
+                )
+            else:
+                raise
 
         return WorkspaceCompleteDiscoveryResponse(
             message="Discovery marked complete",
             offer=WorkspaceOfferNavigationTarget(
                 project_id=project.id,
             ),
+            insights_refresh_failed=insights_refresh_failed,
         )
 
     @staticmethod

@@ -344,6 +344,8 @@ def _effective_proposal_follow_up_state(
     stored_state: str | None,
     proposal_count: int,
 ) -> ProposalFollowUpState | None:
+    if stored_state == "uploaded":
+        return "uploaded"
     if proposal_count == 0:
         return None
     if stored_state is not None:
@@ -1823,12 +1825,6 @@ async def update_project_proposal_follow_up_state(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Invalid proposal follow-up transition",
-        )
-
-    if proposal_count == 0:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot start proposal follow-up without a proposal",
         )
 
     project.proposal_follow_up_state = next_state

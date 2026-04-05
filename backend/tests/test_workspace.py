@@ -1607,6 +1607,7 @@ async def test_workspace_complete_discovery_seeds_offer_insights_and_returns_off
     assert "proposalId" not in payload["offer"]
 
     await db_session.refresh(project)
+    assert project.proposal_follow_up_state == "uploaded"
     project_data = _project_data_dict(project)
     workspace_data = _require_dict(project_data["workspace_v1"])
     completed_at = workspace_data.get("discovery_completed_at")
@@ -1619,6 +1620,31 @@ async def test_workspace_complete_discovery_seeds_offer_insights_and_returns_off
     freshness = _require_dict(offer_data.get("freshness"))
     assert insights["summary"] == "Discovery evidence supports rapid offer preparation."
     assert isinstance(freshness.get("generated_at"), str)
+
+    offer_response = await client.get(f"/api/v1/projects/{project.id}/offer")
+    assert offer_response.status_code == 200
+    assert offer_response.json()["followUpState"] == "uploaded"
+
+    pipeline_response = await client.get("/api/v1/projects/offers/pipeline")
+    assert pipeline_response.status_code == 200
+    pipeline_payload = pipeline_response.json()
+    assert pipeline_payload["counts"]["total"] == 1
+    assert pipeline_payload["counts"]["uploaded"] == 1
+    assert pipeline_payload["items"][0]["projectId"] == str(project.id)
+    assert pipeline_payload["items"][0]["proposalFollowUpState"] == "uploaded"
+
+    missing_information = await client.get(
+        "/api/v1/projects/dashboard?bucket=missing_information"
+    )
+    assert missing_information.status_code == 200
+    assert missing_information.json()["total"] == 0
+
+    proposal_bucket = await client.get(
+        "/api/v1/projects/dashboard?bucket=proposal&proposal_follow_up_state=uploaded"
+    )
+    assert proposal_bucket.status_code == 200
+    assert proposal_bucket.json()["total"] == 1
+    assert proposal_bucket.json()["items"][0]["projectId"] == str(project.id)
 
 
 @pytest.mark.asyncio
@@ -1652,6 +1678,7 @@ async def test_workspace_complete_discovery_keeps_existing_proposals_but_not_nav
         location_id=location.id,
         name="Workspace Complete Reuse Project",
     )
+    project.proposal_follow_up_state = "waiting_to_send"
     from app.models.proposal import Proposal
 
     existing = Proposal(
@@ -1692,6 +1719,13 @@ async def test_workspace_complete_discovery_keeps_existing_proposals_but_not_nav
     assert response.status_code == 200
     payload = response.json()
     assert payload["offer"] == {"projectId": str(project.id)}
+
+    await db_session.refresh(project)
+    assert project.proposal_follow_up_state == "waiting_to_send"
+
+    offer_response = await client.get(f"/api/v1/projects/{project.id}/offer")
+    assert offer_response.status_code == 200
+    assert offer_response.json()["followUpState"] == "waiting_to_send"
 
 
 @pytest.mark.asyncio
@@ -1783,6 +1817,73 @@ async def test_workspace_complete_discovery_with_multiple_active_proposals_still
     project_data = _project_data_dict(project)
     workspace_data = _require_dict(project_data.get("workspace_v1"))
     assert isinstance(workspace_data.get("discovery_completed_at"), str)
+
+
+@pytest.mark.asyncio
+async def test_workspace_complete_discovery_succeeds_when_offer_insights_refresh_fails(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Workspace Complete Degraded",
+        f"org-workspace-complete-degraded-{uid}",
+    )
+    user = await create_user(
+        db_session,
+        email=f"workspace-complete-degraded-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Workspace Complete Degraded Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Workspace Complete Degraded Loc",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Workspace Complete Degraded Project",
+    )
+
+    async def _failing_offer_analysis(*_args, **_kwargs):
+        from app.agents.offer_insights_agent import OfferInsightsError
+
+        raise OfferInsightsError("429 rate limited")
+
+    monkeypatch.setattr(
+        "app.agents.offer_insights_agent.analyze_offer_insights",
+        _failing_offer_analysis,
+    )
+
+    set_current_user(user)
+    response = await client.post(f"/api/v1/projects/{project.id}/workspace/complete-discovery")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["message"] == "Discovery marked complete"
+    assert payload["offer"] == {"projectId": str(project.id)}
+    assert payload["insightsRefreshFailed"] is True
+
+    await db_session.refresh(project)
+    project_data = _project_data_dict(project)
+    workspace_data = _require_dict(project_data.get("workspace_v1"))
+    completed_at = workspace_data.get("discovery_completed_at")
+    assert isinstance(completed_at, str)
+
+    offer_data = project_data.get("offer_v1")
+    if offer_data is not None:
+        assert _require_dict(offer_data).get("insights") is None
+
+    offer_response = await client.get(f"/api/v1/projects/{project.id}/offer")
+    assert offer_response.status_code == 200
+    offer_payload = offer_response.json()
+    assert offer_payload["projectId"] == str(project.id)
+    assert offer_payload["insights"] is None
 
 
 def test_questionnaire_phase_progress_marks_completion_by_phase_requirements():

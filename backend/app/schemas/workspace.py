@@ -204,6 +204,7 @@ class WorkspaceDerivedInsights(BaseSchema):
 
 class WorkspaceHydrateResponse(BaseSchema):
     project_id: UUID
+    discovery_completed: bool = False
     base_fields: list[WorkspaceBaseFieldItem]
     custom_fields: list[WorkspaceCustomFieldItem]
     evidence_items: list[WorkspaceEvidenceItem]
@@ -331,6 +332,7 @@ class WorkspaceOfferNavigationTarget(BaseSchema):
 class WorkspaceCompleteDiscoveryResponse(BaseSchema):
     message: str
     offer: WorkspaceOfferNavigationTarget
+    insights_refresh_failed: bool = False
 
 
 def _serialize_canonical_datetime(dt: datetime) -> str:

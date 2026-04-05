@@ -326,7 +326,7 @@ export default function OffersPage() {
 								<SelectContent>
 									<SelectGroup>
 										<SelectItem value="all">All stages</SelectItem>
-										<SelectItem value="requires_data">Requires data</SelectItem>
+										<SelectItem value="requires_data">Offer started</SelectItem>
 										<SelectItem value="proposal_ready">
 											Ready to send
 										</SelectItem>

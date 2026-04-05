@@ -39,6 +39,7 @@ interface WorkspaceState {
 	questionnaireSuggestions: WorkspaceQuestionSuggestion[];
 	phaseProgress: WorkspacePhaseProgress;
 	firstIncompletePhase: 1 | 2 | 3 | 4;
+	discoveryCompleted: boolean;
 
 	// Transient
 	proposalBatch: WorkspaceProposalBatch | null;
@@ -135,6 +136,7 @@ const createInitialState = () => ({
 	questionnaireSuggestions: [] as WorkspaceQuestionSuggestion[],
 	phaseProgress: { "1": false, "2": false, "3": false, "4": false },
 	firstIncompletePhase: 1 as 1 | 2 | 3 | 4,
+	discoveryCompleted: false,
 	proposalBatch: null as WorkspaceProposalBatch | null,
 	proposalModalOpen: false,
 	baseFieldsDirty: false,
@@ -337,6 +339,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 					"4": false,
 				};
 				s.firstIncompletePhase = data.firstIncompletePhase ?? 1;
+				s.discoveryCompleted = data.discoveryCompleted ?? false;
 				if (data.derived && typeof data.derived === "object") {
 					s.derived = {
 						...data.derived,

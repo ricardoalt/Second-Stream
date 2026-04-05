@@ -20,7 +20,7 @@ const PROPOSAL_FOLLOW_UP_TRANSITIONS: Record<
 };
 
 export const OFFER_FOLLOW_UP_LABELS: Record<ProposalFollowUpState, string> = {
-	uploaded: "Offer drafted",
+	uploaded: "Offer started",
 	waiting_to_send: "Ready to send",
 	waiting_response: "Awaiting response",
 	under_negotiation: "In negotiation",

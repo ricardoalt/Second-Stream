@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Archive, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { OfferStatusBadge } from "@/components/features/offers/components/offer-status-badge";
 import { OfferDetailPrimarySurface } from "@/components/features/offers/offer-detail-primary-surface";
@@ -19,10 +19,47 @@ import { routes } from "@/lib/routes";
 import type { ProposalFollowUpState } from "@/lib/types/dashboard";
 import { getErrorMessage } from "@/lib/utils/logger";
 
+export function shouldShowInsightsRefreshFailedNotice(
+	queryParamValue: string | null,
+) {
+	return queryParamValue === "1";
+}
+
+export function removeInsightsRefreshFailedFromHref(href: string) {
+	const url = new URL(href);
+	if (!url.searchParams.has("insightsRefreshFailed")) {
+		return null;
+	}
+
+	url.searchParams.delete("insightsRefreshFailed");
+	const search = url.searchParams.toString();
+
+	return `${url.pathname}${search ? `?${search}` : ""}${url.hash}`;
+}
+
+export function OfferInsightsRefreshFailedNotice() {
+	return (
+		<Alert variant="warning">
+			<AlertTriangle className="size-4" aria-hidden />
+			<AlertTitle>Discovery completed with delayed insights</AlertTitle>
+			<AlertDescription>
+				Discovery completed and this Offer is open, but insights could not be
+				generated yet. You can continue now and refresh insights when ready.
+			</AlertDescription>
+		</Alert>
+	);
+}
+
 export default function OfferDetailPage() {
 	const params = useParams<{ projectId: string }>();
+	const searchParams = useSearchParams();
 	const projectId =
 		typeof params.projectId === "string" ? params.projectId : "";
+	const [insightsRefreshFailedOnHandoff] = useState(() =>
+		shouldShowInsightsRefreshFailedNotice(
+			searchParams.get("insightsRefreshFailed"),
+		),
+	);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,6 +79,19 @@ export default function OfferDetailPage() {
 		const response = await offersAPI.getOfferDetail(targetProjectId);
 		setDetail(response);
 	};
+
+	useEffect(() => {
+		if (!insightsRefreshFailedOnHandoff) {
+			return;
+		}
+
+		const nextHref = removeInsightsRefreshFailedFromHref(window.location.href);
+		if (!nextHref) {
+			return;
+		}
+
+		window.history.replaceState(window.history.state, "", nextHref);
+	}, [insightsRefreshFailedOnHandoff]);
 
 	useEffect(() => {
 		if (!projectId) {
@@ -262,6 +312,10 @@ export default function OfferDetailPage() {
 						Refresh insights to use the latest source data.
 					</AlertDescription>
 				</Alert>
+			) : null}
+
+			{insightsRefreshFailedOnHandoff ? (
+				<OfferInsightsRefreshFailedNotice />
 			) : null}
 
 			<OfferDetailPrimarySurface

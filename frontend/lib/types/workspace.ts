@@ -128,6 +128,7 @@ export interface WorkspaceQuestionSuggestionReviewResponse {
 
 export interface WorkspaceHydrateResponse {
 	projectId: string;
+	discoveryCompleted: boolean;
 	baseFields: WorkspaceBaseField[];
 	customFields: WorkspaceCustomField[];
 	evidenceItems: WorkspaceEvidenceItem[];
@@ -188,10 +189,10 @@ export interface WorkspaceContextNoteResponse {
 
 export interface WorkspaceOfferNavigationTarget {
 	projectId: string;
-	proposalId: string;
 }
 
 export interface WorkspaceCompleteDiscoveryResponse {
 	message: string;
 	offer: WorkspaceOfferNavigationTarget;
+	insightsRefreshFailed: boolean;
 }

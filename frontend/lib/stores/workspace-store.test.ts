@@ -23,6 +23,7 @@ function buildHydrateResponse(
 ): WorkspaceHydrateResponse {
 	return {
 		projectId: "project-1",
+		discoveryCompleted: false,
 		baseFields: [],
 		customFields: [],
 		evidenceItems: options?.evidenceItems ?? [],
@@ -179,6 +180,57 @@ describe("workspace questionnaire persistence", () => {
 		expect(state.questionnaireAnswers.q1).toBe("newer local value");
 		expect(state.questionnaireAnswersDirty).toBe(true);
 		expect(state.questionnaireSaveStatus).toBe("saved");
+	});
+
+	it("allows a follow-up questionnaire save after stale response keeps dirty true", async () => {
+		let resolveFirstResponse: ((value: WorkspaceHydrateResponse) => void) | null =
+			null;
+		const firstPendingResponse = new Promise<WorkspaceHydrateResponse>(
+			(resolve) => {
+				resolveFirstResponse = resolve;
+			},
+		);
+
+		const apiMock = mock(
+			async (_projectId: string, updates: WorkspaceQuestionAnswerUpdate[]) => {
+				const q1Value = updates.find((update) => update.question_id === "q1")?.value;
+				if (q1Value === "first value") {
+					return firstPendingResponse;
+				}
+
+				return buildHydrateResponse({ q1: q1Value ?? "" });
+			},
+		);
+		workspaceAPI.updateQuestionnaireAnswers = apiMock;
+
+		useWorkspaceStore.getState().updateQuestionnaireAnswer("q1", "first value");
+		const firstSave = useWorkspaceStore
+			.getState()
+			.saveQuestionnaireAnswers("project-1");
+
+		useWorkspaceStore
+			.getState()
+			.updateQuestionnaireAnswer("q1", "newer local value");
+
+		if (!resolveFirstResponse) {
+			throw new Error("Missing deferred resolver");
+		}
+
+		resolveFirstResponse(buildHydrateResponse({ q1: "first value" }));
+		await firstSave;
+
+		const afterFirstSave = useWorkspaceStore.getState();
+		expect(afterFirstSave.questionnaireAnswers.q1).toBe("newer local value");
+		expect(afterFirstSave.questionnaireAnswersDirty).toBe(true);
+		expect(afterFirstSave.questionnaireSaveStatus).toBe("saved");
+
+		await useWorkspaceStore.getState().saveQuestionnaireAnswers("project-1");
+
+		const afterSecondSave = useWorkspaceStore.getState();
+		expect(apiMock).toHaveBeenCalledTimes(2);
+		expect(afterSecondSave.questionnaireAnswers.q1).toBe("newer local value");
+		expect(afterSecondSave.questionnaireAnswersDirty).toBe(false);
+		expect(afterSecondSave.questionnaireSaveStatus).toBe("saved");
 	});
 
 	it("keeps saved questionnaire answers after hydrate reload", () => {

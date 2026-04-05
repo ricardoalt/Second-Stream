@@ -1193,6 +1193,27 @@ async def test_dashboard_proposal_follow_up_transition_rejects_invalid_and_same_
     )
     assert invalid.status_code == 409
 
+    project_without_proposals = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Proposal Missing Stream",
+    )
+    project_without_proposals.proposal_follow_up_state = "uploaded"
+    await db_session.commit()
+
+    allowed_without_proposals = await client.patch(
+        f"/api/v1/projects/{project_without_proposals.id}/proposal-follow-up-state",
+        json={"state": "waiting_to_send"},
+    )
+    assert allowed_without_proposals.status_code == 200
+    assert allowed_without_proposals.json()["proposalFollowUpState"] == "waiting_to_send"
+
+    stored_without_proposals = await db_session.get(Project, project_without_proposals.id)
+    assert stored_without_proposals is not None
+    assert stored_without_proposals.proposal_follow_up_state == "waiting_to_send"
+
     stored = await db_session.get(Project, project.id)
     assert stored is not None
     assert stored.proposal_follow_up_state is None
@@ -1590,6 +1611,59 @@ async def test_deleting_last_proposal_clears_stored_follow_up_state_and_recreate
     recreated_item = dashboard_after_recreate.json()["items"][0]
     assert recreated_item["streamName"] == "Proposal Delete Stream"
     assert recreated_item["proposalFollowUpState"] == "uploaded"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_treats_uploaded_state_as_open_offer_even_without_proposals(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Uploaded State Without Proposal",
+        f"org-uploaded-no-proposal-{uid}",
+    )
+    user = await create_user(
+        db_session,
+        email=f"uploaded-no-proposal-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Uploaded No Proposal Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Uploaded No Proposal Loc",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Uploaded No Proposal Stream",
+    )
+    _set_project_completion(project, 16)
+    project.proposal_follow_up_state = "uploaded"
+    await db_session.commit()
+
+    set_current_user(user)
+
+    proposal_response = await client.get("/api/v1/projects/dashboard?bucket=proposal")
+    assert proposal_response.status_code == 200
+    payload = proposal_response.json()
+    assert payload["counts"]["proposal"] == 1
+    assert payload["total"] == 1
+    assert payload["items"][0]["projectId"] == str(project.id)
+    assert payload["items"][0]["proposalFollowUpState"] == "uploaded"
+
+    pipeline_response = await client.get("/api/v1/projects/offers/pipeline")
+    assert pipeline_response.status_code == 200
+    pipeline_payload = pipeline_response.json()
+    assert pipeline_payload["counts"]["total"] == 1
+    assert pipeline_payload["counts"]["uploaded"] == 1
+    assert pipeline_payload["items"][0]["projectId"] == str(project.id)
 
 
 @pytest.mark.asyncio

@@ -211,6 +211,8 @@ def _missing_required_field_labels(project: Project) -> list[str]:
 def _effective_proposal_follow_up_state(
     *, stored_state: str | None, proposal_count: int
 ) -> ProposalFollowUpState | None:
+    if stored_state == "uploaded":
+        return "uploaded"
     if proposal_count == 0:
         return None
     if stored_state is not None:
