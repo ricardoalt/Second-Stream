@@ -9,10 +9,15 @@ import {
 import { dashboardAPI } from "@/lib/api/dashboard";
 import type {
 	DashboardCounts,
+	DashboardListResponse,
 	DashboardRow,
 	DraftItemRow,
 } from "@/lib/types/dashboard";
 import { isDraftItem, isPersistedStream } from "@/lib/types/dashboard";
+import {
+	isClientDataCacheStale,
+	peekClientDataCache,
+} from "@/lib/utils/client-data-cache";
 import { getErrorMessage, logger } from "@/lib/utils/logger";
 
 const EMPTY_COUNTS: DashboardCounts = {
@@ -29,6 +34,46 @@ function adaptDashboardRow(row: DashboardRow): StreamRow {
 	}
 
 	return adaptPersistedStream(row);
+}
+
+function dashboardCacheKeyFor(bucket: "total" | "needs_confirmation" | "missing_information") {
+	return `dashboard:/projects/dashboard?bucket=${bucket}&size=100`;
+}
+
+function toDraftRows(response: DashboardListResponse): DraftItemRow[] {
+	return [...response.items, ...response.secondaryDraftRows].filter(isDraftItem);
+}
+
+function hydrateStateFromResponses(args: {
+	allResponse: DashboardListResponse;
+	draftsResponse: DashboardListResponse;
+	missingInfoResponse: DashboardListResponse;
+}): Pick<
+	StreamsState,
+	"allItems" | "draftItems" | "missingInfoItems" | "counts" | "draftRowsById"
+> {
+	const allItems = args.allResponse.items.map(adaptDashboardRow);
+	const draftRows = toDraftRows(args.draftsResponse);
+	const draftItems = draftRows.map(adaptDraftItem);
+	const missingInfoItems = args.missingInfoResponse.items
+		.filter(isPersistedStream)
+		.map(adaptPersistedStream);
+
+	const draftRowsById = draftRows.reduce<Record<string, DraftItemRow>>(
+		(acc, row) => {
+			acc[row.itemId] = row;
+			return acc;
+		},
+		{},
+	);
+
+	return {
+		allItems,
+		draftItems,
+		missingInfoItems,
+		counts: args.allResponse.counts,
+		draftRowsById,
+	};
 }
 
 interface StreamsState {
@@ -56,6 +101,47 @@ export const useStreamsStore = create<StreamsState>()(
 		error: null,
 
 		loadStreams: async () => {
+			const totalKey = dashboardCacheKeyFor("total");
+			const draftsKey = dashboardCacheKeyFor("needs_confirmation");
+			const missingInfoKey = dashboardCacheKeyFor("missing_information");
+
+			const cachedTotal = peekClientDataCache<DashboardListResponse>(totalKey);
+			const cachedDrafts = peekClientDataCache<DashboardListResponse>(draftsKey);
+			const cachedMissingInfo =
+				peekClientDataCache<DashboardListResponse>(missingInfoKey);
+
+			const hasCompleteCachedSnapshot = Boolean(
+				cachedTotal && cachedDrafts && cachedMissingInfo,
+			);
+
+			if (hasCompleteCachedSnapshot) {
+				const hydrated = hydrateStateFromResponses({
+					allResponse: cachedTotal.data,
+					draftsResponse: cachedDrafts.data,
+					missingInfoResponse: cachedMissingInfo.data,
+				});
+
+				set((draft) => {
+					draft.allItems = hydrated.allItems;
+					draft.draftItems = hydrated.draftItems;
+					draft.missingInfoItems = hydrated.missingInfoItems;
+					draft.counts = hydrated.counts;
+					draft.draftRowsById = hydrated.draftRowsById;
+					draft.loading = false;
+					draft.isInitialized = true;
+					draft.error = null;
+				});
+
+				const allFresh =
+					!isClientDataCacheStale(totalKey) &&
+					!isClientDataCacheStale(draftsKey) &&
+					!isClientDataCacheStale(missingInfoKey);
+
+				if (allFresh) {
+					return;
+				}
+			}
+
 			set((draft) => {
 				draft.loading = true;
 				draft.error = null;
@@ -78,30 +164,18 @@ export const useStreamsStore = create<StreamsState>()(
 						}),
 					]);
 
-				const allItems = allResponse.items.map(adaptDashboardRow);
-				const draftRows = [
-					...draftsResponse.items,
-					...draftsResponse.secondaryDraftRows,
-				].filter(isDraftItem);
-				const draftItems = draftRows.map(adaptDraftItem);
-				const missingInfoItems = missingInfoResponse.items
-					.filter(isPersistedStream)
-					.map(adaptPersistedStream);
-
-				const draftRowsById = draftRows.reduce<Record<string, DraftItemRow>>(
-					(acc, row) => {
-						acc[row.itemId] = row;
-						return acc;
-					},
-					{},
-				);
+				const hydrated = hydrateStateFromResponses({
+					allResponse,
+					draftsResponse,
+					missingInfoResponse,
+				});
 
 				set((draft) => {
-					draft.allItems = allItems;
-					draft.draftItems = draftItems;
-					draft.missingInfoItems = missingInfoItems;
-					draft.counts = allResponse.counts;
-					draft.draftRowsById = draftRowsById;
+					draft.allItems = hydrated.allItems;
+					draft.draftItems = hydrated.draftItems;
+					draft.missingInfoItems = hydrated.missingInfoItems;
+					draft.counts = hydrated.counts;
+					draft.draftRowsById = hydrated.draftRowsById;
 					draft.loading = false;
 					draft.isInitialized = true;
 				});

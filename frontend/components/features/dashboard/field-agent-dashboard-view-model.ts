@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { dashboardAPI } from "@/lib/api/dashboard";
 import { offersAPI } from "@/lib/api/offers";
 import { isPersistedStream } from "@/lib/types/dashboard";
+import {
+	isClientDataCacheStale,
+	peekClientDataCache,
+} from "@/lib/utils/client-data-cache";
+import type { DashboardListResponse } from "@/lib/types/dashboard";
+import type {
+	OfferArchiveResponseDTO,
+	OfferPipelineResponseDTO,
+} from "@/lib/api/offers";
 import type {
 	MissingInformationStream,
 	MonthlyPipelineKpi,
@@ -31,6 +40,10 @@ const EMPTY_OFFER_COUNTS: Record<OfferFollowUpState, number> = {
 };
 
 const FEATURED_ITEMS_PER_STAGE = 2;
+const DASHBOARD_MISSING_INFO_CACHE_KEY =
+	"dashboard:/projects/dashboard?bucket=missing_information&size=50";
+const OFFERS_PIPELINE_CACHE_KEY = "offers:pipeline";
+const OFFERS_ARCHIVE_CACHE_KEY = "offers:archive:";
 
 const EMPTY_HERO_KPIS: MonthlyPipelineKpi[] = [
 	{
@@ -250,10 +263,65 @@ export function useFieldAgentDashboardViewModel({
 			return;
 		}
 
-		const controller = new AbortController();
+		const cachedMissingInfo = peekClientDataCache<DashboardListResponse>(
+			DASHBOARD_MISSING_INFO_CACHE_KEY,
+		);
+		const cachedPipeline =
+			peekClientDataCache<OfferPipelineResponseDTO>(OFFERS_PIPELINE_CACHE_KEY);
+		const cachedArchive =
+			peekClientDataCache<OfferArchiveResponseDTO>(OFFERS_ARCHIVE_CACHE_KEY);
+
+		const hasAnyCachedData = Boolean(
+			cachedMissingInfo || cachedPipeline || cachedArchive,
+		);
+
+		if (cachedMissingInfo) {
+			setMissingInformationStreams(toMissingInfoStreams(cachedMissingInfo.data));
+		}
+
+		if (cachedPipeline && cachedArchive) {
+			setOfferCounts(
+				toOfferCounts(cachedPipeline.data.counts, cachedArchive.data.counts),
+			);
+			setOfferFeaturedItems(
+				toOfferFeaturedItems(cachedPipeline.data.items, cachedArchive.data.items),
+			);
+		}
+
+		if (cachedMissingInfo && cachedPipeline) {
+			setHeroKpis(
+				toHeroKpis({
+					activeStreams: cachedMissingInfo.data.counts.total,
+					missingInformationCount:
+						cachedMissingInfo.data.counts.missingInformation,
+					pipelineItems: cachedPipeline.data.items,
+				}),
+			);
+		}
+
+		if (hasAnyCachedData) {
+			setLoading(false);
+			setError(null);
+		}
+
+		const needsRefresh =
+			!cachedMissingInfo ||
+			!cachedPipeline ||
+			!cachedArchive ||
+			isClientDataCacheStale(DASHBOARD_MISSING_INFO_CACHE_KEY) ||
+			isClientDataCacheStale(OFFERS_PIPELINE_CACHE_KEY) ||
+			isClientDataCacheStale(OFFERS_ARCHIVE_CACHE_KEY);
+
+		if (!needsRefresh) {
+			return;
+		}
+
+		let cancelled = false;
 
 		async function load() {
-			setLoading(true);
+			if (!hasAnyCachedData) {
+				setLoading(true);
+			}
 			setError(null);
 
 			try {
@@ -262,11 +330,14 @@ export function useFieldAgentDashboardViewModel({
 						dashboardAPI.getDashboard({
 							bucket: "missing_information",
 							size: 50,
-							signal: controller.signal,
 						}),
 						offersAPI.getPipeline(),
 						offersAPI.getArchive(),
 					]);
+
+				if (cancelled) {
+					return;
+				}
 
 				if (missingInfoResult.status === "fulfilled") {
 					setMissingInformationStreams(
@@ -316,20 +387,22 @@ export function useFieldAgentDashboardViewModel({
 					);
 				}
 			} catch {
-				if (!controller.signal.aborted) {
+				if (!cancelled) {
 					setError(
 						"Unable to load dashboard data right now. Please refresh and try again.",
 					);
 				}
 			} finally {
-				if (!controller.signal.aborted) {
+				if (!cancelled) {
 					setLoading(false);
 				}
 			}
 		}
 
 		void load();
-		return () => controller.abort();
+		return () => {
+			cancelled = true;
+		};
 	}, [enabled]);
 
 	return useMemo(

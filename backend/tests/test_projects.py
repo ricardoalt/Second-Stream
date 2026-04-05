@@ -1849,6 +1849,74 @@ async def test_offers_pipeline_projection_returns_open_states_and_counts(
 
 
 @pytest.mark.asyncio
+async def test_offers_pipeline_projection_keeps_uploaded_state_with_only_archived_proposals(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Offers Archived Only",
+        f"org-offers-archived-only-{uid}",
+    )
+    user = await create_user(
+        db_session,
+        email=f"offers-archived-only-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Archived-only Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Archived-only Site",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Archived-only Stream",
+    )
+    db_session.add(
+        Proposal(
+            organization_id=org.id,
+            project_id=project.id,
+            version="v1.0",
+            title="Archived proposal",
+            proposal_type="Technical",
+            status="Archived",
+            capex=123_000,
+        )
+    )
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.get("/api/v1/projects/offers/pipeline")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["counts"] == {
+        "total": 1,
+        "uploaded": 1,
+        "waitingToSend": 0,
+        "waitingResponse": 0,
+        "underNegotiation": 0,
+    }
+    assert len(payload["items"]) == 1
+    row = payload["items"][0]
+    assert row["projectId"] == str(project.id)
+    assert row["proposalFollowUpState"] == "uploaded"
+    assert row["latestProposalId"] is None
+    assert row["latestProposalVersion"] is None
+    assert row["latestProposalTitle"] is None
+    assert row["valueUsd"] is None
+
+
+@pytest.mark.asyncio
 async def test_offers_pipeline_projection_supports_search(client: AsyncClient, db_session, set_current_user):
     uid = uuid.uuid4().hex[:8]
     org = await create_org(db_session, "Org Offers Search", "org-offers-search")

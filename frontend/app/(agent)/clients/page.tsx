@@ -30,8 +30,13 @@ import {
 	TableRow,
 } from "@/components/ui";
 import { companiesAPI } from "@/lib/api/companies";
+import type { CompanySummary } from "@/lib/types/company";
 import type { PortfolioRow } from "@/lib/mappers/company-client";
 import { toPortfolioRow } from "@/lib/mappers/company-client";
+import {
+	isClientDataCacheStale,
+	peekClientDataCache,
+} from "@/lib/utils/client-data-cache";
 import { cn } from "@/lib/utils";
 
 // ═══════════════════════════════════════════════════════════
@@ -84,6 +89,15 @@ const sortOptions = {
 
 type SortOption = keyof typeof sortOptions;
 
+const CLIENTS_CACHE_KEY = "companies:list:active";
+
+function readCachedCompanies(): PortfolioRow[] {
+	const cached = peekClientDataCache<CompanySummary[]>(CLIENTS_CACHE_KEY);
+	if (!cached) return [];
+
+	return cached.data.map(toPortfolioRow);
+}
+
 function bySortOption(a: PortfolioRow, b: PortfolioRow, sort: SortOption) {
 	if (sort === "name-asc") return a.name.localeCompare(b.name);
 	if (sort === "name-desc") return b.name.localeCompare(a.name);
@@ -98,18 +112,41 @@ export default function ClientsPage() {
 	const router = useRouter();
 	const [searchValue, setSearchValue] = useState("");
 	const [sortBy, setSortBy] = useState<SortOption>("name-asc");
-	const [companies, setCompanies] = useState<PortfolioRow[]>([]);
-	const [loading, setLoading] = useState(true);
+	const [companies, setCompanies] = useState<PortfolioRow[]>(() =>
+		readCachedCompanies(),
+	);
+	const [loading, setLoading] = useState(() => readCachedCompanies().length === 0);
 	const [error, setError] = useState<string | null>(null);
 
-	const fetchCompanies = useCallback(async () => {
+	const fetchCompanies = useCallback(async (opts?: { force?: boolean }) => {
+		const cachedCompanies = readCachedCompanies();
+		const hasCachedCompanies = cachedCompanies.length > 0;
+
 		try {
-			setLoading(true);
+			if (hasCachedCompanies) {
+				setCompanies(cachedCompanies);
+				setLoading(false);
+			}
+
+			const shouldRefresh =
+				opts?.force === true ||
+				!hasCachedCompanies ||
+				isClientDataCacheStale(CLIENTS_CACHE_KEY);
+
+			if (!shouldRefresh) {
+				return;
+			}
+
+			if (!hasCachedCompanies) {
+				setLoading(true);
+			}
 			setError(null);
 			const data = await companiesAPI.list("active");
 			setCompanies(data.map(toPortfolioRow));
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to load clients");
+			if (!hasCachedCompanies) {
+				setError(err instanceof Error ? err.message : "Failed to load clients");
+			}
 		} finally {
 			setLoading(false);
 		}
@@ -141,7 +178,13 @@ export default function ClientsPage() {
 					icon={Building2}
 					badge="Client portfolio"
 					breadcrumbs={[{ label: "Home", href: "/" }, { label: "Clients" }]}
-					actions={<AddClientDialog onSubmitted={fetchCompanies} />}
+					actions={
+						<AddClientDialog
+							onSubmitted={() => {
+								void fetchCompanies({ force: true });
+							}}
+						/>
+					}
 					className="mb-0"
 				/>
 
@@ -235,7 +278,13 @@ export default function ClientsPage() {
 				) : error ? (
 					<div className="flex flex-col items-center gap-3 px-6 py-16">
 						<p className="text-sm text-destructive">{error}</p>
-						<Button variant="outline" size="sm" onClick={fetchCompanies}>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								void fetchCompanies({ force: true });
+							}}
+						>
 							Retry
 						</Button>
 					</div>

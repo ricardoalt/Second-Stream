@@ -1,5 +1,8 @@
 import type { ProposalFollowUpState } from "@/lib/types/dashboard";
+import { fetchWithClientDataCache } from "@/lib/utils/client-data-cache";
 import { apiClient } from "./client";
+
+const OFFERS_CACHE_TTL_MS = 60_000;
 
 type OfferPipelineBackendState =
 	| "uploaded"
@@ -124,7 +127,11 @@ export interface OfferFollowUpStateUpdateResponse {
 
 export const offersAPI = {
 	async getPipeline(): Promise<OfferPipelineResponseDTO> {
-		return apiClient.get<OfferPipelineResponseDTO>("/projects/offers/pipeline");
+		return fetchWithClientDataCache({
+			key: "offers:pipeline",
+			ttlMs: OFFERS_CACHE_TTL_MS,
+			fetcher: () => apiClient.get<OfferPipelineResponseDTO>("/projects/offers/pipeline"),
+		});
 	},
 
 	async getArchive(params?: {
@@ -140,9 +147,14 @@ export const offersAPI = {
 		}
 
 		const suffix = query.size > 0 ? `?${query.toString()}` : "";
-		const response = await apiClient.get<OfferArchiveBackendResponseDTO>(
-			`/projects/offers/archive${suffix}`,
-		);
+		const response = await fetchWithClientDataCache({
+			key: `offers:archive:${suffix}`,
+			ttlMs: OFFERS_CACHE_TTL_MS,
+			fetcher: () =>
+				apiClient.get<OfferArchiveBackendResponseDTO>(
+					`/projects/offers/archive${suffix}`,
+				),
+		});
 
 		return {
 			counts: response.counts,

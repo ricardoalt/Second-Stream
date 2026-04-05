@@ -1,9 +1,8 @@
 "use client";
 
 import { BarChart3, Filter, Search, Wallet } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { OffersPipelineTable } from "@/components/features/offers/components/offers-pipeline-table";
-import { OffersStagePipeline } from "@/components/features/offers/components/offers-stage-pipeline";
 import {
 	formatCurrency,
 	stageOrder,
@@ -32,7 +31,11 @@ import {
 	SelectValue,
 	Skeleton,
 } from "@/components/ui";
-import { offersAPI } from "@/lib/api/offers";
+import { offersAPI, type OfferPipelineResponseDTO } from "@/lib/api/offers";
+import {
+	isClientDataCacheStale,
+	peekClientDataCache,
+} from "@/lib/utils/client-data-cache";
 import { getErrorMessage } from "@/lib/utils/logger";
 
 // ═══════════════════════════════════════════════════════════
@@ -45,6 +48,70 @@ const ACTIVE_STAGE_SET = new Set<OfferStage>([
 	"offer_sent",
 	"in_negotiation",
 ]);
+
+const OFFERS_PIPELINE_CACHE_KEY = "offers:pipeline";
+
+const OffersPipelineTable = dynamic(
+	() =>
+		import("@/components/features/offers/components/offers-pipeline-table").then(
+			(module) => module.OffersPipelineTable,
+		),
+	{
+		loading: () => (
+			<div className="p-4">
+				<Skeleton className="mb-3 h-10 w-full" />
+				{Array.from({ length: 4 }).map((_, index) => (
+					<Skeleton
+						key={`offers-table-fallback-row-${index + 1}`}
+						className="mb-2 h-12 w-full last:mb-0"
+					/>
+				))}
+			</div>
+		),
+	},
+);
+
+const OffersStagePipeline = dynamic(
+	() =>
+		import("@/components/features/offers/components/offers-stage-pipeline").then(
+			(module) => module.OffersStagePipeline,
+		),
+	{
+		loading: () => (
+			<section className="grid gap-3 lg:grid-cols-5">
+				{Array.from({ length: 5 }).map((_, index) => (
+					<Skeleton
+						key={`offers-stage-fallback-${index + 1}`}
+						className="h-44 w-full rounded-xl"
+					/>
+				))}
+			</section>
+		),
+	},
+);
+
+function mapPipelineResponseToOffers(
+	response: OfferPipelineResponseDTO,
+): OfferPipelineRecord[] {
+	return response.items.map((item) => ({
+		projectId: item.projectId,
+		reference: item.latestProposalVersion ?? "No version",
+		clientName: item.companyLabel ?? "Unknown client",
+		streamName: item.streamName,
+		stage: mapProjectFollowUpToOfferStage(item.proposalFollowUpState),
+		valueUsd: item.valueUsd ?? 0,
+		updatedAt: formatDate(item.lastActivityAt),
+	}));
+}
+
+function readCachedOffers(): OfferPipelineRecord[] {
+	const cached = peekClientDataCache<OfferPipelineResponseDTO>(
+		OFFERS_PIPELINE_CACHE_KEY,
+	);
+	if (!cached) return [];
+
+	return mapPipelineResponseToOffers(cached.data);
+}
 
 function formatDate(value: string) {
 	const parsed = new Date(value);
@@ -59,42 +126,56 @@ function formatDate(value: string) {
 }
 
 export default function OffersPage() {
-	const [loading, setLoading] = useState(true);
+	const [loading, setLoading] = useState(() => readCachedOffers().length === 0);
 	const [error, setError] = useState<string | null>(null);
-	const [offers, setOffers] = useState<OfferPipelineRecord[]>([]);
+	const [offers, setOffers] = useState<OfferPipelineRecord[]>(() =>
+		readCachedOffers(),
+	);
 	const [query, setQuery] = useState("");
 	const [selectedStage, setSelectedStage] = useState<OfferStage | "all">("all");
 	const [selectedClient, setSelectedClient] = useState<string>("all");
 
 	useEffect(() => {
 		let cancelled = false;
-		setLoading(true);
-		setError(null);
+
+		const cachedOffers = readCachedOffers();
+		const hasCachedOffers = cachedOffers.length > 0;
+		if (hasCachedOffers) {
+			setOffers(cachedOffers);
+			setLoading(false);
+			setError(null);
+		}
+
+		const shouldRefresh =
+			!hasCachedOffers || isClientDataCacheStale(OFFERS_PIPELINE_CACHE_KEY);
+
+		if (!shouldRefresh) {
+			return () => {
+				cancelled = true;
+			};
+		}
+
+		if (!hasCachedOffers) {
+			setLoading(true);
+			setError(null);
+		}
 
 		void offersAPI
 			.getPipeline()
 			.then((response) => {
 				if (cancelled) return;
-				setOffers(
-					response.items.map((item) => ({
-						projectId: item.projectId,
-						reference: item.latestProposalVersion ?? "No version",
-						clientName: item.companyLabel ?? "Unknown client",
-						streamName: item.streamName,
-						stage: mapProjectFollowUpToOfferStage(item.proposalFollowUpState),
-						valueUsd: item.valueUsd ?? 0,
-						updatedAt: formatDate(item.lastActivityAt),
-					})),
-				);
+				setOffers(mapPipelineResponseToOffers(response));
 			})
 			.catch((requestError) => {
 				if (cancelled) return;
-				setError(
-					getErrorMessage(
-						requestError,
-						"Could not load active Offers pipeline.",
-					),
-				);
+				if (!hasCachedOffers) {
+					setError(
+						getErrorMessage(
+							requestError,
+							"Could not load active Offers pipeline.",
+						),
+					);
+				}
 			})
 			.finally(() => {
 				if (!cancelled) {
@@ -116,12 +197,15 @@ export default function OffersPage() {
 	);
 
 	const filteredOffers = useMemo(
-		() =>
-			offers.filter((offer) => {
+		() => {
+			const normalizedQuery = query.trim().toLowerCase();
+
+			return offers.filter((offer) => {
 				const matchesQuery =
-					offer.streamName.toLowerCase().includes(query.toLowerCase()) ||
-					offer.clientName.toLowerCase().includes(query.toLowerCase()) ||
-					offer.reference.toLowerCase().includes(query.toLowerCase());
+					normalizedQuery.length === 0 ||
+					offer.streamName.toLowerCase().includes(normalizedQuery) ||
+					offer.clientName.toLowerCase().includes(normalizedQuery) ||
+					offer.reference.toLowerCase().includes(normalizedQuery);
 
 				const matchesStage =
 					selectedStage === "all" || offer.stage === selectedStage;
@@ -134,7 +218,8 @@ export default function OffersPage() {
 					matchesStage &&
 					matchesClient
 				);
-			}),
+			});
+		},
 		[offers, query, selectedStage, selectedClient],
 	);
 
@@ -149,10 +234,23 @@ export default function OffersPage() {
 		[filteredOffers],
 	);
 
-	const totalValue = filteredOffers.reduce(
-		(sum, offer) => sum + offer.valueUsd,
-		0,
-	);
+	const { totalValue, inNegotiationCount, offerSentCount } = useMemo(() => {
+		let total = 0;
+		let inNegotiation = 0;
+		let offerSent = 0;
+
+		for (const offer of filteredOffers) {
+			total += offer.valueUsd;
+			if (offer.stage === "in_negotiation") inNegotiation += 1;
+			if (offer.stage === "offer_sent") offerSent += 1;
+		}
+
+		return {
+			totalValue: total,
+			inNegotiationCount: inNegotiation,
+			offerSentCount: offerSent,
+		};
+	}, [filteredOffers]);
 
 	if (loading) {
 		return (
@@ -243,11 +341,7 @@ export default function OffersPage() {
 						<HoverLift>
 							<KpiCard
 								title="In negotiation"
-								value={String(
-									filteredOffers.filter(
-										(offer) => offer.stage === "in_negotiation",
-									).length,
-								)}
+								value={String(inNegotiationCount)}
 								subtitle="Needs follow-up coordination"
 								icon={Filter}
 								variant="warning"
@@ -258,10 +352,7 @@ export default function OffersPage() {
 						<HoverLift>
 							<KpiCard
 								title="Offer sent"
-								value={String(
-									filteredOffers.filter((offer) => offer.stage === "offer_sent")
-										.length,
-								)}
+								value={String(offerSentCount)}
 								subtitle="Pending client response"
 								icon={Filter}
 								variant="success"

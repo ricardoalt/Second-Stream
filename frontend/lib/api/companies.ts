@@ -16,7 +16,10 @@ import type {
 	LocationSummary,
 	LocationUpdate,
 } from "@/lib/types/company";
+import { fetchWithClientDataCache } from "@/lib/utils/client-data-cache";
 import { apiClient } from "./client";
+
+const COMPANIES_CACHE_TTL_MS = 60_000;
 
 export type ArchivedFilter = "active" | "archived" | "all";
 
@@ -52,7 +55,11 @@ export const companiesAPI = {
 	 */
 	async list(archived?: ArchivedFilter): Promise<CompanySummary[]> {
 		const query = archived ? `?archived=${archived}` : "";
-		return apiClient.get<CompanySummary[]>(`/companies${query}`);
+		return fetchWithClientDataCache({
+			key: `companies:list:${archived ?? "default"}`,
+			ttlMs: COMPANIES_CACHE_TTL_MS,
+			fetcher: () => apiClient.get<CompanySummary[]>(`/companies${query}`),
+		});
 	},
 
 	/**

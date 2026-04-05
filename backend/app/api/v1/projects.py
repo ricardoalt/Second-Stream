@@ -359,28 +359,6 @@ def _is_open_offer_pipeline_state(
     return proposal_follow_up_state in OPEN_OFFER_PIPELINE_STATES
 
 
-def _deterministic_offer_proposal(proposals: list[Any]) -> Any | None:
-    non_archived: list[Any] = []
-    for proposal in proposals:
-        status = getattr(proposal, "status", None)
-        if status == "Archived":
-            continue
-        non_archived.append(proposal)
-
-    if not non_archived:
-        return None
-
-    current = [proposal for proposal in non_archived if getattr(proposal, "status", None) == "Current"]
-    candidates = current if current else non_archived
-    return max(
-        candidates,
-        key=lambda proposal: (
-            getattr(proposal, "created_at", datetime.min.replace(tzinfo=UTC)),
-            str(getattr(proposal, "id", "")),
-        ),
-    )
-
-
 async def _build_persisted_dashboard_rows(
     *,
     db: AsyncDB,
@@ -535,6 +513,59 @@ async def _build_persisted_dashboard_rows(
             )
         )
     return rows
+
+
+def _offers_proposal_projection_subqueries(org_id: UUID) -> tuple[Any, Any]:
+    from app.models.proposal import Proposal
+
+    proposal_counts = (
+        select(
+            Proposal.project_id.label("project_id"),
+            func.count(Proposal.id).label("proposal_count"),
+        )
+        .where(Proposal.organization_id == org_id)
+        .group_by(Proposal.project_id)
+        .subquery()
+    )
+
+    ranked_proposals = (
+        select(
+            Proposal.project_id.label("project_id"),
+            Proposal.id.label("proposal_id"),
+            Proposal.version.label("proposal_version"),
+            Proposal.title.label("proposal_title"),
+            Proposal.capex.label("proposal_capex"),
+            func.row_number()
+            .over(
+                partition_by=Proposal.project_id,
+                order_by=(
+                    case((Proposal.status == "Current", 1), else_=0).desc(),
+                    Proposal.created_at.desc(),
+                    Proposal.id.desc(),
+                ),
+            )
+            .label("rank"),
+        )
+        .where(
+            Proposal.organization_id == org_id,
+            Proposal.status != "Archived",
+        )
+        .subquery()
+    )
+
+    latest_proposal = (
+        select(
+            ranked_proposals.c.project_id,
+            ranked_proposals.c.proposal_id,
+            ranked_proposals.c.proposal_version,
+            ranked_proposals.c.proposal_title,
+            ranked_proposals.c.proposal_capex,
+        )
+        .where(ranked_proposals.c.rank == 1)
+        .subquery()
+    )
+
+    return proposal_counts, latest_proposal
 
 
 async def _build_draft_dashboard_rows(
@@ -1291,13 +1322,19 @@ async def get_offers_pipeline_projection(
 
     require_permission(current_user, permissions.PROJECT_READ)
 
+    proposal_counts, latest_proposal = _offers_proposal_projection_subqueries(org.id)
+
     query = (
         select(
             Project,
             Company.name.label("company_label"),
             Location.name.label("location_label"),
+            func.coalesce(proposal_counts.c.proposal_count, 0).label("proposal_count"),
+            latest_proposal.c.proposal_id,
+            latest_proposal.c.proposal_version,
+            latest_proposal.c.proposal_title,
+            latest_proposal.c.proposal_capex,
         )
-        .options(selectinload(Project.proposals))
         .outerjoin(
             Location,
             and_(
@@ -1312,6 +1349,8 @@ async def get_offers_pipeline_projection(
                 Company.organization_id == Project.organization_id,
             ),
         )
+        .outerjoin(proposal_counts, proposal_counts.c.project_id == Project.id)
+        .outerjoin(latest_proposal, latest_proposal.c.project_id == Project.id)
         .where(
             Project.organization_id == org.id,
             Project.archived_at.is_(None),
@@ -1330,12 +1369,20 @@ async def get_offers_pipeline_projection(
     }
     rows: list[OfferPipelineRow] = []
 
-    for project, company_label, location_label in result.all():
+    for (
+        project,
+        company_label,
+        location_label,
+        proposal_count,
+        latest_proposal_id,
+        latest_proposal_version,
+        latest_proposal_title,
+        latest_proposal_capex,
+    ) in result.all():
         assert isinstance(project, Project)
-        proposal_count = len(project.proposals)
         effective_state = _effective_proposal_follow_up_state(
             stored_state=project.proposal_follow_up_state,
-            proposal_count=proposal_count,
+            proposal_count=int(proposal_count),
         )
         if not _is_open_offer_pipeline_state(effective_state):
             continue
@@ -1350,7 +1397,6 @@ async def get_offers_pipeline_projection(
         ):
             continue
 
-        selected_proposal = _deterministic_offer_proposal(project.proposals)
         state = cast(OfferPipelineState, effective_state)
         counts[state] += 1
         rows.append(
@@ -1360,10 +1406,10 @@ async def get_offers_pipeline_projection(
                 company_label=resolved_company_label,
                 location_label=resolved_location_label,
                 proposal_follow_up_state=state,
-                latest_proposal_id=getattr(selected_proposal, "id", None),
-                latest_proposal_version=getattr(selected_proposal, "version", None),
-                latest_proposal_title=getattr(selected_proposal, "title", None),
-                value_usd=getattr(selected_proposal, "capex", None),
+                latest_proposal_id=latest_proposal_id,
+                latest_proposal_version=latest_proposal_version,
+                latest_proposal_title=latest_proposal_title,
+                value_usd=latest_proposal_capex,
                 last_activity_at=project.updated_at,
             )
         )
@@ -1398,13 +1444,19 @@ async def get_offers_archive_projection(
 
     require_permission(current_user, permissions.PROJECT_READ)
 
+    proposal_counts, latest_proposal = _offers_proposal_projection_subqueries(org.id)
+
     query = (
         select(
             Project,
             Company.name.label("company_label"),
             Location.name.label("location_label"),
+            func.coalesce(proposal_counts.c.proposal_count, 0).label("proposal_count"),
+            latest_proposal.c.proposal_id,
+            latest_proposal.c.proposal_version,
+            latest_proposal.c.proposal_title,
+            latest_proposal.c.proposal_capex,
         )
-        .options(selectinload(Project.proposals))
         .outerjoin(
             Location,
             and_(
@@ -1419,6 +1471,8 @@ async def get_offers_archive_projection(
                 Company.organization_id == Project.organization_id,
             ),
         )
+        .outerjoin(proposal_counts, proposal_counts.c.project_id == Project.id)
+        .outerjoin(latest_proposal, latest_proposal.c.project_id == Project.id)
         .where(
             Project.organization_id == org.id,
             Project.archived_at.isnot(None),
@@ -1436,12 +1490,20 @@ async def get_offers_archive_projection(
     }
     rows: list[OfferArchiveRow] = []
 
-    for project, company_label, location_label in result.all():
+    for (
+        project,
+        company_label,
+        location_label,
+        proposal_count,
+        latest_proposal_id,
+        latest_proposal_version,
+        latest_proposal_title,
+        latest_proposal_capex,
+    ) in result.all():
         assert isinstance(project, Project)
-        proposal_count = len(project.proposals)
         effective_state = _effective_proposal_follow_up_state(
             stored_state=project.proposal_follow_up_state,
-            proposal_count=proposal_count,
+            proposal_count=int(proposal_count),
         )
         if effective_state not in TERMINAL_OFFER_ARCHIVE_STATE_MAP:
             continue
@@ -1460,7 +1522,6 @@ async def get_offers_archive_projection(
         ):
             continue
 
-        selected_proposal = _deterministic_offer_proposal(project.proposals)
         archived_at = project.archived_at
         if archived_at is None:
             continue
@@ -1472,10 +1533,10 @@ async def get_offers_archive_projection(
                 company_label=resolved_company_label,
                 location_label=resolved_location_label,
                 proposal_follow_up_state=archive_state,
-                latest_proposal_id=getattr(selected_proposal, "id", None),
-                latest_proposal_version=getattr(selected_proposal, "version", None),
-                latest_proposal_title=getattr(selected_proposal, "title", None),
-                value_usd=getattr(selected_proposal, "capex", None),
+                latest_proposal_id=latest_proposal_id,
+                latest_proposal_version=latest_proposal_version,
+                latest_proposal_title=latest_proposal_title,
+                value_usd=latest_proposal_capex,
                 last_activity_at=project.updated_at,
                 archived_at=archived_at,
             )

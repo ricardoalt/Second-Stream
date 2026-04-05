@@ -10,8 +10,11 @@ import type {
 	DraftItemRow,
 	ProposalFollowUpState,
 } from "@/lib/types/dashboard";
+import { fetchWithClientDataCache } from "@/lib/utils/client-data-cache";
 import { isDraftItem } from "@/lib/types/dashboard";
 import { apiClient } from "./client";
+
+const DASHBOARD_CACHE_TTL_MS = 45_000;
 
 export interface DashboardParams {
 	bucket?: DashboardBucket | undefined;
@@ -52,9 +55,23 @@ export const dashboardAPI = {
 		const query = searchParams.toString();
 		const url = query ? `/projects/dashboard?${query}` : "/projects/dashboard";
 
-		return apiClient.request<DashboardListResponse>(url, {
-			method: "GET",
-			...(params?.signal ? { signal: params.signal } : {}),
+		if (params?.signal) {
+			return apiClient.request<DashboardListResponse>(url, {
+				method: "GET",
+				signal: params.signal,
+			});
+		}
+
+		const cacheKey = `dashboard:${url}`;
+
+		return fetchWithClientDataCache({
+			key: cacheKey,
+			ttlMs: DASHBOARD_CACHE_TTL_MS,
+			fetcher: () =>
+				apiClient.request<DashboardListResponse>(url, {
+					method: "GET",
+					...(params?.signal ? { signal: params.signal } : {}),
+				}),
 		});
 	},
 
