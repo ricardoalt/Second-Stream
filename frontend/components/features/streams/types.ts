@@ -41,6 +41,10 @@ export type StreamRow = {
 	location: string;
 	locationId?: string;
 	agent: string;
+	/**
+	 * Owner name - used to show owner badge for org admins
+	 */
+	ownerName?: string;
 	wasteType: string;
 	volume: string;
 	lastUpdated: string;

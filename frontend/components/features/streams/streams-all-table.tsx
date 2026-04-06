@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { StatusChip } from "@/components/patterns";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Table,
@@ -20,6 +21,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { AutoTeamAvatar } from "@/components/ui/team-avatar";
+import { useAuth } from "@/lib/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import { isDraftStream, type StreamRow, type StreamStatus } from "./types";
 
@@ -208,6 +211,7 @@ function AlertBadge({
 
 export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 	const router = useRouter();
+	const { isOrgAdmin } = useAuth();
 
 	return (
 		<Table>
@@ -280,13 +284,25 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 							{/* Material & Client */}
 							<TableCell className="px-6 py-5">
 								{/* gap en lugar de space-y */}
-								<div className="flex flex-col gap-1">
+								<div className="flex flex-col gap-1.5">
 									<span className="text-sm font-semibold text-foreground transition-colors duration-200 group-hover:text-primary">
 										{row.name}
 									</span>
 									<span className="text-xs text-muted-foreground">
 										{row.client}
 									</span>
+									{/* Owner badge - only visible for org admins */}
+									{isOrgAdmin && row.ownerName && (
+										<div className="flex items-center gap-2 mt-1">
+											<AutoTeamAvatar name={row.ownerName} size="sm" />
+											<Badge
+												variant="muted"
+												className="text-[10px] font-normal"
+											>
+												{row.ownerName}
+											</Badge>
+										</div>
+									)}
 								</div>
 							</TableCell>
 
