@@ -8,9 +8,13 @@ import { apiClient } from "./client";
 const BASE = "/discovery-sessions";
 
 export const discoverySessionsAPI = {
-	async create(companyId: string): Promise<DiscoverySessionCreateResponse> {
+	async create(
+		companyId: string,
+		assignedOwnerUserId?: string,
+	): Promise<DiscoverySessionCreateResponse> {
 		return apiClient.post<DiscoverySessionCreateResponse>(BASE, {
 			companyId,
+			...(assignedOwnerUserId ? { assignedOwnerUserId } : {}),
 		});
 	},
 

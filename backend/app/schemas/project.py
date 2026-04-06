@@ -23,6 +23,10 @@ class ProjectCreate(BaseSchema):
 
     # Required: Location relationship (single source of truth)
     location_id: UUID = Field(..., description="FK to Location (company site) - REQUIRED")
+    owner_user_id: UUID | None = Field(
+        default=None,
+        description="Optional owner override (org admin/superadmin only)",
+    )
 
     # Core fields
     name: str = Field(..., min_length=1, max_length=255)

@@ -154,6 +154,7 @@ class BulkImportDiscoveryDraftDecisionRequest(BaseSchema):
     review_notes: str | None = Field(default=None, max_length=1000)
     location_resolution: BulkImportLocationResolution | None = None
     confirm_create_new: bool | None = None
+    owner_user_id: UUID | None = None
 
 
 class BulkImportDiscoveryDraftDecisionResponse(BaseSchema):

@@ -261,6 +261,24 @@ class BulkImportService:
         discovery_service = DiscoverySessionService()
         await discovery_service.sync_session_for_import_run(db, import_run_id=run_id)
 
+    async def _resolve_run_owner_user_id(
+        self,
+        db: AsyncSession,
+        *,
+        run: ImportRun,
+        fallback_user_id: UUID,
+    ) -> UUID:
+        discovery_owner_result = await db.execute(
+            select(DiscoverySession.assigned_owner_user_id)
+            .where(DiscoverySource.import_run_id == run.id)
+            .where(DiscoverySource.session_id == DiscoverySession.id)
+            .limit(1)
+        )
+        discovery_owner_user_id = discovery_owner_result.scalar_one_or_none()
+        if discovery_owner_user_id is not None:
+            return discovery_owner_user_id
+        return fallback_user_id
+
     async def claim_next_run(self, db: AsyncSession) -> ImportRun | None:
         result = await db.execute(
             select(ImportRun)
@@ -806,7 +824,11 @@ class BulkImportService:
 
             project = Project(
                 organization_id=run.organization_id,
-                user_id=current_user.id,
+                user_id=await self._resolve_run_owner_user_id(
+                    db,
+                    run=run,
+                    fallback_user_id=current_user.id,
+                ),
                 location_id=target_location.id,
                 name=normalized.name,
                 client=company_for_project.name,
@@ -1065,7 +1087,11 @@ class BulkImportService:
 
             project = Project(
                 organization_id=run.organization_id,
-                user_id=current_user.id,
+                user_id=await self._resolve_run_owner_user_id(
+                    db,
+                    run=run,
+                    fallback_user_id=current_user.id,
+                ),
                 location_id=target_location.id,
                 name=normalized.name,
                 client=company_for_project.name,
@@ -1583,7 +1609,11 @@ class BulkImportService:
 
             project = Project(
                 organization_id=run.organization_id,
-                user_id=current_user.id,
+                user_id=await self._resolve_run_owner_user_id(
+                    db,
+                    run=run,
+                    fallback_user_id=current_user.id,
+                ),
                 location_id=target_location.id,
                 name=normalized.name,
                 client=company_for_project.name,
@@ -2049,6 +2079,7 @@ class BulkImportService:
         review_notes: str | None,
         location_resolution: BulkImportLocationResolution | None,
         confirm_create_new: bool | None,
+        owner_user_id: UUID | None,
     ) -> tuple[ImportItem, BulkImportFinalizeSummary, ImportRun]:
         run_result = await db.execute(
             select(ImportRun)
@@ -2090,6 +2121,13 @@ class BulkImportService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Run is not editable",
             )
+
+        resolved_owner_user_id = await self._resolve_discovery_owner_user_id(
+            db,
+            run=run,
+            current_user=current_user,
+            owner_user_id=owner_user_id,
+        )
         if item.created_project_id is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -2272,7 +2310,7 @@ class BulkImportService:
             )
             project = Project(
                 organization_id=run.organization_id,
-                user_id=current_user.id,
+                user_id=resolved_owner_user_id,
                 location_id=target_location.id,
                 name=normalized.name,
                 client=company.name,
@@ -2360,6 +2398,49 @@ class BulkImportService:
         await self.refresh_run_counters(db, run)
         await db.flush()
         return item, accumulated, run
+
+    async def _resolve_discovery_owner_user_id(
+        self,
+        db: AsyncSession,
+        *,
+        run: ImportRun,
+        current_user: User,
+        owner_user_id: UUID | None,
+    ) -> UUID:
+        default_owner_user_id = await self._resolve_run_owner_user_id(
+            db,
+            run=run,
+            fallback_user_id=current_user.id,
+        )
+        if owner_user_id is None:
+            return default_owner_user_id
+
+        can_assign_owner = bool(current_user.is_superuser or current_user.role == "org_admin")
+        if not can_assign_owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only org admins can assign owner",
+            )
+
+        owner = await db.get(User, owner_user_id)
+        if owner is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found")
+        if owner.organization_id != run.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Owner must belong to your organization",
+            )
+        if not owner.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Owner must be active",
+            )
+        if owner.role not in {"org_admin", "field_agent"}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Owner role is not allowed",
+            )
+        return owner.id
 
     async def update_item_decision(
         self,

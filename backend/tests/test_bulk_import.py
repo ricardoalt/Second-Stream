@@ -23,7 +23,7 @@ from app.models.bulk_import_ai_output import (
     BulkImportAIOutput,
     BulkImportAIWasteStreamOutput,
 )
-from app.models.discovery_session import DiscoverySource
+from app.models.discovery_session import DiscoverySession, DiscoverySource
 from app.models.location import Location
 from app.models.project import Project
 from app.models.user import UserRole
@@ -2407,6 +2407,473 @@ async def test_discovery_decision_stale_parent_falls_back_to_orphan_resolution(
     payload = response.json()
     assert payload["summary"]["projectsCreated"] == 1
     assert payload["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_discovery_decision_confirm_allows_owner_override_for_org_admin(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Discovery Owner Override Org", "discovery-owner-override")
+    org_admin = await create_user(
+        db_session,
+        email=f"discovery-owner-override-admin-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    owner = await create_user(
+        db_session,
+        email=f"discovery-owner-override-field-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Owner Override Co")
+    target_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Discovery Owner Override Plant",
+    )
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=org_admin.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    await _attach_discovery_source(db_session, run=run, source_type="file")
+
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        normalized_data={
+            "name": "Owner Override Stream",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "2 tons/week",
+        },
+        review_notes="Project row missing location context",
+    )
+
+    set_current_user(org_admin)
+    response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={
+            "action": "confirm",
+            "normalizedData": {
+                "name": "Owner Override Stream",
+                "category": "paper",
+                "project_type": "Assessment",
+                "description": "desc",
+                "sector": "industrial",
+                "subsector": "manufacturing",
+                "estimated_volume": "2 tons/week",
+            },
+            "locationResolution": {
+                "mode": "existing",
+                "locationId": str(target_location.id),
+            },
+            "ownerUserId": str(owner.id),
+        },
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(project_item)
+    created_project = await db_session.get(Project, project_item.created_project_id)
+    assert created_project is not None
+    assert created_project.user_id == owner.id
+
+
+@pytest.mark.asyncio
+async def test_discovery_decision_confirm_uses_discovery_session_assigned_owner_when_present(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Discovery Session Owner Fallback Org",
+        "discovery-session-owner-fallback",
+    )
+    org_admin = await create_user(
+        db_session,
+        email=f"discovery-session-owner-admin-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    assigned_owner = await create_user(
+        db_session,
+        email=f"discovery-session-owner-field-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Session Owner Co")
+    target_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Discovery Session Owner Plant",
+    )
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=org_admin.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    discovery_session = DiscoverySession(
+        organization_id=org.id,
+        company_id=company.id,
+        status="review_ready",
+        created_by_user_id=org_admin.id,
+        assigned_owner_user_id=assigned_owner.id,
+    )
+    db_session.add(discovery_session)
+    await db_session.flush()
+    db_session.add(
+        DiscoverySource(
+            organization_id=org.id,
+            session_id=discovery_session.id,
+            source_type="file",
+            status="review_ready",
+            import_run_id=run.id,
+        )
+    )
+    await db_session.commit()
+
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        normalized_data={
+            "name": "Session Owner Stream",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "1 ton/week",
+        },
+        review_notes="Project row missing location context",
+    )
+
+    set_current_user(org_admin)
+    response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={
+            "action": "confirm",
+            "normalizedData": {
+                "name": "Session Owner Stream",
+                "category": "paper",
+                "project_type": "Assessment",
+                "description": "desc",
+                "sector": "industrial",
+                "subsector": "manufacturing",
+                "estimated_volume": "1 ton/week",
+            },
+            "locationResolution": {
+                "mode": "existing",
+                "locationId": str(target_location.id),
+            },
+        },
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(project_item)
+    created_project = await db_session.get(Project, project_item.created_project_id)
+    assert created_project is not None
+    assert created_project.user_id == assigned_owner.id
+
+
+@pytest.mark.asyncio
+async def test_discovery_decision_owner_override_forbidden_for_field_agent(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Discovery Decision Owner Forbidden Org",
+        "discovery-decision-owner-forbidden",
+    )
+    field_agent = await create_user(
+        db_session,
+        email=f"discovery-decision-owner-forbidden-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    override_owner = await create_user(
+        db_session,
+        email=f"discovery-decision-owner-target-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Decision Owner Forbidden Co")
+    target_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Discovery Decision Owner Forbidden Plant",
+    )
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=field_agent.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    await _attach_discovery_source(db_session, run=run, source_type="file")
+
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        normalized_data={
+            "name": "Forbidden Owner Stream",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "3 tons/week",
+        },
+        review_notes="Project row missing location context",
+    )
+
+    set_current_user(field_agent)
+    response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={
+            "action": "confirm",
+            "normalizedData": {
+                "name": "Forbidden Owner Stream",
+                "category": "paper",
+                "project_type": "Assessment",
+                "description": "desc",
+                "sector": "industrial",
+                "subsector": "manufacturing",
+                "estimated_volume": "3 tons/week",
+            },
+            "locationResolution": {
+                "mode": "existing",
+                "locationId": str(target_location.id),
+            },
+            "ownerUserId": str(override_owner.id),
+        },
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_discovery_decision_owner_override_rejects_invalid_owner_scope_status_or_role(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Discovery Decision Owner Invalid Org",
+        "discovery-decision-owner-invalid",
+    )
+    other_org = await create_org(
+        db_session,
+        "Discovery Decision Owner Invalid Other Org",
+        "discovery-decision-owner-invalid-other",
+    )
+    org_admin = await create_user(
+        db_session,
+        email=f"discovery-decision-owner-invalid-admin-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    cross_org_owner = await create_user(
+        db_session,
+        email=f"discovery-decision-owner-invalid-cross-{uid}@example.com",
+        org_id=other_org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    inactive_owner = await create_user(
+        db_session,
+        email=f"discovery-decision-owner-invalid-inactive-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    inactive_owner.is_active = False
+    disallowed_role_owner = await create_user(
+        db_session,
+        email=f"discovery-decision-owner-invalid-role-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.SALES.value,
+        is_superuser=False,
+    )
+    await db_session.commit()
+
+    company = await create_company(db_session, org_id=org.id, name="Discovery Decision Owner Invalid Co")
+    target_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Discovery Decision Owner Invalid Plant",
+    )
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=org_admin.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+    await _attach_discovery_source(db_session, run=run, source_type="text")
+
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="pending_review",
+        normalized_data={
+            "name": "Invalid Owner Stream",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "1 ton/week",
+        },
+        review_notes="Project row missing location context",
+    )
+
+    set_current_user(org_admin)
+
+    base_payload = {
+        "action": "confirm",
+        "normalizedData": {
+            "name": "Invalid Owner Stream",
+            "category": "paper",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "1 ton/week",
+        },
+        "locationResolution": {
+            "mode": "existing",
+            "locationId": str(target_location.id),
+        },
+    }
+
+    cross_org_response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={**base_payload, "ownerUserId": str(cross_org_owner.id)},
+    )
+    assert cross_org_response.status_code == 409
+
+    inactive_response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={**base_payload, "ownerUserId": str(inactive_owner.id)},
+    )
+    assert inactive_response.status_code == 409
+
+    disallowed_role_response = await client.post(
+        f"/api/v1/bulk-import/items/{project_item.id}/discovery-decision",
+        json={**base_payload, "ownerUserId": str(disallowed_role_owner.id)},
+    )
+    assert disallowed_role_response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_finalize_uses_discovery_session_assigned_owner_for_created_projects(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Finalize Owner Session Org", "finalize-owner-session")
+    org_admin = await create_user(
+        db_session,
+        email=f"finalize-owner-session-admin-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    assigned_owner = await create_user(
+        db_session,
+        email=f"finalize-owner-session-field-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Finalize Owner Session Co")
+    run = await _create_run(
+        db_session,
+        org_id=org.id,
+        user_id=org_admin.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+    )
+
+    discovery_session = DiscoverySession(
+        organization_id=org.id,
+        company_id=company.id,
+        status="review_ready",
+        created_by_user_id=org_admin.id,
+        assigned_owner_user_id=assigned_owner.id,
+    )
+    db_session.add(discovery_session)
+    await db_session.flush()
+    db_session.add(
+        DiscoverySource(
+            organization_id=org.id,
+            session_id=discovery_session.id,
+            source_type="file",
+            status="review_ready",
+            import_run_id=run.id,
+        )
+    )
+    await db_session.commit()
+
+    location_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="location",
+        status="accepted",
+        normalized_data={"name": "Finalize Owner Plant", "city": "Monterrey", "state": "NL"},
+    )
+    project_item = await _create_item(
+        db_session,
+        run=run,
+        item_type="project",
+        status="accepted",
+        parent_item_id=location_item.id,
+        normalized_data={
+            "name": "Finalize Owner Stream",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "description": "desc",
+            "sector": "industrial",
+            "subsector": "manufacturing",
+            "estimated_volume": "2 tons/week",
+        },
+    )
+
+    set_current_user(org_admin)
+    response = await client.post(f"/api/v1/bulk-import/runs/{run.id}/finalize")
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+
+    await db_session.refresh(project_item)
+    created_project = await db_session.get(Project, project_item.created_project_id)
+    assert created_project is not None
+    assert created_project.user_id == assigned_owner.id
 
 
 @pytest.mark.asyncio

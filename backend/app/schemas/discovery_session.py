@@ -24,6 +24,7 @@ DiscoverySourceStatus = Literal["uploaded", "processing", "review_ready", "faile
 
 class DiscoverySessionCreateRequest(BaseSchema):
     company_id: UUID
+    assigned_owner_user_id: UUID | None = None
 
 
 class DiscoverySessionAddTextRequest(BaseSchema):
@@ -60,6 +61,7 @@ class DiscoverySessionSummaryResponse(BaseSchema):
 class DiscoverySessionResponse(BaseSchema):
     id: UUID
     company_id: UUID
+    assigned_owner_user_id: UUID | None = None
     status: DiscoverySessionStatus
     started_at: datetime | None = None
     completed_at: datetime | None = None

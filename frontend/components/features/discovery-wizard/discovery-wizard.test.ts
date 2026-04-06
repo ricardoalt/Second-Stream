@@ -11,6 +11,7 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 
 const discoveryWizardModule = await import("./discovery-wizard");
 const orchestrationModule = await import("./use-discovery-orchestration");
+const idleViewModule = await import("./views/idle-view");
 
 function buildSession(
 	overrides?: Partial<DiscoverySessionResult>,
@@ -18,6 +19,7 @@ function buildSession(
 	return {
 		id: "session-1",
 		companyId: "company-1",
+		assignedOwnerUserId: null,
 		status: "review_ready",
 		startedAt: null,
 		completedAt: null,
@@ -540,6 +542,111 @@ describe("candidate confirmation flow", () => {
 			}),
 		).toBe("company-1");
 	});
+
+	it("shows Assign Owner only for org-admin or superadmin", () => {
+		expect(
+			idleViewModule.canShowAssignOwnerControl({
+				isOrgAdmin: true,
+				isSuperAdmin: false,
+			}),
+		).toBe(true);
+		expect(
+			idleViewModule.canShowAssignOwnerControl({
+				isOrgAdmin: false,
+				isSuperAdmin: true,
+			}),
+		).toBe(true);
+		expect(
+			idleViewModule.canShowAssignOwnerControl({
+				isOrgAdmin: false,
+				isSuperAdmin: false,
+			}),
+		).toBe(false);
+	});
+
+	it("filters assignable owners to active org-admin and field-agent excluding current user", () => {
+		const filtered = idleViewModule.filterAssignableOwners(
+			[
+				{
+					id: "u1",
+					email: "org-admin@example.com",
+					firstName: "Org",
+					lastName: "Admin",
+					isVerified: true,
+					isActive: true,
+					createdAt: "2026-01-01T00:00:00Z",
+					isSuperuser: false,
+					role: "org_admin",
+					organizationId: "org-1",
+					permissions: [],
+					permissionsVersion: "v1",
+				},
+				{
+					id: "u2",
+					email: "field-agent@example.com",
+					firstName: "Field",
+					lastName: "Agent",
+					isVerified: true,
+					isActive: true,
+					createdAt: "2026-01-01T00:00:00Z",
+					isSuperuser: false,
+					role: "field_agent",
+					organizationId: "org-1",
+					permissions: [],
+					permissionsVersion: "v1",
+				},
+				{
+					id: "u3",
+					email: "inactive@example.com",
+					firstName: "Inactive",
+					lastName: "Agent",
+					isVerified: true,
+					isActive: false,
+					createdAt: "2026-01-01T00:00:00Z",
+					isSuperuser: false,
+					role: "field_agent",
+					organizationId: "org-1",
+					permissions: [],
+					permissionsVersion: "v1",
+				},
+				{
+					id: "u4",
+					email: "sales@example.com",
+					firstName: "Sales",
+					lastName: "Rep",
+					isVerified: true,
+					isActive: true,
+					createdAt: "2026-01-01T00:00:00Z",
+					isSuperuser: false,
+					role: "sales",
+					organizationId: "org-1",
+					permissions: [],
+					permissionsVersion: "v1",
+				},
+			],
+			"u1",
+		);
+
+		expect(filtered).toHaveLength(1);
+		expect(filtered[0]?.id).toBe("u2");
+	});
+
+	it("formats assignable owner role labels", () => {
+		expect(idleViewModule.formatAssignableOwnerRoleLabel("org_admin")).toBe(
+			"Org Admin",
+		);
+		expect(idleViewModule.formatAssignableOwnerRoleLabel("field_agent")).toBe(
+			"Field Agent",
+		);
+	});
+
+	it("resolves owner payload for quick entry fallback", () => {
+		expect(idleViewModule.resolveAssignedOwnerUserId("")).toBeUndefined();
+		expect(idleViewModule.resolveAssignedOwnerUserId("self")).toBeUndefined();
+		expect(idleViewModule.resolveAssignedOwnerUserId("user-123")).toBe(
+			"user-123",
+		);
+	});
 });
 
 describe("discovery resume persistence", () => {
@@ -574,6 +681,7 @@ describe("discovery resume persistence", () => {
 				sessionId: "session-1",
 				companyId: "company-1",
 				locationId: "location-1",
+				assignedOwnerUserId: "user-1",
 			},
 			storage,
 		);
@@ -584,6 +692,7 @@ describe("discovery resume persistence", () => {
 				sessionId: "session-1",
 				companyId: "company-1",
 				locationId: "location-1",
+				assignedOwnerUserId: "user-1",
 			}),
 		);
 		expect(typeof loaded?.savedAt).toBe("number");
@@ -598,6 +707,7 @@ describe("discovery resume persistence", () => {
 				sessionId: "old-session",
 				companyId: "company-1",
 				locationId: "location-1",
+				assignedOwnerUserId: null,
 				savedAt: Date.now() - 5_000,
 			}),
 		);

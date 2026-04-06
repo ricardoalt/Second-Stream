@@ -18,11 +18,21 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CompanyCombobox } from "@/components/ui/company-combobox";
 import { LocationCombobox } from "@/components/ui/location-combobox";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+} from "@/components/ui/select";
+import { organizationsAPI } from "@/lib/api/organizations";
 import { projectsAPI } from "@/lib/api/projects";
+import { useAuth } from "@/lib/contexts";
 import { useLocationStore } from "@/lib/stores/location-store";
+import type { User } from "@/lib/types/user";
 import { cn } from "@/lib/utils";
 
 const MAX_FILES = 10;
@@ -77,6 +87,47 @@ const VOICE_WAVE_BARS = [
 	{ id: "bar-6", height: 3 },
 	{ id: "bar-7", height: 5 },
 ] as const;
+
+export function canShowAssignOwnerControl(params: {
+	isOrgAdmin: boolean;
+	isSuperAdmin: boolean;
+}): boolean {
+	return params.isOrgAdmin || params.isSuperAdmin;
+}
+
+export function filterAssignableOwners(
+	users: User[],
+	currentUserId?: string,
+): User[] {
+	return users.filter(
+		(candidate) =>
+			candidate.isActive &&
+			(candidate.role === "org_admin" || candidate.role === "field_agent") &&
+			candidate.id !== currentUserId,
+	);
+}
+
+export function formatAssignableOwnerRoleLabel(role: User["role"]): string {
+	if (role === "org_admin") {
+		return "Org Admin";
+	}
+	if (role === "field_agent") {
+		return "Field Agent";
+	}
+	return role
+		.split("_")
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ");
+}
+
+export function resolveAssignedOwnerUserId(
+	selectedOwnerUserId?: string,
+): string | undefined {
+	if (!selectedOwnerUserId || selectedOwnerUserId === "self") {
+		return undefined;
+	}
+	return selectedOwnerUserId;
+}
 
 function fileIcon(name: string) {
 	const ext = name.split(".").pop()?.toLowerCase() ?? "";
@@ -168,6 +219,7 @@ function canSaveQuickEntry(params: {
 export interface IdleDiscoveryPayload {
 	companyId: string;
 	locationId: string;
+	assignedOwnerUserId: string | null;
 	files: File[];
 	audioFile: File | null;
 	text: string;
@@ -210,7 +262,14 @@ export function IdleView({
 	});
 	const [quickEntryError, setQuickEntryError] = useState<string | null>(null);
 	const [isSavingQuickEntry, setIsSavingQuickEntry] = useState(false);
+	const [assignableOwners, setAssignableOwners] = useState<User[]>([]);
+	const [selectedOwnerUserId, setSelectedOwnerUserId] = useState<string>("");
 	const { locations, loadLocationsByCompany } = useLocationStore();
+	const { user, isOrgAdmin, isSuperAdmin } = useAuth();
+	const canAssignOwner = canShowAssignOwnerControl({
+		isOrgAdmin,
+		isSuperAdmin,
+	});
 
 	const hasAttachments = files.length > 0 || audioFile !== null;
 	const isSubmitting = phase === "submitting";
@@ -243,6 +302,7 @@ export function IdleView({
 				setDragActive(false);
 				dragCounterRef.current = 0;
 				setQuickEntryError(null);
+				setSelectedOwnerUserId("");
 				setQe({
 					client: "",
 					locationId: "",
@@ -256,6 +316,40 @@ export function IdleView({
 		}
 		return undefined;
 	}, [open, defaultCompanyId]);
+
+	useEffect(() => {
+		if (!open || !canAssignOwner) {
+			setAssignableOwners([]);
+			return;
+		}
+
+		let cancelled = false;
+		void organizationsAPI
+			.listMyOrgUsers()
+			.then((users) => {
+				if (cancelled) return;
+				const filteredOwners = filterAssignableOwners(users, user?.id);
+				setAssignableOwners(filteredOwners);
+			})
+			.catch(() => {
+				if (!cancelled) {
+					setAssignableOwners([]);
+				}
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [open, canAssignOwner, user?.id]);
+
+	useEffect(() => {
+		if (
+			selectedOwnerUserId &&
+			!assignableOwners.some((owner) => owner.id === selectedOwnerUserId)
+		) {
+			setSelectedOwnerUserId("");
+		}
+	}, [selectedOwnerUserId, assignableOwners]);
 
 	useEffect(() => {
 		if (!open) return;
@@ -311,6 +405,30 @@ export function IdleView({
 		frequency: qe.frequency,
 		isSaving: isSavingQuickEntry,
 	});
+	const resolvedAssignedOwnerUserId =
+		resolveAssignedOwnerUserId(selectedOwnerUserId) ?? null;
+	const selectedOwner = assignableOwners.find(
+		(owner) => owner.id === selectedOwnerUserId,
+	);
+
+	const renderOwnerValue = () => {
+		if (!selectedOwner) {
+			return (
+				<span className="text-muted-foreground">Assign Owner</span>
+			);
+		}
+
+		return (
+			<div className="flex items-center gap-2">
+				<span>
+					{selectedOwner.firstName} {selectedOwner.lastName}
+				</span>
+				<Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+					{formatAssignableOwnerRoleLabel(selectedOwner.role)}
+				</Badge>
+			</div>
+		);
+	};
 
 	const validateAndAddFiles = useCallback(
 		(incoming: File[]) => {
@@ -457,6 +575,9 @@ export function IdleView({
 			await projectsAPI.createProject({
 				locationId: qe.locationId,
 				name: qe.material.trim(),
+				...(resolvedAssignedOwnerUserId
+					? { ownerUserId: resolvedAssignedOwnerUserId }
+					: {}),
 			});
 			toast.success("Waste stream created");
 			resetQuickEntry();
@@ -476,6 +597,7 @@ export function IdleView({
 		qe.material,
 		qe.units,
 		qe.volume,
+		resolvedAssignedOwnerUserId,
 		resetQuickEntry,
 	]);
 
@@ -658,6 +780,40 @@ export function IdleView({
 									</div>
 								</section>
 							</div>
+							{canAssignOwner ? (
+								<section className="rounded-xl bg-surface-container-lowest/80 p-6 border border-border/15">
+									<div className="space-y-3">
+									<span className="block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+										Assign Owner
+									</span>
+									<Select
+										value={selectedOwnerUserId}
+										onValueChange={setSelectedOwnerUserId}
+									>
+										<SelectTrigger className="h-10 bg-surface-container-low/60">
+											{renderOwnerValue()}
+										</SelectTrigger>
+										<SelectContent>
+											{assignableOwners.map((owner) => (
+												<SelectItem key={owner.id} value={owner.id}>
+													<div className="flex items-center gap-2">
+														<span>
+															{owner.firstName} {owner.lastName}
+														</span>
+														<Badge
+															variant="outline"
+															className="px-1.5 py-0 text-[10px]"
+														>
+															{formatAssignableOwnerRoleLabel(owner.role)}
+														</Badge>
+													</div>
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									</div>
+								</section>
+							) : null}
 							<div className="flex flex-col gap-3 rounded-lg border-l-4 border-l-primary bg-primary/[0.04] px-5 py-3 sm:flex-row sm:items-center sm:gap-5 sm:px-6">
 								<span className="text-sm font-semibold text-primary uppercase tracking-wide">
 									Entry Guidelines:
@@ -914,6 +1070,39 @@ export function IdleView({
 								</section>
 							</section>
 
+							{canAssignOwner ? (
+								<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15 md:col-span-2">
+									<div className="space-y-2">
+										<h3 className="text-base font-semibold text-foreground">Assign Owner</h3>
+										<Select
+											value={selectedOwnerUserId}
+											onValueChange={setSelectedOwnerUserId}
+										>
+											<SelectTrigger className="h-10 bg-surface-container-low/60">
+												{renderOwnerValue()}
+											</SelectTrigger>
+											<SelectContent>
+												{assignableOwners.map((owner) => (
+													<SelectItem key={owner.id} value={owner.id}>
+														<div className="flex items-center gap-2">
+															<span>
+																{owner.firstName} {owner.lastName}
+															</span>
+															<Badge
+																variant="outline"
+																className="px-1.5 py-0 text-[10px]"
+															>
+																{formatAssignableOwnerRoleLabel(owner.role)}
+															</Badge>
+														</div>
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+								</section>
+							) : null}
+
 							<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">
 								<div className="flex items-center gap-3 mb-3">
 									<div className="p-2.5 bg-primary/10 rounded-lg">
@@ -1000,6 +1189,7 @@ export function IdleView({
 										void onDiscover({
 											companyId,
 											locationId,
+											assignedOwnerUserId: resolvedAssignedOwnerUserId,
 											files,
 											audioFile,
 											text,

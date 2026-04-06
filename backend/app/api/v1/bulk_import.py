@@ -324,6 +324,7 @@ async def decide_discovery_draft_item(
             review_notes=payload.review_notes,
             location_resolution=payload.location_resolution,
             confirm_create_new=payload.confirm_create_new,
+            owner_user_id=payload.owner_user_id,
         )
 
     item, summary, run = await _execute_in_transaction(db, _operation)

@@ -137,19 +137,74 @@ class DiscoverySessionService:
         organization_id: UUID,
         company_id: UUID,
         user_id: UUID,
+        assigned_owner_user_id: UUID | None,
     ) -> DiscoverySession:
         await self._load_company_in_scope(
             db, organization_id=organization_id, company_id=company_id
+        )
+        resolved_owner_id = await self._resolve_assigned_owner_user_id(
+            db,
+            organization_id=organization_id,
+            requesting_user_id=user_id,
+            assigned_owner_user_id=assigned_owner_user_id,
         )
         session = DiscoverySession(
             organization_id=organization_id,
             company_id=company_id,
             status="draft",
             created_by_user_id=user_id,
+            assigned_owner_user_id=resolved_owner_id,
         )
         db.add(session)
         await db.flush()
         return session
+
+    async def _resolve_assigned_owner_user_id(
+        self,
+        db: AsyncSession,
+        *,
+        organization_id: UUID,
+        requesting_user_id: UUID,
+        assigned_owner_user_id: UUID | None,
+    ) -> UUID | None:
+        requester = await db.get(User, requesting_user_id)
+        if requester is None or requester.organization_id != organization_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+        requester_can_assign = bool(
+            requester.is_superuser or requester.role == "org_admin"
+        )
+        if assigned_owner_user_id is None:
+            return None
+
+        if not requester_can_assign:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only org admins can assign owner",
+            )
+
+        owner = await db.get(User, assigned_owner_user_id)
+        if owner is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Assigned owner not found",
+            )
+        if owner.organization_id != organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Assigned owner must belong to your organization",
+            )
+        if not owner.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Assigned owner must be active",
+            )
+        if owner.role not in {"org_admin", "field_agent"}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Assigned owner role is not allowed",
+            )
+        return owner.id
 
     async def get_session(
         self,
@@ -340,6 +395,7 @@ class DiscoverySessionService:
         session.started_by_user_id = current_user.id
         session.status = "processing"
         session.processing_error = None
+        run_owner_user_id = session.assigned_owner_user_id or current_user.id
 
         for source in session.sources:
             if source.import_run_id is not None:
@@ -350,7 +406,7 @@ class DiscoverySessionService:
                     run = self._build_file_run(
                         session=session,
                         source=source,
-                        user_id=current_user.id,
+                        user_id=run_owner_user_id,
                         started_at=started_at,
                     )
                 except ValueError as exc:
@@ -368,7 +424,7 @@ class DiscoverySessionService:
                     run, voice_interview = self._build_audio_run(
                         session=session,
                         source=source,
-                        user_id=current_user.id,
+                        user_id=run_owner_user_id,
                         started_at=started_at,
                     )
                 except ValueError as exc:
@@ -403,7 +459,7 @@ class DiscoverySessionService:
                     progress_step="discovery_text_pending",
                     processing_attempts=0,
                     processing_available_at=started_at,
-                    created_by_user_id=current_user.id,
+                    created_by_user_id=run_owner_user_id,
                 )
                 db.add(run)
                 source.import_run_id = run.id
@@ -555,6 +611,7 @@ class DiscoverySessionService:
         return DiscoverySessionResponse(
             id=session.id,
             company_id=session.company_id,
+            assigned_owner_user_id=session.assigned_owner_user_id,
             status=_session_status_literal(session.status),
             started_at=session.started_at,
             completed_at=session.completed_at,

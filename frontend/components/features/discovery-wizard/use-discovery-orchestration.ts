@@ -34,6 +34,7 @@ interface PersistedDiscoveryResumeState {
 	sessionId: string;
 	companyId: string;
 	locationId: string;
+	assignedOwnerUserId: string | null;
 	savedAt: number;
 }
 
@@ -43,6 +44,7 @@ interface DiscoveryResumeNotice {
 	sessionId: string;
 	companyId: string;
 	locationId: string;
+	assignedOwnerUserId: string | null;
 	status: DiscoverySessionResult["status"];
 	mode: DiscoveryResumeMode;
 	title: string;
@@ -65,6 +67,8 @@ function isResumeStorageCandidate(
 		candidate.companyId.length > 0 &&
 		typeof candidate.locationId === "string" &&
 		candidate.locationId.length > 0 &&
+		(candidate.assignedOwnerUserId === null ||
+			typeof candidate.assignedOwnerUserId === "string") &&
 		typeof candidate.savedAt === "number"
 	);
 }
@@ -178,6 +182,7 @@ export function resolveDiscoveryResumeNotice(params: {
 			sessionId: persisted.sessionId,
 			companyId: persisted.companyId,
 			locationId: persisted.locationId,
+			assignedOwnerUserId: persisted.assignedOwnerUserId,
 			status: session.status,
 			mode,
 			title: "Resume previous discovery session?",
@@ -192,6 +197,7 @@ export function resolveDiscoveryResumeNotice(params: {
 			sessionId: persisted.sessionId,
 			companyId: persisted.companyId,
 			locationId: persisted.locationId,
+			assignedOwnerUserId: persisted.assignedOwnerUserId,
 			status: session.status,
 			mode,
 			title: "Resume candidate review?",
@@ -205,6 +211,7 @@ export function resolveDiscoveryResumeNotice(params: {
 		sessionId: persisted.sessionId,
 		companyId: persisted.companyId,
 		locationId: persisted.locationId,
+		assignedOwnerUserId: persisted.assignedOwnerUserId,
 		status: session.status,
 		mode,
 		title: "Previous discovery session found",
@@ -239,6 +246,7 @@ interface FinalizeAllResult {
 interface StartDiscoveryParams {
 	companyId: string;
 	locationId: string;
+	assignedOwnerUserId: string | null;
 	files: File[];
 	audioFile: File | null;
 	text: string;
@@ -301,35 +309,6 @@ function resolveLocationResolution(params: {
 	return { mode: "existing", locationId: resolvedLocationId };
 }
 
-async function confirmCandidateDecision(params: {
-	candidate: DraftCandidate;
-	defaultLocationId: string;
-}): Promise<CandidateValidationErrors> {
-	const { candidate, defaultLocationId } = params;
-	const validationErrors = validateCandidateForConfirmation(candidate);
-	if (Object.keys(validationErrors).length > 0) {
-		return validationErrors;
-	}
-
-	const decisionPayload: Parameters<
-		typeof bulkImportAPI.decideDiscoveryDraft
-	>[1] = {
-		action: "confirm",
-		normalizedData: toDiscoveryNormalizedData(candidate),
-		reviewNotes: buildCandidateReviewNotes(candidate),
-	};
-	const locationResolution = resolveLocationResolution({
-		candidateLocationId: candidate.locationId,
-		defaultLocationId,
-	});
-	if (locationResolution) {
-		decisionPayload.locationResolution = locationResolution;
-	}
-
-	await bulkImportAPI.decideDiscoveryDraft(candidate.itemId, decisionPayload);
-	return {};
-}
-
 type DecideDiscoveryDraftFn =
 	typeof import("@/lib/api/bulk-import").bulkImportAPI["decideDiscoveryDraft"];
 
@@ -361,65 +340,6 @@ export async function rejectCandidateDecision(params: {
 	});
 }
 
-async function processFinalizeAllCandidates(params: {
-	candidates: DraftCandidate[];
-	defaultLocationId: string;
-}): Promise<FinalizeAllResult> {
-	const { candidates, defaultLocationId } = params;
-	const pendingCandidates = candidates.filter(
-		(candidate) => candidate.status === "pending",
-	);
-	const validationById: Record<string, CandidateValidationErrors> = {};
-	const validPending = pendingCandidates.filter((candidate) => {
-		const errors = validateCandidateForConfirmation(candidate);
-		if (Object.keys(errors).length > 0) {
-			validationById[candidate.itemId] = errors;
-			return false;
-		}
-		return true;
-	});
-
-	const confirmedIds: string[] = [];
-
-	await Promise.all(
-		validPending.map(async (candidate) => {
-			const decisionPayload: Parameters<
-				typeof bulkImportAPI.decideDiscoveryDraft
-			>[1] = {
-				action: "confirm",
-				normalizedData: toDiscoveryNormalizedData(candidate),
-				reviewNotes: buildCandidateReviewNotes(candidate),
-			};
-			const locationResolution = resolveLocationResolution({
-				candidateLocationId: candidate.locationId,
-				defaultLocationId,
-			});
-			if (locationResolution) {
-				decisionPayload.locationResolution = locationResolution;
-			}
-
-			await bulkImportAPI.decideDiscoveryDraft(
-				candidate.itemId,
-				decisionPayload,
-			);
-			confirmedIds.push(candidate.itemId);
-		}),
-	);
-
-	const confirmedSet = new Set(confirmedIds);
-	const updatedCandidates = candidates.map((candidate) => {
-		if (confirmedSet.has(candidate.itemId)) {
-			return { ...candidate, status: "confirmed" as const };
-		}
-		if (candidate.status === "pending") {
-			return { ...candidate, status: "skipped" as const };
-		}
-		return candidate;
-	});
-
-	return { updatedCandidates, validationById, confirmedIds };
-}
-
 export function useDiscoveryOrchestration(
 	options: UseDiscoveryOrchestrationOptions,
 ) {
@@ -448,6 +368,9 @@ export function useDiscoveryOrchestration(
 		null,
 	);
 	const [defaultLocationId, setDefaultLocationId] = useState("");
+	const [assignedOwnerUserId, setAssignedOwnerUserId] = useState<string | null>(
+		null,
+	);
 	const [resumeNotice, setResumeNotice] =
 		useState<DiscoveryResumeNotice | null>(null);
 	const [checkingResumeState, setCheckingResumeState] = useState(false);
@@ -477,6 +400,7 @@ export function useDiscoveryOrchestration(
 		setIsBulkConfirming(false);
 		setCandidateErrors({});
 		setReviewSummary(null);
+		setAssignedOwnerUserId(null);
 		terminalConfirmingRef.current = false;
 	}, []);
 
@@ -614,8 +538,16 @@ export function useDiscoveryOrchestration(
 
 	const startDiscovery = useCallback(
 		async (params: StartDiscoveryParams) => {
-			const { companyId, locationId, files, audioFile, text } = params;
+			const {
+				companyId,
+				locationId,
+				assignedOwnerUserId: selectedOwnerUserId,
+				files,
+				audioFile,
+				text,
+			} = params;
 			setDefaultLocationId(locationId);
+			setAssignedOwnerUserId(selectedOwnerUserId);
 			const trimmedText = text.trim();
 			const hasValidTextSource = trimmedText.length >= 20;
 
@@ -623,9 +555,17 @@ export function useDiscoveryOrchestration(
 			setError(null);
 
 			try {
-				const session = await discoverySessionsAPI.create(companyId);
+				const session = await discoverySessionsAPI.create(
+					companyId,
+					selectedOwnerUserId ?? undefined,
+				);
 				const sessionId = session.id;
-				persistDiscoveryResumeState({ sessionId, companyId, locationId });
+				persistDiscoveryResumeState({
+					sessionId,
+					companyId,
+					locationId,
+					assignedOwnerUserId: selectedOwnerUserId,
+				});
 
 				const uploads: Promise<unknown>[] = [];
 				for (const file of files) {
@@ -715,6 +655,7 @@ export function useDiscoveryOrchestration(
 
 		setError(null);
 		setDefaultLocationId(resumeNotice.locationId);
+		setAssignedOwnerUserId(resumeNotice.assignedOwnerUserId);
 
 		if (resumeNotice.mode === "processing") {
 			startPolling(
@@ -751,6 +692,7 @@ export function useDiscoveryOrchestration(
 							sessionId: resumeNotice.sessionId,
 							companyId: resumeNotice.companyId,
 							locationId: resumeNotice.locationId,
+							assignedOwnerUserId: resumeNotice.assignedOwnerUserId,
 							savedAt: Date.now(),
 						},
 					}),
@@ -849,7 +791,19 @@ export function useDiscoveryOrchestration(
 
 			setConfirmingId(itemId);
 			try {
-				await confirmCandidateDecision({ candidate, defaultLocationId });
+				const locationResolution = resolveLocationResolution({
+					candidateLocationId: candidate.locationId,
+					defaultLocationId,
+				});
+				await bulkImportAPI.decideDiscoveryDraft(candidate.itemId, {
+					action: "confirm",
+					normalizedData: toDiscoveryNormalizedData(candidate),
+					reviewNotes: buildCandidateReviewNotes(candidate),
+					...(locationResolution ? { locationResolution } : {}),
+					...(assignedOwnerUserId
+						? { ownerUserId: assignedOwnerUserId }
+						: {}),
+				});
 				setCandidates((prev) =>
 					prev.map((item) =>
 						item.itemId === itemId ? { ...item, status: "confirmed" } : item,
@@ -876,7 +830,7 @@ export function useDiscoveryOrchestration(
 				setConfirmingId(null);
 			}
 		},
-		[candidates, defaultLocationId, isCandidateMutationInFlight],
+		[candidates, defaultLocationId, isCandidateMutationInFlight, assignedOwnerUserId],
 	);
 
 	const handleCandidateModalOpenChange = useCallback(
@@ -988,10 +942,59 @@ export function useDiscoveryOrchestration(
 		let outcome: FinalizeAllResult | null = null;
 
 		try {
-			outcome = await processFinalizeAllCandidates({
-				candidates: currentCandidates,
-				defaultLocationId,
+			const pendingCandidates = currentCandidates.filter(
+				(candidate) => candidate.status === "pending",
+			);
+			const validationById: Record<string, CandidateValidationErrors> = {};
+			const validPending = pendingCandidates.filter((candidate) => {
+				const errors = validateCandidateForConfirmation(candidate);
+				if (Object.keys(errors).length > 0) {
+					validationById[candidate.itemId] = errors;
+					return false;
+				}
+				return true;
 			});
+			const confirmedIds: string[] = [];
+			await Promise.all(
+				validPending.map(async (candidate) => {
+					const decisionPayload: Parameters<
+						typeof bulkImportAPI.decideDiscoveryDraft
+					>[1] = {
+						action: "confirm",
+						normalizedData: toDiscoveryNormalizedData(candidate),
+						reviewNotes: buildCandidateReviewNotes(candidate),
+					};
+					const locationResolution = resolveLocationResolution({
+						candidateLocationId: candidate.locationId,
+						defaultLocationId,
+					});
+					if (locationResolution) {
+						decisionPayload.locationResolution = locationResolution;
+					}
+					if (assignedOwnerUserId) {
+						decisionPayload.ownerUserId = assignedOwnerUserId;
+					}
+					await bulkImportAPI.decideDiscoveryDraft(
+						candidate.itemId,
+						decisionPayload,
+					);
+					confirmedIds.push(candidate.itemId);
+				}),
+			);
+			const confirmedSet = new Set(confirmedIds);
+			outcome = {
+				updatedCandidates: currentCandidates.map((candidate) => {
+					if (confirmedSet.has(candidate.itemId)) {
+						return { ...candidate, status: "confirmed" as const };
+					}
+					if (candidate.status === "pending") {
+						return { ...candidate, status: "skipped" as const };
+					}
+					return candidate;
+				}),
+				validationById,
+				confirmedIds,
+			};
 		} catch (finalizeError) {
 			toast.error(
 				finalizeError instanceof Error
@@ -1020,7 +1023,12 @@ export function useDiscoveryOrchestration(
 		setCandidateErrors({});
 		clearDiscoveryResumeState();
 		setPhase("complete");
-	}, [candidates, defaultLocationId, isCandidateMutationInFlight]);
+	}, [
+		candidates,
+		defaultLocationId,
+		isCandidateMutationInFlight,
+		assignedOwnerUserId,
+	]);
 
 	const handleConfirmKeepDrafts = useCallback(() => {
 		setShowDraftCloseWarning(false);

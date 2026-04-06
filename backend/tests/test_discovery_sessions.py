@@ -103,6 +103,207 @@ async def _create_session_with_discovery_run(
 
 
 @pytest.mark.asyncio
+async def test_discovery_session_create_persists_assigned_owner_for_org_admin(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(db_session, "Discovery Owner Org", "discovery-owner-org")
+    org_admin = await create_user(
+        db_session,
+        email=f"discovery-owner-admin-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    owner = await create_user(
+        db_session,
+        email=f"discovery-owner-field-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Owner Co")
+
+    set_current_user(org_admin)
+    response = await client.post(
+        "/api/v1/discovery-sessions",
+        json={
+            "companyId": str(company.id),
+            "assignedOwnerUserId": str(owner.id),
+        },
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["assignedOwnerUserId"] == str(owner.id)
+
+    session = await db_session.get(DiscoverySession, payload["id"])
+    assert session is not None
+    assert session.assigned_owner_user_id == owner.id
+
+
+@pytest.mark.asyncio
+async def test_discovery_session_create_rejects_assigned_owner_for_field_agent(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(
+        db_session,
+        "Discovery Owner Forbidden Org",
+        "discovery-owner-forbidden-org",
+    )
+    field_agent = await create_user(
+        db_session,
+        email=f"discovery-owner-forbidden-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    target_owner = await create_user(
+        db_session,
+        email=f"discovery-owner-target-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Owner Forbidden Co")
+
+    set_current_user(field_agent)
+    response = await client.post(
+        "/api/v1/discovery-sessions",
+        json={
+            "companyId": str(company.id),
+            "assignedOwnerUserId": str(target_owner.id),
+        },
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_discovery_session_create_rejects_invalid_assigned_owner_scope_status_or_role(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    uid = uuid.uuid4().hex[:6]
+    org = await create_org(db_session, "Discovery Owner Invalid Org", "discovery-owner-invalid-org")
+    other_org = await create_org(
+        db_session,
+        "Discovery Owner Invalid Other Org",
+        "discovery-owner-invalid-other-org",
+    )
+    org_admin = await create_user(
+        db_session,
+        email=f"discovery-owner-invalid-admin-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    cross_org_owner = await create_user(
+        db_session,
+        email=f"discovery-owner-invalid-cross-{uid}@example.com",
+        org_id=other_org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    inactive_owner = await create_user(
+        db_session,
+        email=f"discovery-owner-invalid-inactive-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    inactive_owner.is_active = False
+    disallowed_role_owner = await create_user(
+        db_session,
+        email=f"discovery-owner-invalid-role-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.SALES.value,
+        is_superuser=False,
+    )
+    await db_session.commit()
+
+    company = await create_company(db_session, org_id=org.id, name="Discovery Owner Invalid Co")
+
+    set_current_user(org_admin)
+
+    cross_org_response = await client.post(
+        "/api/v1/discovery-sessions",
+        json={
+            "companyId": str(company.id),
+            "assignedOwnerUserId": str(cross_org_owner.id),
+        },
+    )
+    assert cross_org_response.status_code == 409
+
+    inactive_response = await client.post(
+        "/api/v1/discovery-sessions",
+        json={
+            "companyId": str(company.id),
+            "assignedOwnerUserId": str(inactive_owner.id),
+        },
+    )
+    assert inactive_response.status_code == 409
+
+    disallowed_role_response = await client.post(
+        "/api/v1/discovery-sessions",
+        json={
+            "companyId": str(company.id),
+            "assignedOwnerUserId": str(disallowed_role_owner.id),
+        },
+    )
+    assert disallowed_role_response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_discovery_session_start_uses_assigned_owner_for_created_text_runs(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(
+        db_session,
+        "Discovery Owner Run Org",
+        "discovery-owner-run-org",
+    )
+    org_admin = await create_user(
+        db_session,
+        email=f"discovery-owner-run-admin-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    owner = await create_user(
+        db_session,
+        email=f"discovery-owner-run-field-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Owner Run Co")
+
+    set_current_user(org_admin)
+    create_response = await client.post(
+        "/api/v1/discovery-sessions",
+        json={
+            "companyId": str(company.id),
+            "assignedOwnerUserId": str(owner.id),
+        },
+    )
+    assert create_response.status_code == 201
+    session_id = create_response.json()["id"]
+
+    text_response = await client.post(
+        f"/api/v1/discovery-sessions/{session_id}/text",
+        json={"text": "Long enough text source to create owned run during session start."},
+    )
+    assert text_response.status_code == 201
+
+    start_response = await client.post(f"/api/v1/discovery-sessions/{session_id}/start")
+    assert start_response.status_code == 200
+    start_payload = start_response.json()
+    import_run_id = start_payload["sources"][0]["importRunId"]
+    assert import_run_id is not None
+
+    run = await db_session.get(ImportRun, import_run_id)
+    assert run is not None
+    assert run.created_by_user_id == owner.id
+
+
+@pytest.mark.asyncio
 async def test_discovery_session_text_start_handoff_and_idempotency(
     client: AsyncClient, db_session, set_current_user, monkeypatch
 ) -> None:

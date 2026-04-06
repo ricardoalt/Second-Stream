@@ -323,6 +323,164 @@ async def test_create_project_invalid_location(client: AsyncClient, db_session, 
 
 
 @pytest.mark.asyncio
+async def test_create_project_owner_override_for_org_admin(client: AsyncClient, db_session, set_current_user):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Create Owner Override", "org-create-owner-override")
+    org_admin = await create_user(
+        db_session,
+        email=f"owner-override-admin-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    field_agent = await create_user(
+        db_session,
+        email=f"owner-override-agent-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Create Owner Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Create Owner Loc"
+    )
+
+    set_current_user(org_admin)
+    response = await client.post(
+        "/api/v1/projects",
+        json={
+            "location_id": str(location.id),
+            "name": "Owner Override Project",
+            "owner_user_id": str(field_agent.id),
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["userId"] == str(field_agent.id)
+
+
+@pytest.mark.asyncio
+async def test_create_project_owner_override_forbidden_for_field_agent(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Create Owner Forbidden", "org-create-owner-forbidden")
+    field_agent = await create_user(
+        db_session,
+        email=f"owner-forbidden-agent-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    other_field_agent = await create_user(
+        db_session,
+        email=f"owner-forbidden-other-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Create Owner Forbidden Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Create Owner Forbidden Loc"
+    )
+
+    set_current_user(field_agent)
+    response = await client.post(
+        "/api/v1/projects",
+        json={
+            "location_id": str(location.id),
+            "name": "Forbidden Owner Override Project",
+            "owner_user_id": str(other_field_agent.id),
+        },
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_project_owner_override_rejects_invalid_owner_scope_status_or_role(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Create Owner Invalid",
+        "org-create-owner-invalid",
+    )
+    other_org = await create_org(
+        db_session,
+        "Org Create Owner Invalid Other",
+        "org-create-owner-invalid-other",
+    )
+    org_admin = await create_user(
+        db_session,
+        email=f"owner-invalid-admin-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    cross_org_user = await create_user(
+        db_session,
+        email=f"owner-invalid-cross-{uid}@example.com",
+        org_id=other_org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    inactive_user = await create_user(
+        db_session,
+        email=f"owner-invalid-inactive-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    inactive_user.is_active = False
+    disallowed_role_user = await create_user(
+        db_session,
+        email=f"owner-invalid-role-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.SALES.value,
+        is_superuser=False,
+    )
+    await db_session.commit()
+
+    company = await create_company(db_session, org_id=org.id, name="Create Owner Invalid Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Create Owner Invalid Loc"
+    )
+
+    set_current_user(org_admin)
+
+    cross_org_response = await client.post(
+        "/api/v1/projects",
+        json={
+            "location_id": str(location.id),
+            "name": "Cross Org Owner",
+            "owner_user_id": str(cross_org_user.id),
+        },
+    )
+    assert cross_org_response.status_code == 409
+
+    inactive_response = await client.post(
+        "/api/v1/projects",
+        json={
+            "location_id": str(location.id),
+            "name": "Inactive Owner",
+            "owner_user_id": str(inactive_user.id),
+        },
+    )
+    assert inactive_response.status_code == 409
+
+    disallowed_role_response = await client.post(
+        "/api/v1/projects",
+        json={
+            "location_id": str(location.id),
+            "name": "Disallowed Role Owner",
+            "owner_user_id": str(disallowed_role_user.id),
+        },
+    )
+    assert disallowed_role_response.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_get_project_detail(client: AsyncClient, db_session, set_current_user):
     uid = uuid.uuid4().hex[:8]
     org = await create_org(db_session, "Org Proj Detail", "org-proj-detail")

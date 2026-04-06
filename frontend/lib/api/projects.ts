@@ -24,6 +24,7 @@ export type ProjectListParams = {
 export type CreateProjectPayload = JsonObject & {
 	locationId: string; // Required - FK to location (source of truth)
 	name: string;
+	ownerUserId?: string;
 	projectType?: string; // Default: "Assessment"
 	description?: string;
 	tags?: string[];

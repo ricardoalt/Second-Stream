@@ -297,6 +297,7 @@ export const bulkImportAPI = {
 			reviewNotes?: string;
 			locationResolution?: BulkImportLocationResolution;
 			confirmCreateNew?: boolean;
+			ownerUserId?: string;
 		},
 	): Promise<BulkImportDiscoveryDraftDecisionResponse> {
 		const locationResolution = payload.locationResolution;
@@ -329,6 +330,7 @@ export const bulkImportAPI = {
 				review_notes: payload.reviewNotes,
 				location_resolution: serializedLocationResolution,
 				confirm_create_new: payload.confirmCreateNew,
+				owner_user_id: payload.ownerUserId,
 			},
 		);
 	},

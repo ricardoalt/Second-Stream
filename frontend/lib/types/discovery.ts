@@ -61,6 +61,7 @@ export interface DiscoverySessionSummary {
 export interface DiscoverySessionResult {
 	id: string;
 	companyId: string;
+	assignedOwnerUserId: string | null;
 	status: DiscoverySessionStatus;
 	startedAt: string | null;
 	completedAt: string | null;

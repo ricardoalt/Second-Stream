@@ -44,6 +44,7 @@ from app.authz.authz import (
 from app.main import limiter
 from app.models.discovery_session import DiscoverySource
 from app.models.project import Project
+from app.models.user import User
 from app.schemas.common import ErrorResponse, PaginatedResponse, SuccessResponse
 from app.schemas.dashboard import (
     DashboardBucket,
@@ -93,6 +94,45 @@ PROJECT_DETAIL_TIMELINE_LIMIT = 10
 
 
 bulk_import_service = BulkImportService()
+
+
+async def _resolve_project_owner_user_id(
+    *,
+    db: AsyncDB,
+    org: OrganizationContext,
+    current_user: CurrentUser,
+    owner_user_id: UUID | None,
+) -> UUID:
+    if owner_user_id is None:
+        return current_user.id
+
+    can_assign_owner = bool(current_user.is_superuser or current_user.role == "org_admin")
+    if not can_assign_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only org admins can assign owner",
+        )
+
+    owner = await db.get(User, owner_user_id)
+    if owner is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found")
+    if owner.organization_id != org.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Owner must belong to your organization",
+        )
+    if not owner.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Owner must be active",
+        )
+    if owner.role not in {"org_admin", "field_agent"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Owner role is not allowed",
+        )
+
+    return owner.id
 
 
 async def _discovery_source_filename_by_run_id(
@@ -1703,8 +1743,15 @@ async def create_project(
         f"({sector}/{subsector or 'N/A'}) at {location.name}, {location.city}"
     )
 
+    owner_user_id = await _resolve_project_owner_user_id(
+        db=db,
+        org=org,
+        current_user=current_user,
+        owner_user_id=project_data.owner_user_id,
+    )
+
     new_project = Project(
-        user_id=current_user.id,
+        user_id=owner_user_id,
         location_id=project_data.location_id,
         organization_id=org.id,
         name=project_data.name,

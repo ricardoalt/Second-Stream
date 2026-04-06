@@ -34,6 +34,7 @@ async def create_discovery_session(
         organization_id=org.id,
         company_id=payload.company_id,
         user_id=current_user.id,
+        assigned_owner_user_id=payload.assigned_owner_user_id,
     )
     await db.commit()
     refreshed = await service.get_session(
