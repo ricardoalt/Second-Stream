@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
 import structlog
 from pydantic_ai import Agent, BinaryContent, RunContext
+from pydantic_ai.models.bedrock import BedrockConverseModel
+from pydantic_ai.providers.bedrock import BedrockProvider
 from pydantic_ai.settings import ModelSettings
 
 from app.core.config import settings
@@ -26,10 +27,6 @@ class BulkImportExtractionContext:
     extension: str
 
 
-if not os.getenv("OPENAI_API_KEY") and settings.OPENAI_API_KEY:
-    os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
-
-
 def _load_prompt(prompt_filename: str) -> str:
     prompt_path = Path(__file__).parent.parent / "prompts" / prompt_filename
     try:
@@ -46,9 +43,14 @@ def _load_prompt(prompt_filename: str) -> str:
 _BULK_BASE_PROMPT = _load_prompt("bulk-import-extraction.md")
 _VOICE_BASE_PROMPT = _load_prompt("voice-interview-extraction.md")
 
+# Extract model name from settings (remove 'bedrock:' prefix)
+_BEDROCK_MODEL_NAME = settings.AI_DOCUMENT_MODEL.replace("bedrock:", "")
 
 bulk_import_extraction_agent = Agent(
-    settings.AI_DOCUMENT_MODEL,
+    BedrockConverseModel(
+        _BEDROCK_MODEL_NAME,
+        provider=BedrockProvider(region_name=settings.AWS_REGION),
+    ),
     deps_type=BulkImportExtractionContext,
     output_type=BulkImportAIOutput,
     model_settings=ModelSettings(temperature=0.1),
@@ -58,7 +60,10 @@ bulk_import_extraction_agent = Agent(
 
 
 voice_interview_extraction_agent = Agent(
-    settings.AI_DOCUMENT_MODEL,
+    BedrockConverseModel(
+        _BEDROCK_MODEL_NAME,
+        provider=BedrockProvider(region_name=settings.AWS_REGION),
+    ),
     deps_type=BulkImportExtractionContext,
     output_type=BulkImportAIOutput,
     model_settings=ModelSettings(temperature=0.1),

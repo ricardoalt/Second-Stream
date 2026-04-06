@@ -78,10 +78,13 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(..., min_length=20)
 
     # AI Models (format: "provider:model")
-    AI_PROPOSAL_MODEL: str = "openai:gpt-5.2"
-    AI_IMAGE_MODEL: str = "openai:gpt-5-mini"
-    AI_DOCUMENT_MODEL: str = "openai:gpt-5-mini"
-    AI_TEXT_MODEL: str = "openai:gpt-5.4-mini"
+    # Bedrock model IDs from AWS docs (April 2026):
+    # - Sonnet 4.6 requiere inference profile (prefix 'us.')
+    # - Format: us.anthropic.claude-sonnet-4-6 (sin fecha para 4.6)
+    AI_PROPOSAL_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
+    AI_IMAGE_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
+    AI_DOCUMENT_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
+    AI_TEXT_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
 
     # AWS S3
     AWS_ACCESS_KEY_ID: str | None = None

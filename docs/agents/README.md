@@ -17,6 +17,7 @@ This directory is the canonical operational guide for repo work.
 - `docs/agents/code-style.md` - coding principles and style defaults
 - `docs/agents/debugging.md` - debug commands and common failures
 - `docs/agents/environment-setup.md` - env vars and local setup
+- `docs/agents/aws-credentials-setup.md` - backend local AWS credential flow for Docker Compose
 - `docs/agents/deployment.md` - deploy notes and constraints
 - `docs/agents/performance.md` - performance defaults and watchouts
 - `docs/archive/README.md` - archive policy for inactive docs

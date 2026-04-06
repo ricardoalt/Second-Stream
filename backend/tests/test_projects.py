@@ -13,6 +13,7 @@ from conftest import (
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from app.api.v1.projects import _count_dashboard_rows, _count_dashboard_rows_split
 from app.models.bulk_import import ImportItem, ImportRun
 from app.models.discovery_session import DiscoverySource
 from app.models.intake_suggestion import IntakeSuggestion
@@ -20,7 +21,6 @@ from app.models.project import Project
 from app.models.proposal import Proposal
 from app.models.timeline import TimelineEvent
 from app.models.user import UserRole
-from app.api.v1.projects import _count_dashboard_rows, _count_dashboard_rows_split
 from app.services.project_data_service import ProjectDataService
 from app.templates.assessment_questionnaire import get_assessment_questionnaire
 

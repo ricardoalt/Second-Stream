@@ -1,11 +1,12 @@
 """AI agent for workspace insights refresh."""
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
 import structlog
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.bedrock import BedrockConverseModel
+from pydantic_ai.providers.bedrock import BedrockProvider
 from pydantic_ai.settings import ModelSettings
 
 from app.core.config import settings
@@ -24,10 +25,6 @@ class WorkspaceInsightsContext:
     existing_custom_fields: str
 
 
-if not os.getenv("OPENAI_API_KEY") and settings.OPENAI_API_KEY:
-    os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
-
-
 def load_workspace_insights_prompt() -> str:
     prompt_path = Path(__file__).parent.parent / "prompts" / "workspace-insights.md"
     try:
@@ -43,9 +40,14 @@ def load_workspace_insights_prompt() -> str:
 
 _BASE_PROMPT = load_workspace_insights_prompt()
 
+# Extract model name from settings (remove 'bedrock:' prefix)
+_BEDROCK_MODEL_NAME = settings.AI_TEXT_MODEL.replace("bedrock:", "")
 
 workspace_insights_agent = Agent(
-    settings.AI_TEXT_MODEL,
+    BedrockConverseModel(
+        _BEDROCK_MODEL_NAME,
+        provider=BedrockProvider(region_name=settings.AWS_REGION),
+    ),
     deps_type=WorkspaceInsightsContext,
     output_type=WorkspaceInsightsOutput,
     model_settings=ModelSettings(temperature=0.2),

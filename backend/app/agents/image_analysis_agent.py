@@ -5,12 +5,13 @@ Uses pydantic-ai with BinaryContent for vision model capabilities.
 Extracts structured business intelligence from photos of waste materials.
 """
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
 import structlog
 from pydantic_ai import Agent, BinaryContent, RunContext
+from pydantic_ai.models.bedrock import BedrockConverseModel
+from pydantic_ai.providers.bedrock import BedrockProvider
 from pydantic_ai.settings import ModelSettings
 
 from app.core.config import settings
@@ -32,11 +33,6 @@ class ImageContext:
     filename: str
     project_sector: str | None = None
     project_subsector: str | None = None
-
-
-# Configure OpenAI API
-if not os.getenv("OPENAI_API_KEY") and settings.OPENAI_API_KEY:
-    os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
 
 
 def load_image_analysis_prompt() -> str:
@@ -64,9 +60,15 @@ def load_image_analysis_prompt() -> str:
         raise
 
 
+# Extract model name from settings (remove 'bedrock:' prefix)
+_BEDROCK_MODEL_NAME = settings.AI_IMAGE_MODEL.replace("bedrock:", "")
+
 # Create the image analysis agent
 image_analysis_agent = Agent(
-    settings.AI_IMAGE_MODEL,
+    BedrockConverseModel(
+        _BEDROCK_MODEL_NAME,
+        provider=BedrockProvider(region_name=settings.AWS_REGION),
+    ),
     deps_type=ImageContext,
     output_type=ImageAnalysisOutput,
     instructions=load_image_analysis_prompt(),

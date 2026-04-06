@@ -8,13 +8,14 @@ Design principles:
 - Good names: project_data instead of water_data
 """
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import structlog
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.bedrock import BedrockConverseModel
+from pydantic_ai.providers.bedrock import BedrockProvider
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
@@ -41,15 +42,6 @@ class ProposalContext:
     document_insights: list[dict[str, Any]] | None = None
 
 
-def _ensure_api_key() -> None:
-    """Lazy API key check - fail fast only when actually needed."""
-    if not os.getenv("OPENAI_API_KEY"):
-        if settings.OPENAI_API_KEY:
-            os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
-        else:
-            raise ValueError("OPENAI_API_KEY required but not configured")
-
-
 def _load_prompt() -> str:
     """Load prompt from external file."""
     path = Path(__file__).parent.parent / "prompts" / "waste-upcycling-report.v3.md"
@@ -58,9 +50,15 @@ def _load_prompt() -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-# Initialize agent (lazy API key check happens on first use)
+# Extract model name from settings (remove 'bedrock:' prefix)
+_BEDROCK_MODEL_NAME = settings.AI_PROPOSAL_MODEL.replace("bedrock:", "")
+
+# Initialize agent with Bedrock provider configured with region
 proposal_agent = Agent(
-    settings.AI_PROPOSAL_MODEL,
+    BedrockConverseModel(
+        _BEDROCK_MODEL_NAME,
+        provider=BedrockProvider(region_name=settings.AWS_REGION),
+    ),
     deps_type=ProposalContext,
     output_type=ProposalOutput,
     instructions=_load_prompt(),
@@ -133,7 +131,7 @@ PHOTO {i}: {material} (confidence: {confidence})
 
         sections.append(f"""
 PHOTO ANALYSIS (use CO₂ data for environmental sections, generate your own pricing/buyers):
-{"".join(photo_sections)}
+{"" .join(photo_sections)}
 """)
 
     if documents:
@@ -153,7 +151,7 @@ DOCUMENT {i}:
 
         sections.append(f"""
 DOCUMENT INSIGHTS (use for compliance, handling, and pricing context):
-{"".join(doc_sections)}
+{"" .join(doc_sections)}
 """)
 
     return "".join(sections)
@@ -180,8 +178,6 @@ async def generate_proposal(
     Raises:
         ProposalGenerationError: On failure
     """
-    _ensure_api_key()  # Fail fast if no API key
-
     context = ProposalContext(
         project_data=project_data,
         client_metadata=client_metadata or {},

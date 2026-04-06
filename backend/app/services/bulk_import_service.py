@@ -29,7 +29,7 @@ from app.core.config import settings
 from app.models.bulk_import import ImportItem, ImportRun
 from app.models.bulk_import_output import NormalizedLocationDataV1, NormalizedProjectDataV1
 from app.models.company import Company
-from app.models.discovery_session import DiscoverySource
+from app.models.discovery_session import DiscoverySession, DiscoverySource
 from app.models.intake_suggestion import IntakeSuggestion
 from app.models.location import Location
 from app.models.project import Project

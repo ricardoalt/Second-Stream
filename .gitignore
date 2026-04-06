@@ -7,6 +7,9 @@ backend/.env
 frontend/.env.local
 frontend/.env
 
+# Docker Compose override (local development only)
+docker-compose.override.yml
+
 # Python
 __pycache__/
 *.py[cod]
@@ -79,3 +82,9 @@ infrastructure/**/.terraform.lock.hcl
 
 # SDD / registry cache
 .atl/
+
+# AWS credentials local development
+.env.aws
+
+# direnv - local environment
+.envrc

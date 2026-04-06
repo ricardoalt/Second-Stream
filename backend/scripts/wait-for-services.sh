@@ -32,6 +32,32 @@ wait_for() {
     echo -e "${GREEN}✅ $service_name está disponible!${NC}"
 }
 
+validate_aws_shared_config() {
+    if [ "${AWS_SDK_LOAD_CONFIG:-0}" != "1" ]; then
+        return 0
+    fi
+
+    local aws_dir="${HOME}/.aws"
+
+    echo -e "\n${YELLOW}🔐 Verificando configuración AWS compartida...${NC}"
+    echo "AWS_PROFILE=${AWS_PROFILE:-default}"
+    echo "AWS_REGION=${AWS_REGION:-unset}"
+
+    if [ ! -d "$aws_dir" ]; then
+        echo "❌ Error: no existe $aws_dir dentro del contenedor"
+        echo "   Verificá el mount de \\${HOME}/.aws en docker-compose.override.yml"
+        exit 1
+    fi
+
+    if [ ! -f "$aws_dir/config" ] && [ ! -f "$aws_dir/credentials" ]; then
+        echo "❌ Error: $aws_dir no contiene config ni credentials"
+        echo "   Configurá AWS CLI en el host con 'aws configure' o 'aws configure sso'"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✅ Configuración AWS compartida detectada${NC}"
+}
+
 # Banner
 echo "=================================="
 echo "🌊 H2O Allegiant Backend"
@@ -45,6 +71,9 @@ echo "POSTGRES_DB=${POSTGRES_DB}"
 echo "REDIS_HOST=${REDIS_HOST:-redis}"
 echo "REDIS_PORT=${REDIS_PORT:-6379}"
 echo "ENVIRONMENT=${ENVIRONMENT}"
+
+# Verificar AWS shared config cuando el servicio depende del SDK config chain
+validate_aws_shared_config
 
 # Esperar por PostgreSQL
 wait_for "${POSTGRES_SERVER:-postgres}" "${POSTGRES_PORT:-5432}" "PostgreSQL"
