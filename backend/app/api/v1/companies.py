@@ -208,10 +208,29 @@ async def _load_company_with_relations(
 ) -> Company | None:
     result = await db.execute(
         select(Company)
-        .options(selectinload(Company.locations), selectinload(Company.contacts))
+        .options(selectinload(Company.contacts))
         .where(Company.id == company_id, Company.organization_id == org_id)
     )
     return result.scalar_one_or_none()
+
+
+async def _list_company_locations(
+    db: AsyncDB,
+    org_id: UUID,
+    company_id: UUID,
+    archived: ArchivedFilter,
+) -> list[Location]:
+    query = (
+        select(Location)
+        .where(
+            Location.organization_id == org_id,
+            Location.company_id == company_id,
+        )
+        .order_by(Location.name)
+    )
+    query = apply_archived_filter(query, Location, archived)
+    result = await db.execute(query)
+    return result.scalars().all()
 
 
 def _build_company_contacts_summary(company: Company) -> list[CompanyContactRead]:
@@ -241,13 +260,12 @@ async def _build_company_detail_response(
     org_id: UUID,
     archived: ArchivedFilter,
 ) -> CompanyDetail:
-    locations = company.locations or []
-    if archived != "all":
-        locations = [
-            location
-            for location in locations
-            if (location.archived_at is None) == (archived == "active")
-        ]
+    locations = await _list_company_locations(
+        db=db,
+        org_id=org_id,
+        company_id=company.id,
+        archived=archived,
+    )
 
     location_ids = [location.id for location in locations]
     project_counts_by_location = await _get_project_counts_by_location(

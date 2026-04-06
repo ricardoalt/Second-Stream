@@ -556,3 +556,72 @@ async def test_offer_refresh_returns_502_when_offer_agent_fails(
     payload = response.json()
     assert payload["detail"]["message"] == "Offer insights generation failed"
     assert payload["detail"]["code"] == "OFFER_INSIGHTS_GENERATION_FAILED"
+
+
+@pytest.mark.asyncio
+async def test_offer_refresh_resolves_source_updated_at_once_per_request(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
+):
+    from app.services.offer_service import OfferService
+
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Offer Query Budget", f"org-offer-query-budget-{uid}")
+    user = await create_user(
+        db_session,
+        email=f"offer-query-budget-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Offer Query Budget Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Offer Query Budget Loc",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Offer Query Budget Project",
+    )
+    project.project_data = {
+        "workspace_v1": {
+            "updated_at": datetime.now(UTC).isoformat(),
+            "base_fields": {"material_type": "Plastic"},
+        }
+    }
+    await db_session.commit()
+
+    calls = {"resolve_source_updated_at": 0}
+    source_updated_at = datetime.now(UTC)
+
+    async def _counted_resolve_source_updated_at(*, db, project):
+        calls["resolve_source_updated_at"] += 1
+        return source_updated_at
+
+    async def _fake_offer_analysis(*_args, **_kwargs):
+        return OfferInsightsOutput(
+            summary="Fresh insights",
+            key_points=["Point"],
+            risks=[],
+            recommendations=[],
+        )
+
+    monkeypatch.setattr(
+        OfferService,
+        "_resolve_source_updated_at",
+        staticmethod(_counted_resolve_source_updated_at),
+    )
+    monkeypatch.setattr(
+        "app.agents.offer_insights_agent.analyze_offer_insights",
+        _fake_offer_analysis,
+    )
+
+    set_current_user(user)
+    response = await client.post(f"/api/v1/projects/{project.id}/offer/refresh-insights")
+
+    assert response.status_code == 200
+    assert calls["resolve_source_updated_at"] == 1

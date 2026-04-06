@@ -11,7 +11,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import aliased, raiseload, selectinload
-from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.orm.attributes import flag_modified, set_committed_value
 
 from app.api.dependencies import (
     ArchivedFilter,
@@ -89,6 +89,7 @@ router = APIRouter()
 
 INTELLIGENCE_REPORT_THRESHOLD = 70
 TOTAL_DRAFT_PREVIEW_LIMIT = 5
+PROJECT_DETAIL_TIMELINE_LIMIT = 10
 
 
 bulk_import_service = BulkImportService()
@@ -973,6 +974,23 @@ def _count_dashboard_rows(
     return DashboardCountsResponse(**counts)
 
 
+def _count_dashboard_rows_split(
+    *,
+    persisted_rows: list[PersistedStreamDashboardRow],
+    draft_rows: list[DraftItemDashboardRow],
+) -> DashboardCountsResponse:
+    counts: dict[str, int] = {
+        "total": len(persisted_rows) + len(draft_rows),
+        "needs_confirmation": len(draft_rows),
+        "missing_information": 0,
+        "intelligence_report": 0,
+        "proposal": 0,
+    }
+    for row in persisted_rows:
+        counts[row.bucket] += 1
+    return DashboardCountsResponse(**counts)
+
+
 async def _lock_project_for_update(
     db: AsyncDB,
     org_id: UUID,
@@ -1270,22 +1288,25 @@ async def get_dashboard_projection(
     )
     secondary_draft_rows: list[DraftItemDashboardRow] = []
 
-    all_rows = sorted(
-        [*persisted_rows, *draft_rows],
-        key=lambda row: row.last_activity_at,
-        reverse=True,
-    )
-    counts = _count_dashboard_rows(all_rows)
     draft_preview: DashboardDraftPreviewSlice | None = None
     bucket_rows: list[PersistedStreamDashboardRow | DraftItemDashboardRow]
     if bucket == "total":
+        counts = _count_dashboard_rows_split(
+            persisted_rows=persisted_rows,
+            draft_rows=draft_rows,
+        )
         bucket_rows = list(persisted_rows)
-        preview_rows = sorted(draft_rows, key=lambda row: row.last_activity_at, reverse=True)
         draft_preview = DashboardDraftPreviewSlice(
-            items=preview_rows[:TOTAL_DRAFT_PREVIEW_LIMIT],
-            total=len(preview_rows),
+            items=draft_rows[:TOTAL_DRAFT_PREVIEW_LIMIT],
+            total=len(draft_rows),
         )
     else:
+        all_rows = sorted(
+            [*persisted_rows, *draft_rows],
+            key=lambda row: row.last_activity_at,
+            reverse=True,
+        )
+        counts = _count_dashboard_rows(all_rows)
         bucket_rows = [row for row in all_rows if row.bucket == bucket]
     paged_rows, total, pages = _paginate_dashboard_rows(rows=bucket_rows, page=page, size=size)
 
@@ -1565,11 +1586,12 @@ async def get_project(
     """
     Get full project details including proposals and recent timeline.
 
-    Returns last 10 timeline events (limited in serializer).
+    Returns last 10 timeline events (limited at query + serializer).
     Use dedicated endpoint for full timeline history.
     """
     require_permission(current_user, permissions.PROJECT_READ)
     from app.models.location import Location
+    from app.models.timeline import TimelineEvent
 
     # Permission: superusers can access any project; members only their own
     conditions = [
@@ -1585,7 +1607,7 @@ async def get_project(
         .options(
             selectinload(Project.location_rel).selectinload(Location.company),
             selectinload(Project.proposals),
-            selectinload(Project.timeline),
+            raiseload(Project.timeline),
             raiseload(Project.files),
         )
     )
@@ -1596,6 +1618,18 @@ async def get_project(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
+
+    timeline_result = await db.execute(
+        select(TimelineEvent)
+        .where(
+            TimelineEvent.project_id == project.id,
+            TimelineEvent.organization_id == org.id,
+        )
+        .order_by(TimelineEvent.created_at.desc())
+        .limit(PROJECT_DETAIL_TIMELINE_LIMIT)
+    )
+    recent_timeline_events = timeline_result.scalars().all()
+    set_committed_value(project, "timeline", recent_timeline_events)
 
     logger.info("Project retrieved", project_id=str(project.id), name=project.name)
     return ProjectDetail.model_validate(project, from_attributes=True)

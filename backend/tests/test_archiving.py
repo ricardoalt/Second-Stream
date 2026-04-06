@@ -202,6 +202,56 @@ async def test_company_location_detail_defaults_active_only(
 
 
 @pytest.mark.asyncio
+async def test_company_detail_archived_filter_variants(
+    client: AsyncClient, db_session, set_current_user
+):
+    org = await create_org(db_session, "Org Company Detail Variants", "org-company-detail-variants")
+    admin = await create_user(
+        db_session,
+        email=f"admin-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    set_current_user(admin)
+
+    company = await create_company(db_session, org_id=org.id, name="Detail Variants Co")
+    active_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Active Variants Loc",
+    )
+    archived_location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Archived Variants Loc",
+    )
+    archive_resp = await client.post(f"/api/v1/companies/locations/{archived_location.id}/archive")
+    assert archive_resp.status_code == 200
+
+    active_resp = await client.get(f"/api/v1/companies/{company.id}?archived=active")
+    assert active_resp.status_code == 200
+    assert {loc["id"] for loc in active_resp.json().get("locations") or []} == {
+        str(active_location.id)
+    }
+
+    archived_resp = await client.get(f"/api/v1/companies/{company.id}?archived=archived")
+    assert archived_resp.status_code == 200
+    assert {loc["id"] for loc in archived_resp.json().get("locations") or []} == {
+        str(archived_location.id)
+    }
+
+    all_resp = await client.get(f"/api/v1/companies/{company.id}?archived=all")
+    assert all_resp.status_code == 200
+    assert {loc["id"] for loc in all_resp.json().get("locations") or []} == {
+        str(active_location.id),
+        str(archived_location.id),
+    }
+
+
+@pytest.mark.asyncio
 async def test_project_archive_restore_idempotent_audit(
     client: AsyncClient, db_session, set_current_user
 ):

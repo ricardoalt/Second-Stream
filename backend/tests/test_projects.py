@@ -20,6 +20,7 @@ from app.models.project import Project
 from app.models.proposal import Proposal
 from app.models.timeline import TimelineEvent
 from app.models.user import UserRole
+from app.api.v1.projects import _count_dashboard_rows, _count_dashboard_rows_split
 from app.services.project_data_service import ProjectDataService
 from app.templates.assessment_questionnaire import get_assessment_questionnaire
 
@@ -350,6 +351,56 @@ async def test_get_project_detail(client: AsyncClient, db_session, set_current_u
     data = response.json()
     assert data["name"] == "Detail Project"
     assert data["id"] == str(project.id)
+
+
+@pytest.mark.asyncio
+async def test_get_project_detail_limits_timeline_to_latest_ten(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Proj Detail Timeline", "org-proj-detail-timeline")
+    user = await create_user(
+        db_session,
+        email=f"proj-detail-timeline-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Detail Timeline Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Detail Timeline Loc"
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Detail Timeline Project",
+    )
+
+    now = datetime.now(UTC)
+    for i in range(12):
+        db_session.add(
+            TimelineEvent(
+                organization_id=org.id,
+                project_id=project.id,
+                event_type="project_updated",
+                title=f"Event {i:02d}",
+                description=f"Event description {i:02d}",
+                actor=user.email,
+                event_metadata={"index": i},
+                created_at=now - timedelta(minutes=i),
+            )
+        )
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.get(f"/api/v1/projects/{project.id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["timeline"]) == 10
+    assert data["timeline"][0]["title"] == "Event 00"
+    assert data["timeline"][9]["title"] == "Event 09"
 
 
 @pytest.mark.asyncio
@@ -2211,3 +2262,58 @@ async def test_offers_archive_projection_supports_search_status_and_rejects_expi
 
     expired_response = await client.get("/api/v1/projects/offers/archive?status=expired")
     assert expired_response.status_code == 422
+
+
+def test_count_dashboard_rows_split_matches_legacy_merged_count_contract() -> None:
+    class _PersistedRow:
+        kind = "persisted_stream"
+
+        def __init__(self, bucket: str):
+            self.bucket = bucket
+
+    class _DraftRow:
+        kind = "draft_item"
+
+    persisted_rows = [
+        _PersistedRow("missing_information"),
+        _PersistedRow("intelligence_report"),
+        _PersistedRow("proposal"),
+        _PersistedRow("missing_information"),
+    ]
+    draft_rows = [_DraftRow(), _DraftRow()]
+
+    merged_counts = _count_dashboard_rows([*persisted_rows, *draft_rows])
+    split_counts = _count_dashboard_rows_split(
+        persisted_rows=persisted_rows,
+        draft_rows=draft_rows,
+    )
+
+    assert split_counts == merged_counts
+
+
+def test_count_dashboard_rows_split_handles_empty_and_draft_only_inputs() -> None:
+    class _PersistedRow:
+        kind = "persisted_stream"
+
+        def __init__(self, bucket: str):
+            self.bucket = bucket
+
+    class _DraftRow:
+        kind = "draft_item"
+
+    empty_counts = _count_dashboard_rows_split(persisted_rows=[], draft_rows=[])
+    assert empty_counts.total == 0
+    assert empty_counts.needs_confirmation == 0
+    assert empty_counts.missing_information == 0
+    assert empty_counts.intelligence_report == 0
+    assert empty_counts.proposal == 0
+
+    persisted_rows = [_PersistedRow("proposal")]
+    draft_rows = [_DraftRow()]
+    mixed_counts = _count_dashboard_rows_split(
+        persisted_rows=persisted_rows,
+        draft_rows=draft_rows,
+    )
+    assert mixed_counts.total == 2
+    assert mixed_counts.needs_confirmation == 1
+    assert mixed_counts.proposal == 1

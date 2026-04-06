@@ -48,36 +48,64 @@ class OfferService:
 
         offer_document = await OfferService._load_offer_document_metadata(db=db, project=project)
 
-        insights_dto: OfferInsightsDTO | None = None
-        if offer_v1.insights is not None:
-            generated_at = (
-                offer_v1.freshness.generated_at if offer_v1.freshness is not None else None
-            )
-            freshness = OfferInsightsFreshnessDTO(
-                generated_at=generated_at,
-                source_updated_at=source_updated_at,
-                is_stale=bool(
-                    generated_at is not None
-                    and source_updated_at is not None
-                    and source_updated_at > generated_at
-                ),
-            )
-            insights_dto = OfferInsightsDTO(
-                summary=offer_v1.insights.summary,
-                key_points=offer_v1.insights.key_points,
-                risks=offer_v1.insights.risks,
-                recommendations=offer_v1.insights.recommendations,
-                freshness=freshness,
-            )
+        generated_at = offer_v1.freshness.generated_at if offer_v1.freshness is not None else None
+        insights_dto = OfferService._build_insights_dto(
+            insights=offer_v1.insights,
+            generated_at=generated_at,
+            source_updated_at=source_updated_at,
+        )
 
+        return OfferService._build_offer_detail_dto(
+            project=project,
+            stream_snapshot=stream_snapshot,
+            insights=insights_dto,
+            offer_document=offer_document,
+        )
+
+    @staticmethod
+    def _build_offer_detail_dto(
+        *,
+        project: Project,
+        stream_snapshot: OfferStreamSnapshotDTO,
+        insights: OfferInsightsDTO | None,
+        offer_document: OfferDocumentMetadataDTO | None,
+    ) -> OfferDetailDTO:
         follow_up_state = cast(ProposalFollowUpState | None, project.proposal_follow_up_state)
 
         return OfferDetailDTO(
             project_id=project.id,
             stream_snapshot=stream_snapshot,
             follow_up_state=follow_up_state,
-            insights=insights_dto,
+            insights=insights,
             offer_document=offer_document,
+        )
+
+    @staticmethod
+    def _build_insights_dto(
+        *,
+        insights: OfferInsightsData | None,
+        generated_at: datetime | None,
+        source_updated_at: datetime | None,
+    ) -> OfferInsightsDTO | None:
+        if insights is None:
+            return None
+
+        freshness = OfferInsightsFreshnessDTO(
+            generated_at=generated_at,
+            source_updated_at=source_updated_at,
+            is_stale=bool(
+                generated_at is not None
+                and source_updated_at is not None
+                and source_updated_at > generated_at
+            ),
+        )
+
+        return OfferInsightsDTO(
+            summary=insights.summary,
+            key_points=insights.key_points,
+            risks=insights.risks,
+            recommendations=insights.recommendations,
+            freshness=freshness,
         )
 
     @staticmethod
@@ -153,8 +181,21 @@ class OfferService:
             current_user=current_user,
             offer_v1=next_offer,
         )
-        await db.refresh(project)
-        return await OfferService.get_offer_detail(db=db, project=project)
+
+        stream_snapshot = OfferService._load_stream_snapshot(project.project_data)
+        offer_document = await OfferService._load_offer_document_metadata(db=db, project=project)
+        insights_dto = OfferService._build_insights_dto(
+            insights=next_offer.insights,
+            generated_at=generated_at,
+            source_updated_at=source_updated_at,
+        )
+
+        return OfferService._build_offer_detail_dto(
+            project=project,
+            stream_snapshot=stream_snapshot,
+            insights=insights_dto,
+            offer_document=offer_document,
+        )
 
     @staticmethod
     async def _load_offer_document_metadata(
