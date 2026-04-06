@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { dashboardAPI } from "@/lib/api/dashboard";
+import type {
+	OfferArchiveResponseDTO,
+	OfferPipelineResponseDTO,
+} from "@/lib/api/offers";
 import { offersAPI } from "@/lib/api/offers";
+import type { DashboardListResponse } from "@/lib/types/dashboard";
 import { isPersistedStream } from "@/lib/types/dashboard";
 import {
 	isClientDataCacheStale,
 	peekClientDataCache,
 } from "@/lib/utils/client-data-cache";
-import type { DashboardListResponse } from "@/lib/types/dashboard";
-import type {
-	OfferArchiveResponseDTO,
-	OfferPipelineResponseDTO,
-} from "@/lib/api/offers";
 import type {
 	MissingInformationStream,
 	MonthlyPipelineKpi,
@@ -266,17 +266,21 @@ export function useFieldAgentDashboardViewModel({
 		const cachedMissingInfo = peekClientDataCache<DashboardListResponse>(
 			DASHBOARD_MISSING_INFO_CACHE_KEY,
 		);
-		const cachedPipeline =
-			peekClientDataCache<OfferPipelineResponseDTO>(OFFERS_PIPELINE_CACHE_KEY);
-		const cachedArchive =
-			peekClientDataCache<OfferArchiveResponseDTO>(OFFERS_ARCHIVE_CACHE_KEY);
+		const cachedPipeline = peekClientDataCache<OfferPipelineResponseDTO>(
+			OFFERS_PIPELINE_CACHE_KEY,
+		);
+		const cachedArchive = peekClientDataCache<OfferArchiveResponseDTO>(
+			OFFERS_ARCHIVE_CACHE_KEY,
+		);
 
 		const hasAnyCachedData = Boolean(
 			cachedMissingInfo || cachedPipeline || cachedArchive,
 		);
 
 		if (cachedMissingInfo) {
-			setMissingInformationStreams(toMissingInfoStreams(cachedMissingInfo.data));
+			setMissingInformationStreams(
+				toMissingInfoStreams(cachedMissingInfo.data),
+			);
 		}
 
 		if (cachedPipeline && cachedArchive) {
@@ -284,7 +288,10 @@ export function useFieldAgentDashboardViewModel({
 				toOfferCounts(cachedPipeline.data.counts, cachedArchive.data.counts),
 			);
 			setOfferFeaturedItems(
-				toOfferFeaturedItems(cachedPipeline.data.items, cachedArchive.data.items),
+				toOfferFeaturedItems(
+					cachedPipeline.data.items,
+					cachedArchive.data.items,
+				),
 			);
 		}
 

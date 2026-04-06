@@ -183,8 +183,9 @@ describe("workspace questionnaire persistence", () => {
 	});
 
 	it("allows a follow-up questionnaire save after stale response keeps dirty true", async () => {
-		let resolveFirstResponse: ((value: WorkspaceHydrateResponse) => void) | null =
-			null;
+		let resolveFirstResponse:
+			| ((value: WorkspaceHydrateResponse) => void)
+			| null = null;
 		const firstPendingResponse = new Promise<WorkspaceHydrateResponse>(
 			(resolve) => {
 				resolveFirstResponse = resolve;
@@ -193,7 +194,9 @@ describe("workspace questionnaire persistence", () => {
 
 		const apiMock = mock(
 			async (_projectId: string, updates: WorkspaceQuestionAnswerUpdate[]) => {
-				const q1Value = updates.find((update) => update.question_id === "q1")?.value;
+				const q1Value = updates.find(
+					(update) => update.question_id === "q1",
+				)?.value;
 				if (q1Value === "first value") {
 					return firstPendingResponse;
 				}

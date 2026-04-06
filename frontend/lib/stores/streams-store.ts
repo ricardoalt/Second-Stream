@@ -36,12 +36,16 @@ function adaptDashboardRow(row: DashboardRow): StreamRow {
 	return adaptPersistedStream(row);
 }
 
-function dashboardCacheKeyFor(bucket: "total" | "needs_confirmation" | "missing_information") {
+function dashboardCacheKeyFor(
+	bucket: "total" | "needs_confirmation" | "missing_information",
+) {
 	return `dashboard:/projects/dashboard?bucket=${bucket}&size=100`;
 }
 
 function toDraftRows(response: DashboardListResponse): DraftItemRow[] {
-	return [...response.items, ...response.secondaryDraftRows].filter(isDraftItem);
+	return [...response.items, ...response.secondaryDraftRows].filter(
+		isDraftItem,
+	);
 }
 
 function hydrateStateFromResponses(args: {
@@ -106,7 +110,8 @@ export const useStreamsStore = create<StreamsState>()(
 			const missingInfoKey = dashboardCacheKeyFor("missing_information");
 
 			const cachedTotal = peekClientDataCache<DashboardListResponse>(totalKey);
-			const cachedDrafts = peekClientDataCache<DashboardListResponse>(draftsKey);
+			const cachedDrafts =
+				peekClientDataCache<DashboardListResponse>(draftsKey);
 			const cachedMissingInfo =
 				peekClientDataCache<DashboardListResponse>(missingInfoKey);
 

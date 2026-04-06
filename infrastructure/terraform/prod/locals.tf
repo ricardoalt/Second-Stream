@@ -80,6 +80,14 @@ locals {
       value = var.aws_region
     },
     {
+      name  = "AWS_REGION"
+      value = var.aws_region
+    },
+    {
+      name  = "AWS_DEFAULT_REGION"
+      value = var.aws_region
+    },
+    {
       name  = "CORS_ORIGINS"
       value = var.cors_origins
     },

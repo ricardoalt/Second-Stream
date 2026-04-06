@@ -31,7 +31,7 @@ import {
 	SelectValue,
 	Skeleton,
 } from "@/components/ui";
-import { offersAPI, type OfferPipelineResponseDTO } from "@/lib/api/offers";
+import { type OfferPipelineResponseDTO, offersAPI } from "@/lib/api/offers";
 import {
 	isClientDataCacheStale,
 	peekClientDataCache,
@@ -53,9 +53,9 @@ const OFFERS_PIPELINE_CACHE_KEY = "offers:pipeline";
 
 const OffersPipelineTable = dynamic(
 	() =>
-		import("@/components/features/offers/components/offers-pipeline-table").then(
-			(module) => module.OffersPipelineTable,
-		),
+		import(
+			"@/components/features/offers/components/offers-pipeline-table"
+		).then((module) => module.OffersPipelineTable),
 	{
 		loading: () => (
 			<div className="p-4">
@@ -73,9 +73,9 @@ const OffersPipelineTable = dynamic(
 
 const OffersStagePipeline = dynamic(
 	() =>
-		import("@/components/features/offers/components/offers-stage-pipeline").then(
-			(module) => module.OffersStagePipeline,
-		),
+		import(
+			"@/components/features/offers/components/offers-stage-pipeline"
+		).then((module) => module.OffersStagePipeline),
 	{
 		loading: () => (
 			<section className="grid gap-3 lg:grid-cols-5">
@@ -196,32 +196,29 @@ export default function OffersPage() {
 		[offers],
 	);
 
-	const filteredOffers = useMemo(
-		() => {
-			const normalizedQuery = query.trim().toLowerCase();
+	const filteredOffers = useMemo(() => {
+		const normalizedQuery = query.trim().toLowerCase();
 
-			return offers.filter((offer) => {
-				const matchesQuery =
-					normalizedQuery.length === 0 ||
-					offer.streamName.toLowerCase().includes(normalizedQuery) ||
-					offer.clientName.toLowerCase().includes(normalizedQuery) ||
-					offer.reference.toLowerCase().includes(normalizedQuery);
+		return offers.filter((offer) => {
+			const matchesQuery =
+				normalizedQuery.length === 0 ||
+				offer.streamName.toLowerCase().includes(normalizedQuery) ||
+				offer.clientName.toLowerCase().includes(normalizedQuery) ||
+				offer.reference.toLowerCase().includes(normalizedQuery);
 
-				const matchesStage =
-					selectedStage === "all" || offer.stage === selectedStage;
-				const matchesClient =
-					selectedClient === "all" || offer.clientName === selectedClient;
+			const matchesStage =
+				selectedStage === "all" || offer.stage === selectedStage;
+			const matchesClient =
+				selectedClient === "all" || offer.clientName === selectedClient;
 
-				return (
-					ACTIVE_STAGE_SET.has(offer.stage) &&
-					matchesQuery &&
-					matchesStage &&
-					matchesClient
-				);
-			});
-		},
-		[offers, query, selectedStage, selectedClient],
-	);
+			return (
+				ACTIVE_STAGE_SET.has(offer.stage) &&
+				matchesQuery &&
+				matchesStage &&
+				matchesClient
+			);
+		});
+	}, [offers, query, selectedStage, selectedClient]);
 
 	const pipelineByStage = useMemo(
 		() =>

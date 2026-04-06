@@ -128,6 +128,34 @@ resource "aws_iam_role_policy" "ecs_cloudwatch_logs" {
   })
 }
 
+# Bedrock runtime access (required by pydantic-ai model IDs like
+# `bedrock:us.anthropic.claude-sonnet-4-6` using inference profiles)
+#
+# NOTE: We intentionally use Resource = "*" for production reliability:
+# - Inference profile/model ARN coverage can vary by provider and region.
+# - Over-tight scoping has caused AccessDenied in practice.
+# Once exact profile/model ARNs are stabilized for all environments,
+# this can be tightened in a follow-up hardening pass.
+resource "aws_iam_role_policy" "ecs_bedrock_access" {
+  name_prefix = "${local.name_prefix}-ecs-bedrock-"
+  role        = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:GetInferenceProfile",
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # -----------------------------------------------------------------------------
 # ECS Exec (optional but recommended for operations)
 # -----------------------------------------------------------------------------

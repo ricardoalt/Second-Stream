@@ -568,7 +568,9 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 													}}
 													disabled={completeDiscoveryDisabled}
 												>
-													{discoveryCompleted ? "Update Discovery" : "Complete Discovery"}
+													{discoveryCompleted
+														? "Update Discovery"
+														: "Complete Discovery"}
 													<ArrowRight className="size-4" aria-hidden />
 												</Button>
 											) : null}

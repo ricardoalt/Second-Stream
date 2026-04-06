@@ -30,14 +30,14 @@ import {
 	TableRow,
 } from "@/components/ui";
 import { companiesAPI } from "@/lib/api/companies";
-import type { CompanySummary } from "@/lib/types/company";
 import type { PortfolioRow } from "@/lib/mappers/company-client";
 import { toPortfolioRow } from "@/lib/mappers/company-client";
+import type { CompanySummary } from "@/lib/types/company";
+import { cn } from "@/lib/utils";
 import {
 	isClientDataCacheStale,
 	peekClientDataCache,
 } from "@/lib/utils/client-data-cache";
-import { cn } from "@/lib/utils";
 
 // ═══════════════════════════════════════════════════════════
 // NEW: Design System Patterns
@@ -115,7 +115,9 @@ export default function ClientsPage() {
 	const [companies, setCompanies] = useState<PortfolioRow[]>(() =>
 		readCachedCompanies(),
 	);
-	const [loading, setLoading] = useState(() => readCachedCompanies().length === 0);
+	const [loading, setLoading] = useState(
+		() => readCachedCompanies().length === 0,
+	);
 	const [error, setError] = useState<string | null>(null);
 
 	const fetchCompanies = useCallback(async (opts?: { force?: boolean }) => {

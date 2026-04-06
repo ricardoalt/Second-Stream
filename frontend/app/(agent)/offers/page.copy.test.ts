@@ -9,7 +9,7 @@ const offersPageSource = readFileSync(
 
 describe("offers page copy", () => {
 	it("uses Offer started in the stage filter", () => {
-		expect(offersPageSource.includes('Offer started')).toBe(true);
-		expect(offersPageSource.includes('Requires data')).toBe(false);
+		expect(offersPageSource.includes("Offer started")).toBe(true);
+		expect(offersPageSource.includes("Requires data")).toBe(false);
 	});
 });

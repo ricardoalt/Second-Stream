@@ -130,7 +130,8 @@ export const offersAPI = {
 		return fetchWithClientDataCache({
 			key: "offers:pipeline",
 			ttlMs: OFFERS_CACHE_TTL_MS,
-			fetcher: () => apiClient.get<OfferPipelineResponseDTO>("/projects/offers/pipeline"),
+			fetcher: () =>
+				apiClient.get<OfferPipelineResponseDTO>("/projects/offers/pipeline"),
 		});
 	},
 

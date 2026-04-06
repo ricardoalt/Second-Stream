@@ -260,7 +260,11 @@ describe("stream workspace foundation verification", () => {
 	});
 
 	it("keeps complete discovery aligned to project-scoped offer handoff", () => {
-		expect(workspaceShellSource.includes("response.offer.projectId")).toBe(true);
-		expect(workspaceShellSource.includes("response.offer.proposalId")).toBe(false);
+		expect(workspaceShellSource.includes("response.offer.projectId")).toBe(
+			true,
+		);
+		expect(workspaceShellSource.includes("response.offer.proposalId")).toBe(
+			false,
+		);
 	});
 });

@@ -800,9 +800,7 @@ export function useDiscoveryOrchestration(
 					normalizedData: toDiscoveryNormalizedData(candidate),
 					reviewNotes: buildCandidateReviewNotes(candidate),
 					...(locationResolution ? { locationResolution } : {}),
-					...(assignedOwnerUserId
-						? { ownerUserId: assignedOwnerUserId }
-						: {}),
+					...(assignedOwnerUserId ? { ownerUserId: assignedOwnerUserId } : {}),
 				});
 				setCandidates((prev) =>
 					prev.map((item) =>
@@ -830,7 +828,12 @@ export function useDiscoveryOrchestration(
 				setConfirmingId(null);
 			}
 		},
-		[candidates, defaultLocationId, isCandidateMutationInFlight, assignedOwnerUserId],
+		[
+			candidates,
+			defaultLocationId,
+			isCandidateMutationInFlight,
+			assignedOwnerUserId,
+		],
 	);
 
 	const handleCandidateModalOpenChange = useCallback(

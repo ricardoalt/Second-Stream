@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { KpiCard } from "@/components/patterns/data-display/kpi-card";
@@ -33,6 +33,12 @@ type AdminDashboardPageContentProps = {
 };
 
 const DASHBOARD_PAGE_SIZE = 100;
+const STREAMS_PER_PAGE = 5;
+
+// Type for visibility state per agent
+type VisibilityState = {
+	visibleCount: number;
+};
 
 const EMPTY_DASHBOARD: DashboardListResponse = {
 	bucket: "total",
@@ -153,6 +159,10 @@ export function AdminDashboardPageContent({
 	const [teamMembers, setTeamMembers] = useState<User[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	// Visibility state for expanded streams per agent (how many to show)
+	const [streamsVisibility, setStreamsVisibility] = useState<
+		Map<string, VisibilityState>
+	>(new Map());
 
 	useEffect(() => {
 		const controller = new AbortController();
@@ -207,7 +217,18 @@ export function AdminDashboardPageContent({
 		[pipeline.items],
 	);
 
-	// Render expanded stream content
+	// Helper to get/set visibility count for a specific agent
+	const getVisibleCount = (userId: string) =>
+		streamsVisibility.get(userId)?.visibleCount ?? STREAMS_PER_PAGE;
+
+	const loadMoreStreams = (userId: string) => {
+		const currentCount = getVisibleCount(userId);
+		setStreamsVisibility((prev) =>
+			new Map(prev).set(userId, { visibleCount: currentCount + STREAMS_PER_PAGE }),
+		);
+	};
+
+	// Render expanded stream content with "Load More" pattern
 	const renderExpandedStreams = (group: (typeof teamGroups)[number]) => {
 		if (group.streams.length === 0) {
 			return (
@@ -220,11 +241,16 @@ export function AdminDashboardPageContent({
 			);
 		}
 
+		const visibleCount = getVisibleCount(group.ownerUserId);
+		const totalStreams = group.streams.length;
+		const hasMoreStreams = visibleCount < totalStreams;
+		const visibleStreams = group.streams.slice(0, visibleCount);
+
 		return (
 			<>
 				<SectionDivider label="Active waste streams" />
 				<div className="flex flex-col gap-2">
-					{group.streams.slice(0, 3).map((stream) => (
+					{visibleStreams.map((stream) => (
 						<Link
 							key={stream.projectId}
 							href={routes.streams.detail(stream.projectId)}
@@ -259,6 +285,43 @@ export function AdminDashboardPageContent({
 							/>
 						</Link>
 					))}
+				</div>
+
+				{/* Load More / View All section */}
+				<div className="flex flex-col items-center gap-3 mt-4 pt-3 border-t border-border">
+					{hasMoreStreams && (
+						<>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => loadMoreStreams(group.ownerUserId)}
+								className="h-8 gap-1 border-border px-4 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+							>
+								<ChevronDown className="h-3.5 w-3.5" />
+								Load {Math.min(STREAMS_PER_PAGE, totalStreams - visibleCount)} More
+							</Button>
+							<p className="text-xs text-muted-foreground">
+								Showing {visibleCount} of {totalStreams} streams
+							</p>
+						</>
+					)}
+					{!hasMoreStreams && totalStreams > STREAMS_PER_PAGE && (
+						<p className="text-xs text-muted-foreground">
+							All {totalStreams} streams loaded
+						</p>
+						)}
+
+					{/* View All Streams button - always visible */}
+					<Button
+						asChild
+						variant="outline"
+						size="sm"
+						className="h-9 px-6 border-border text-sm font-medium text-primary hover:bg-muted hover:text-foreground"
+					>
+						<Link href={`/settings/team/${group.ownerUserId}`}>
+							View All Streams
+						</Link>
+					</Button>
 				</div>
 			</>
 		);

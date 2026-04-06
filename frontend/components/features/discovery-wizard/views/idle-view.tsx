@@ -22,7 +22,6 @@ import { toast } from "sonner";
 import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CompanyCombobox } from "@/components/ui/company-combobox";
 import {
 	Command,
 	CommandEmpty,
@@ -31,6 +30,7 @@ import {
 	CommandItem,
 	CommandList,
 } from "@/components/ui/command";
+import { CompanyCombobox } from "@/components/ui/company-combobox";
 import { LocationCombobox } from "@/components/ui/location-combobox";
 import {
 	Popover,
@@ -159,10 +159,15 @@ function OwnerOptionContent({
 					{owner.firstName} {owner.lastName}
 				</div>
 				{showEmail ? (
-					<div className="truncate text-xs text-muted-foreground">{owner.email}</div>
+					<div className="truncate text-xs text-muted-foreground">
+						{owner.email}
+					</div>
 				) : null}
 			</div>
-			<Badge variant="outline" className="ml-auto shrink-0 px-1.5 py-0 text-[10px]">
+			<Badge
+				variant="outline"
+				className="ml-auto shrink-0 px-1.5 py-0 text-[10px]"
+			>
 				{formatAssignableOwnerRoleLabel(owner.role)}
 			</Badge>
 		</div>
@@ -179,7 +184,9 @@ function AssignOwnerCombobox({
 	onOwnerChange: (value: string) => void;
 }) {
 	const [open, setOpen] = useState(false);
-	const selectedOwner = owners.find((owner) => owner.id === selectedOwnerUserId);
+	const selectedOwner = owners.find(
+		(owner) => owner.id === selectedOwnerUserId,
+	);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -216,14 +223,18 @@ function AssignOwnerCombobox({
 									key={owner.id}
 									value={getAssignableOwnerSearchText(owner)}
 									onSelect={() => {
-										onOwnerChange(owner.id === selectedOwnerUserId ? "" : owner.id);
+										onOwnerChange(
+											owner.id === selectedOwnerUserId ? "" : owner.id,
+										);
 										setOpen(false);
 									}}
 								>
 									<Check
 										className={cn(
 											"mr-2 h-4 w-4 shrink-0",
-											selectedOwnerUserId === owner.id ? "opacity-100" : "opacity-0",
+											selectedOwnerUserId === owner.id
+												? "opacity-100"
+												: "opacity-0",
 										)}
 									/>
 									<OwnerOptionContent owner={owner} showEmail />
@@ -869,16 +880,16 @@ export function IdleView({
 							{canAssignOwner ? (
 								<section className="rounded-xl bg-surface-container-lowest/80 p-6 border border-border/15">
 									<div className="space-y-3">
-									<span className="block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
-										Assign Owner
-									</span>
-									<AssignOwnerCombobox
-										owners={assignableOwners}
-										selectedOwnerUserId={selectedOwnerUserId}
-										onOwnerChange={setSelectedOwnerUserId}
-									/>
-								</div>
-							</section>
+										<span className="block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+											Assign Owner
+										</span>
+										<AssignOwnerCombobox
+											owners={assignableOwners}
+											selectedOwnerUserId={selectedOwnerUserId}
+											onOwnerChange={setSelectedOwnerUserId}
+										/>
+									</div>
+								</section>
 							) : null}
 							<div className="flex flex-col gap-3 rounded-lg border-l-4 border-l-primary bg-primary/[0.04] px-5 py-3 sm:flex-row sm:items-center sm:gap-5 sm:px-6">
 								<span className="text-sm font-semibold text-primary uppercase tracking-wide">
@@ -1139,14 +1150,16 @@ export function IdleView({
 							{canAssignOwner ? (
 								<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15 md:col-span-2">
 									<div className="space-y-2">
-									<h3 className="text-base font-semibold text-foreground">Assign Owner</h3>
-									<AssignOwnerCombobox
-										owners={assignableOwners}
-										selectedOwnerUserId={selectedOwnerUserId}
-										onOwnerChange={setSelectedOwnerUserId}
-									/>
-								</div>
-							</section>
+										<h3 className="text-base font-semibold text-foreground">
+											Assign Owner
+										</h3>
+										<AssignOwnerCombobox
+											owners={assignableOwners}
+											selectedOwnerUserId={selectedOwnerUserId}
+											onOwnerChange={setSelectedOwnerUserId}
+										/>
+									</div>
+								</section>
 							) : null}
 
 							<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">

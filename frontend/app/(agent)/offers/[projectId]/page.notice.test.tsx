@@ -42,9 +42,7 @@ describe("offer detail handoff degraded-success notice", () => {
 
 	it("renders clear degraded-success copy in the notice", () => {
 		const Notice = offerDetailPageModule.OfferInsightsRefreshFailedNotice;
-		const markup = renderToStaticMarkup(
-			<Notice />,
-		);
+		const markup = renderToStaticMarkup(<Notice />);
 
 		expect(markup).toContain("Discovery completed with delayed insights");
 		expect(markup).toContain("Discovery completed and this Offer is open");

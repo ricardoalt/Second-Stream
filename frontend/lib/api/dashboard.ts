@@ -10,8 +10,8 @@ import type {
 	DraftItemRow,
 	ProposalFollowUpState,
 } from "@/lib/types/dashboard";
-import { fetchWithClientDataCache } from "@/lib/utils/client-data-cache";
 import { isDraftItem } from "@/lib/types/dashboard";
+import { fetchWithClientDataCache } from "@/lib/utils/client-data-cache";
 import { apiClient } from "./client";
 
 const DASHBOARD_CACHE_TTL_MS = 45_000;
