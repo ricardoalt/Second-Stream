@@ -407,13 +407,13 @@ export function DiscoveryWizard({
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
-				className="glass-popover discovery-wizard-dialog w-[min(94vw,960px)] max-w-none h-auto max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl shadow-water-lg"
+				className="glass-popover discovery-wizard-dialog flex h-auto w-[min(94vw,960px)] max-h-[90vh] max-h-[90dvh] max-w-none p-0 gap-0 overflow-hidden rounded-2xl shadow-water-lg"
 				showCloseButton={!orchestration.isBlocking}
 			>
 				<div
 					key={orchestration.phase}
 					aria-live="polite"
-					className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col h-full max-h-[90vh]"
+					className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex min-h-0 flex-1 flex-col"
 				>
 					{orchestration.phase === "idle" && orchestration.resumeNotice && (
 						<div className="px-6 pt-6">

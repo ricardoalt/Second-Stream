@@ -59,7 +59,7 @@ export function LocationCombobox({
 					variant="outline"
 					role="combobox"
 					aria-expanded={open}
-					className={cn("w-full justify-between h-12", className)}
+					className={cn("h-12 w-full min-w-0 justify-between gap-2", className)}
 					disabled={!companyId}
 					onClick={() => {
 						if (value && !validValue) {
@@ -67,16 +67,21 @@ export function LocationCombobox({
 						}
 					}}
 				>
-					{selectedLocation
-						? `${selectedLocation.name} - ${selectedLocation.city}`
-						: placeholder}
+					<span className="min-w-0 flex-1 truncate text-left">
+						{selectedLocation
+							? `${selectedLocation.name} - ${selectedLocation.city}`
+							: placeholder}
+					</span>
 					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent className="w-full p-0" align="start">
+			<PopoverContent
+				className="w-[--radix-popover-trigger-width] max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0"
+				align="start"
+			>
 				<Command>
 					<CommandInput placeholder="Search location..." />
-					<CommandList>
+					<CommandList className="max-h-[calc(var(--radix-popover-content-available-height)-2.5rem)]">
 						<CommandEmpty>No location found.</CommandEmpty>
 						<CommandGroup>
 							{filteredLocations.map((location) => (
@@ -119,7 +124,7 @@ export function LocationCombobox({
 										className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground text-primary"
 									>
 										<Plus className="mr-2 h-4 w-4" />
-										Create new location
+										Add New Location
 									</button>
 								}
 							/>

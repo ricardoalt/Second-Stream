@@ -11,14 +11,12 @@ import {
 	Mic,
 	Package,
 	Plus,
-	PlusCircle,
 	Truck,
 	Upload,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AddClientDialog } from "@/components/features/clients/add-client-dialog";
 import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
 import { Button } from "@/components/ui/button";
 import { CompanyCombobox } from "@/components/ui/company-combobox";
@@ -143,18 +141,6 @@ function canStartDiscovery(params: {
 		locationId !== "" &&
 		(filesCount > 0 || hasAudio || hasValidTextSource)
 	);
-}
-
-function resolveLocationIdOnCompanyChange(params: {
-	previousCompanyId: string;
-	nextCompanyId: string;
-	currentLocationId: string;
-}): string {
-	const { previousCompanyId, nextCompanyId, currentLocationId } = params;
-	if (previousCompanyId !== nextCompanyId) {
-		return "";
-	}
-	return currentLocationId;
 }
 
 function canSaveQuickEntry(params: {
@@ -326,19 +312,6 @@ export function IdleView({
 		isSaving: isSavingQuickEntry,
 	});
 
-	const handleCompanyChange = useCallback((nextCompanyId: string) => {
-		setCompanyId((previousCompanyId) => {
-			setLocationId((currentLocationId) =>
-				resolveLocationIdOnCompanyChange({
-					previousCompanyId,
-					nextCompanyId,
-					currentLocationId,
-				}),
-			);
-			return nextCompanyId;
-		});
-	}, []);
-
 	const validateAndAddFiles = useCallback(
 		(incoming: File[]) => {
 			const remaining = MAX_FILES - files.length;
@@ -507,7 +480,7 @@ export function IdleView({
 	]);
 
 	return (
-		<div className="flex flex-col flex-1">
+		<div className="flex min-h-0 flex-1 flex-col">
 			<div className="relative overflow-hidden px-8 pt-5 pb-3 shrink-0">
 				<div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-container" />
 				<h2 className="font-display text-xl font-semibold tracking-tight">
@@ -545,8 +518,8 @@ export function IdleView({
 			</div>
 
 			{wizardTab === "quick" ? (
-				<div className="flex flex-col flex-1">
-					<div className="flex-1 overflow-auto px-8 py-5">
+				<div className="flex min-h-0 flex-1 flex-col">
+					<div className="min-h-0 flex-1 overflow-auto overscroll-contain px-5 py-4 sm:px-8 sm:py-5">
 						<div className="mx-auto w-full space-y-5">
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 								<section className="rounded-xl bg-surface-container-lowest/80 p-6 border border-border/15">
@@ -560,31 +533,9 @@ export function IdleView({
 									</div>
 									<div className="space-y-5">
 										<div>
-											<div className="mb-3 flex items-center justify-between">
-												<span className="text-xs font-semibold uppercase tracking-[0.08em] text-primary">
-													Client Selection
-												</span>
-												<AddClientDialog
-													hideTrigger
-													trigger={
-														<button
-															type="button"
-															className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
-														>
-															<PlusCircle className="size-3.5" />
-															Add New Client
-														</button>
-													}
-													onSuccessWithClient={(clientId) => {
-														setQuickEntryError(null);
-														setQe({
-															...qe,
-															client: clientId,
-															locationId: "",
-														});
-													}}
-												/>
-											</div>
+											<span className="mb-3 block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+												Client Selection
+											</span>
 											<CompanyCombobox
 												value={qe.client}
 												onValueChange={(value) => {
@@ -592,7 +543,7 @@ export function IdleView({
 													setQe({ ...qe, client: value, locationId: "" });
 												}}
 												placeholder="Select an existing client..."
-												showCreate={false}
+												showCreate
 											/>
 										</div>
 										<div>
@@ -651,7 +602,7 @@ export function IdleView({
 																type="button"
 																className="font-medium text-primary hover:underline"
 															>
-																[+ Add location]
+																Add New Location
 															</button>
 														}
 													/>
@@ -707,11 +658,11 @@ export function IdleView({
 									</div>
 								</section>
 							</div>
-							<div className="rounded-lg border-l-4 border-l-primary bg-primary/[0.04] px-6 py-3 flex items-center gap-5">
+							<div className="flex flex-col gap-3 rounded-lg border-l-4 border-l-primary bg-primary/[0.04] px-5 py-3 sm:flex-row sm:items-center sm:gap-5 sm:px-6">
 								<span className="text-sm font-semibold text-primary uppercase tracking-wide">
 									Entry Guidelines:
 								</span>
-								<div className="flex items-center gap-5 text-sm text-muted-foreground">
+								<div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-5">
 									<span className="flex items-center gap-2">
 										<CheckCircle2 className="size-4 text-success" />
 										Ensure MSDS are available.
@@ -724,67 +675,54 @@ export function IdleView({
 							</div>
 						</div>
 					</div>
-					<div className="flex items-center justify-between border-t border-border/20 bg-surface-container-low/60 px-8 py-4 shrink-0">
-						<button
-							type="button"
-							onClick={resetQuickEntry}
-							className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground transition-colors"
-						>
-							Clear All
-						</button>
-						<div className="flex items-center gap-3">
-							{quickEntryError && (
-								<p className="text-xs text-destructive">{quickEntryError}</p>
-							)}
-							<Button
-								variant="ghost"
-								onClick={() => {
-									setQuickEntryError(null);
-									setWizardTab("ai");
-								}}
+					<div className="shrink-0 border-t border-border/20 bg-surface-container-low/60 px-5 py-4 sm:px-8">
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<button
+								type="button"
+								onClick={resetQuickEntry}
+								className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground transition-colors"
 							>
-								Cancel
-							</Button>
-							<Button
-								onClick={handleQuickEntrySave}
-								disabled={!canSaveQuickEntryDraft}
-								className="btn-primary-solid min-w-[130px] font-semibold uppercase tracking-wider"
-							>
-								{isSavingQuickEntry ? "Saving…" : "Save Stream"}
-							</Button>
+								Clear All
+							</button>
+							<div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
+								{quickEntryError && (
+									<p className="w-full text-xs text-destructive sm:mr-1 sm:w-auto">
+										{quickEntryError}
+									</p>
+								)}
+								<Button
+									variant="ghost"
+									onClick={() => {
+										setQuickEntryError(null);
+										setWizardTab("ai");
+									}}
+								>
+									Cancel
+								</Button>
+								<Button
+									onClick={handleQuickEntrySave}
+									disabled={!canSaveQuickEntryDraft}
+									className="btn-primary-solid min-w-[130px] font-semibold uppercase tracking-wider"
+								>
+									{isSavingQuickEntry ? "Saving…" : "Save Stream"}
+								</Button>
+							</div>
 						</div>
 					</div>
 				</div>
 			) : (
-				<div className="flex flex-col flex-1">
-					<div className="flex-1 overflow-auto px-8 py-5">
+				<div className="flex min-h-0 flex-1 flex-col">
+					<div className="min-h-0 flex-1 overflow-auto overscroll-contain px-5 py-4 sm:px-8 sm:py-5">
 						<div className="mx-auto w-full space-y-4">
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">
-									<div className="mb-3 flex items-center justify-between">
-										<div className="flex items-center gap-3">
-											<div className="p-2.5 bg-primary/10 rounded-lg">
-												<Building2 className="size-5 text-primary" />
-											</div>
-											<h3 className="text-base font-semibold text-foreground">
-												Client Information
-											</h3>
+									<div className="mb-3 flex items-center gap-3">
+										<div className="p-2.5 bg-primary/10 rounded-lg">
+											<Building2 className="size-5 text-primary" />
 										</div>
-										<AddClientDialog
-											hideTrigger
-											trigger={
-												<button
-													type="button"
-													className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5"
-												>
-													<PlusCircle className="size-3.5" />
-													Add New Client
-												</button>
-											}
-											onSuccessWithClient={(clientId) => {
-												handleCompanyChange(clientId);
-											}}
-										/>
+										<h3 className="text-base font-semibold text-foreground">
+											Client Information
+										</h3>
 									</div>
 									{defaultCompanyId ? (
 										<div className="flex items-center gap-2 rounded-lg border border-border/30 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
@@ -840,7 +778,7 @@ export function IdleView({
 															type="button"
 															className="font-medium text-primary hover:underline"
 														>
-															[+ Add location]
+															Add New Location
 														</button>
 													}
 												/>
@@ -1040,44 +978,46 @@ export function IdleView({
 						}}
 					/>
 
-					<div className="flex items-center justify-between border-t border-border/20 bg-surface-container-low/60 px-8 py-4 shrink-0">
-						<button
-							type="button"
-							onClick={() => {
-								setFiles([]);
-								removeAudio();
-								setText("");
-							}}
-							className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground hover:text-foreground transition-colors"
-						>
-							Clear All
-						</button>
-						<div className="flex items-center gap-3">
-							<Button variant="ghost" onClick={onClose}>
-								Cancel
-							</Button>
-							<Button
-								onClick={() =>
-									void onDiscover({
-										companyId,
-										locationId,
-										files,
-										audioFile,
-										text,
-									})
-								}
-								disabled={!canDiscover || isSubmitting}
-								className="btn-primary-solid shadow-sm hover:shadow-md transition-all duration-300"
+					<div className="shrink-0 border-t border-border/20 bg-surface-container-low/60 px-5 py-4 sm:px-8">
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<button
+								type="button"
+								onClick={() => {
+									setFiles([]);
+									removeAudio();
+									setText("");
+								}}
+								className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground hover:text-foreground transition-colors"
 							>
-								{isSubmitting ? (
-									<>
-										<Loader2 className="h-4 w-4 mr-2 motion-safe:animate-spin" />
-										Uploading…
-									</>
-								) : (
-									"Process with Second Stream AI"
-								)}
-							</Button>
+								Clear All
+							</button>
+							<div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
+								<Button variant="ghost" onClick={onClose}>
+									Cancel
+								</Button>
+								<Button
+									onClick={() =>
+										void onDiscover({
+											companyId,
+											locationId,
+											files,
+											audioFile,
+											text,
+										})
+									}
+									disabled={!canDiscover || isSubmitting}
+									className="btn-primary-solid shadow-sm hover:shadow-md transition-all duration-300"
+								>
+									{isSubmitting ? (
+										<>
+											<Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" />
+											Uploading…
+										</>
+									) : (
+										"Process with Second Stream AI"
+									)}
+								</Button>
+							</div>
 						</div>
 					</div>
 				</div>
