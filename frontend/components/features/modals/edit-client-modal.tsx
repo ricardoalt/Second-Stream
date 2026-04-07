@@ -1,13 +1,7 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
-import {
-	Building2,
-	Mail,
-	MapPin,
-	Phone,
-	User,
-} from "lucide-react";
+import { Building2, Mail, MapPin, Phone, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	AccountStatusToggle,
@@ -265,40 +259,42 @@ export function EditClientModal({
 										)}
 									</form.Field>
 
-									<form.Field name="accountStatus">
-										{(field) => (
-											<div className="grid min-w-0 gap-1.5">
-												<FieldLabel htmlFor="edit-client-account-status-toggle">
-													Account status
-												</FieldLabel>
-												<AccountStatusToggle
-													aria-label="Account status"
-													id="edit-client-account-status-toggle"
-													value={field.state.value}
-													onValueChange={field.handleChange}
-													className="max-w-[320px]"
-												/>
-											</div>
-										)}
-									</form.Field>
-								</div>
+									<div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
+										<form.Field name="accountStatus">
+											{(field) => (
+												<div className="grid min-w-0 gap-1.5">
+													<FieldLabel htmlFor="edit-client-account-status-toggle">
+														Account status
+													</FieldLabel>
+													<AccountStatusToggle
+														aria-label="Account status"
+														id="edit-client-account-status-toggle"
+														value={field.state.value}
+														onValueChange={field.handleChange}
+														className="w-full"
+													/>
+												</div>
+											)}
+										</form.Field>
 
-								<form.Field name="companyNotes">
-									{(field) => (
-										<div className="grid gap-1.5">
-											<FieldLabel htmlFor={field.name}>Notes</FieldLabel>
-											<Textarea
-												id={field.name}
-												value={field.state.value}
-												onChange={(e) => field.handleChange(e.target.value)}
-												onBlur={field.handleBlur}
-												rows={2}
-												placeholder="Internal notes about this client…"
-												className="resize-none bg-surface-container-low/60 text-sm"
-											/>
-										</div>
-									)}
-								</form.Field>
+										<form.Field name="companyNotes">
+											{(field) => (
+												<div className="grid gap-1.5">
+													<FieldLabel htmlFor={field.name}>Notes</FieldLabel>
+													<Textarea
+														id={field.name}
+														value={field.state.value}
+														onChange={(e) => field.handleChange(e.target.value)}
+														onBlur={field.handleBlur}
+														rows={2}
+														placeholder="Internal notes about this client…"
+														className="resize-none bg-surface-container-low/60 text-sm"
+													/>
+												</div>
+											)}
+										</form.Field>
+									</div>
+								</div>
 
 								<p className="mt-2 text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
 									Primary contact

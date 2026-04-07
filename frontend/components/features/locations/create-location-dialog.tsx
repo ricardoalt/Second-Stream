@@ -209,7 +209,7 @@ export function CreateLocationDialog({
 					</DialogTrigger>
 				) : null}
 
-				<DialogFormContent size="md" className="w-[min(94vw,780px)] max-w-none">
+				<DialogFormContent size="lg">
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();
@@ -217,115 +217,121 @@ export function CreateLocationDialog({
 							form.handleSubmit();
 						}}
 					>
-						<DialogFormHeader>
-							<DialogTitle>
+						<DialogFormHeader className="border-b border-border/15 pb-5">
+							<DialogTitle className="flex items-center gap-2 font-display text-xl font-semibold tracking-tight">
+								<span className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+									<MapPin className="size-4" aria-hidden="true" />
+								</span>
 								{isEditMode ? "Edit Location" : "Create New Location"}
 							</DialogTitle>
-							<DialogDescription>
+							<DialogDescription className="text-sm text-muted-foreground">
 								{isEditMode
 									? "Update location information."
 									: "Add a new location/site for this company."}
 							</DialogDescription>
 						</DialogFormHeader>
 
-						<DialogFormBody>
-							<form.Field
-								name="name"
-								validators={{
-									onBlur: ({ value }) =>
-										!value.trim() ? "Location name is required" : undefined,
-								}}
-							>
-								{(field) => {
-									const hasError =
-										field.state.meta.isTouched &&
-										field.state.meta.errors.length > 0;
-									return (
-										<div className="grid gap-2">
-											<Label htmlFor={field.name}>
-												Location Name{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id={field.name}
-												placeholder="e.g. Main Plant, Warehouse #3"
-												value={field.state.value}
-												onChange={(e) => field.handleChange(e.target.value)}
-												onBlur={field.handleBlur}
-												aria-invalid={hasError}
-												aria-required="true"
-												aria-describedby={
-													hasError ? `${field.name}-error` : undefined
-												}
-											/>
-											{hasError && (
-												<p
-													id={`${field.name}-error`}
-													className="text-xs text-destructive"
-												>
-													{field.state.meta.errors[0]}
-												</p>
-											)}
-										</div>
-									);
-								}}
-							</form.Field>
-
-							<form.Field
-								name="addressType"
-								validators={{
-									onBlur: ({ value }) =>
-										!value ? "Please select an address type" : undefined,
-								}}
-							>
-								{(field) => {
-									const hasError =
-										field.state.meta.isTouched &&
-										field.state.meta.errors.length > 0;
-									return (
-										<div className="grid gap-2">
-											<Label htmlFor={field.name}>
-												Address Type <span className="text-destructive">*</span>
-											</Label>
-											<Select
-												value={field.state.value}
-												onValueChange={(value) => {
-													if (isAddressType(value)) {
-														field.handleChange(value);
-													}
-												}}
-											>
-												<SelectTrigger
+						<DialogFormBody className="gap-5 py-5">
+							<div className="grid gap-4 md:grid-cols-2">
+								<form.Field
+									name="name"
+									validators={{
+										onBlur: ({ value }) =>
+											!value.trim() ? "Location name is required" : undefined,
+									}}
+								>
+									{(field) => {
+										const hasError =
+											field.state.meta.isTouched &&
+											field.state.meta.errors.length > 0;
+										return (
+											<div className="grid gap-2">
+												<Label htmlFor={field.name}>
+													Location Name{" "}
+													<span className="text-destructive">*</span>
+												</Label>
+												<Input
 													id={field.name}
+													placeholder="e.g. Main Plant, Warehouse #3"
+													value={field.state.value}
+													onChange={(e) => field.handleChange(e.target.value)}
+													onBlur={field.handleBlur}
 													aria-invalid={hasError}
+													aria-required="true"
 													aria-describedby={
 														hasError ? `${field.name}-error` : undefined
 													}
-													onBlur={field.handleBlur}
+												/>
+												{hasError && (
+													<p
+														id={`${field.name}-error`}
+														className="text-xs text-destructive"
+													>
+														{field.state.meta.errors[0]}
+													</p>
+												)}
+											</div>
+										);
+									}}
+								</form.Field>
+
+								<form.Field
+									name="addressType"
+									validators={{
+										onBlur: ({ value }) =>
+											!value ? "Please select an address type" : undefined,
+									}}
+								>
+									{(field) => {
+										const hasError =
+											field.state.meta.isTouched &&
+											field.state.meta.errors.length > 0;
+										return (
+											<div className="grid gap-2">
+												<Label htmlFor={field.name}>
+													Address Type{" "}
+													<span className="text-destructive">*</span>
+												</Label>
+												<Select
+													value={field.state.value}
+													onValueChange={(value) => {
+														if (isAddressType(value)) {
+															field.handleChange(value);
+														}
+													}}
 												>
-													<SelectValue placeholder="Select type…" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="headquarters">
-														Headquarters
-													</SelectItem>
-													<SelectItem value="pickup">Pick-up</SelectItem>
-													<SelectItem value="delivery">Delivery</SelectItem>
-													<SelectItem value="billing">Billing</SelectItem>
-												</SelectContent>
-											</Select>
-											{hasError && (
-												<p
-													id={`${field.name}-error`}
-													className="text-xs text-destructive"
-												>
-													{field.state.meta.errors[0]}
-												</p>
-											)}
-										</div>
-									);
-								}}
-							</form.Field>
+													<SelectTrigger
+														id={field.name}
+														aria-invalid={hasError}
+														aria-describedby={
+															hasError ? `${field.name}-error` : undefined
+														}
+														onBlur={field.handleBlur}
+													>
+														<SelectValue placeholder="Select type…" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="headquarters">
+															Headquarters
+														</SelectItem>
+														<SelectItem value="pickup">Pick-up</SelectItem>
+														<SelectItem value="delivery">Delivery</SelectItem>
+														<SelectItem value="billing">Billing</SelectItem>
+													</SelectContent>
+												</Select>
+												{hasError && (
+													<p
+														id={`${field.name}-error`}
+														className="text-xs text-destructive"
+													>
+														{field.state.meta.errors[0]}
+													</p>
+												)}
+											</div>
+										);
+									}}
+								</form.Field>
+							</div>
 
 							<form.Field name="address">
 								{(field) => (
@@ -344,7 +350,7 @@ export function CreateLocationDialog({
 							</form.Field>
 
 							<div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-								<div className="col-span-1 md:col-span-2">
+								<div className="md:col-span-2">
 									<form.Field
 										name="city"
 										validators={{
