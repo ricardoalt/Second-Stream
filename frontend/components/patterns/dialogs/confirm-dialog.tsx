@@ -11,6 +11,7 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { getModalWidthClass } from "./modal";
 import { cn } from "@/lib/utils";
 
 /**
@@ -71,7 +72,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
 	return (
 		<AlertDialog open={open} onOpenChange={onOpenChange}>
-			<AlertDialogContent className={cn(className)}>
+			<AlertDialogContent className={cn(getModalWidthClass("sm"), className)}>
 				<AlertDialogHeader>
 					<AlertDialogTitle>{title}</AlertDialogTitle>
 					<AlertDialogDescription>{description}</AlertDialogDescription>

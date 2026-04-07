@@ -2,6 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { getModalWidthClass } from "@/components/patterns/dialogs/modal";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -94,7 +95,7 @@ export function EditOrgModal({
 
 	return (
 		<Dialog open={open} onOpenChange={handleClose}>
-			<DialogContent className="sm:max-w-[425px]">
+			<DialogContent className={getModalWidthClass("xs")}>
 				<DialogHeader>
 					<DialogTitle>Edit Organization</DialogTitle>
 					<DialogDescription>

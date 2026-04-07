@@ -11,6 +11,7 @@
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useState } from "react";
 import { LoadingButton } from "@/components/patterns/feedback/loading-button";
+import { getModalWidthClass } from "@/components/patterns/dialogs/modal";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -198,7 +199,9 @@ export function CompanyContactDialog({
 		<>
 			<Dialog open={open} onOpenChange={handleOpenChange}>
 				<DialogTrigger asChild>{trigger}</DialogTrigger>
-				<DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
+				<DialogContent
+					className={`${getModalWidthClass("sm")} max-h-[90vh] overflow-y-auto`}
+				>
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();

@@ -78,14 +78,7 @@ type DefaultForm = typeof DEFAULT_FORM;
 const REQUIRED_FIELDS = [
 	"name",
 	"sector",
-	"subsector",
 	"customerType",
-	"contactEmail",
-	"contactPhone",
-	"locationName",
-	"locationCity",
-	"locationState",
-	"locationZipCode",
 ] as const;
 
 const isSector = (value: string): value is Sector => {
@@ -380,22 +373,14 @@ export function AddClientDialog({
 									</div>
 
 									<div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-										<form.Field
-											name="subsector"
-											validators={{
-												onBlur: ({ value }) =>
-													!value.trim()
-														? "Please select a subsector"
-														: undefined,
-											}}
-										>
+										<form.Field name="subsector">
 											{(field) => {
 												const hasError =
 													field.state.meta.isTouched &&
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel required>Sub-industry</FieldLabel>
+														<FieldLabel>Sub-industry</FieldLabel>
 														<SubIndustryPicker
 															id={field.name}
 															value={field.state.value}
@@ -465,7 +450,7 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel required>Email address</FieldLabel>
+														<FieldLabel>Email address</FieldLabel>
 														<InputWithIcon
 															id={field.name}
 															type="email"
@@ -497,7 +482,7 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel required>Phone number</FieldLabel>
+														<FieldLabel>Phone number</FieldLabel>
 														<InputWithIcon
 															id={field.name}
 															icon={<Phone className="size-4" />}
@@ -546,22 +531,14 @@ export function AddClientDialog({
 									</SectionHeading>
 
 									<div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-										<form.Field
-											name="locationName"
-											validators={{
-												onBlur: ({ value }) =>
-													!value.trim()
-														? "Location name is required"
-														: undefined,
-											}}
-										>
+										<form.Field name="locationName">
 											{(field) => {
 												const hasError =
 													field.state.meta.isTouched &&
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel required>Location name</FieldLabel>
+														<FieldLabel>Location name</FieldLabel>
 														<Input
 															id={field.name}
 															value={field.state.value}
@@ -600,20 +577,14 @@ export function AddClientDialog({
 									</div>
 
 									<div className="grid grid-cols-2 gap-x-5 gap-y-4 md:grid-cols-4">
-										<form.Field
-											name="locationCity"
-											validators={{
-												onBlur: ({ value }) =>
-													!value.trim() ? "City is required" : undefined,
-											}}
-										>
+										<form.Field name="locationCity">
 											{(field) => {
 												const hasError =
 													field.state.meta.isTouched &&
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel required>City</FieldLabel>
+														<FieldLabel>City</FieldLabel>
 														<Input
 															id={field.name}
 															value={field.state.value}
@@ -635,20 +606,14 @@ export function AddClientDialog({
 											}}
 										</form.Field>
 
-										<form.Field
-											name="locationState"
-											validators={{
-												onBlur: ({ value }) =>
-													!value.trim() ? "State is required" : undefined,
-											}}
-										>
+										<form.Field name="locationState">
 											{(field) => {
 												const hasError =
 													field.state.meta.isTouched &&
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel required>State / Province</FieldLabel>
+														<FieldLabel>State / Province</FieldLabel>
 														<Input
 															id={field.name}
 															value={field.state.value}
@@ -670,20 +635,14 @@ export function AddClientDialog({
 											}}
 										</form.Field>
 
-										<form.Field
-											name="locationZipCode"
-											validators={{
-												onBlur: ({ value }) =>
-													!value.trim() ? "ZIP code is required" : undefined,
-											}}
-										>
+										<form.Field name="locationZipCode">
 											{(field) => {
 												const hasError =
 													field.state.meta.isTouched &&
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel required>ZIP / Postal code</FieldLabel>
+														<FieldLabel>ZIP / Postal code</FieldLabel>
 														<Input
 															id={field.name}
 															value={field.state.value}

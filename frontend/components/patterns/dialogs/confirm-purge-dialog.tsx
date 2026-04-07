@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getModalWidthClass } from "./modal";
 
 interface ConfirmPurgeDialogProps {
 	open: boolean;
@@ -64,7 +65,7 @@ export function ConfirmPurgeDialog({
 
 	return (
 		<AlertDialog open={open} onOpenChange={handleOpenChange}>
-			<AlertDialogContent>
+			<AlertDialogContent className={getModalWidthClass("sm")}>
 				<AlertDialogHeader>
 					<div className="flex items-center gap-3">
 						<div className="flex size-10 items-center justify-center rounded-full bg-destructive/10">

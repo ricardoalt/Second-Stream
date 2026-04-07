@@ -2,6 +2,7 @@
 
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useState } from "react";
+import { getModalWidthClass } from "@/components/patterns/dialogs/modal";
 import { LoadingButton } from "@/components/patterns/feedback/loading-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -159,7 +160,7 @@ export function IncomingMaterialDialog({
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			{trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-			<DialogContent className="sm:max-w-[520px]">
+			<DialogContent className={getModalWidthClass("sm")}>
 				<form
 					onSubmit={(event) => {
 						event.preventDefault();

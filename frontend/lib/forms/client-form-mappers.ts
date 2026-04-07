@@ -1,9 +1,13 @@
 import type { ClientProfile } from "@/lib/mappers/company-client";
+import { getSectorConfig, isSectorId, isSubsectorInSector } from "@/lib/sectors-config";
 import type { AddressType } from "@/lib/types/company";
 
 export type EditClientFormValues = {
 	companyName: string;
-	industry: string;
+	sector: string;
+	subsector: string;
+	accountStatus: "active" | "prospect";
+	companyNotes: string;
 	contactName: string;
 	contactTitle: string;
 	contactEmail: string;
@@ -21,15 +25,49 @@ type LocationDraft = {
 };
 
 export function buildEditClientInitialValues(
-	profile: Pick<ClientProfile, "name" | "industry" | "primaryContact">,
+	profile: ClientProfile,
 ): EditClientFormValues {
 	return {
 		companyName: profile.name,
-		industry: profile.industry,
+		sector: profile.sector,
+		subsector: profile.subsector,
+		accountStatus: profile.accountStatus ?? "active",
+		companyNotes: profile.notes,
 		contactName: profile.primaryContact?.name ?? "",
 		contactTitle: profile.primaryContact?.title ?? "",
 		contactEmail: profile.primaryContact?.email ?? "",
 		contactPhone: profile.primaryContact?.phone ?? "",
+	};
+}
+
+function resolveIndustryLabel(sector: string, subsector: string): string {
+	if (!isSectorId(sector)) {
+		throw new Error("Please select a valid sector");
+	}
+
+	if (!isSubsectorInSector(sector, subsector)) {
+		throw new Error("Please select a valid subsector for the selected sector.");
+	}
+
+	const subsectorLabel = getSectorConfig(sector)?.subsectors.find(
+		(item) => item.id === subsector,
+	)?.label;
+
+	if (subsectorLabel) {
+		return subsectorLabel;
+	}
+
+	throw new Error("Unable to derive company industry from selected taxonomy.");
+}
+
+export function buildEditClientCompanyPayload(values: EditClientFormValues) {
+	return {
+		name: values.companyName.trim(),
+		industry: resolveIndustryLabel(values.sector.trim(), values.subsector.trim()),
+		sector: values.sector.trim(),
+		subsector: values.subsector.trim(),
+		accountStatus: values.accountStatus,
+		notes: values.companyNotes.trim(),
 	};
 }
 
@@ -42,6 +80,17 @@ export function buildEditClientContactPayload(
 	if (values.contactEmail.trim()) payload.email = values.contactEmail.trim();
 	if (values.contactPhone.trim()) payload.phone = values.contactPhone.trim();
 	return payload;
+}
+
+export function hasEditClientPrimaryContactDraft(
+	values: EditClientFormValues,
+): boolean {
+	return (
+		values.contactName.trim().length > 0 ||
+		values.contactTitle.trim().length > 0 ||
+		values.contactEmail.trim().length > 0 ||
+		values.contactPhone.trim().length > 0
+	);
 }
 
 export function buildLocationFormDefaults(location?: LocationDraft) {

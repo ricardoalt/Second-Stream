@@ -11,6 +11,7 @@ import { useForm } from "@tanstack/react-form";
 import { Building2 } from "lucide-react";
 import { useState } from "react";
 import { LoadingButton } from "@/components/patterns/feedback/loading-button";
+import { getModalWidthClass } from "@/components/patterns/dialogs/modal";
 import {
 	CompactSectorSelect,
 	formatSubsector,
@@ -238,7 +239,9 @@ export function CreateCompanyDialog({
 					</DialogTrigger>
 				)}
 
-				<DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+				<DialogContent
+					className={`${getModalWidthClass("md")} max-h-[90vh] overflow-y-auto`}
+				>
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();

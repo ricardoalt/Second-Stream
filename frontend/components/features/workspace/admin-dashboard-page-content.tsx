@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { ArrowRight, ChevronDown, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { KpiCard } from "@/components/patterns/data-display/kpi-card";
@@ -13,6 +13,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DataTable, SectionDivider } from "@/components/ui/data-table";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ProgressCard } from "@/components/ui/progress-card";
 import { getAvatarColorForName, TeamAvatar } from "@/components/ui/team-avatar";
 import { dashboardAPI } from "@/lib/api/dashboard";
@@ -523,31 +529,43 @@ export function AdminDashboardPageContent({
 							cell: (group) => {
 								const primary = groupPrimaryStream(group.streams);
 								const riskCount = groupRiskCount(group.streams);
+								const streamHref =
+									riskCount > 0 && primary
+										? routes.streams.detail(primary.projectId)
+										: routes.streams.all;
+								const streamLabel =
+									riskCount > 0 && primary ? "View Priority Stream" : "View All";
+								const agentDetailHref = `/settings/team/${group.ownerUserId}`;
 
-								if (riskCount > 0 && primary) {
-									return (
+								return (
+									<div className="flex items-center justify-end gap-1">
 										<Button
 											asChild
 											variant="ghost"
 											size="sm"
-											className="h-auto px-0 text-sm text-destructive hover:bg-transparent hover:text-destructive"
+											className={
+												riskCount > 0 && primary
+													? "h-auto px-0 text-sm text-destructive hover:bg-transparent hover:text-destructive"
+													: "h-auto px-0 text-sm text-primary hover:bg-transparent hover:text-foreground"
+											}
 										>
-											<Link href={routes.streams.detail(primary.projectId)}>
-												View Priority Stream
-											</Link>
+											<Link href={streamHref}>{streamLabel}</Link>
 										</Button>
-									);
-								}
-
-								return (
-									<Button
-										asChild
-										variant="ghost"
-										size="sm"
-										className="h-auto px-0 text-sm text-primary hover:bg-transparent hover:text-foreground"
-									>
-										<Link href={routes.streams.all}>View All</Link>
-									</Button>
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button variant="ghost" size="icon" aria-label="Open agent actions">
+													<MoreHorizontal className="h-4 w-4" />
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end">
+												<DropdownMenuItem asChild>
+													<Link href={agentDetailHref}>View</Link>
+												</DropdownMenuItem>
+												<DropdownMenuItem disabled>Edit</DropdownMenuItem>
+												<DropdownMenuItem disabled>Deactivate</DropdownMenuItem>
+											</DropdownMenuContent>
+										</DropdownMenu>
+									</div>
 								);
 							},
 						},

@@ -752,7 +752,7 @@ export function IdleView({
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<div className="relative overflow-hidden px-8 pt-5 pb-3 shrink-0">
+			<div className="relative shrink-0 overflow-hidden px-6 pt-5 pb-3 lg:px-8">
 				<div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-container" />
 				<h2 className="font-display text-xl font-semibold tracking-tight">
 					Discovery Wizard
@@ -790,9 +790,9 @@ export function IdleView({
 
 			{wizardTab === "quick" ? (
 				<div className="flex min-h-0 flex-1 flex-col">
-					<div className="min-h-0 flex-1 overflow-auto overscroll-contain px-5 py-4 sm:px-8 sm:py-5">
+					<div className="min-h-0 flex-1 overflow-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 						<div className="mx-auto w-full space-y-5">
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+							<div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 								<section className="rounded-xl bg-surface-container-lowest/80 p-6 border border-border/15">
 									<div className="flex items-center gap-3 mb-5">
 										<div className="p-2.5 bg-primary/10 rounded-lg">
@@ -960,7 +960,7 @@ export function IdleView({
 							</div>
 						</div>
 					</div>
-					<div className="shrink-0 border-t border-border/20 bg-surface-container-low/60 px-5 py-4 sm:px-8">
+					<div className="shrink-0 border-t border-border/20 bg-surface-container-low/60 px-4 py-4 sm:px-6 lg:px-8">
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 							<button
 								type="button"
@@ -997,9 +997,9 @@ export function IdleView({
 				</div>
 			) : (
 				<div className="flex min-h-0 flex-1 flex-col">
-					<div className="min-h-0 flex-1 overflow-auto overscroll-contain px-5 py-4 sm:px-8 sm:py-5">
+					<div className="min-h-0 flex-1 overflow-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 						<div className="mx-auto w-full space-y-4">
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 								<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">
 									<div className="mb-3 flex items-center gap-3">
 										<div className="p-2.5 bg-primary/10 rounded-lg">
@@ -1278,7 +1278,7 @@ export function IdleView({
 						}}
 					/>
 
-					<div className="shrink-0 border-t border-border/20 bg-surface-container-low/60 px-5 py-4 sm:px-8">
+					<div className="shrink-0 border-t border-border/20 bg-surface-container-low/60 px-4 py-4 sm:px-6 lg:px-8">
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 							<button
 								type="button"

@@ -30,6 +30,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { getModalWidthClass } from "./modal";
 import { cn } from "@/lib/utils";
 
 interface ConfirmArchiveDialogProps {
@@ -82,7 +83,7 @@ export function ConfirmArchiveDialog({
 
 	return (
 		<AlertDialog open={open} onOpenChange={onOpenChange}>
-			<AlertDialogContent>
+			<AlertDialogContent className={getModalWidthClass("sm")}>
 				<AlertDialogHeader>
 					{/* gap en lugar de space-x */}
 					<div className="flex items-center gap-3">

@@ -25,6 +25,49 @@ describe("addClientSchema taxonomy validation", () => {
 		expect(parsed.success).toBe(true);
 	});
 
+	it("accepts payload when only company name, industry type, and client type are provided", () => {
+		const parsed = addClientSchema.safeParse({
+			name: "Northstar",
+			sector: "manufacturing_industrial",
+			customerType: "generator",
+		});
+
+		expect(parsed.success).toBe(true);
+		if (parsed.success) {
+			expect(parsed.data.subsector).toBe("");
+			expect(parsed.data.accountStatus).toBe("active");
+			expect(parsed.data.contactEmail).toBe("");
+			expect(parsed.data.contactPhone).toBe("");
+			expect(parsed.data.locationName).toBe("");
+			expect(parsed.data.locationCity).toBe("");
+			expect(parsed.data.locationState).toBe("");
+			expect(parsed.data.locationZipCode).toBe("");
+		}
+	});
+
+	it("accepts empty contact and location fields", () => {
+		const parsed = addClientSchema.safeParse({
+			...validData,
+			contactEmail: "",
+			contactPhone: "",
+			locationName: "",
+			locationCity: "",
+			locationState: "",
+			locationZipCode: "",
+		});
+
+		expect(parsed.success).toBe(true);
+	});
+
+	it("accepts empty subsector so submit flow can apply fallback", () => {
+		const parsed = addClientSchema.safeParse({
+			...validData,
+			subsector: "",
+		});
+
+		expect(parsed.success).toBe(true);
+	});
+
 	it("rejects unknown sector values", () => {
 		const parsed = addClientSchema.safeParse({
 			...validData,

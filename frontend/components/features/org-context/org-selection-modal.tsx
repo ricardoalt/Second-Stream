@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { getModalWidthClass } from "@/components/patterns/dialogs/modal";
 import {
 	Dialog,
 	DialogContent,
@@ -44,7 +45,7 @@ export function OrgSelectionModal() {
 			open={isOrgSwitchModalOpen}
 			onOpenChange={(open) => !open && closeOrgSwitchModal()}
 		>
-			<DialogContent className="max-w-md p-0">
+			<DialogContent className={`${getModalWidthClass("xs")} p-0`}>
 				<DialogHeader className="px-6 pt-6 pb-2">
 					<DialogTitle>Switch Organization</DialogTitle>
 					<DialogDescription>

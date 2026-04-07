@@ -28,6 +28,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { getModalWidthClass } from "./modal";
 
 interface ConfirmRestoreDialogProps {
 	open: boolean;
@@ -53,7 +54,7 @@ export function ConfirmRestoreDialog({
 
 	return (
 		<AlertDialog open={open} onOpenChange={onOpenChange}>
-			<AlertDialogContent>
+			<AlertDialogContent className={getModalWidthClass("sm")}>
 				<AlertDialogHeader>
 					<div className="flex items-center gap-3">
 						<div className="flex size-10 items-center justify-center rounded-full bg-success/10">

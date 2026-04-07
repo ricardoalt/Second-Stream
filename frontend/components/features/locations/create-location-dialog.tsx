@@ -3,7 +3,10 @@
 import { useForm } from "@tanstack/react-form";
 import { MapPin } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { ConfirmModal } from "@/components/patterns/dialogs/modal";
+import {
+	ConfirmModal,
+	getModalWidthClass,
+} from "@/components/patterns/dialogs/modal";
 import { LoadingButton } from "@/components/patterns/feedback/loading-button";
 import {
 	Button,
@@ -192,7 +195,7 @@ export function CreateLocationDialog({
 					</DialogTrigger>
 				)}
 
-				<DialogContent className="sm:max-w-[500px]">
+				<DialogContent className={getModalWidthClass("sm")}>
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();

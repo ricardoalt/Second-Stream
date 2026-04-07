@@ -72,41 +72,85 @@ export const addClientSchema = z
 			.refine((value) => isSectorId(value.trim()), {
 				message: "Please select a valid sector",
 			}),
-		subsector: z.string().min(1, "Please select a subsector"),
+		subsector: z.string().default(""),
 		customerType: z.enum(CUSTOMER_TYPES, {
 			required_error: "Please select a customer type",
 		}),
-		accountStatus: z.enum(ACCOUNT_STATUSES, {
-			required_error: "Please select an account status",
-		}),
+		accountStatus: z
+			.enum(ACCOUNT_STATUSES, {
+				required_error: "Please select an account status",
+			})
+			.default("active"),
 		companyNotes: z.string().optional(),
 		contactName: z.string().default(""),
 		contactTitle: z.string().default(""),
 		contactEmail: z.string().default(""),
 		contactPhone: z.string().default(""),
-		locationName: z.string().min(1, "Location name is required").max(255),
+		locationName: z.string().default(""),
 		locationAddress: z.string().default(""),
-		locationCity: z.string().min(1, "City is required").max(100),
-		locationState: z.string().min(1, "State is required").max(100),
+		locationCity: z.string().default(""),
+		locationState: z.string().default(""),
 		locationZipCode: z
 			.string()
 			.transform(parseZipCode)
-			.refine((value) => value.length > 0, {
-				message: ZIP_CODE_REQUIRED_MESSAGE,
-			})
-			.refine((value) => isValidZipCode(value), {
+			.refine((value) => value.length === 0 || isValidZipCode(value), {
 				message: ZIP_CODE_FORMAT_MESSAGE,
-			}),
+			})
+			.default(""),
 	})
 	.refine(
-		(data) =>
-			data.contactEmail.trim().length > 0 ||
-			data.contactPhone.trim().length > 0,
+		(data) => {
+			const subsector = data.subsector.trim();
+			if (subsector.length === 0) {
+				return true;
+			}
+
+			return isSubsectorInSector(data.sector.trim(), subsector);
+		},
 		{
-			message: "Provide at least an email or phone for the primary contact.",
-			path: ["contactEmail"],
+			message: "Please select a valid subsector for the selected sector.",
+			path: ["subsector"],
 		},
 	)
+	.refine(
+		(data) => {
+			const email = data.contactEmail.trim();
+			return email.length === 0 || isValidEmail(email);
+		},
+		{ message: "Enter a valid email address.", path: ["contactEmail"] },
+	)
+	.refine(
+		(data) => {
+			const phone = data.contactPhone.trim();
+			return phone.length === 0 || isValidPhone(phone);
+		},
+		{
+			message: "Phone must be 3-50 characters and include at least one digit.",
+			path: ["contactPhone"],
+		},
+	);
+
+export type AddClientFormData = z.infer<typeof addClientSchema>;
+
+export const editClientSchema = z
+	.object({
+		companyName: z.string().trim().min(1, "Company name is required").max(255),
+		sector: z
+			.string()
+			.min(1, "Please select a sector")
+			.refine((value) => isSectorId(value.trim()), {
+				message: "Please select a valid sector",
+			}),
+		subsector: z.string().min(1, "Please select a subsector"),
+		accountStatus: z.enum(ACCOUNT_STATUSES, {
+			required_error: "Please select an account status",
+		}),
+		companyNotes: z.string().default(""),
+		contactName: z.string().default(""),
+		contactTitle: z.string().default(""),
+		contactEmail: z.string().default(""),
+		contactPhone: z.string().default(""),
+	})
 	.refine(
 		(data) => isSubsectorInSector(data.sector.trim(), data.subsector.trim()),
 		{
@@ -132,7 +176,7 @@ export const addClientSchema = z
 		},
 	);
 
-export type AddClientFormData = z.infer<typeof addClientSchema>;
+export type EditClientFormData = z.infer<typeof editClientSchema>;
 
 // Partial schema for step 1 only (basic info)
 export const companyBasicSchema = companySchema.pick({

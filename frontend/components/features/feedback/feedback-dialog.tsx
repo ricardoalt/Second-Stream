@@ -3,6 +3,7 @@
 import { Paperclip, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { getModalWidthClass } from "@/components/patterns/dialogs/modal";
 import { LoadingButton } from "@/components/patterns/feedback/loading-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -185,7 +186,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent className="sm:max-w-md">
+			<DialogContent className={getModalWidthClass("md")}>
 				<form onSubmit={handleSubmit}>
 					<DialogHeader>
 						<DialogTitle>Send Feedback</DialogTitle>

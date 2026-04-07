@@ -49,6 +49,42 @@ describe("add-client flow", () => {
 		expect(createLocation).toHaveBeenCalledTimes(1);
 	});
 
+	it("skips creating contact and location when optional fields are empty", async () => {
+		const createCompany = mock(async () => ({
+			id: "company-1",
+			name: "Northstar",
+		}));
+		const createCompanyContact = mock(async () => ({ id: "contact-1" }));
+		const createLocation = mock(async () => ({ id: "location-1" }));
+
+		const result = await runAddClientFlow(
+			{
+				...baseData,
+				contactName: "",
+				contactTitle: "",
+				contactEmail: "",
+				contactPhone: "",
+				locationName: "",
+				locationAddress: "",
+				locationCity: "",
+				locationState: "",
+				locationZipCode: "",
+			},
+			{
+				createCompany: createCompany as never,
+				createCompanyContact: createCompanyContact as never,
+				createLocation: createLocation as never,
+			},
+		);
+
+		expect(result).toEqual({
+			companyId: "company-1",
+			createState: "success",
+		});
+		expect(createCompanyContact).not.toHaveBeenCalled();
+		expect(createLocation).not.toHaveBeenCalled();
+	});
+
 	it("uses headquarters address type for first location", () => {
 		const payload = toFirstLocationPayload("company-1", {
 			...baseData,
@@ -62,6 +98,17 @@ describe("add-client flow", () => {
 		const payload = toCompanyPayload(baseData);
 
 		expect(payload.industry).toBe("Metal Fabrication");
+	});
+
+	it("defaults subsector to taxonomy fallback when user leaves it empty", () => {
+		const payload = toCompanyPayload({
+			...baseData,
+			sector: "food_beverage",
+			subsector: "",
+		});
+
+		expect(payload.subsector).toBe("other");
+		expect(payload.industry).toBe("Other");
 	});
 
 	it("falls back to sector label when subsector is unknown", () => {

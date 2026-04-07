@@ -1,8 +1,10 @@
 "use client";
 
 import type * as React from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
@@ -10,6 +12,27 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+
+export const MODAL_WIDTH_CLASSES = {
+	xs: "sm:max-w-[425px]",
+	sm: "sm:max-w-[560px]",
+	md: "sm:max-w-[640px]",
+	lg: "sm:max-w-[800px]",
+	xl: "sm:max-w-[1024px]",
+	full: "sm:max-w-[min(95vw,1200px)]",
+} as const;
+
+export type ModalSize = keyof typeof MODAL_WIDTH_CLASSES;
+export type ModalSizeInput = ModalSize | "default";
+
+const MODAL_SIZE_ALIASES: Record<"default", ModalSize> = {
+	default: "md",
+};
+
+export function getModalWidthClass(size: ModalSizeInput = "md"): string {
+	const resolvedSize = size === "default" ? MODAL_SIZE_ALIASES.default : size;
+	return MODAL_WIDTH_CLASSES[resolvedSize];
+}
 
 /**
  * Modal - Standardized Modal for SecondStream
@@ -45,18 +68,10 @@ interface ModalProps {
 	/** Modal content */
 	children: React.ReactNode;
 	/** Modal size variant */
-	size?: "default" | "sm" | "lg" | "xl" | "full";
+	size?: ModalSizeInput;
 	/** Additional classes for the content */
 	className?: string;
 }
-
-const sizeStyles = {
-	sm: "sm:max-w-[400px]",
-	default: "sm:max-w-[500px]",
-	lg: "sm:max-w-[600px]",
-	xl: "sm:max-w-[800px]",
-	full: "sm:max-w-[min(92vw,900px)]",
-};
 
 export function Modal({
 	open,
@@ -72,7 +87,7 @@ export function Modal({
 			<DialogContent
 				className={cn(
 					"rounded-xl border border-border bg-card p-0 shadow-xl",
-					sizeStyles[size],
+					getModalWidthClass(size),
 					className,
 				)}
 			>
@@ -154,7 +169,12 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[400px] rounded-xl border border-border bg-card p-0 shadow-xl">
+			<DialogContent
+				className={cn(
+					getModalWidthClass("xs"),
+					"rounded-xl border border-border bg-card p-0 shadow-xl",
+				)}
+			>
 				<DialogHeader className="px-6 py-4">
 					<DialogTitle className="font-display text-lg font-semibold">
 						{title}
@@ -181,6 +201,3 @@ export function ConfirmModal({
 		</Dialog>
 	);
 }
-
-import { Button } from "@/components/ui/button";
-import { DialogClose } from "@/components/ui/dialog";

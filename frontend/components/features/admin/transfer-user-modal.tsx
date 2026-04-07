@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { getModalWidthClass } from "@/components/patterns/dialogs/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -174,7 +175,7 @@ export function TransferUserModal({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[560px]">
+			<DialogContent className={getModalWidthClass("sm")}>
 				<DialogHeader>
 					<DialogTitle>Transfer {user.firstName}</DialogTitle>
 				</DialogHeader>
