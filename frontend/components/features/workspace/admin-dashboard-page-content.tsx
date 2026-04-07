@@ -527,30 +527,10 @@ export function AdminDashboardPageContent({
 							header: "Action",
 							width: "1fr",
 							cell: (group) => {
-								const primary = groupPrimaryStream(group.streams);
-								const riskCount = groupRiskCount(group.streams);
-								const streamHref =
-									riskCount > 0 && primary
-										? routes.streams.detail(primary.projectId)
-										: routes.streams.all;
-								const streamLabel =
-									riskCount > 0 && primary ? "View Priority Stream" : "View All";
 								const agentDetailHref = `/settings/team/${group.ownerUserId}`;
 
 								return (
-									<div className="flex items-center justify-end gap-1">
-										<Button
-											asChild
-											variant="ghost"
-											size="sm"
-											className={
-												riskCount > 0 && primary
-													? "h-auto px-0 text-sm text-destructive hover:bg-transparent hover:text-destructive"
-													: "h-auto px-0 text-sm text-primary hover:bg-transparent hover:text-foreground"
-											}
-										>
-											<Link href={streamHref}>{streamLabel}</Link>
-										</Button>
+									<div className="flex items-center justify-end">
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
 												<Button variant="ghost" size="icon" aria-label="Open agent actions">
@@ -571,6 +551,7 @@ export function AdminDashboardPageContent({
 						},
 					]}
 					expandedContent={renderExpandedStreams}
+					expandChevronPosition="start"
 					emptyMessage="No team stream ownership data available."
 					pagination={{
 						total: teamGroups.length,

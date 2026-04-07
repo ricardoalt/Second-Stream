@@ -19,6 +19,7 @@ interface DataTableProps<T> {
 	columns: ColumnDef<T>[];
 	keyExtractor: (item: T) => string;
 	expandedContent?: (item: T) => React.ReactNode;
+	expandChevronPosition?: "start" | "end";
 	emptyMessage?: string;
 	className?: string;
 	pagination?: {
@@ -55,6 +56,7 @@ export function DataTable<T>({
 	columns,
 	keyExtractor,
 	expandedContent,
+	expandChevronPosition = "end",
 	emptyMessage = "No data available.",
 	className,
 	pagination,
@@ -84,7 +86,7 @@ export function DataTable<T>({
 					</span>
 				))}
 				{/* Spacer for expand column */}
-				{expandedContent && <span />}
+				{expandedContent && expandChevronPosition === "end" && <span />}
 			</div>
 
 			{/* Body */}
@@ -102,20 +104,35 @@ export function DataTable<T>({
 							return (
 								<details key={key} className="group">
 									<summary
-										className="grid cursor-pointer items-center gap-4 px-6 py-4 marker:content-none hover:bg-muted/50"
-										style={{
-											gridTemplateColumns: columns
-												.map((col) => col.width || "1fr")
-												.concat("40px")
-												.join(" "),
-										}}
-									>
-										{columns.map((col) => (
-											<div key={col.key}>{col.cell(item)}</div>
+									className="grid cursor-pointer items-center gap-4 px-6 py-4 marker:content-none hover:bg-muted/50"
+									style={{
+										gridTemplateColumns: columns
+											.map((col) => col.width || "1fr")
+											.concat(
+												expandChevronPosition === "end" ? "40px" : [],
+											)
+											.join(" "),
+									}}
+								>
+										{columns.map((col, colIndex) => (
+											<div key={col.key}>
+												{expandChevronPosition === "start" && colIndex === 0 ? (
+													<div className="flex items-center gap-3">
+														<div className="text-muted-foreground transition-transform group-open:rotate-180">
+															<ChevronDown className="h-4 w-4" />
+														</div>
+														<div className="min-w-0 flex-1">{col.cell(item)}</div>
+													</div>
+												) : (
+													col.cell(item)
+												)}
+											</div>
 										))}
-										<div className="flex justify-end text-muted-foreground transition-transform group-open:rotate-180">
-											<ChevronDown className="h-4 w-4" />
-										</div>
+										{expandChevronPosition === "end" ? (
+											<div className="flex justify-end text-muted-foreground transition-transform group-open:rotate-180">
+												<ChevronDown className="h-4 w-4" />
+											</div>
+										) : null}
 									</summary>
 									<div className="bg-muted px-6 py-4">
 										{expandedContent(item)}
