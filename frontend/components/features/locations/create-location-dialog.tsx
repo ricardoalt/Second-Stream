@@ -68,7 +68,7 @@ export function CreateLocationDialog({
 	locationToEdit,
 }: CreateLocationDialogProps) {
 	const isEditMode = Boolean(locationToEdit);
-	const [open, setOpen] = useState(isEditMode);
+	const [open, setOpen] = useState(false);
 	const { createLocation, updateLocation } = useLocationStore();
 	const { toast } = useToast();
 
@@ -198,18 +198,18 @@ export function CreateLocationDialog({
 					else guardClose();
 				}}
 			>
-				{!isEditMode && (
+				{trigger ? (
+					<DialogTrigger asChild>{trigger}</DialogTrigger>
+				) : !isEditMode ? (
 					<DialogTrigger asChild>
-						{trigger ?? (
-							<Button>
-								<MapPin className="mr-2 h-4 w-4" />
-								New Location
-							</Button>
-						)}
+						<Button>
+							<MapPin className="mr-2 h-4 w-4" />
+							New Location
+						</Button>
 					</DialogTrigger>
-				)}
+				) : null}
 
-				<DialogFormContent size="sm">
+				<DialogFormContent size="md" className="w-[min(94vw,780px)] max-w-none">
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();

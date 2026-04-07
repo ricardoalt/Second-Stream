@@ -216,7 +216,7 @@ export default function ClientLocationsPage(props: {
 									</span>
 								</div>
 
-								<div className="flex flex-wrap items-center justify-start lg:justify-end gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity mt-2 lg:mt-0">
+								<div className="mt-2 flex flex-wrap items-center justify-start gap-1.5 transition-opacity lg:mt-0 lg:justify-end">
 									<Button
 										variant="ghost"
 										size="sm"
