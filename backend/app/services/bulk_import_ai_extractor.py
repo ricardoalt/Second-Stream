@@ -29,7 +29,7 @@ from app.services.document_text_extractor import (
     extract_xlsx_text,
 )
 
-AI_EXTRACTION_TIMEOUT_SECONDS = 120.0
+AI_EXTRACTION_TIMEOUT_SECONDS = 300.0
 
 _MONTH_PATTERN = re.compile(
     r"\b(?:jan|january|ene|enero|feb|february|febrero|mar|march|marzo|apr|april|abr|abril|may|mayo|jun|june|junio|jul|july|julio|aug|august|ago|agosto|sep|september|septiembre|oct|october|octubre|nov|november|noviembre|dec|december|dic|diciembre)\b",

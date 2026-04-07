@@ -19,7 +19,7 @@ import type {
 } from "@/lib/types/discovery";
 
 const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 120_000;
+const POLL_TIMEOUT_MS = 300_000;
 const DISCOVERY_RESUME_STORAGE_KEY = "discovery-wizard-resume-session";
 const DISCOVERY_RESUME_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const TERMINAL_STATUSES = new Set([
