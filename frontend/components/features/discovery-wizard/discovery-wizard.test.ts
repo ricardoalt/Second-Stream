@@ -431,6 +431,39 @@ describe("candidate confirmation flow", () => {
 		).toBe(false);
 	});
 
+	it("explains when discovery is blocked by missing location", () => {
+		expect(
+			idleViewModule.getDiscoveryBlockedReason({
+				companyId: "company-1",
+				locationId: "",
+				filesCount: 1,
+				hasAudio: false,
+				hasValidTextSource: false,
+			}),
+		).toBe("Select a default location to enable discovery.");
+	});
+
+	it("auto-selects the only available location for discovery", () => {
+		expect(
+			idleViewModule.resolveDiscoveryAutoLocation({
+				currentLocationId: "",
+				availableLocationIds: ["location-1"],
+			}),
+		).toBe("location-1");
+		expect(
+			idleViewModule.resolveDiscoveryAutoLocation({
+				currentLocationId: "location-2",
+				availableLocationIds: ["location-1"],
+			}),
+		).toBe("location-2");
+		expect(
+			idleViewModule.resolveDiscoveryAutoLocation({
+				currentLocationId: "",
+				availableLocationIds: ["location-1", "location-2"],
+			}),
+		).toBe("");
+	});
+
 	it("resets selected location when client changes", () => {
 		expect(
 			discoveryWizardModule.resolveLocationIdOnCompanyChange({

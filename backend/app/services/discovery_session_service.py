@@ -168,7 +168,9 @@ class DiscoverySessionService:
         assigned_owner_user_id: UUID | None,
     ) -> UUID | None:
         requester = await db.get(User, requesting_user_id)
-        if requester is None or requester.organization_id != organization_id:
+        if requester is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        if not requester.is_superuser and requester.organization_id != organization_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
         requester_can_assign = bool(

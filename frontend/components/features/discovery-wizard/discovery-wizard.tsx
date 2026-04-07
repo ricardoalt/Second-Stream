@@ -366,7 +366,7 @@ export function DiscoveryWizard({
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
-				className="glass-popover discovery-wizard-dialog flex h-auto w-[min(94vw,960px)] max-h-[90vh] max-h-[90dvh] max-w-none p-0 gap-0 overflow-hidden rounded-2xl shadow-water-lg"
+				className="glass-popover discovery-wizard-dialog flex h-auto w-[calc(100vw-2rem)] max-h-[90vh] max-h-[90dvh] max-w-none gap-0 overflow-hidden rounded-2xl p-0 shadow-water-lg md:w-[min(94vw,960px)] lg:w-[min(95vw,1080px)] xl:w-[min(88vw,1024px)]"
 				showCloseButton={!orchestration.isBlocking}
 			>
 				<div

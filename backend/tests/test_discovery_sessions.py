@@ -103,6 +103,197 @@ async def _create_session_with_discovery_run(
 
 
 @pytest.mark.asyncio
+async def test_discovery_session_create_allows_superadmin_with_selected_org_header(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(db_session, "Discovery Superadmin Org", "discovery-superadmin-org")
+    superadmin = await create_user(
+        db_session,
+        email=f"discovery-superadmin-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=None,
+        role=UserRole.ADMIN.value,
+        is_superuser=True,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Superadmin Co")
+
+    set_current_user(superadmin)
+    response = await client.post(
+        "/api/v1/discovery-sessions",
+        headers={"X-Organization-Id": str(org.id)},
+        json={"companyId": str(company.id)},
+    )
+    assert response.status_code == 201
+    payload = response.json()
+
+    session = await db_session.get(DiscoverySession, payload["id"])
+    assert session is not None
+    assert session.organization_id == org.id
+    assert session.created_by_user_id == superadmin.id
+
+
+@pytest.mark.asyncio
+async def test_discovery_session_create_persists_assigned_owner_for_superadmin_selected_org(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(
+        db_session,
+        "Discovery Superadmin Owner Org",
+        "discovery-superadmin-owner-org",
+    )
+    superadmin = await create_user(
+        db_session,
+        email=f"discovery-superadmin-owner-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=None,
+        role=UserRole.ADMIN.value,
+        is_superuser=True,
+    )
+    owner = await create_user(
+        db_session,
+        email=f"discovery-superadmin-field-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Superadmin Owner Co")
+
+    set_current_user(superadmin)
+    response = await client.post(
+        "/api/v1/discovery-sessions",
+        headers={"X-Organization-Id": str(org.id)},
+        json={
+            "companyId": str(company.id),
+            "assignedOwnerUserId": str(owner.id),
+        },
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["assignedOwnerUserId"] == str(owner.id)
+
+    session = await db_session.get(DiscoverySession, payload["id"])
+    assert session is not None
+    assert session.assigned_owner_user_id == owner.id
+
+
+@pytest.mark.asyncio
+async def test_discovery_session_create_rejects_superadmin_cross_org_assigned_owner(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    uid = uuid.uuid4().hex[:6]
+    org = await create_org(
+        db_session,
+        "Discovery Superadmin Invalid Org",
+        "discovery-superadmin-invalid-org",
+    )
+    other_org = await create_org(
+        db_session,
+        "Discovery Superadmin Invalid Other Org",
+        "discovery-superadmin-invalid-other-org",
+    )
+    superadmin = await create_user(
+        db_session,
+        email=f"discovery-superadmin-invalid-{uid}@example.com",
+        org_id=None,
+        role=UserRole.ADMIN.value,
+        is_superuser=True,
+    )
+    cross_org_owner = await create_user(
+        db_session,
+        email=f"discovery-superadmin-cross-{uid}@example.com",
+        org_id=other_org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Superadmin Invalid Co")
+
+    set_current_user(superadmin)
+    response = await client.post(
+        "/api/v1/discovery-sessions",
+        headers={"X-Organization-Id": str(org.id)},
+        json={
+            "companyId": str(company.id),
+            "assignedOwnerUserId": str(cross_org_owner.id),
+        },
+    )
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_discovery_session_superadmin_create_text_start_flow_uses_selected_org(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(
+        db_session,
+        "Discovery Superadmin Start Org",
+        "discovery-superadmin-start-org",
+    )
+    superadmin = await create_user(
+        db_session,
+        email=f"discovery-superadmin-start-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=None,
+        role=UserRole.ADMIN.value,
+        is_superuser=True,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Superadmin Start Co")
+    headers = {"X-Organization-Id": str(org.id)}
+
+    set_current_user(superadmin)
+    create_response = await client.post(
+        "/api/v1/discovery-sessions",
+        headers=headers,
+        json={"companyId": str(company.id)},
+    )
+    assert create_response.status_code == 201
+    session_id = create_response.json()["id"]
+
+    text_response = await client.post(
+        f"/api/v1/discovery-sessions/{session_id}/text",
+        headers=headers,
+        json={"text": "Long enough text source for selected-org superadmin discovery start."},
+    )
+    assert text_response.status_code == 201
+
+    start_response = await client.post(
+        f"/api/v1/discovery-sessions/{session_id}/start",
+        headers=headers,
+    )
+    assert start_response.status_code == 200
+    start_payload = start_response.json()
+    import_run_id = start_payload["sources"][0]["importRunId"]
+    assert import_run_id is not None
+
+    run = await db_session.get(ImportRun, import_run_id)
+    assert run is not None
+    assert run.organization_id == org.id
+    assert run.created_by_user_id == superadmin.id
+
+
+@pytest.mark.asyncio
+async def test_discovery_session_create_requires_org_header_for_superadmin(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(
+        db_session,
+        "Discovery Superadmin Missing Header Org",
+        "discovery-superadmin-missing-header-org",
+    )
+    superadmin = await create_user(
+        db_session,
+        email=f"discovery-superadmin-missing-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=None,
+        role=UserRole.ADMIN.value,
+        is_superuser=True,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Missing Header Co")
+
+    set_current_user(superadmin)
+    response = await client.post(
+        "/api/v1/discovery-sessions",
+        json={"companyId": str(company.id)},
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_discovery_session_create_persists_assigned_owner_for_org_admin(
     client: AsyncClient, db_session, set_current_user
 ) -> None:

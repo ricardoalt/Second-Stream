@@ -313,6 +313,42 @@ function canStartDiscovery(params: {
 	);
 }
 
+export function getDiscoveryBlockedReason(params: {
+	companyId: string;
+	locationId: string;
+	filesCount: number;
+	hasAudio: boolean;
+	hasValidTextSource: boolean;
+}): string | null {
+	const { companyId, locationId, filesCount, hasAudio, hasValidTextSource } =
+		params;
+
+	if (!companyId) {
+		return "Select a client to continue.";
+	}
+	if (!locationId) {
+		return "Select a default location to enable discovery.";
+	}
+	if (!(filesCount > 0 || hasAudio || hasValidTextSource)) {
+		return "Add a file, voice note, or at least 20 characters of notes.";
+	}
+
+	return null;
+}
+
+export function resolveDiscoveryAutoLocation(params: {
+	currentLocationId: string;
+	availableLocationIds: string[];
+}): string {
+	const { currentLocationId, availableLocationIds } = params;
+	if (currentLocationId) {
+		return currentLocationId;
+	}
+	return availableLocationIds.length === 1
+		? (availableLocationIds[0] ?? "")
+		: "";
+}
+
 function canSaveQuickEntry(params: {
 	clientId: string;
 	locationId: string;
@@ -395,6 +431,13 @@ export function IdleView({
 	const trimmedText = text.trim();
 	const hasValidTextSource = trimmedText.length >= MIN_DISCOVERY_TEXT_LENGTH;
 	const canDiscover = canStartDiscovery({
+		companyId,
+		locationId,
+		filesCount: files.length,
+		hasAudio: audioFile !== null,
+		hasValidTextSource,
+	});
+	const blockedDiscoveryReason = getDiscoveryBlockedReason({
 		companyId,
 		locationId,
 		filesCount: files.length,
@@ -496,6 +539,15 @@ export function IdleView({
 		);
 		if (locationId && !companyLocationIds.has(locationId)) {
 			setLocationId("");
+			return;
+		}
+
+		const suggestedLocationId = resolveDiscoveryAutoLocation({
+			currentLocationId: locationId,
+			availableLocationIds: Array.from(companyLocationIds),
+		});
+		if (suggestedLocationId && suggestedLocationId !== locationId) {
+			setLocationId(suggestedLocationId);
 		}
 	}, [companyId, locationId, locations]);
 
@@ -1240,6 +1292,11 @@ export function IdleView({
 								Clear All
 							</button>
 							<div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
+								{!canDiscover && !isSubmitting && blockedDiscoveryReason ? (
+									<p className="w-full text-xs text-muted-foreground sm:mr-1 sm:w-auto">
+										{blockedDiscoveryReason}
+									</p>
+								) : null}
 								<Button variant="ghost" onClick={onClose}>
 									Cancel
 								</Button>
