@@ -60,7 +60,7 @@ export function getColumns(deps: ColumnDeps): ColumnDef<User>[] {
 								</Badge>
 							)}
 							{user.isSuperuser && (
-								<Badge className="text-xs bg-warning/15 text-warning border-warning/40">
+								<Badge variant="warning-subtle" className="text-xs">
 									Admin
 								</Badge>
 							)}

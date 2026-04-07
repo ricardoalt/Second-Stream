@@ -1,21 +1,17 @@
 "use client";
 
-import {
-	ChevronRight,
-	ExternalLink,
-	RefreshCw,
-	Search,
-	SlidersHorizontal,
-	Star,
-} from "lucide-react";
+import { ChevronRight, ExternalLink, RefreshCw, Star } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	EmptyState,
+	FilterBar,
+	KpiCard,
 	PageHeader,
 	PageShell,
 	StatRail,
+	TablePagination,
 } from "@/components/patterns";
 import {
 	FadeIn,
@@ -26,18 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -245,16 +229,11 @@ export default function AdminProposalRatingsPage() {
 		setSearch("");
 	};
 
-	const advancedFiltersActive =
-		minOverall !== "" || hasComments !== "any" || daysPreset !== "all";
-
-	const advancedFilterCount = [
-		minOverall !== "",
-		hasComments !== "any",
-		daysPreset !== "all",
-	].filter(Boolean).length;
-
-	const isAnyFilterActive = advancedFiltersActive || search !== "";
+	const isAnyFilterActive =
+		minOverall !== "" ||
+		hasComments !== "any" ||
+		daysPreset !== "all" ||
+		search !== "";
 
 	// Client-side filtering on top of server-filtered page
 	const filteredItems = (listData?.items ?? []).filter((item) =>
@@ -269,9 +248,6 @@ export default function AdminProposalRatingsPage() {
 	const withCommentsCount = allItems.filter((i) => i.commentCount > 0).length;
 
 	const total = listData?.total ?? 0;
-	const currentCount = listData?.items.length ?? 0;
-	const canPrevious = offset > 0;
-	const canNext = offset + currentCount < total;
 	const totalPages = Math.max(1, Math.ceil(total / pageSize));
 	// 5 data cols + 1 action col = 6; plus expand chevron col = 7 total
 	const tableColumnCount = 7;
@@ -314,50 +290,22 @@ export default function AdminProposalRatingsPage() {
 			{/* KPI stats rail */}
 			<StatRail columns={3}>
 				<HoverLift>
-					<div className="rounded-xl border border-border/60 bg-card px-5 py-4">
-						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-							Total
-						</p>
-						<div className="mt-1.5 text-3xl font-semibold tabular-nums">
-							{loading ? <Skeleton className="h-8 w-12" /> : total}
-						</div>
-					</div>
+					<KpiCard title="Total" value={total} icon={Star} loading={loading} />
 				</HoverLift>
-
 				<HoverLift>
-					<div
-						className={cn(
-							"rounded-xl border px-5 py-4 transition-colors duration-200",
-							!loading && lowRatedCount > 0
-								? "border-destructive/25 bg-destructive/5"
-								: "border-border/60 bg-card",
-						)}
-					>
-						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-							Low-rated{totalPages > 1 ? " *" : ""}
-						</p>
-						<div
-							className={cn(
-								"mt-1.5 text-3xl font-semibold tabular-nums",
-								!loading && lowRatedCount > 0
-									? "text-destructive"
-									: "text-foreground",
-							)}
-						>
-							{loading ? <Skeleton className="h-8 w-10" /> : lowRatedCount}
-						</div>
-					</div>
+					<KpiCard
+						title={`Low-rated${totalPages > 1 ? " *" : ""}`}
+						value={lowRatedCount}
+						variant={!loading && lowRatedCount > 0 ? "destructive" : "default"}
+						loading={loading}
+					/>
 				</HoverLift>
-
 				<HoverLift>
-					<div className="rounded-xl border border-border/60 bg-card px-5 py-4">
-						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-							With comments{totalPages > 1 ? " *" : ""}
-						</p>
-						<div className="mt-1.5 text-3xl font-semibold tabular-nums">
-							{loading ? <Skeleton className="h-8 w-10" /> : withCommentsCount}
-						</div>
-					</div>
+					<KpiCard
+						title={`With comments${totalPages > 1 ? " *" : ""}`}
+						value={withCommentsCount}
+						loading={loading}
+					/>
 				</HoverLift>
 			</StatRail>
 			{totalPages > 1 && (
@@ -366,160 +314,87 @@ export default function AdminProposalRatingsPage() {
 				</p>
 			)}
 
+			<FilterBar
+				search={{
+					value: search,
+					onChange: setSearch,
+					placeholder: "Search proposal ID…",
+				}}
+				filters={[
+					{
+						key: "sort",
+						value: sort,
+						onChange: (v) => {
+							setSort(v as AdminProposalRatingsSort);
+							setOffset(0);
+						},
+						options: [
+							{ value: "recentlyRated", label: "Recently rated" },
+							{ value: "highest", label: "Highest score" },
+							{ value: "lowest", label: "Lowest score" },
+							{ value: "mostRated", label: "Most rated" },
+						],
+						width: "w-[160px]",
+					},
+					{
+						key: "comments",
+						placeholder: "Comments",
+						value: hasComments,
+						onChange: (v) => {
+							setHasComments(v as AdminProposalRatingsHasComments);
+							setOffset(0);
+						},
+						options: [
+							{ value: "any", label: "Any comments" },
+							{ value: "true", label: "Has comments" },
+							{ value: "false", label: "No comments" },
+						],
+						width: "w-[150px]",
+					},
+					{
+						key: "days",
+						placeholder: "Date range",
+						value: daysPreset,
+						onChange: (v) => {
+							setDaysPreset(v as DaysPreset);
+							setOffset(0);
+						},
+						options: [
+							{ value: "all", label: "All time" },
+							{ value: "7", label: "Last 7 days" },
+							{ value: "30", label: "Last 30 days" },
+						],
+						width: "w-[140px]",
+					},
+				]}
+				activeFilterCount={
+					(search !== "" ? 1 : 0) +
+					(hasComments !== "any" ? 1 : 0) +
+					(daysPreset !== "all" ? 1 : 0)
+				}
+				onClear={resetFilters}
+			/>
+
 			{/* Table card */}
 			<div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-				{/* Toolbar */}
-				<div className="flex items-center gap-2 border-b border-border/60 px-4 py-3">
-					{/* Client-side search */}
-					<div className="relative max-w-xs flex-1">
-						<Search
-							aria-hidden="true"
-							className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-						/>
-						<Input
-							className="h-8 border-border/60 bg-transparent pl-8 text-sm"
-							placeholder="Search proposal ID…"
-							aria-label="Search by proposal ID"
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-						/>
-					</div>
-
-					<div className="ml-auto flex items-center gap-2">
-						{/* Advanced filters popover */}
-						<Popover>
-							<PopoverTrigger asChild>
-								<Button
-									variant="outline"
-									size="sm"
-									className={cn(
-										"h-8 gap-1.5 border-border/60 text-sm font-normal",
-										advancedFiltersActive &&
-											"border-primary/50 bg-primary/5 text-primary",
-									)}
-								>
-									<SlidersHorizontal className="h-3.5 w-3.5" />
-									Filters
-									{advancedFilterCount > 0 && (
-										<span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground tabular-nums">
-											{advancedFilterCount}
-										</span>
-									)}
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent align="end" className="w-64 space-y-4 p-4">
-								<div className="space-y-1.5">
-									<Label className="text-xs text-muted-foreground">
-										Min score (1–5)
-									</Label>
-									<Input
-										type="number"
-										min={1}
-										max={5}
-										step={0.1}
-										className="h-8 text-sm"
-										placeholder="e.g. 3.0"
-										value={minOverall}
-										onChange={(e) => {
-											setMinOverall(e.target.value);
-											setOffset(0);
-										}}
-									/>
-								</div>
-								<div className="space-y-1.5">
-									<Label className="text-xs text-muted-foreground">
-										Comments
-									</Label>
-									<Select
-										value={hasComments}
-										onValueChange={(value) => {
-											if (
-												value === "true" ||
-												value === "false" ||
-												value === "any"
-											) {
-												setHasComments(value);
-												setOffset(0);
-											}
-										}}
-									>
-										<SelectTrigger className="h-8 text-sm">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="any">Any</SelectItem>
-											<SelectItem value="true">Has comments</SelectItem>
-											<SelectItem value="false">No comments</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-								<div className="space-y-1.5">
-									<Label className="text-xs text-muted-foreground">
-										Date range
-									</Label>
-									<Select
-										value={daysPreset}
-										onValueChange={(value) => {
-											if (value === "7" || value === "30" || value === "all") {
-												setDaysPreset(value);
-												setOffset(0);
-											}
-										}}
-									>
-										<SelectTrigger className="h-8 text-sm">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All time</SelectItem>
-											<SelectItem value="7">Last 7 days</SelectItem>
-											<SelectItem value="30">Last 30 days</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-								{advancedFiltersActive && (
-									<Button
-										variant="ghost"
-										size="sm"
-										className="h-7 w-full text-xs"
-										onClick={() => {
-											setMinOverall("");
-											setHasComments("any");
-											setDaysPreset("all");
-											setOffset(0);
-										}}
-									>
-										Clear filters
-									</Button>
-								)}
-							</PopoverContent>
-						</Popover>
-
-						{/* Sort — always visible */}
-						<Select
-							value={sort}
-							onValueChange={(value) => {
-								if (
-									value === "highest" ||
-									value === "lowest" ||
-									value === "mostRated" ||
-									value === "recentlyRated"
-								) {
-									setSort(value);
-									setOffset(0);
-								}
-							}}
-						>
-							<SelectTrigger className="h-8 w-40 border-border/60 text-sm">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="recentlyRated">Recently rated</SelectItem>
-								<SelectItem value="highest">Highest score</SelectItem>
-								<SelectItem value="lowest">Lowest score</SelectItem>
-								<SelectItem value="mostRated">Most rated</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
+				{/* Min score filter */}
+				<div className="flex items-center gap-3 border-b border-border/60 px-4 py-2.5">
+					<Label className="text-xs text-muted-foreground whitespace-nowrap">
+						Min score (1–5)
+					</Label>
+					<Input
+						type="number"
+						min={1}
+						max={5}
+						step={0.1}
+						className="h-7 w-20 text-sm"
+						placeholder="e.g. 3"
+						value={minOverall}
+						onChange={(e) => {
+							setMinOverall(e.target.value);
+							setOffset(0);
+						}}
+					/>
 				</div>
 
 				{/* Table content */}
@@ -701,37 +576,17 @@ export default function AdminProposalRatingsPage() {
 							</TooltipProvider>
 						</div>
 
-						<div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5">
-							<p className="text-xs tabular-nums text-muted-foreground">
-								{search !== ""
-									? `${filteredItems.length} of ${currentCount} shown`
-									: `${offset + 1}–${Math.min(offset + currentCount, total)} of ${total}`}
-							</p>
-							<div className="flex items-center gap-1.5">
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-7 px-3 text-xs"
-									aria-label="Previous page"
-									onClick={() =>
-										setOffset((prev) => Math.max(0, prev - pageSize))
-									}
-									disabled={!canPrevious}
-								>
-									← Prev
-								</Button>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-7 px-3 text-xs"
-									aria-label="Next page"
-									onClick={() => setOffset((prev) => prev + pageSize)}
-									disabled={!canNext}
-								>
-									Next →
-								</Button>
-							</div>
-						</div>
+						<TablePagination
+							total={total}
+							showing={filteredItems.length}
+							page={Math.floor(offset / pageSize) + 1}
+							pageCount={totalPages}
+							onPrevious={() =>
+								setOffset((prev) => Math.max(0, prev - pageSize))
+							}
+							onNext={() => setOffset((prev) => prev + pageSize)}
+							itemLabel="ratings"
+						/>
 					</>
 				)}
 			</div>

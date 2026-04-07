@@ -34,8 +34,6 @@ interface AnimatedNumberProps {
 	suffix?: string;
 	/** Decimal places (default: 0) */
 	decimals?: number;
-	/** Animation duration in seconds (default: 1.5s - 2026 standard for counters) */
-	duration?: number;
 	/** CSS class */
 	className?: string;
 	/** Format as compact (1.2K instead of 1200) */
@@ -47,7 +45,6 @@ export function AnimatedNumber({
 	prefix = "",
 	suffix = "",
 	decimals = 0,
-	duration = 1.5,
 	className,
 	compact = false,
 }: AnimatedNumberProps) {

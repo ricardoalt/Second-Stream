@@ -19,13 +19,11 @@ import { routes } from "@/lib/routes";
 import type { ProposalFollowUpState } from "@/lib/types/dashboard";
 import { getErrorMessage } from "@/lib/utils/logger";
 
-export function shouldShowInsightsRefreshFailedNotice(
-	queryParamValue: string | null,
-) {
+function shouldShowInsightsRefreshFailedNotice(queryParamValue: string | null) {
 	return queryParamValue === "1";
 }
 
-export function removeInsightsRefreshFailedFromHref(href: string) {
+function removeInsightsRefreshFailedFromHref(href: string) {
 	const url = new URL(href);
 	if (!url.searchParams.has("insightsRefreshFailed")) {
 		return null;
@@ -37,7 +35,7 @@ export function removeInsightsRefreshFailedFromHref(href: string) {
 	return `${url.pathname}${search ? `?${search}` : ""}${url.hash}`;
 }
 
-export function OfferInsightsRefreshFailedNotice() {
+function OfferInsightsRefreshFailedNotice() {
 	return (
 		<Alert variant="warning">
 			<AlertTriangle className="size-4" aria-hidden />

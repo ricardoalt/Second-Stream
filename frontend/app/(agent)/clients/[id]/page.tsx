@@ -3,7 +3,6 @@
 import {
 	Activity,
 	Building2,
-	ChevronLeft,
 	Edit3,
 	Factory,
 	Flag,
@@ -33,8 +32,16 @@ import {
 } from "@/components/features/streams/streams-drafts-table";
 import { StreamsFollowUpBoard } from "@/components/features/streams/streams-follow-up-board";
 import type { StreamRow } from "@/components/features/streams/types";
-import { KpiCard } from "@/components/patterns";
-import { Pressable } from "@/components/patterns/animations/motion-components";
+import {
+	KpiCard,
+	PageHeader,
+	PageShell,
+	StatRail,
+} from "@/components/patterns";
+import {
+	HoverLift,
+	Pressable,
+} from "@/components/patterns/animations/motion-components";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -242,27 +249,31 @@ export default function ClientDetailPage() {
 
 	if (loading) {
 		return (
-			<div className="flex items-center justify-center gap-3 px-6 py-24">
-				<Loader2 className="size-5 animate-spin text-primary" />
-				<p className="text-sm text-muted-foreground">Loading client…</p>
-			</div>
+			<PageShell>
+				<div className="flex items-center justify-center gap-3 py-24">
+					<Loader2 className="size-5 animate-spin text-primary" />
+					<p className="text-sm text-muted-foreground">Loading client…</p>
+				</div>
+			</PageShell>
 		);
 	}
 
 	if (error || !profile) {
 		return (
-			<div className="flex flex-col items-center gap-3 px-6 py-24">
-				<p className="text-sm text-destructive">
-					{error ?? "Client not found"}
-				</p>
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={() => router.push("/clients")}
-				>
-					Back to portfolio
-				</Button>
-			</div>
+			<PageShell>
+				<div className="flex flex-col items-center gap-3 py-24">
+					<p className="text-sm text-destructive">
+						{error ?? "Client not found"}
+					</p>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => router.push("/clients")}
+					>
+						Back to portfolio
+					</Button>
+				</div>
+			</PageShell>
 		);
 	}
 
@@ -290,7 +301,7 @@ export default function ClientDetailPage() {
 	} = insights;
 
 	return (
-		<div className="flex flex-col gap-6">
+		<PageShell>
 			<ClientCreateBanner createState={createState} />
 
 			<EditClientModal
@@ -300,38 +311,16 @@ export default function ClientDetailPage() {
 				onSaved={fetchProfile}
 			/>
 
-			{/* ── Header ── */}
-			<section className="flex flex-col gap-4">
-				{/* Breadcrumb */}
-				<Button
-					variant="ghost"
-					size="sm"
-					className="w-fit -ml-2 text-muted-foreground hover:text-foreground"
-					onClick={() => router.push("/clients")}
-				>
-					<ChevronLeft className="mr-1 h-4 w-4" />
-					Clients
-				</Button>
-
-				<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-					<div className="flex flex-col gap-3">
-						<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-							{profile.name}
-						</h1>
-						<div className="flex flex-wrap items-center gap-2">
-							<Badge variant="muted" className="gap-1">
-								<Factory className="h-3 w-3" />
-								Industry: {profile.industry}
-							</Badge>
-							<Badge variant="muted">
-								Company ID: {profile.id.slice(0, 8)}
-							</Badge>
-							<Badge variant={accountStatus.variant} className="rounded-full">
-								{accountStatus.label}
-							</Badge>
-						</div>
-					</div>
-
+			<PageHeader
+				title={profile.name}
+				subtitle={profile.industry}
+				icon={Factory}
+				badge={accountStatus.label}
+				breadcrumbs={[
+					{ label: "Clients", href: "/clients" },
+					{ label: profile.name },
+				]}
+				actions={
 					<div className="flex flex-wrap items-center gap-2">
 						<Pressable>
 							<Button
@@ -360,47 +349,51 @@ export default function ClientDetailPage() {
 							</Button>
 						</Pressable>
 					</div>
-				</div>
-			</section>
+				}
+			/>
 
-			{/* ── KPI Stats Cards (4 columns) ── */}
-			<section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-				<KpiCard
-					title="Total Tracked Streams"
-					value={totalTrackedStreams}
-					subtitle={`${draftStreamsCount} draft${draftStreamsCount === 1 ? "" : "s"}`}
-					icon={Activity}
-					variant="warning"
-				/>
-
-				<KpiCard
-					title="Active Streams"
-					value={activeStreamsCount}
-					subtitle={`Across ${profile.locations.length} facilities`}
-					icon={Activity}
-					variant="default"
-				/>
-
-				<KpiCard
-					title="Needs Follow-up"
-					value={missingInfoStreamsCount}
-					subtitle={
-						missingInfoStreamsCount === 0
-							? "No stream follow-ups pending"
-							: "Streams missing required details"
-					}
-					icon={Flag}
-					variant="success"
-				/>
-
-				<KpiCard
-					title="Ready for Offer"
-					value={readyForOfferCount}
-					subtitle={`${facilityCoverage}% facility coverage`}
-					icon={Target}
-					variant="accent"
-				/>
-			</section>
+			<StatRail columns={4}>
+				<HoverLift>
+					<KpiCard
+						title="Total Tracked Streams"
+						value={totalTrackedStreams}
+						subtitle={`${draftStreamsCount} draft${draftStreamsCount === 1 ? "" : "s"}`}
+						icon={Activity}
+						variant="warning"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Active Streams"
+						value={activeStreamsCount}
+						subtitle={`Across ${profile.locations.length} facilities`}
+						icon={Activity}
+						variant="default"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Needs Follow-up"
+						value={missingInfoStreamsCount}
+						subtitle={
+							missingInfoStreamsCount === 0
+								? "No stream follow-ups pending"
+								: "Streams missing required details"
+						}
+						icon={Flag}
+						variant="success"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Ready for Offer"
+						value={readyForOfferCount}
+						subtitle={`${facilityCoverage}% facility coverage`}
+						icon={Target}
+						variant="accent"
+					/>
+				</HoverLift>
+			</StatRail>
 
 			{/* ── Three Column Insights Grid ── */}
 			<section className="grid gap-4 lg:grid-cols-3">
@@ -738,6 +731,6 @@ export default function ClientDetailPage() {
 					</Tabs>
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

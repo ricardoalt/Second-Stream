@@ -224,7 +224,9 @@ export function AdminDashboardPageContent({
 	const loadMoreStreams = (userId: string) => {
 		const currentCount = getVisibleCount(userId);
 		setStreamsVisibility((prev) =>
-			new Map(prev).set(userId, { visibleCount: currentCount + STREAMS_PER_PAGE }),
+			new Map(prev).set(userId, {
+				visibleCount: currentCount + STREAMS_PER_PAGE,
+			}),
 		);
 	};
 
@@ -298,7 +300,8 @@ export function AdminDashboardPageContent({
 								className="h-8 gap-1 border-border px-4 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
 							>
 								<ChevronDown className="h-3.5 w-3.5" />
-								Load {Math.min(STREAMS_PER_PAGE, totalStreams - visibleCount)} More
+								Load {Math.min(STREAMS_PER_PAGE, totalStreams - visibleCount)}{" "}
+								More
 							</Button>
 							<p className="text-xs text-muted-foreground">
 								Showing {visibleCount} of {totalStreams} streams
@@ -309,7 +312,7 @@ export function AdminDashboardPageContent({
 						<p className="text-xs text-muted-foreground">
 							All {totalStreams} streams loaded
 						</p>
-						)}
+					)}
 
 					{/* View All Streams button - always visible */}
 					<Button

@@ -488,9 +488,7 @@ export function ExternalReportView({ proposal }: ExternalReportViewProps) {
 						</p>
 					)}
 					{isHighlyProfitable ? (
-						<Badge className="bg-success hover:bg-success/90 text-white">
-							Highly Profitable
-						</Badge>
+						<Badge variant="success">Highly Profitable</Badge>
 					) : (
 						<TooltipProvider>
 							<Tooltip>

@@ -338,7 +338,7 @@ export function HoverLift({
  * - Triggers when in viewport
  *
  * @example
- * <AnimatedCounter value={124500} prefix="$" duration={1.5} />
+ * <AnimatedCounter value={124500} prefix="$" />
  */
 
 interface AnimatedCounterProps {
@@ -346,8 +346,6 @@ interface AnimatedCounterProps {
 	prefix?: string;
 	suffix?: string;
 	decimals?: number;
-	/** Duration in seconds (default: 1.5s) */
-	duration?: number;
 	className?: string;
 }
 
@@ -358,7 +356,6 @@ export function AnimatedCounter({
 	prefix = "",
 	suffix = "",
 	decimals = 0,
-	duration = 1.5,
 	className,
 }: AnimatedCounterProps) {
 	const ref = useRef<HTMLSpanElement>(null);

@@ -115,11 +115,7 @@ export const useStreamsStore = create<StreamsState>()(
 			const cachedMissingInfo =
 				peekClientDataCache<DashboardListResponse>(missingInfoKey);
 
-			const hasCompleteCachedSnapshot = Boolean(
-				cachedTotal && cachedDrafts && cachedMissingInfo,
-			);
-
-			if (hasCompleteCachedSnapshot) {
+			if (cachedTotal && cachedDrafts && cachedMissingInfo) {
 				const hydrated = hydrateStateFromResponses({
 					allResponse: cachedTotal.data,
 					draftsResponse: cachedDrafts.data,

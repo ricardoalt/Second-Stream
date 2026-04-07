@@ -60,9 +60,8 @@ type CandidateModalInstruction =
 type DecideDiscoveryDraftFn =
 	typeof import("@/lib/api/bulk-import").bulkImportAPI["decideDiscoveryDraft"];
 
-interface FinalizeAllResult {
+interface FinalizeReviewResult {
 	updatedCandidates: DraftCandidate[];
-	validationById: Record<string, CandidateValidationErrors>;
 	confirmedIds: string[];
 }
 
@@ -256,51 +255,10 @@ export async function confirmCandidateDecision(params: {
 	return {};
 }
 
-export async function processFinalizeAllCandidates(params: {
-	candidates: DraftCandidate[];
-	decideDiscoveryDraft: DecideDiscoveryDraftFn;
-	defaultLocationId?: string;
-}): Promise<FinalizeAllResult> {
-	const { candidates, decideDiscoveryDraft, defaultLocationId } = params;
-	const pendingCandidates = candidates.filter(
-		(candidate) => candidate.status === "pending",
-	);
-	const validationById: Record<string, CandidateValidationErrors> = {};
-	const validPending = pendingCandidates.filter((candidate) => {
-		const errors = validateCandidateForConfirmation(candidate);
-		if (Object.keys(errors).length > 0) {
-			validationById[candidate.itemId] = errors;
-			return false;
-		}
-		return true;
-	});
-
-	const confirmedIds: string[] = [];
-
-	await Promise.all(
-		validPending.map(async (candidate) => {
-			const decisionPayload: Parameters<DecideDiscoveryDraftFn>[1] = {
-				action: "confirm",
-				normalizedData: toDiscoveryNormalizedData(candidate),
-				reviewNotes: buildCandidateReviewNotes(candidate),
-			};
-			const locationResolution = resolveLocationResolution({
-				candidateLocationId: candidate.locationId,
-				defaultLocationId,
-			});
-			if (locationResolution) {
-				decisionPayload.locationResolution = locationResolution;
-			}
-			await decideDiscoveryDraft(candidate.itemId, decisionPayload);
-			confirmedIds.push(candidate.itemId);
-		}),
-	);
-
-	const confirmedSet = new Set(confirmedIds);
+export function processFinalizeAllCandidates(
+	candidates: DraftCandidate[],
+): FinalizeReviewResult {
 	const updatedCandidates = candidates.map((candidate) => {
-		if (confirmedSet.has(candidate.itemId)) {
-			return { ...candidate, status: "confirmed" as const };
-		}
 		if (candidate.status === "pending") {
 			return { ...candidate, status: "skipped" as const };
 		}
@@ -309,8 +267,9 @@ export async function processFinalizeAllCandidates(params: {
 
 	return {
 		updatedCandidates,
-		validationById,
-		confirmedIds,
+		confirmedIds: candidates
+			.filter((candidate) => candidate.status === "confirmed")
+			.map((candidate) => candidate.itemId),
 	};
 }
 
@@ -529,17 +488,23 @@ export function DiscoveryWizard({
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Leave candidates as drafts?</AlertDialogTitle>
+						<AlertDialogTitle>Leave review?</AlertDialogTitle>
 						<AlertDialogDescription>
-							You still have unresolved candidates. If you close now, those
-							candidates will remain as drafts and will not become real waste
-							streams.
+							Confirmed streams are already created. You can keep reviewing,
+							save the remaining items as drafts, or discard the remaining
+							unconfirmed items.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel>Keep Reviewing</AlertDialogCancel>
 						<AlertDialogAction onClick={orchestration.handleConfirmKeepDrafts}>
-							Leave as Drafts
+							Save as Drafts
+						</AlertDialogAction>
+						<AlertDialogAction
+							onClick={orchestration.handleDiscardRemainingCandidates}
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+						>
+							Discard Remaining
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

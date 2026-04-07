@@ -1,6 +1,6 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "@tanstack/react-form";
 import {
 	Building2,
 	Check,
@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type ComponentProps, type ReactNode, useState } from "react";
-import { useForm } from "react-hook-form";
+import { ConfirmModal } from "@/components/patterns/dialogs/modal";
 import {
 	Button,
 	Command,
@@ -30,12 +30,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
-	Form,
-	FormControl,
-	FormField,
-	FormItem,
-	FormLabel,
-	FormMessage,
 	Input,
 	Popover,
 	PopoverContent,
@@ -49,7 +43,8 @@ import {
 	Textarea,
 } from "@/components/ui";
 import { submitAddClientAndBuildHandoff } from "@/lib/add-client-submit";
-import { type AddClientFormData, addClientSchema } from "@/lib/forms/schemas";
+import { addClientSchema } from "@/lib/forms/schemas";
+import { useUnsavedChanges } from "@/lib/hooks/use-unsaved-changes";
 import type { Sector } from "@/lib/sectors-config";
 import {
 	getSectorsByGroup,
@@ -60,12 +55,12 @@ import {
 import { useCompanyStore } from "@/lib/stores/company-store";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_FORM: AddClientFormData = {
+const DEFAULT_FORM = {
 	name: "",
 	sector: "",
 	subsector: "",
-	customerType: "generator",
-	accountStatus: "active",
+	customerType: "generator" as "buyer" | "generator" | "both",
+	accountStatus: "active" as "active" | "prospect",
 	companyNotes: "",
 	contactName: "",
 	contactTitle: "",
@@ -78,6 +73,25 @@ const DEFAULT_FORM: AddClientFormData = {
 	locationZipCode: "",
 };
 
+type DefaultForm = typeof DEFAULT_FORM;
+
+const REQUIRED_FIELDS = [
+	"name",
+	"sector",
+	"subsector",
+	"customerType",
+	"contactEmail",
+	"contactPhone",
+	"locationName",
+	"locationCity",
+	"locationState",
+	"locationZipCode",
+] as const;
+
+const isSector = (value: string): value is Sector => {
+	return sectorsConfig.some((sector) => sector.id === value);
+};
+
 type Props = {
 	/** Callback fired after successful submission. Use this for wizard/context flows without redirect */
 	onSuccessWithClient?: (clientId: string) => void;
@@ -87,10 +101,6 @@ type Props = {
 	hideTrigger?: boolean;
 	/** Custom trigger element */
 	trigger?: ReactNode;
-};
-
-const isSector = (value: string): value is Sector => {
-	return sectorsConfig.some((sector) => sector.id === value);
 };
 
 export function AddClientDialog({
@@ -105,75 +115,107 @@ export function AddClientDialog({
 	const { createCompany, createCompanyContact, createLocation } =
 		useCompanyStore();
 
-	const form = useForm<AddClientFormData>({
-		resolver: zodResolver(addClientSchema),
+	const form = useForm({
 		defaultValues: DEFAULT_FORM,
+		onSubmit: async ({ value }) => {
+			setSubmitError(null);
+
+			const result = addClientSchema.safeParse(value);
+
+			if (!result.success) {
+				const errorPaths = new Set(result.error.errors.map((e) => e.path[0]));
+
+				for (const err of result.error.errors) {
+					const path = err.path[0];
+					if (typeof path === "string") {
+						form.setFieldMeta(path as keyof DefaultForm, (meta) => ({
+							...meta,
+							isTouched: true,
+							errors: [err.message],
+						}));
+					}
+				}
+
+				const firstField = REQUIRED_FIELDS.find((f) => errorPaths.has(f));
+				if (firstField) {
+					document.getElementById(firstField)?.focus();
+				}
+				return;
+			}
+
+			try {
+				const submitResult = await submitAddClientAndBuildHandoff(result.data, {
+					createCompany,
+					createCompanyContact,
+					createLocation,
+				});
+
+				setOpen(false);
+				form.reset();
+
+				if (onSuccessWithClient) {
+					onSuccessWithClient(submitResult.companyId);
+					return;
+				}
+
+				onSubmitted?.();
+				router.push(submitResult.handoffUrl);
+			} catch {
+				setSubmitError("We couldn't create this client. No data was saved.");
+			}
+		},
 	});
 
-	const selectedSector = form.watch("sector");
+	const selectedSector = form.state.values.sector;
 	const availableSubsectors = isSector(selectedSector)
 		? getSubsectors(selectedSector)
 		: [];
 
-	function reset() {
-		form.reset(DEFAULT_FORM);
+	const closeAndReset = () => {
+		setOpen(false);
+		form.reset();
 		setSubmitError(null);
-	}
+	};
 
-	async function onSubmit(data: AddClientFormData) {
-		setSubmitError(null);
+	const { showDiscardConfirm, guardClose, confirmDiscard, cancelDiscard } =
+		useUnsavedChanges({
+			isDirty: form.state.isDirty,
+			onDiscard: closeAndReset,
+		});
 
-		try {
-			const result = await submitAddClientAndBuildHandoff(data, {
-				createCompany,
-				createCompanyContact,
-				createLocation,
-			});
-
-			setOpen(false);
-			reset();
-
-			if (onSuccessWithClient) {
-				onSuccessWithClient(result.companyId);
-				return;
-			}
-
-			onSubmitted?.();
-			router.push(result.handoffUrl);
-		} catch {
-			setSubmitError("We couldn't create this client. No data was saved.");
-		}
-	}
-
-	const submitting = form.formState.isSubmitting;
+	const submitting = form.state.isSubmitting;
 
 	return (
-		<Dialog
-			open={open}
-			onOpenChange={(nextOpen) => {
-				setOpen(nextOpen);
-				if (!nextOpen) {
-					reset();
-				}
-			}}
-		>
-			{!hideTrigger && (
-				<DialogTrigger asChild>
-					{trigger ?? (
-						<Button>
-							<Building2 data-icon="inline-start" aria-hidden="true" />
-							Add New Client
-						</Button>
-					)}
-				</DialogTrigger>
-			)}
-
-			<DialogContent
-				className="w-[min(94vw,780px)] max-w-none gap-0 overflow-hidden rounded-2xl border border-border/40 bg-surface-container-lowest p-0 shadow-lg"
-				showCloseButton={true}
+		<>
+			<Dialog
+				open={open}
+				onOpenChange={(nextOpen) => {
+					if (nextOpen) setOpen(true);
+					else guardClose();
+				}}
 			>
-				<Form {...form}>
-					<form onSubmit={form.handleSubmit(onSubmit)}>
+				{!hideTrigger && (
+					<DialogTrigger asChild>
+						{trigger ?? (
+							<Button>
+								<Building2 data-icon="inline-start" aria-hidden="true" />
+								Add New Client
+							</Button>
+						)}
+					</DialogTrigger>
+				)}
+
+				<DialogContent
+					className="w-[min(94vw,780px)] max-w-none gap-0 overflow-hidden rounded-2xl border border-border/40 bg-surface-container-lowest p-0 shadow-lg"
+					showCloseButton={true}
+				>
+					<form
+						onSubmit={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							form.handleSubmit();
+						}}
+					>
 						<DialogHeader className="flex flex-col gap-1.5 border-b border-border/15 px-7 pb-5 pt-6 text-left">
 							<DialogTitle className="font-display text-[1.65rem] font-semibold tracking-tight text-foreground">
 								Add New Client
@@ -193,74 +235,102 @@ export function AddClientDialog({
 									</SectionHeading>
 
 									<div className="grid gap-x-5 gap-y-4 md:grid-cols-[1.2fr_1fr]">
-										<FormField
-											control={form.control}
+										<form.Field
 											name="name"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Company name{" "}
-														<span className="text-destructive">*</span>
-													</FormLabel>
-													<FormControl>
+											validators={{
+												onBlur: ({ value }) =>
+													!value.trim() ? "Client name is required" : undefined,
+											}}
+										>
+											{(field) => {
+												const hasError =
+													field.state.meta.isTouched &&
+													field.state.meta.errors.length > 0;
+												return (
+													<div className="space-y-1.5">
+														<FieldLabel required>Company name</FieldLabel>
 														<InputWithIcon
+															id={field.name}
 															icon={<Building2 className="size-4" />}
 															placeholder="e.g. Apex Industrial Ltd"
-															{...field}
+															value={field.state.value}
+															onChange={(e) =>
+																field.handleChange(e.target.value)
+															}
+															onBlur={field.handleBlur}
+															aria-invalid={hasError}
+															aria-required="true"
 														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
-											)}
-										/>
+														{hasError && (
+															<p className="text-xs text-destructive">
+																{field.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												);
+											}}
+										</form.Field>
 
-										<FormField
-											control={form.control}
+										<form.Field
 											name="sector"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Industry type{" "}
-														<span className="text-destructive">*</span>
-													</FormLabel>
-													<FormControl>
+											validators={{
+												onBlur: ({ value }) =>
+													!value.trim() ? "Please select a sector" : undefined,
+											}}
+										>
+											{(field) => {
+												const hasError =
+													field.state.meta.isTouched &&
+													field.state.meta.errors.length > 0;
+												return (
+													<div className="space-y-1.5">
+														<FieldLabel required>Industry type</FieldLabel>
 														<IndustryPicker
-															value={field.value}
+															id={field.name}
+															value={field.state.value}
 															onValueChange={(value) => {
-																field.onChange(value);
-																form.setValue("subsector", "", {
-																	shouldDirty: true,
-																	shouldValidate: true,
-																});
+																field.handleChange(value);
+																form.setFieldValue("subsector", "");
 															}}
+															aria-invalid={hasError}
 														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
-											)}
-										/>
+														{hasError && (
+															<p className="text-xs text-destructive">
+																{field.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												);
+											}}
+										</form.Field>
 									</div>
 
 									<div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-										<FormField
-											control={form.control}
+										<form.Field
 											name="customerType"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Client type{" "}
-														<span className="text-destructive">*</span>
-													</FormLabel>
-													<FormControl>
+											validators={{
+												onBlur: ({ value }) =>
+													!value ? "Please select a customer type" : undefined,
+											}}
+										>
+											{(field) => {
+												const hasError =
+													field.state.meta.isTouched &&
+													field.state.meta.errors.length > 0;
+												return (
+													<div className="space-y-1.5">
+														<FieldLabel required>Client type</FieldLabel>
 														<SelectWithIcon
+															id={field.name}
 															icon={<Building2 className="size-4" />}
-															value={field.value}
+															value={field.state.value}
 															onValueChange={(value) =>
-																field.onChange(
-																	value as AddClientFormData["customerType"],
+																field.handleChange(
+																	value as DefaultForm["customerType"],
 																)
 															}
 															placeholder="Select type"
+															aria-invalid={hasError}
 														>
 															<SelectItem value="buyer">Buyer</SelectItem>
 															<SelectItem value="generator">
@@ -268,93 +338,97 @@ export function AddClientDialog({
 															</SelectItem>
 															<SelectItem value="both">Both</SelectItem>
 														</SelectWithIcon>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
-											)}
-										/>
+														{hasError && (
+															<p className="text-xs text-destructive">
+																{field.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												);
+											}}
+										</form.Field>
 
-										<FormField
-											control={form.control}
-											name="accountStatus"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Account status
-													</FormLabel>
-													<FormControl>
-														<div className="flex h-10 gap-0 rounded-lg border border-border/40 bg-surface-container-high/40 p-[3px]">
-															{(
-																[
-																	{ value: "active", label: "Active" },
-																	{ value: "prospect", label: "Prospect" },
-																] as const
-															).map((option) => (
-																<button
-																	key={option.value}
-																	type="button"
-																	className={cn(
-																		"flex-1 rounded-md px-5 py-1 text-sm font-semibold tracking-wide transition-all duration-200",
-																		field.value === option.value
-																			? "bg-primary text-primary-foreground shadow-sm"
-																			: "text-muted-foreground hover:text-foreground",
-																	)}
-																	onClick={() => field.onChange(option.value)}
-																>
-																	{option.label}
-																</button>
-															))}
-														</div>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
+										<form.Field name="accountStatus">
+											{(field) => (
+												<div className="space-y-1.5">
+													<FieldLabel>Account status</FieldLabel>
+													<div className="flex h-10 gap-0 rounded-lg border border-border/40 bg-surface-container-high/40 p-[3px]">
+														{(
+															[
+																{ value: "active", label: "Active" },
+																{ value: "prospect", label: "Prospect" },
+															] as const
+														).map((option) => (
+															<button
+																key={option.value}
+																type="button"
+																className={cn(
+																	"flex-1 rounded-md px-5 py-1 text-sm font-semibold tracking-wide transition-all duration-200",
+																	field.state.value === option.value
+																		? "bg-primary text-primary-foreground shadow-sm"
+																		: "text-muted-foreground hover:text-foreground",
+																)}
+																onClick={() => field.handleChange(option.value)}
+															>
+																{option.label}
+															</button>
+														))}
+													</div>
+												</div>
 											)}
-										/>
+										</form.Field>
 									</div>
 
 									<div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-										<FormField
-											control={form.control}
+										<form.Field
 											name="subsector"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Sub-industry{" "}
-														<span className="text-destructive">*</span>
-													</FormLabel>
-													<FormControl>
+											validators={{
+												onBlur: ({ value }) =>
+													!value.trim()
+														? "Please select a subsector"
+														: undefined,
+											}}
+										>
+											{(field) => {
+												const hasError =
+													field.state.meta.isTouched &&
+													field.state.meta.errors.length > 0;
+												return (
+													<div className="space-y-1.5">
+														<FieldLabel required>Sub-industry</FieldLabel>
 														<SubIndustryPicker
-															value={field.value}
-															onValueChange={field.onChange}
+															id={field.name}
+															value={field.state.value}
+															onValueChange={(v) => field.handleChange(v)}
 															options={availableSubsectors}
 															disabled={!selectedSector}
+															aria-invalid={hasError}
 														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
-											)}
-										/>
+														{hasError && (
+															<p className="text-xs text-destructive">
+																{field.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												);
+											}}
+										</form.Field>
 
-										<FormField
-											control={form.control}
-											name="companyNotes"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Notes
-													</FormLabel>
-													<FormControl>
-														<Textarea
-															{...field}
-															rows={2}
-															placeholder="Internal notes about this client…"
-															className="resize-none bg-surface-container-low/60 text-sm"
-														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
+										<form.Field name="companyNotes">
+											{(field) => (
+												<div className="space-y-1.5">
+													<FieldLabel>Notes</FieldLabel>
+													<Textarea
+														value={field.state.value ?? ""}
+														onChange={(e) => field.handleChange(e.target.value)}
+														onBlur={field.handleBlur}
+														rows={2}
+														placeholder="Internal notes about this client…"
+														className="resize-none bg-surface-container-low/60 text-sm"
+													/>
+												</div>
 											)}
-										/>
+										</form.Field>
 									</div>
 								</section>
 
@@ -368,90 +442,97 @@ export function AddClientDialog({
 									</SectionHeading>
 
 									<div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-										<FormField
-											control={form.control}
-											name="contactName"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Full legal name
-													</FormLabel>
-													<FormControl>
-														<InputWithIcon
-															icon={<User className="size-4" />}
-															placeholder="Full legal name"
-															{...field}
-														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
+										<form.Field name="contactName">
+											{(field) => (
+												<div className="space-y-1.5">
+													<FieldLabel>Full legal name</FieldLabel>
+													<InputWithIcon
+														id={field.name}
+														icon={<User className="size-4" />}
+														placeholder="Full legal name"
+														value={field.state.value}
+														onChange={(e) => field.handleChange(e.target.value)}
+														onBlur={field.handleBlur}
+													/>
+												</div>
 											)}
-										/>
+										</form.Field>
 
-										<FormField
-											control={form.control}
-											name="contactEmail"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Email address{" "}
-														<span className="text-destructive">*</span>
-													</FormLabel>
-													<FormControl>
+										<form.Field name="contactEmail">
+											{(field) => {
+												const hasError =
+													field.state.meta.isTouched &&
+													field.state.meta.errors.length > 0;
+												return (
+													<div className="space-y-1.5">
+														<FieldLabel required>Email address</FieldLabel>
 														<InputWithIcon
+															id={field.name}
 															type="email"
 															icon={<Mail className="size-4" />}
 															placeholder="contact@company.com"
-															{...field}
+															value={field.state.value}
+															onChange={(e) =>
+																field.handleChange(e.target.value)
+															}
+															onBlur={field.handleBlur}
+															aria-invalid={hasError}
 														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
-											)}
-										/>
+														{hasError && (
+															<p className="text-xs text-destructive">
+																{field.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												);
+											}}
+										</form.Field>
 									</div>
 
 									<div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-										<FormField
-											control={form.control}
-											name="contactPhone"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Phone number{" "}
-														<span className="text-destructive">*</span>
-													</FormLabel>
-													<FormControl>
+										<form.Field name="contactPhone">
+											{(field) => {
+												const hasError =
+													field.state.meta.isTouched &&
+													field.state.meta.errors.length > 0;
+												return (
+													<div className="space-y-1.5">
+														<FieldLabel required>Phone number</FieldLabel>
 														<InputWithIcon
+															id={field.name}
 															icon={<Phone className="size-4" />}
 															placeholder="+1 (555) 000-0000"
-															{...field}
+															value={field.state.value}
+															onChange={(e) =>
+																field.handleChange(e.target.value)
+															}
+															onBlur={field.handleBlur}
+															aria-invalid={hasError}
 														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
-											)}
-										/>
+														{hasError && (
+															<p className="text-xs text-destructive">
+																{field.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												);
+											}}
+										</form.Field>
 
-										<FormField
-											control={form.control}
-											name="contactTitle"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Title
-													</FormLabel>
-													<FormControl>
-														<Input
-															{...field}
-															placeholder="e.g. Operations Manager"
-															className="h-10 bg-surface-container-low/60"
-														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
+										<form.Field name="contactTitle">
+											{(field) => (
+												<div className="space-y-1.5">
+													<FieldLabel>Title</FieldLabel>
+													<Input
+														value={field.state.value}
+														onChange={(e) => field.handleChange(e.target.value)}
+														onBlur={field.handleBlur}
+														placeholder="e.g. Operations Manager"
+														className="h-10 bg-surface-container-low/60"
+													/>
+												</div>
 											)}
-										/>
+										</form.Field>
 									</div>
 								</section>
 
@@ -465,110 +546,164 @@ export function AddClientDialog({
 									</SectionHeading>
 
 									<div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-										<FormField
-											control={form.control}
+										<form.Field
 											name="locationName"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Location name{" "}
-														<span className="text-destructive">*</span>
-													</FormLabel>
-													<FormControl>
+											validators={{
+												onBlur: ({ value }) =>
+													!value.trim()
+														? "Location name is required"
+														: undefined,
+											}}
+										>
+											{(field) => {
+												const hasError =
+													field.state.meta.isTouched &&
+													field.state.meta.errors.length > 0;
+												return (
+													<div className="space-y-1.5">
+														<FieldLabel required>Location name</FieldLabel>
 														<Input
-															{...field}
+															id={field.name}
+															value={field.state.value}
+															onChange={(e) =>
+																field.handleChange(e.target.value)
+															}
+															onBlur={field.handleBlur}
 															placeholder="e.g. Main Warehouse"
 															className="h-10 bg-surface-container-low/60"
+															aria-invalid={hasError}
 														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
-											)}
-										/>
+														{hasError && (
+															<p className="text-xs text-destructive">
+																{field.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												);
+											}}
+										</form.Field>
 
-										<FormField
-											control={form.control}
-											name="locationAddress"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														Street address
-													</FormLabel>
-													<FormControl>
-														<Input
-															{...field}
-															placeholder="Street address"
-															className="h-10 bg-surface-container-low/60"
-														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
+										<form.Field name="locationAddress">
+											{(field) => (
+												<div className="space-y-1.5">
+													<FieldLabel>Street address</FieldLabel>
+													<Input
+														value={field.state.value}
+														onChange={(e) => field.handleChange(e.target.value)}
+														onBlur={field.handleBlur}
+														placeholder="Street address"
+														className="h-10 bg-surface-container-low/60"
+													/>
+												</div>
 											)}
-										/>
+										</form.Field>
 									</div>
 
 									<div className="grid grid-cols-2 gap-x-5 gap-y-4 md:grid-cols-4">
-										<FormField
-											control={form.control}
+										<form.Field
 											name="locationCity"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														City <span className="text-destructive">*</span>
-													</FormLabel>
-													<FormControl>
+											validators={{
+												onBlur: ({ value }) =>
+													!value.trim() ? "City is required" : undefined,
+											}}
+										>
+											{(field) => {
+												const hasError =
+													field.state.meta.isTouched &&
+													field.state.meta.errors.length > 0;
+												return (
+													<div className="space-y-1.5">
+														<FieldLabel required>City</FieldLabel>
 														<Input
-															{...field}
+															id={field.name}
+															value={field.state.value}
+															onChange={(e) =>
+																field.handleChange(e.target.value)
+															}
+															onBlur={field.handleBlur}
 															placeholder="City"
 															className="h-10 bg-surface-container-low/60"
+															aria-invalid={hasError}
 														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
-											)}
-										/>
+														{hasError && (
+															<p className="text-xs text-destructive">
+																{field.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												);
+											}}
+										</form.Field>
 
-										<FormField
-											control={form.control}
+										<form.Field
 											name="locationState"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														State / Province{" "}
-														<span className="text-destructive">*</span>
-													</FormLabel>
-													<FormControl>
+											validators={{
+												onBlur: ({ value }) =>
+													!value.trim() ? "State is required" : undefined,
+											}}
+										>
+											{(field) => {
+												const hasError =
+													field.state.meta.isTouched &&
+													field.state.meta.errors.length > 0;
+												return (
+													<div className="space-y-1.5">
+														<FieldLabel required>State / Province</FieldLabel>
 														<Input
-															{...field}
+															id={field.name}
+															value={field.state.value}
+															onChange={(e) =>
+																field.handleChange(e.target.value)
+															}
+															onBlur={field.handleBlur}
 															placeholder="State"
 															className="h-10 bg-surface-container-low/60"
+															aria-invalid={hasError}
 														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
-											)}
-										/>
+														{hasError && (
+															<p className="text-xs text-destructive">
+																{field.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												);
+											}}
+										</form.Field>
 
-										<FormField
-											control={form.control}
+										<form.Field
 											name="locationZipCode"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-														ZIP / Postal code{" "}
-														<span className="text-destructive">*</span>
-													</FormLabel>
-													<FormControl>
+											validators={{
+												onBlur: ({ value }) =>
+													!value.trim() ? "ZIP code is required" : undefined,
+											}}
+										>
+											{(field) => {
+												const hasError =
+													field.state.meta.isTouched &&
+													field.state.meta.errors.length > 0;
+												return (
+													<div className="space-y-1.5">
+														<FieldLabel required>ZIP / Postal code</FieldLabel>
 														<Input
-															{...field}
+															id={field.name}
+															value={field.state.value}
+															onChange={(e) =>
+																field.handleChange(e.target.value)
+															}
+															onBlur={field.handleBlur}
 															placeholder="ZIP"
 															className="h-10 bg-surface-container-low/60"
+															aria-invalid={hasError}
 														/>
-													</FormControl>
-													<FormMessage className="text-xs" />
-												</FormItem>
-											)}
-										/>
+														{hasError && (
+															<p className="text-xs text-destructive">
+																{field.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												);
+											}}
+										</form.Field>
 									</div>
 								</section>
 
@@ -585,7 +720,7 @@ export function AddClientDialog({
 						<div className="flex items-center justify-between border-t border-border/15 bg-surface-container-low/60 px-7 py-4">
 							<button
 								type="button"
-								onClick={reset}
+								onClick={closeAndReset}
 								disabled={submitting}
 								className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
 							>
@@ -597,7 +732,7 @@ export function AddClientDialog({
 								<Button
 									type="button"
 									variant="ghost"
-									onClick={() => setOpen(false)}
+									onClick={guardClose}
 									disabled={submitting}
 									className="text-sm font-medium"
 								>
@@ -614,23 +749,34 @@ export function AddClientDialog({
 							</div>
 						</div>
 					</form>
-				</Form>
-			</DialogContent>
-		</Dialog>
+				</DialogContent>
+			</Dialog>
+
+			<ConfirmModal
+				open={showDiscardConfirm}
+				onOpenChange={(next) => {
+					if (!next) cancelDiscard();
+				}}
+				title="Discard unsaved changes?"
+				description="Your progress on this form will be lost if you close without saving."
+				confirmText="Discard"
+				variant="destructive"
+				onConfirm={confirmDiscard}
+			/>
+		</>
 	);
 }
 
 function IndustryPicker({
 	value,
 	onValueChange,
+	id,
 	...triggerProps
 }: {
 	value: string;
 	onValueChange: (value: string) => void;
-} & Pick<
-	ComponentProps<"button">,
-	"id" | "aria-invalid" | "aria-describedby"
->) {
+	id?: string;
+} & Pick<ComponentProps<"button">, "aria-invalid" | "aria-describedby">) {
 	const [open, setOpen] = useState(false);
 	const selectedLabel = sectorsConfig.find(
 		(sector) => sector.id === value,
@@ -640,6 +786,7 @@ function IndustryPicker({
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<button
+					id={id}
 					type="button"
 					role="combobox"
 					aria-expanded={open}
@@ -707,16 +854,15 @@ function SubIndustryPicker({
 	onValueChange,
 	options,
 	disabled,
+	id,
 	...triggerProps
 }: {
 	value: string;
 	onValueChange: (value: string) => void;
 	options: { id: string; label: string }[];
 	disabled: boolean;
-} & Pick<
-	ComponentProps<"button">,
-	"id" | "aria-invalid" | "aria-describedby"
->) {
+	id?: string;
+} & Pick<ComponentProps<"button">, "aria-invalid" | "aria-describedby">) {
 	const [open, setOpen] = useState(false);
 	const selectedLabel = options.find(
 		(subsector) => subsector.id === value,
@@ -726,6 +872,7 @@ function SubIndustryPicker({
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<button
+					id={id}
 					type="button"
 					role="combobox"
 					aria-expanded={open}
@@ -801,6 +948,20 @@ function SectionHeading({
 	);
 }
 
+function FieldLabel({
+	required,
+	children,
+}: {
+	required?: boolean;
+	children: ReactNode;
+}) {
+	return (
+		<p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+			{children} {required && <span className="text-destructive">*</span>}
+		</p>
+	);
+}
+
 function InputWithIcon({
 	icon,
 	className,
@@ -828,6 +989,7 @@ function SelectWithIcon({
 	placeholder,
 	children,
 	disabled,
+	id,
 	...triggerProps
 }: {
 	icon: ReactNode;
@@ -836,9 +998,10 @@ function SelectWithIcon({
 	placeholder: string;
 	children: ReactNode;
 	disabled?: boolean;
+	id?: string;
 } & Pick<
 	ComponentProps<typeof SelectTrigger>,
-	"id" | "aria-invalid" | "aria-describedby"
+	"aria-invalid" | "aria-describedby"
 >) {
 	return (
 		<Select
@@ -847,6 +1010,7 @@ function SelectWithIcon({
 			disabled={disabled ?? false}
 		>
 			<SelectTrigger
+				id={id}
 				className="h-10 bg-surface-container-low/60"
 				{...triggerProps}
 			>

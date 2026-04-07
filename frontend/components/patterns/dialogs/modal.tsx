@@ -46,8 +46,6 @@ interface ModalProps {
 	children: React.ReactNode;
 	/** Modal size variant */
 	size?: "default" | "sm" | "lg" | "xl" | "full";
-	/** Whether to show the close button */
-	showCloseButton?: boolean;
 	/** Additional classes for the content */
 	className?: string;
 }
@@ -67,7 +65,6 @@ export function Modal({
 	description,
 	children,
 	size = "default",
-	showCloseButton = true,
 	className,
 }: ModalProps) {
 	return (

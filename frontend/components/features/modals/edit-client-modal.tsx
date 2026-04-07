@@ -1,10 +1,10 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Building2, Loader2, MapPin } from "lucide-react";
+import { useForm } from "@tanstack/react-form";
+import { Building2, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { LoadingButton } from "@/components/patterns/feedback/loading-button";
 import {
 	Badge,
 	Button,
@@ -14,19 +14,13 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-	Form,
-	FormControl,
-	FormField,
-	FormItem,
-	FormLabel,
-	FormMessage,
 	Input,
 } from "@/components/ui";
+import { Label } from "@/components/ui/label";
 import { companiesAPI } from "@/lib/api/companies";
 import {
 	buildEditClientContactPayload,
 	buildEditClientInitialValues,
-	type EditClientFormValues,
 } from "@/lib/forms/client-form-mappers";
 import { isValidEmail, isValidPhone } from "@/lib/forms/schemas";
 import type { ClientProfile } from "@/lib/mappers/company-client";
@@ -63,12 +57,47 @@ export function EditClientModal({
 	onClose,
 	onSaved,
 }: EditClientModalProps) {
-	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	const form = useForm<EditClientFormValues>({
-		resolver: zodResolver(editClientSchema),
+	const form = useForm({
 		defaultValues: buildEditClientInitialValues(profile),
+		onSubmit: async ({ value }) => {
+			setError(null);
+
+			const result = editClientSchema.safeParse(value);
+			if (!result.success) {
+				for (const err of result.error.errors) {
+					const path = err.path[0];
+					if (typeof path === "string") {
+						form.setFieldMeta(
+							path as keyof ReturnType<typeof buildEditClientInitialValues>,
+							(meta) => ({ ...meta, isTouched: true, errors: [err.message] }),
+						);
+					}
+				}
+				return;
+			}
+
+			try {
+				await companiesAPI.update(profile.id, {
+					name: result.data.companyName.trim(),
+					industry: result.data.industry.trim(),
+				});
+
+				if (profile.primaryContact) {
+					await companiesAPI.updateContact(
+						profile.id,
+						profile.primaryContact.id,
+						buildEditClientContactPayload(result.data),
+					);
+				}
+
+				onClose();
+				onSaved?.();
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "Failed to save changes");
+			}
+		},
 	});
 
 	useEffect(() => {
@@ -78,32 +107,7 @@ export function EditClientModal({
 		}
 	}, [profile, open, form]);
 
-	async function handleSave(values: EditClientFormValues) {
-		try {
-			setSaving(true);
-			setError(null);
-
-			await companiesAPI.update(profile.id, {
-				name: values.companyName.trim(),
-				industry: values.industry.trim(),
-			});
-
-			if (profile.primaryContact) {
-				await companiesAPI.updateContact(
-					profile.id,
-					profile.primaryContact.id,
-					buildEditClientContactPayload(values),
-				);
-			}
-
-			onClose();
-			onSaved?.();
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to save changes");
-		} finally {
-			setSaving(false);
-		}
-	}
+	const submitting = form.state.isSubmitting;
 
 	return (
 		<Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
@@ -123,177 +127,241 @@ export function EditClientModal({
 					</DialogDescription>
 				</DialogHeader>
 
-				<Form {...form}>
-					<form onSubmit={form.handleSubmit(handleSave)}>
-						<div className="flex flex-col gap-4 bg-surface-container-lowest px-6 py-5">
-							<div className="grid gap-4 md:grid-cols-2">
-								<FormField
-									control={form.control}
-									name="companyName"
-									render={({ field }) => (
-										<FormItem>
-											<FormLabel>Company Name</FormLabel>
-											<FormControl>
-												<Input className="bg-surface" {...field} />
-											</FormControl>
-											<FormMessage />
-										</FormItem>
-									)}
-								/>
-
-								<FormField
-									control={form.control}
-									name="industry"
-									render={({ field }) => (
-										<FormItem>
-											<FormLabel>Industry</FormLabel>
-											<FormControl>
-												<Input className="bg-surface" {...field} />
-											</FormControl>
-											<FormMessage />
-										</FormItem>
-									)}
-								/>
-							</div>
-
-							{profile.primaryContact ? (
-								<>
-									<p className="mt-2 text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
-										Primary contact
-									</p>
-
-									<div className="grid gap-4 md:grid-cols-2">
-										<FormField
-											control={form.control}
-											name="contactName"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel>Name</FormLabel>
-													<FormControl>
-														<Input className="bg-surface" {...field} />
-													</FormControl>
-													<FormMessage />
-												</FormItem>
+				<form
+					onSubmit={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						form.handleSubmit();
+					}}
+				>
+					<div className="flex flex-col gap-4 bg-surface-container-lowest px-6 py-5">
+						<div className="grid gap-4 md:grid-cols-2">
+							<form.Field
+								name="companyName"
+								validators={{
+									onBlur: ({ value }) =>
+										!value.trim() ? "Company name is required" : undefined,
+								}}
+							>
+								{(field) => {
+									const hasError =
+										field.state.meta.isTouched &&
+										field.state.meta.errors.length > 0;
+									return (
+										<div className="grid gap-1.5">
+											<Label htmlFor={field.name}>Company Name</Label>
+											<Input
+												id={field.name}
+												className="bg-surface"
+												value={field.state.value}
+												onChange={(e) => field.handleChange(e.target.value)}
+												onBlur={field.handleBlur}
+												aria-invalid={hasError}
+											/>
+											{hasError && (
+												<p className="text-xs text-destructive">
+													{field.state.meta.errors[0]}
+												</p>
 											)}
-										/>
+										</div>
+									);
+								}}
+							</form.Field>
 
-										<FormField
-											control={form.control}
-											name="contactTitle"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel>Title</FormLabel>
-													<FormControl>
-														<Input className="bg-surface" {...field} />
-													</FormControl>
-													<FormMessage />
-												</FormItem>
-											)}
+							<form.Field name="industry">
+								{(field) => (
+									<div className="grid gap-1.5">
+										<Label htmlFor={field.name}>Industry</Label>
+										<Input
+											id={field.name}
+											className="bg-surface"
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											onBlur={field.handleBlur}
 										/>
 									</div>
-
-									<div className="grid gap-4 md:grid-cols-2">
-										<FormField
-											control={form.control}
-											name="contactEmail"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel>Email</FormLabel>
-													<FormControl>
-														<Input
-															type="email"
-															className="bg-surface"
-															{...field}
-														/>
-													</FormControl>
-													<FormMessage />
-												</FormItem>
-											)}
-										/>
-
-										<FormField
-											control={form.control}
-											name="contactPhone"
-											render={({ field }) => (
-												<FormItem>
-													<FormLabel>Phone</FormLabel>
-													<FormControl>
-														<Input className="bg-surface" {...field} />
-													</FormControl>
-													<FormMessage />
-												</FormItem>
-											)}
-										/>
-									</div>
-								</>
-							) : (
-								<p className="rounded-xl bg-surface p-4 text-sm text-muted-foreground">
-									No primary contact to edit. Assign a primary contact from the
-									admin panel.
-								</p>
-							)}
-
-							<div className="rounded-xl bg-surface p-4">
-								<div className="mb-3 flex items-center gap-2">
-									<MapPin aria-hidden className="size-4 text-primary" />
-									<p className="text-sm font-semibold text-foreground">
-										Locations
-									</p>
-								</div>
-								<div className="flex flex-col gap-2">
-									{profile.locations.length === 0 ? (
-										<p className="text-xs text-muted-foreground">
-											No locations registered.
-										</p>
-									) : (
-										profile.locations.map((location) => (
-											<div
-												key={location.id}
-												className="flex items-start justify-between gap-3 rounded-lg bg-surface-container-low px-3 py-2"
-											>
-												<div>
-													<p className="text-sm font-medium text-foreground">
-														{location.name}
-													</p>
-													<p className="text-xs text-muted-foreground">
-														{location.address ? `${location.address} · ` : ""}
-														{location.city}, {location.state}
-													</p>
-												</div>
-												<Badge
-													variant="outline"
-													className="rounded-full text-xs"
-												>
-													{location.projectCount} project
-													{location.projectCount !== 1 ? "s" : ""}
-												</Badge>
-											</div>
-										))
-									)}
-								</div>
-							</div>
-
-							{error && <p className="text-sm text-destructive">{error}</p>}
+								)}
+							</form.Field>
 						</div>
 
-						<DialogFooter className="bg-surface-container-low px-6 py-4 sm:flex-row sm:justify-end">
-							<div className="flex items-center gap-2">
-								<Button
-									variant="ghost"
-									type="button"
-									onClick={onClose}
-									disabled={saving}
-								>
-									Cancel
-								</Button>
-								<Button type="submit" disabled={saving}>
-									{saving && <Loader2 className="mr-2 size-4 animate-spin" />}
-									Save Changes
-								</Button>
+						{profile.primaryContact ? (
+							<>
+								<p className="mt-2 text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
+									Primary contact
+								</p>
+
+								<div className="grid gap-4 md:grid-cols-2">
+									<form.Field name="contactName">
+										{(field) => (
+											<div className="grid gap-1.5">
+												<Label htmlFor={field.name}>Name</Label>
+												<Input
+													id={field.name}
+													className="bg-surface"
+													value={field.state.value}
+													onChange={(e) => field.handleChange(e.target.value)}
+													onBlur={field.handleBlur}
+												/>
+											</div>
+										)}
+									</form.Field>
+
+									<form.Field name="contactTitle">
+										{(field) => (
+											<div className="grid gap-1.5">
+												<Label htmlFor={field.name}>Title</Label>
+												<Input
+													id={field.name}
+													className="bg-surface"
+													value={field.state.value}
+													onChange={(e) => field.handleChange(e.target.value)}
+													onBlur={field.handleBlur}
+												/>
+											</div>
+										)}
+									</form.Field>
+								</div>
+
+								<div className="grid gap-4 md:grid-cols-2">
+									<form.Field
+										name="contactEmail"
+										validators={{
+											onBlur: ({ value }) => {
+												const trimmed = value.trim();
+												if (trimmed && !isValidEmail(trimmed)) {
+													return "Enter a valid email address.";
+												}
+												return undefined;
+											},
+										}}
+									>
+										{(field) => {
+											const hasError =
+												field.state.meta.isTouched &&
+												field.state.meta.errors.length > 0;
+											return (
+												<div className="grid gap-1.5">
+													<Label htmlFor={field.name}>Email</Label>
+													<Input
+														id={field.name}
+														type="email"
+														className="bg-surface"
+														value={field.state.value}
+														onChange={(e) => field.handleChange(e.target.value)}
+														onBlur={field.handleBlur}
+														aria-invalid={hasError}
+													/>
+													{hasError && (
+														<p className="text-xs text-destructive">
+															{field.state.meta.errors[0]}
+														</p>
+													)}
+												</div>
+											);
+										}}
+									</form.Field>
+
+									<form.Field
+										name="contactPhone"
+										validators={{
+											onBlur: ({ value }) => {
+												const trimmed = value.trim();
+												if (trimmed && !isValidPhone(trimmed)) {
+													return "Phone must be 3-50 characters and include at least one digit.";
+												}
+												return undefined;
+											},
+										}}
+									>
+										{(field) => {
+											const hasError =
+												field.state.meta.isTouched &&
+												field.state.meta.errors.length > 0;
+											return (
+												<div className="grid gap-1.5">
+													<Label htmlFor={field.name}>Phone</Label>
+													<Input
+														id={field.name}
+														className="bg-surface"
+														value={field.state.value}
+														onChange={(e) => field.handleChange(e.target.value)}
+														onBlur={field.handleBlur}
+														aria-invalid={hasError}
+													/>
+													{hasError && (
+														<p className="text-xs text-destructive">
+															{field.state.meta.errors[0]}
+														</p>
+													)}
+												</div>
+											);
+										}}
+									</form.Field>
+								</div>
+							</>
+						) : (
+							<p className="rounded-xl bg-surface p-4 text-sm text-muted-foreground">
+								No primary contact to edit. Assign a primary contact from the
+								admin panel.
+							</p>
+						)}
+
+						<div className="rounded-xl bg-surface p-4">
+							<div className="mb-3 flex items-center gap-2">
+								<MapPin aria-hidden className="size-4 text-primary" />
+								<p className="text-sm font-semibold text-foreground">
+									Locations
+								</p>
 							</div>
-						</DialogFooter>
-					</form>
-				</Form>
+							<div className="flex flex-col gap-2">
+								{profile.locations.length === 0 ? (
+									<p className="text-xs text-muted-foreground">
+										No locations registered.
+									</p>
+								) : (
+									profile.locations.map((location) => (
+										<div
+											key={location.id}
+											className="flex items-start justify-between gap-3 rounded-lg bg-surface-container-low px-3 py-2"
+										>
+											<div>
+												<p className="text-sm font-medium text-foreground">
+													{location.name}
+												</p>
+												<p className="text-xs text-muted-foreground">
+													{location.address ? `${location.address} · ` : ""}
+													{location.city}, {location.state}
+												</p>
+											</div>
+											<Badge variant="outline" className="rounded-full text-xs">
+												{location.projectCount} project
+												{location.projectCount !== 1 ? "s" : ""}
+											</Badge>
+										</div>
+									))
+								)}
+							</div>
+						</div>
+
+						{error && <p className="text-sm text-destructive">{error}</p>}
+					</div>
+
+					<DialogFooter className="bg-surface-container-low px-6 py-4 sm:flex-row sm:justify-end">
+						<div className="flex items-center gap-2">
+							<Button
+								variant="ghost"
+								type="button"
+								onClick={onClose}
+								disabled={submitting}
+							>
+								Cancel
+							</Button>
+							<LoadingButton type="submit" loading={submitting}>
+								Save Changes
+							</LoadingButton>
+						</div>
+					</DialogFooter>
+				</form>
 			</DialogContent>
 		</Dialog>
 	);

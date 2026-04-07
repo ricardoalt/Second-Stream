@@ -237,12 +237,6 @@ interface ReviewSummary {
 	total: number;
 }
 
-interface FinalizeAllResult {
-	updatedCandidates: DraftCandidate[];
-	validationById: Record<string, CandidateValidationErrors>;
-	confirmedIds: string[];
-}
-
 interface StartDiscoveryParams {
 	companyId: string;
 	locationId: string;
@@ -920,118 +914,19 @@ export function useDiscoveryOrchestration(
 			return;
 		}
 
-		const currentCandidates = [...candidates];
-		const unresolvedCount = currentCandidates.filter(
-			(candidate) => candidate.status === "pending",
-		).length;
-
-		if (unresolvedCount === 0) {
-			const finalized = currentCandidates.map((candidate) =>
-				candidate.status === "pending"
-					? { ...candidate, status: "skipped" as const }
-					: candidate,
-			);
-			setCandidates(finalized);
-			setReviewSummary(reviewCounts(finalized));
-			setCandidateModalOpen(false);
-			setEditingCandidateId(null);
-			setCandidateErrors({});
-			clearDiscoveryResumeState();
-			setPhase("complete");
-			return;
-		}
-
-		setIsBulkConfirming(true);
-		let outcome: FinalizeAllResult | null = null;
-
-		try {
-			const pendingCandidates = currentCandidates.filter(
-				(candidate) => candidate.status === "pending",
-			);
-			const validationById: Record<string, CandidateValidationErrors> = {};
-			const validPending = pendingCandidates.filter((candidate) => {
-				const errors = validateCandidateForConfirmation(candidate);
-				if (Object.keys(errors).length > 0) {
-					validationById[candidate.itemId] = errors;
-					return false;
-				}
-				return true;
-			});
-			const confirmedIds: string[] = [];
-			await Promise.all(
-				validPending.map(async (candidate) => {
-					const decisionPayload: Parameters<
-						typeof bulkImportAPI.decideDiscoveryDraft
-					>[1] = {
-						action: "confirm",
-						normalizedData: toDiscoveryNormalizedData(candidate),
-						reviewNotes: buildCandidateReviewNotes(candidate),
-					};
-					const locationResolution = resolveLocationResolution({
-						candidateLocationId: candidate.locationId,
-						defaultLocationId,
-					});
-					if (locationResolution) {
-						decisionPayload.locationResolution = locationResolution;
-					}
-					if (assignedOwnerUserId) {
-						decisionPayload.ownerUserId = assignedOwnerUserId;
-					}
-					await bulkImportAPI.decideDiscoveryDraft(
-						candidate.itemId,
-						decisionPayload,
-					);
-					confirmedIds.push(candidate.itemId);
-				}),
-			);
-			const confirmedSet = new Set(confirmedIds);
-			outcome = {
-				updatedCandidates: currentCandidates.map((candidate) => {
-					if (confirmedSet.has(candidate.itemId)) {
-						return { ...candidate, status: "confirmed" as const };
-					}
-					if (candidate.status === "pending") {
-						return { ...candidate, status: "skipped" as const };
-					}
-					return candidate;
-				}),
-				validationById,
-				confirmedIds,
-			};
-		} catch (finalizeError) {
-			toast.error(
-				finalizeError instanceof Error
-					? finalizeError.message
-					: "Failed to finalize all pending candidates",
-			);
-		} finally {
-			setIsBulkConfirming(false);
-		}
-
-		if (!outcome) {
-			return;
-		}
-
-		if (Object.keys(outcome.validationById).length > 0) {
-			setCandidateErrors((current) => ({
-				...current,
-				...outcome.validationById,
-			}));
-		}
-
-		setCandidates(outcome.updatedCandidates);
-		setReviewSummary(reviewCounts(outcome.updatedCandidates));
+		const finalizedCandidates = candidates.map((candidate) =>
+			candidate.status === "pending"
+				? { ...candidate, status: "skipped" as const }
+				: candidate,
+		);
+		setCandidates(finalizedCandidates);
+		setReviewSummary(reviewCounts(finalizedCandidates));
 		setCandidateModalOpen(false);
 		setEditingCandidateId(null);
 		setCandidateErrors({});
 		clearDiscoveryResumeState();
 		setPhase("complete");
-	}, [
-		candidates,
-		defaultLocationId,
-		isCandidateMutationInFlight,
-		assignedOwnerUserId,
-	]);
+	}, [candidates, isCandidateMutationInFlight]);
 
 	const handleConfirmKeepDrafts = useCallback(() => {
 		setShowDraftCloseWarning(false);
@@ -1047,6 +942,54 @@ export function useDiscoveryOrchestration(
 		clearDiscoveryResumeState();
 		setPhase("complete");
 	}, [candidates]);
+
+	const handleDiscardRemainingCandidates = useCallback(async () => {
+		if (isCandidateMutationInFlight) {
+			return;
+		}
+
+		const pendingCandidates = candidates.filter(
+			(candidate) => candidate.status === "pending",
+		);
+
+		if (pendingCandidates.length === 0) {
+			setShowDraftCloseWarning(false);
+			setCandidateModalOpen(false);
+			setEditingCandidateId(null);
+			setReviewSummary(reviewCounts(candidates));
+			clearDiscoveryResumeState();
+			setPhase("complete");
+			return;
+		}
+
+		setIsBulkConfirming(true);
+		try {
+			await Promise.all(
+				pendingCandidates.map((candidate) =>
+					rejectCandidateDecision({ itemId: candidate.itemId }),
+				),
+			);
+			const remainingCandidates = candidates.filter(
+				(candidate) => candidate.status !== "pending",
+			);
+			setShowDraftCloseWarning(false);
+			setCandidates(remainingCandidates);
+			setCandidateErrors({});
+			setCandidateModalOpen(false);
+			setEditingCandidateId(null);
+			setReviewSummary(reviewCounts(remainingCandidates));
+			clearDiscoveryResumeState();
+			setPhase("complete");
+		} catch (discardError) {
+			toast.error(
+				discardError instanceof Error
+					? discardError.message
+					: "Failed to discard remaining candidates",
+			);
+		} finally {
+			setIsBulkConfirming(false);
+		}
+	}, [candidates, isCandidateMutationInFlight]);
 
 	return {
 		phase,
@@ -1077,5 +1020,6 @@ export function useDiscoveryOrchestration(
 		handleCandidateModalOpenChange,
 		handleProcessFinalizeAll,
 		handleConfirmKeepDrafts,
+		handleDiscardRemainingCandidates,
 	};
 }

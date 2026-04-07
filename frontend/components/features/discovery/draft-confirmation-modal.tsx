@@ -92,7 +92,7 @@ export function isCandidateBusy(params: {
 }
 
 export function processFinalizeAllLabel(isBulkConfirming: boolean): string {
-	return isBulkConfirming ? "Processing…" : "Process & Finalize All";
+	return isBulkConfirming ? "Finishing…" : "Finish Review";
 }
 
 export function canRejectCandidates(
@@ -128,6 +128,11 @@ export function DraftConfirmationModal({
 		(c) => c.status === "confirmed",
 	).length;
 	const totalCount = candidates.length;
+	const remainingDraftCount = Math.max(totalCount - confirmedCount, 0);
+	const remainingDraftLabel =
+		remainingDraftCount === 1
+			? "1 saved as draft"
+			: `${remainingDraftCount} saved as drafts`;
 
 	// Progress calculation
 	const progressPercentage = useMemo(() => {
@@ -667,17 +672,24 @@ export function DraftConfirmationModal({
 									<div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground cursor-help">
 										<Sparkles className="size-4 shrink-0 text-primary" />
 										<span className="truncate">
-											{confirmedCount > 0 ? (
+											{confirmedCount > 0 && pendingCount > 0 ? (
 												<>
 													<strong className="text-success">
 														{confirmedCount}
 													</strong>{" "}
-													confirmed, <strong>{pendingCount}</strong> pending
+													confirmed · <strong>{pendingCount}</strong> left as
+													drafts
+												</>
+											) : confirmedCount > 0 ? (
+												<>
+													<strong className="text-success">
+														{confirmedCount}
+													</strong>{" "}
+													confirmed · ready to finish
 												</>
 											) : (
 												<>
-													<strong>{pendingCount}</strong> streams identified for
-													batch processing
+													<strong>{pendingCount}</strong> still in review
 												</>
 											)}
 										</span>
@@ -685,8 +697,11 @@ export function DraftConfirmationModal({
 								</TooltipTrigger>
 								<TooltipContent side="top">
 									<p>
-										{confirmedCount} of {totalCount} streams confirmed
-										{pendingCount > 0 && `, ${pendingCount} remaining`}
+										{confirmedCount} confirmed stream
+										{confirmedCount === 1 ? "" : "s"}
+										{remainingDraftCount > 0
+											? `, ${remainingDraftLabel}`
+											: ", ready to finish review"}
 									</p>
 								</TooltipContent>
 							</Tooltip>
@@ -700,11 +715,11 @@ export function DraftConfirmationModal({
 											disabled={disableActions}
 											className="transition-all duration-200 hover:scale-105 active:scale-95"
 										>
-											Close
+											Leave Review
 										</Button>
 									</TooltipTrigger>
 									<TooltipContent side="top">
-										<p>Close without confirming remaining streams</p>
+										<p>Choose what to do with the remaining items</p>
 									</TooltipContent>
 								</Tooltip>
 
@@ -712,7 +727,7 @@ export function DraftConfirmationModal({
 									<TooltipTrigger asChild>
 										<Button
 											onClick={onProcessFinalizeAll}
-											disabled={disableActions || pendingCount === 0}
+											disabled={disableActions || totalCount === 0}
 											className="bg-success text-success-foreground hover:bg-success/90 transition-all duration-200 hover:scale-105 active:scale-95"
 										>
 											{isBulkConfirming ? (
@@ -728,8 +743,8 @@ export function DraftConfirmationModal({
 									<TooltipContent side="top">
 										<p>
 											{pendingCount > 0
-												? `Confirm all ${pendingCount} remaining streams`
-												: "All streams already confirmed"}
+												? `Finish review and save ${pendingCount} remaining stream${pendingCount === 1 ? "" : "s"} as draft${pendingCount === 1 ? "" : "s"}`
+												: "Finish review with confirmed streams"}
 										</p>
 									</TooltipContent>
 								</Tooltip>

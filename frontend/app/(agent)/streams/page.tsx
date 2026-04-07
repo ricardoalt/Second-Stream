@@ -26,19 +26,22 @@ import {
 	type DraftEditorState,
 	StreamsDraftsTable,
 } from "@/components/features/streams/streams-drafts-table";
-import { StreamsFamilyHeader } from "@/components/features/streams/streams-family-header";
 import { StreamsFollowUpBoard } from "@/components/features/streams/streams-follow-up-board";
 import {
 	useSharedStreamFilter,
 	useStreamFilters,
 } from "@/components/features/streams/use-stream-filters";
-import { EmptyState, KpiCard } from "@/components/patterns";
+import {
+	EmptyState,
+	KpiCard,
+	PageHeader,
+	PageShell,
+	StatRail,
+} from "@/components/patterns";
 import {
 	FadeIn,
 	HoverLift,
 	Pressable,
-	StaggerContainer,
-	StaggerItem,
 } from "@/components/patterns/animations/motion-components";
 import {
 	AlertDialog,
@@ -273,56 +276,40 @@ export default function AgentStreamsPage() {
 	}
 
 	return (
-		<div className="flex flex-col gap-8">
-			<StreamsFamilyHeader
-				breadcrumb="Waste Streams"
+		<PageShell gap="lg">
+			<PageHeader
 				title="Waste Stream Management"
 				subtitle="Track, validate, and propose disposal routes for active industrial byproduct flows."
-				actions={null}
+				badge="Waste Streams"
+				variant="hero"
 			/>
 
-			{/* KPI rail — page-level, tab-invariant with 2026 Animations */}
-			<section className="rounded-2xl bg-surface-container-low/60 p-5">
-				<StaggerContainer
-					staggerDelay={0.08}
-					className="grid grid-cols-2 gap-4 lg:grid-cols-4"
-				>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard
-								title="Active Streams"
-								value={formatKpi(kpis.activeStreams)}
-								variant="accent"
-							/>
-						</HoverLift>
-					</StaggerItem>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard
-								title="Critical Alerts"
-								value={formatKpi(kpis.criticalAlerts)}
-								variant="destructive"
-							/>
-						</HoverLift>
-					</StaggerItem>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard
-								title="Monthly Volume"
-								value={formatKpi(kpis.monthlyVolume)}
-								{...(kpis.monthlyVolume !== null
-									? { subtitle: "Gallons" }
-									: {})}
-							/>
-						</HoverLift>
-					</StaggerItem>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard title="Open Offers" value={formatKpi(kpis.openOffers)} />
-						</HoverLift>
-					</StaggerItem>
-				</StaggerContainer>
-			</section>
+			<StatRail columns={4}>
+				<HoverLift>
+					<KpiCard
+						title="Active Streams"
+						value={formatKpi(kpis.activeStreams)}
+						variant="accent"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Critical Alerts"
+						value={formatKpi(kpis.criticalAlerts)}
+						variant="destructive"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Monthly Volume"
+						value={formatKpi(kpis.monthlyVolume)}
+						{...(kpis.monthlyVolume !== null ? { subtitle: "Gallons" } : {})}
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard title="Open Offers" value={formatKpi(kpis.openOffers)} />
+				</HoverLift>
+			</StatRail>
 
 			{loading && !isInitialized ? (
 				<div className="rounded-xl border border-border/50 bg-surface-container-lowest p-4">
@@ -680,6 +667,6 @@ export default function AgentStreamsPage() {
 					</TabsContent>
 				</Tabs>
 			</FadeIn>
-		</div>
+		</PageShell>
 	);
 }

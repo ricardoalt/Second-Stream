@@ -4,29 +4,24 @@ import {
 	Archive,
 	CheckCircle2,
 	LayoutDashboard,
-	Search,
 	TrendingDown,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { OffersArchiveTable } from "@/components/features/offers/components/offers-archive-table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+	FilterBar,
+	KpiCard,
+	PageHeader,
+	PageShell,
+	StatRail,
+} from "@/components/patterns";
+import {
+	FadeIn,
+	HoverLift,
+} from "@/components/patterns/animations/motion-components";
+import { Card, CardContent } from "@/components/ui/card";
 import { type OfferArchiveResponseDTO, offersAPI } from "@/lib/api/offers";
 import { getErrorMessage } from "@/lib/utils/logger";
-
-// ═══════════════════════════════════════════════════════════
-// NEW: Design System Patterns
-// ════════════════════════════════════════════════════════════
-
-import { KpiCard, PageHeader } from "@/components/patterns";
 
 type ArchiveStatusFilter = "all" | "accepted" | "declined";
 
@@ -110,21 +105,23 @@ export default function OffersArchivePage() {
 
 	if (loading) {
 		return (
-			<div className="rounded-2xl bg-surface-container-lowest p-8 shadow-xs">
+			<PageShell>
 				<h1 className="font-display text-2xl font-semibold text-foreground">
 					Loading archived Offers...
 				</h1>
-			</div>
+			</PageShell>
 		);
 	}
 
 	return (
-		<div className="flex flex-col gap-8">
-			<PageHeader
-				title="Historical Offer Archive"
-				subtitle="Review accepted and declined offers with archived context."
-				icon={LayoutDashboard}
-			/>
+		<PageShell gap="lg">
+			<FadeIn direction="up">
+				<PageHeader
+					title="Historical Offer Archive"
+					subtitle="Review accepted and declined offers with archived context."
+					icon={LayoutDashboard}
+				/>
+			</FadeIn>
 
 			{error ? (
 				<Card className="border-0 bg-destructive/5 shadow-xs">
@@ -134,79 +131,72 @@ export default function OffersArchivePage() {
 				</Card>
 			) : null}
 
-			<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<KpiCard
-					title="Archive Count"
-					value={String(archive.counts.total)}
-					subtitle="Archived terminal offers"
-					icon={Archive}
-					variant="default"
-				/>
-				<KpiCard
-					title="Total Archived Value"
-					value={formatCurrency(totalArchivedValue)}
-					subtitle="Value across selected archive rows"
-					icon={Archive}
-					variant="accent"
-				/>
-				<KpiCard
-					title="Acceptance Rate"
-					value={`${acceptanceRate}%`}
-					subtitle="Accepted vs selected archived outcomes"
-					icon={CheckCircle2}
-					variant="success"
-				/>
-				<KpiCard
-					title="Declined Value"
-					value={formatCurrency(declinedValue)}
-					subtitle="Declined archived offer value"
-					icon={TrendingDown}
-					variant="warning"
-				/>
-			</section>
+			<StatRail columns={4}>
+				<HoverLift>
+					<KpiCard
+						title="Archive Count"
+						value={String(archive.counts.total)}
+						subtitle="Archived terminal offers"
+						icon={Archive}
+						variant="default"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Total Archived Value"
+						value={formatCurrency(totalArchivedValue)}
+						subtitle="Value across selected archive rows"
+						icon={Archive}
+						variant="accent"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Acceptance Rate"
+						value={`${acceptanceRate}%`}
+						subtitle="Accepted vs selected archived outcomes"
+						icon={CheckCircle2}
+						variant="success"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Declined Value"
+						value={formatCurrency(declinedValue)}
+						subtitle="Declined archived offer value"
+						icon={TrendingDown}
+						variant="warning"
+					/>
+				</HoverLift>
+			</StatRail>
+
+			<FilterBar
+				search={{
+					value: query,
+					onChange: setQuery,
+					placeholder: "Search archive",
+				}}
+				filters={[
+					{
+						key: "status",
+						value: selectedStatus,
+						onChange: (value) =>
+							setSelectedStatus(value as ArchiveStatusFilter),
+						options: [
+							{ value: "all", label: "All statuses" },
+							{ value: "accepted", label: "Accepted" },
+							{ value: "declined", label: "Declined" },
+						],
+						width: "w-[180px]",
+					},
+				]}
+			/>
 
 			<Card className="bg-surface-container-lowest shadow-sm">
-				<CardHeader className="flex flex-col gap-4">
-					<CardTitle className="font-display text-xl font-semibold text-foreground">
-						Archived offers
-					</CardTitle>
-					<div className="grid gap-3 md:grid-cols-[1fr_auto]">
-						<div className="relative">
-							<Search
-								aria-hidden
-								className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-							/>
-							<Input
-								value={query}
-								onChange={(event) => setQuery(event.target.value)}
-								placeholder="Search archive"
-								className="pl-9"
-							/>
-						</div>
-
-						<Select
-							value={selectedStatus}
-							onValueChange={(value) =>
-								setSelectedStatus(value as ArchiveStatusFilter)
-							}
-						>
-							<SelectTrigger className="w-full md:w-[200px]">
-								<SelectValue placeholder="Status" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectGroup>
-									<SelectItem value="all">All statuses</SelectItem>
-									<SelectItem value="accepted">Accepted</SelectItem>
-									<SelectItem value="declined">Declined</SelectItem>
-								</SelectGroup>
-							</SelectContent>
-						</Select>
-					</div>
-				</CardHeader>
-				<CardContent className="pt-0">
+				<CardContent className="pt-4">
 					<OffersArchiveTable offers={archive.items} />
 				</CardContent>
 			</Card>
-		</div>
+		</PageShell>
 	);
 }

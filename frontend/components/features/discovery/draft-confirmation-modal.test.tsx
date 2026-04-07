@@ -48,10 +48,8 @@ describe("DraftConfirmationModal helpers", () => {
 	});
 
 	it("returns correct footer label for finalize action", () => {
-		expect(modalModule.processFinalizeAllLabel(true)).toBe("Processing…");
-		expect(modalModule.processFinalizeAllLabel(false)).toBe(
-			"Process & Finalize All",
-		);
+		expect(modalModule.processFinalizeAllLabel(true)).toBe("Finishing…");
+		expect(modalModule.processFinalizeAllLabel(false)).toBe("Finish Review");
 	});
 
 	it("treats reject action as optional", () => {

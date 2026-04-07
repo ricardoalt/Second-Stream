@@ -345,7 +345,7 @@ describe("candidate confirmation flow", () => {
 		expect(decideDraft).not.toHaveBeenCalled();
 	});
 
-	it("process & finalize all confirms pending via API and keeps unresolved as drafts", async () => {
+	it("finalize review keeps pending candidates as drafts without bulk confirming", async () => {
 		const candidates: DraftCandidate[] = [
 			{
 				itemId: "pending-valid-1",
@@ -406,20 +406,14 @@ describe("candidate confirmation flow", () => {
 		];
 
 		const decideDraft = mock(async () => ({}) as never);
-		const outcome = await discoveryWizardModule.processFinalizeAllCandidates({
-			candidates,
-			decideDiscoveryDraft: decideDraft,
-		});
+		const outcome =
+			discoveryWizardModule.processFinalizeAllCandidates(candidates);
 
-		expect(decideDraft).toHaveBeenCalledTimes(2);
-		expect(outcome.confirmedIds.sort()).toEqual([
-			"pending-valid-1",
-			"pending-valid-2",
-		]);
-		expect(outcome.validationById["pending-invalid"]?.material).toBeDefined();
+		expect(decideDraft).not.toHaveBeenCalled();
+		expect(outcome.confirmedIds).toEqual(["already-confirmed"]);
 		expect(outcome.updatedCandidates).toEqual([
-			{ ...candidates[0], status: "confirmed" },
-			{ ...candidates[1], status: "confirmed" },
+			{ ...candidates[0], status: "skipped" },
+			{ ...candidates[1], status: "skipped" },
 			{ ...candidates[2], status: "skipped" },
 			candidates[3],
 		]);

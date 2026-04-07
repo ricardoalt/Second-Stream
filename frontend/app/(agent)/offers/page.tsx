@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Filter, Search, Wallet } from "lucide-react";
+import { BarChart3, Filter, Wallet } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -12,25 +12,19 @@ import type {
 	OfferStage,
 } from "@/components/features/offers/types";
 import { mapProjectFollowUpToOfferStage } from "@/components/features/offers/utils";
-import { EmptyState, KpiCard, PageHeader } from "@/components/patterns";
+import {
+	EmptyState,
+	FilterBar,
+	KpiCard,
+	PageHeader,
+	PageShell,
+	StatRail,
+} from "@/components/patterns";
 import {
 	FadeIn,
 	HoverLift,
-	StaggerContainer,
-	StaggerItem,
 } from "@/components/patterns/animations/motion-components";
-import {
-	Card,
-	CardContent,
-	Input,
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-	Skeleton,
-} from "@/components/ui";
+import { Card, CardContent, Skeleton } from "@/components/ui";
 import { type OfferPipelineResponseDTO, offersAPI } from "@/lib/api/offers";
 import {
 	isClientDataCacheStale,
@@ -251,11 +245,8 @@ export default function OffersPage() {
 
 	if (loading) {
 		return (
-			<div className="flex flex-col gap-6">
-				<section className="overflow-hidden rounded-2xl border border-border/50 bg-surface-container-lowest p-6">
-					<Skeleton className="h-6 w-56" />
-					<Skeleton className="mt-3 h-4 w-96" />
-				</section>
+			<PageShell>
+				<Skeleton className="h-28 w-full rounded-2xl" />
 				<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 					{Array.from({ length: 4 }).map((_, index) => (
 						<Skeleton
@@ -281,22 +272,20 @@ export default function OffersPage() {
 						/>
 					))}
 				</section>
-			</div>
+			</PageShell>
 		);
 	}
 
 	return (
-		<div className="flex flex-col gap-10">
-			<section className="animate-fade-in-up relative overflow-hidden rounded-2xl bg-surface-container-lowest p-6 shadow-xs">
-				<div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-container" />
-				<PageHeader
-					title="Offers Pipeline"
-					subtitle="Manage active commercial follow-up with real backend pipeline states."
-					icon={BarChart3}
-					badge="Offers"
-					breadcrumbs={[{ label: "Home", href: "/" }, { label: "Offers" }]}
-				/>
-			</section>
+		<PageShell gap="xl">
+			<PageHeader
+				title="Offers Pipeline"
+				subtitle="Manage active commercial follow-up with real backend pipeline states."
+				icon={BarChart3}
+				badge="Offers"
+				breadcrumbs={[{ label: "Home", href: "/" }, { label: "Offers" }]}
+				variant="hero"
+			/>
 
 			{error ? (
 				<Card className="border-0 bg-destructive/5 shadow-xs">
@@ -306,58 +295,44 @@ export default function OffersPage() {
 				</Card>
 			) : null}
 
-			{/* KPI Cards with 2026 Animations */}
-			<section className="rounded-2xl bg-surface-container-low/60 p-5">
-				<StaggerContainer
-					staggerDelay={0.08}
-					className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-				>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard
-								title="Total active offers"
-								value={String(filteredOffers.length)}
-								subtitle="Open commercial follow-up states"
-								icon={BarChart3}
-								variant="default"
-							/>
-						</HoverLift>
-					</StaggerItem>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard
-								title="Pipeline value"
-								value={formatCurrency(totalValue)}
-								subtitle="Selected latest commercial estimate"
-								icon={Wallet}
-								variant="accent"
-							/>
-						</HoverLift>
-					</StaggerItem>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard
-								title="In negotiation"
-								value={String(inNegotiationCount)}
-								subtitle="Needs follow-up coordination"
-								icon={Filter}
-								variant="warning"
-							/>
-						</HoverLift>
-					</StaggerItem>
-					<StaggerItem>
-						<HoverLift>
-							<KpiCard
-								title="Offer sent"
-								value={String(offerSentCount)}
-								subtitle="Pending client response"
-								icon={Filter}
-								variant="success"
-							/>
-						</HoverLift>
-					</StaggerItem>
-				</StaggerContainer>
-			</section>
+			<StatRail columns={4}>
+				<HoverLift>
+					<KpiCard
+						title="Total active offers"
+						value={String(filteredOffers.length)}
+						subtitle="Open commercial follow-up states"
+						icon={BarChart3}
+						variant="default"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Pipeline value"
+						value={formatCurrency(totalValue)}
+						subtitle="Selected latest commercial estimate"
+						icon={Wallet}
+						variant="accent"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="In negotiation"
+						value={String(inNegotiationCount)}
+						subtitle="Needs follow-up coordination"
+						icon={Filter}
+						variant="warning"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Offer sent"
+						value={String(offerSentCount)}
+						subtitle="Pending client response"
+						icon={Filter}
+						variant="success"
+					/>
+				</HoverLift>
+			</StatRail>
 
 			<FadeIn direction="up" delay={0.15}>
 				<OffersStagePipeline stages={pipelineByStage} />
@@ -365,8 +340,8 @@ export default function OffersPage() {
 
 			<FadeIn direction="up" delay={0.25}>
 				<section className="overflow-hidden rounded-xl border border-border/50 bg-surface-container-lowest">
-					<div className="flex flex-col gap-4 border-b border-border/50 p-6 pb-5">
-						<div className="flex flex-col gap-1">
+					<div className="border-b border-border/50 p-6 pb-5">
+						<div className="mb-4 flex flex-col gap-1">
 							<h2 className="font-display text-xl font-semibold text-foreground">
 								Active offers
 							</h2>
@@ -374,58 +349,42 @@ export default function OffersPage() {
 								Search and filter by client and active stage.
 							</p>
 						</div>
-						<div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
-							<div className="relative">
-								<Search
-									aria-hidden
-									className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-								/>
-								<Input
-									value={query}
-									onChange={(event) => setQuery(event.target.value)}
-									placeholder="Search offers or streams"
-									className="pl-9"
-								/>
-							</div>
-							<Select value={selectedClient} onValueChange={setSelectedClient}>
-								<SelectTrigger className="w-full md:w-[220px]">
-									<SelectValue placeholder="Filter client" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectGroup>
-										<SelectItem value="all">All clients</SelectItem>
-										{clients.map((client) => (
-											<SelectItem key={client} value={client}>
-												{client}
-											</SelectItem>
-										))}
-									</SelectGroup>
-								</SelectContent>
-							</Select>
-							<Select
-								value={selectedStage}
-								onValueChange={(value) =>
-									setSelectedStage(value as OfferStage | "all")
-								}
-							>
-								<SelectTrigger className="w-full md:w-[220px]">
-									<SelectValue placeholder="Filter stage" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectGroup>
-										<SelectItem value="all">All stages</SelectItem>
-										<SelectItem value="requires_data">Offer started</SelectItem>
-										<SelectItem value="proposal_ready">
-											Ready to send
-										</SelectItem>
-										<SelectItem value="offer_sent">Offer sent</SelectItem>
-										<SelectItem value="in_negotiation">
-											In negotiation
-										</SelectItem>
-									</SelectGroup>
-								</SelectContent>
-							</Select>
-						</div>
+						<FilterBar
+							search={{
+								value: query,
+								onChange: setQuery,
+								placeholder: "Search offers or streams",
+							}}
+							filters={[
+								{
+									key: "client",
+									value: selectedClient,
+									onChange: setSelectedClient,
+									options: [
+										{ value: "all", label: "All clients" },
+										...clients.map((client) => ({
+											value: client,
+											label: client,
+										})),
+									],
+									width: "w-[220px]",
+								},
+								{
+									key: "stage",
+									value: selectedStage,
+									onChange: (value) =>
+										setSelectedStage(value as OfferStage | "all"),
+									options: [
+										{ value: "all", label: "All stages" },
+										{ value: "requires_data", label: "Offer started" },
+										{ value: "proposal_ready", label: "Ready to send" },
+										{ value: "offer_sent", label: "Offer sent" },
+										{ value: "in_negotiation", label: "In negotiation" },
+									],
+									width: "w-[220px]",
+								},
+							]}
+						/>
 					</div>
 					<div className="p-0">
 						{filteredOffers.length > 0 ? (
@@ -433,7 +392,7 @@ export default function OffersPage() {
 						) : (
 							<div className="p-6">
 								<EmptyState
-									icon={Search}
+									icon={BarChart3}
 									title="No offers match your filters"
 									description="Try another search term or reset stage/client filters."
 									className="border-0 bg-transparent py-6"
@@ -443,6 +402,6 @@ export default function OffersPage() {
 					</div>
 				</section>
 			</FadeIn>
-		</div>
+		</PageShell>
 	);
 }

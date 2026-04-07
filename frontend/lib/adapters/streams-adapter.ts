@@ -73,7 +73,7 @@ export function adaptPersistedStream(row: PersistedStreamRow): StreamRow {
 		...(row.companyId ? { clientId: row.companyId } : {}),
 		location: row.locationLabel ?? "",
 		agent: row.ownerDisplayName ?? "",
-		ownerName: row.ownerDisplayName ?? undefined,
+		...(row.ownerDisplayName ? { ownerName: row.ownerDisplayName } : {}),
 		volume: volumeData.volume,
 		...(volumeData.units ? { units: volumeData.units } : {}),
 		...(volumeData.frequency ? { frequency: volumeData.frequency } : {}),

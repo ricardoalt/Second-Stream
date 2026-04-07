@@ -398,7 +398,11 @@ export function ProposalEconomics({ proposal }: ProposalEconomicsProps) {
 							{co2Percent.length > 0 && (
 								<div className="mt-4 flex justify-center gap-2">
 									{co2Percent.map((pct: string) => (
-										<Badge key={pct} className="bg-success text-base px-4 py-1">
+										<Badge
+											key={pct}
+											variant="success"
+											className="text-base px-4 py-1"
+										>
 											{pct}
 										</Badge>
 									))}

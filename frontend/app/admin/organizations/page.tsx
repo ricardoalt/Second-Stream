@@ -24,6 +24,7 @@ import {
 	StaggerContainer,
 	StaggerItem,
 	StatRail,
+	TablePagination,
 } from "@/components/patterns";
 
 const EditOrgModal = dynamic(
@@ -108,6 +109,7 @@ export default function AdminOrganizationsPage() {
 	const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
 	const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
 	const [lifecycleLoading, setLifecycleLoading] = useState(false);
+	const [currentPage, setCurrentPage] = useState(1);
 	const [form, setForm] = useState({
 		name: "",
 		slug: "",
@@ -161,6 +163,17 @@ export default function AdminOrganizationsPage() {
 
 		return filtered;
 	}, [organizations, selectedOrgId, searchQuery]);
+
+	const pageSize = 12;
+	const totalPages = Math.max(
+		1,
+		Math.ceil(filteredOrganizations.length / pageSize),
+	);
+	const effectivePage = Math.min(currentPage, totalPages);
+	const paginatedOrganizations = filteredOrganizations.slice(
+		(effectivePage - 1) * pageSize,
+		effectivePage * pageSize,
+	);
 
 	const handleNameChange = (value: string) => {
 		setForm((prev) => ({
@@ -428,34 +441,47 @@ export default function AdminOrganizationsPage() {
 					}
 				/>
 			) : (
-				<StaggerContainer
-					staggerDelay={0.06}
-					className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-				>
-					{filteredOrganizations.map((org) => (
-						<StaggerItem key={org.id}>
-							<HoverLift>
-								<OrgCard
-									organization={org}
-									onEdit={(org) => setEditingOrg(org)}
-									actionLoading={lifecycleLoading}
-									onArchive={(org) => {
-										setSelectedOrg(org);
-										setArchiveDialogOpen(true);
-									}}
-									onRestore={(org) => {
-										setSelectedOrg(org);
-										setRestoreDialogOpen(true);
-									}}
-									onPurge={(org) => {
-										setSelectedOrg(org);
-										setPurgeDialogOpen(true);
-									}}
-								/>
-							</HoverLift>
-						</StaggerItem>
-					))}
-				</StaggerContainer>
+				<>
+					<StaggerContainer
+						staggerDelay={0.06}
+						className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+					>
+						{paginatedOrganizations.map((org) => (
+							<StaggerItem key={org.id}>
+								<HoverLift>
+									<OrgCard
+										organization={org}
+										onEdit={(org) => setEditingOrg(org)}
+										actionLoading={lifecycleLoading}
+										onArchive={(org) => {
+											setSelectedOrg(org);
+											setArchiveDialogOpen(true);
+										}}
+										onRestore={(org) => {
+											setSelectedOrg(org);
+											setRestoreDialogOpen(true);
+										}}
+										onPurge={(org) => {
+											setSelectedOrg(org);
+											setPurgeDialogOpen(true);
+										}}
+									/>
+								</HoverLift>
+							</StaggerItem>
+						))}
+					</StaggerContainer>
+					{totalPages > 1 && (
+						<TablePagination
+							total={filteredOrganizations.length}
+							showing={paginatedOrganizations.length}
+							page={effectivePage}
+							pageCount={totalPages}
+							onPrevious={() => setCurrentPage((p) => p - 1)}
+							onNext={() => setCurrentPage((p) => p + 1)}
+							itemLabel="organizations"
+						/>
+					)}
+				</>
 			)}
 
 			<Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>

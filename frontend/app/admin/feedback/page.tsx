@@ -26,6 +26,7 @@ import React, {
 import { toast } from "sonner";
 import {
 	EmptyState,
+	FilterBar,
 	KpiCard,
 	PageHeader,
 	PageShell,
@@ -48,14 +49,8 @@ import {
 	Button,
 	Card,
 	CardContent,
-	CardHeader,
 	Input,
 	Label,
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
 	Skeleton,
 	Table,
 	TableBody,
@@ -434,81 +429,64 @@ export default function AdminFeedbackPage() {
 					</HoverLift>
 				</StatRail>
 
-				{/* Search */}
-				<div className="relative">
-					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						placeholder="Search feedback content or user name..."
-						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
-						className="pl-9"
-						aria-label="Search feedback"
-					/>
-				</div>
+				<FilterBar
+					search={{
+						value: searchQuery,
+						onChange: setSearchQuery,
+						placeholder: "Search feedback content or user name...",
+					}}
+					filters={[
+						{
+							key: "days",
+							value: daysFilter,
+							onChange: (v) => setDaysFilter(v as DaysFilter),
+							options: [
+								{ value: "7", label: "Last 7 days" },
+								{ value: "30", label: "Last 30 days" },
+								{ value: "all", label: "All time" },
+							],
+							width: "w-[140px]",
+						},
+						{
+							key: "status",
+							placeholder: "Status",
+							value: statusFilter,
+							onChange: (v) => setStatusFilter(v as StatusFilter),
+							options: [
+								{ value: "all", label: "All status" },
+								{ value: "open", label: "Open" },
+								{ value: "resolved", label: "Resolved" },
+							],
+							width: "w-[130px]",
+						},
+						{
+							key: "type",
+							placeholder: "Type",
+							value: typeFilter,
+							onChange: (v) => setTypeFilter(v as FeedbackType | "all"),
+							options: [
+								{ value: "all", label: "All types" },
+								{ value: "bug", label: "Bug" },
+								{ value: "incorrect_response", label: "Incorrect Response" },
+								{ value: "feature_request", label: "Feature Request" },
+								{ value: "general", label: "General" },
+							],
+							width: "w-[160px]",
+						},
+					]}
+					activeFilterCount={
+						[
+							daysFilter !== "all",
+							statusFilter !== "all",
+							typeFilter !== "all",
+							searchQuery.trim() !== "",
+						].filter(Boolean).length
+					}
+					onClear={clearFilters}
+				/>
 
 				<Card>
-					<CardHeader className="pb-4">
-						<div className="flex flex-wrap items-center gap-3">
-							<Select
-								value={daysFilter}
-								onValueChange={(v) => setDaysFilter(v as DaysFilter)}
-							>
-								<SelectTrigger className="w-[140px]">
-									<SelectValue placeholder="Time range" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="7">Last 7 days</SelectItem>
-									<SelectItem value="30">Last 30 days</SelectItem>
-									<SelectItem value="all">All time</SelectItem>
-								</SelectContent>
-							</Select>
-
-							<Select
-								value={statusFilter}
-								onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-							>
-								<SelectTrigger className="w-[130px]">
-									<SelectValue placeholder="Status" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All status</SelectItem>
-									<SelectItem value="open">Open</SelectItem>
-									<SelectItem value="resolved">Resolved</SelectItem>
-								</SelectContent>
-							</Select>
-
-							<Select
-								value={typeFilter}
-								onValueChange={(v) => setTypeFilter(v as FeedbackType | "all")}
-							>
-								<SelectTrigger className="w-[160px]">
-									<SelectValue placeholder="Type" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All types</SelectItem>
-									<SelectItem value="bug">Bug</SelectItem>
-									<SelectItem value="incorrect_response">
-										Incorrect Response
-									</SelectItem>
-									<SelectItem value="feature_request">
-										Feature Request
-									</SelectItem>
-									<SelectItem value="general">General</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-						<div className="flex items-center justify-between text-sm text-muted-foreground pt-2">
-							<span>
-								Showing {filteredFeedback.length} of {feedback.length}
-							</span>
-							{hasActiveFilters && (
-								<Button variant="ghost" size="sm" onClick={clearFilters}>
-									Clear filters
-								</Button>
-							)}
-						</div>
-					</CardHeader>
-					<CardContent>
+					<CardContent className="pt-4">
 						{loading ? (
 							<div className="space-y-3">
 								{["s1", "s2", "s3", "s4", "s5"].map((key) => (

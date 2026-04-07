@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrgAvatar } from "@/components/features/admin";
 import { ConfirmOrgPurgeForceDialog } from "@/components/features/admin/confirm-org-purge-force-dialog";
-import { KpiCard } from "@/components/patterns";
+import { KpiCard, PageShell, StatRail } from "@/components/patterns";
 import { ConfirmArchiveDialog } from "@/components/patterns/dialogs/confirm-archive-dialog";
 import { ConfirmRestoreDialog } from "@/components/patterns/dialogs/confirm-restore-dialog";
 import { ArchivedBanner } from "@/components/shared/archived-banner";
@@ -68,7 +68,6 @@ import {
 } from "@/lib/errors/organization-lifecycle";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
 import type { User, UserRole } from "@/lib/types/user";
-import { cn } from "@/lib/utils";
 
 const AddUserModal = dynamic(
 	() =>
@@ -322,7 +321,7 @@ export default function OrganizationDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="space-y-6">
+			<PageShell>
 				<div className="flex items-center gap-4">
 					<Skeleton className="h-10 w-10 rounded-lg" />
 					<Skeleton className="h-14 w-14 rounded-xl" />
@@ -337,7 +336,7 @@ export default function OrganizationDetailPage() {
 					<Skeleton className="h-20 rounded-xl" />
 				</div>
 				<Skeleton className="h-64 w-full rounded-lg" />
-			</div>
+			</PageShell>
 		);
 	}
 
@@ -353,7 +352,7 @@ export default function OrganizationDetailPage() {
 	}
 
 	return (
-		<div className="space-y-6">
+		<PageShell>
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center">
 				<Link href="/admin/organizations">
 					<Button variant="ghost" size="icon" className="shrink-0">
@@ -372,12 +371,7 @@ export default function OrganizationDetailPage() {
 								{organization.name}
 							</h2>
 							<Badge
-								variant={organization.isActive ? "default" : "secondary"}
-								className={cn(
-									organization.isActive
-										? "bg-success/10 text-success border-success/20"
-										: "bg-muted text-muted-foreground",
-								)}
+								variant={organization.isActive ? "success-subtle" : "muted"}
 							>
 								{organization.isActive ? "Active" : "Archived"}
 							</Badge>
@@ -472,7 +466,7 @@ export default function OrganizationDetailPage() {
 				/>
 			)}
 
-			<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+			<StatRail columns={3}>
 				<KpiCard
 					title="Total Members"
 					value={stats.total}
@@ -491,7 +485,7 @@ export default function OrganizationDetailPage() {
 					icon={XCircle}
 					variant="muted"
 				/>
-			</div>
+			</StatRail>
 
 			<Card>
 				<CardHeader>
@@ -593,6 +587,6 @@ export default function OrganizationDetailPage() {
 				organizationMembers={users}
 				onSubmit={handleMoveMember}
 			/>
-		</div>
+		</PageShell>
 	);
 }

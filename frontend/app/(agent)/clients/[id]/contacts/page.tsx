@@ -1,11 +1,11 @@
 "use client";
 
-import { ChevronLeft, MapPin, Users } from "lucide-react";
-import Link from "next/link";
+import { MapPin, Users } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyContactsCard } from "@/components/features/companies/company-contacts-card";
 import { LocationContactsManagerDialog } from "@/components/features/locations/location-contacts-manager-dialog";
+import { PageHeader, PageShell } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -92,30 +92,20 @@ export default function ClientContactsPage(props: {
 	}, [hasConsumedLocationQuery, locations, searchParams]);
 
 	return (
-		<div className="flex flex-col gap-8">
-			<section className="flex flex-col gap-4">
-				<Button
-					variant="ghost"
-					size="sm"
-					asChild
-					className="w-fit -ml-2 text-muted-foreground hover:text-foreground"
-				>
-					<Link href={`/clients/${companyId}`}>
-						<ChevronLeft className="mr-1 h-4 w-4" />
-						Back to Client Profile
-					</Link>
-				</Button>
-
-				<div className="flex flex-col gap-2">
-					<h1 className="font-display text-4xl font-semibold tracking-tight text-foreground">
-						Client Contacts
-					</h1>
-					<p className="max-w-2xl text-lg text-muted-foreground">
-						Manage company-wide contacts and monitor coverage across all
-						operational locations.
-					</p>
-				</div>
-			</section>
+		<PageShell gap="lg">
+			<PageHeader
+				title="Client Contacts"
+				subtitle="Manage company-wide contacts and monitor coverage across all operational locations."
+				icon={Users}
+				breadcrumbs={[
+					{ label: "Clients", href: "/clients" },
+					{
+						label: company?.name ?? "Client",
+						href: `/clients/${companyId}`,
+					},
+					{ label: "Contacts" },
+				]}
+			/>
 
 			{loading ? (
 				<Card>
@@ -255,6 +245,6 @@ export default function ClientContactsPage(props: {
 					location={selectedLocation}
 				/>
 			) : null}
-		</div>
+		</PageShell>
 	);
 }
