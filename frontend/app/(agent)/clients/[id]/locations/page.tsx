@@ -4,8 +4,8 @@ import { Building2, MapPin, Plus, Trash2, Users } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
 import { LocationContactsManagerDialog } from "@/components/features/locations/location-contacts-manager-dialog";
-import { LocationModal } from "@/components/features/modals/location-modal";
 import { PageHeader } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,6 @@ export default function ClientLocationsPage(props: {
 		deleteLocation,
 		clearError,
 	} = useLocationStore();
-	const [isModalOpen, setIsModalOpen] = useState(false);
-	const [selectedLocation, setSelectedLocation] =
-		useState<LocationSummary | null>(null);
 	const [contactsLocation, setContactsLocation] =
 		useState<LocationSummary | null>(null);
 	const [hasConsumedLocationQuery, setHasConsumedLocationQuery] =
@@ -75,16 +72,6 @@ export default function ClientLocationsPage(props: {
 		}
 	}, [companyLocations, hasConsumedLocationQuery, searchParams]);
 
-	const handleEdit = (location: LocationSummary) => {
-		setSelectedLocation(location);
-		setIsModalOpen(true);
-	};
-
-	const handleCreate = () => {
-		setSelectedLocation(null);
-		setIsModalOpen(true);
-	};
-
 	const handleManageContacts = (location: LocationSummary) => {
 		setContactsLocation(location);
 	};
@@ -124,14 +111,18 @@ export default function ClientLocationsPage(props: {
 					{ label: "Locations" },
 				]}
 				actions={
-					<Button
-						onClick={handleCreate}
-						size="lg"
-						className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
-					>
-						<Plus className="mr-2 h-4 w-4" />
-						New Location
-					</Button>
+					<CreateLocationDialog
+						companyId={companyId}
+						trigger={
+							<Button
+								size="lg"
+								className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+							>
+								<Plus className="mr-2 h-4 w-4" />
+								New Location
+							</Button>
+						}
+					/>
 				}
 			/>
 
@@ -171,10 +162,15 @@ export default function ClientLocationsPage(props: {
 									projects and assigning local contacts.
 								</p>
 							</div>
-							<Button onClick={handleCreate} className="mt-2" variant="outline">
-								<Plus className="mr-2 h-4 w-4" />
-								Add first location
-							</Button>
+							<CreateLocationDialog
+								companyId={companyId}
+								trigger={
+									<Button className="mt-2" variant="outline">
+										<Plus className="mr-2 h-4 w-4" />
+										Add first location
+									</Button>
+								}
+							/>
 						</div>
 					) : null}
 
@@ -230,14 +226,19 @@ export default function ClientLocationsPage(props: {
 										<Users className="mr-2 h-4 w-4" />
 										Contacts
 									</Button>
-									<Button
-										variant="ghost"
-										size="sm"
-										className="h-8 shadow-sm lg:shadow-none bg-surface-container-lowest lg:bg-transparent border lg:border-transparent"
-										onClick={() => handleEdit(location)}
-									>
-										Edit
-									</Button>
+									<CreateLocationDialog
+										companyId={companyId}
+										locationToEdit={location}
+										trigger={
+											<Button
+												variant="ghost"
+												size="sm"
+												className="h-8 shadow-sm lg:shadow-none bg-surface-container-lowest lg:bg-transparent border lg:border-transparent"
+											>
+												Edit
+											</Button>
+										}
+									/>
 									<Button
 										variant="ghost"
 										size="sm"
@@ -296,19 +297,6 @@ export default function ClientLocationsPage(props: {
 					</section>
 				</aside>
 			</div>
-
-			<LocationModal
-				open={isModalOpen}
-				onClose={() => {
-					setIsModalOpen(false);
-					setSelectedLocation(null);
-				}}
-				companyId={companyId}
-				location={selectedLocation}
-				onSaved={() => {
-					setSelectedLocation(null);
-				}}
-			/>
 
 			{contactsLocation ? (
 				<LocationContactsManagerDialog

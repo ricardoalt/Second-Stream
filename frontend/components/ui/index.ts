@@ -160,6 +160,8 @@ export { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
 export { Textarea } from "./textarea";
 // Toggle
 export { Toggle, toggleVariants } from "./toggle";
+// Toggle Group
+export { ToggleGroup, ToggleGroupItem } from "./toggle-group";
 // Tooltip
 export {
 	Tooltip,

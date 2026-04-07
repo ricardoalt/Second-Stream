@@ -34,7 +34,7 @@ export function ProcessingView() {
 	return (
 		<section
 			aria-label="Processing your inputs"
-			className="flex flex-col items-center justify-center flex-1 px-6 py-20"
+			className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center px-6 py-20"
 		>
 			<div className="relative h-32 w-32 mb-8">
 				<div className="absolute inset-0 rounded-full border-2 border-primary/15 animate-orbital-1">

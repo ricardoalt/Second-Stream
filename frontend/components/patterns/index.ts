@@ -18,14 +18,14 @@ export { ConfirmArchiveDialog } from "./dialogs/confirm-archive-dialog";
 export { ConfirmDialog } from "./dialogs/confirm-dialog";
 export { ConfirmPurgeDialog } from "./dialogs/confirm-purge-dialog";
 export { ConfirmRestoreDialog } from "./dialogs/confirm-restore-dialog";
+export type { ModalSize, ModalSizeInput } from "./dialogs/modal";
 export {
 	ConfirmModal,
 	getModalWidthClass,
+	MODAL_WIDTH_CLASSES,
 	Modal,
 	ModalFooter,
-	MODAL_WIDTH_CLASSES,
 } from "./dialogs/modal";
-export type { ModalSize, ModalSizeInput } from "./dialogs/modal";
 
 // ── Feedback ──
 export {

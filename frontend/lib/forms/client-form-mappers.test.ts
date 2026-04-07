@@ -1,11 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import {
-	buildEditClientContactPayload,
 	buildEditClientCompanyPayload,
+	buildEditClientContactPayload,
 	buildEditClientInitialValues,
-	hasEditClientPrimaryContactDraft,
 	buildLocationFormDefaults,
+	hasEditClientPrimaryContactDraft,
 } from "@/lib/forms/client-form-mappers";
+import type { CompanyUpdate } from "@/lib/types/company";
 
 describe("client-form-mappers", () => {
 	it("builds edit-client initial values from profile data", () => {
@@ -83,6 +84,39 @@ describe("client-form-mappers", () => {
 			accountStatus: "prospect",
 			notes: "Priority account",
 		});
+	});
+
+	it("produces a payload assignable to CompanyUpdate without casts", () => {
+		const payload = buildEditClientCompanyPayload({
+			companyName: "Northstar",
+			sector: "manufacturing_industrial",
+			subsector: "metal_fabrication",
+			accountStatus: "active",
+			companyNotes: "",
+			contactName: "",
+			contactTitle: "",
+			contactEmail: "",
+			contactPhone: "",
+		});
+
+		const companyUpdate: CompanyUpdate = payload;
+		expect(companyUpdate.sector).toBe("manufacturing_industrial");
+	});
+
+	it("rejects sector values outside supported taxonomy", () => {
+		expect(() =>
+			buildEditClientCompanyPayload({
+				companyName: "Northstar",
+				sector: "unknown",
+				subsector: "metal_fabrication",
+				accountStatus: "active",
+				companyNotes: "",
+				contactName: "",
+				contactTitle: "",
+				contactEmail: "",
+				contactPhone: "",
+			}),
+		).toThrow("Please select a valid sector");
 	});
 
 	it("detects when edit primary contact has at least one field", () => {

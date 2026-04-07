@@ -30,8 +30,8 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { getModalWidthClass } from "./modal";
 import { cn } from "@/lib/utils";
+import { getModalWidthClass } from "./modal";
 
 interface ConfirmArchiveDialogProps {
 	open: boolean;

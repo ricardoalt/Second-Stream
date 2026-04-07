@@ -11,8 +11,8 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { getModalWidthClass } from "./modal";
 import { cn } from "@/lib/utils";
+import { getModalWidthClass } from "./modal";
 
 /**
  * ConfirmDialog - Standardized confirmation dialog for SecondStream

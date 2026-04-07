@@ -124,7 +124,7 @@ export function ResultView({
 	return (
 		<section aria-label="Discovery complete" className="flex flex-col flex-1">
 			<div className="h-1 bg-gradient-to-r from-success/80 via-success to-success/80" />
-			<div className="flex flex-col items-center px-6 pt-10 pb-6 flex-1">
+			<div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center px-6 pt-10 pb-6">
 				<div className="rounded-2xl bg-success/10 p-5 mb-5">
 					<CheckCircle className="h-8 w-8 text-success" />
 				</div>
@@ -132,7 +132,7 @@ export function ResultView({
 					Ready for review
 				</h3>
 				<p className="text-sm text-muted-foreground mb-8">{subtitle}</p>
-				<div className="w-full max-w-sm space-y-3 mb-8">
+				<div className="mb-8 w-full max-w-xl space-y-3">
 					{stats.map((stat, i) => (
 						<StatCard
 							key={stat.label}
@@ -147,7 +147,7 @@ export function ResultView({
 						Locations are prefilled inside each draft.
 					</p>
 				</div>
-				<div className="w-full max-w-sm mb-8">
+				<div className="mb-8 w-full max-w-xl">
 					<p className="text-xs font-medium text-muted-foreground mb-2">
 						Sources analyzed
 					</p>
@@ -180,7 +180,7 @@ export function ResultView({
 				</div>
 				<Button
 					onClick={onReviewNow}
-					className="w-full max-w-sm mt-auto bg-success text-success-foreground hover:bg-success/90"
+					className="mt-auto w-full max-w-xl bg-success text-success-foreground hover:bg-success/90"
 				>
 					Review Drafts
 				</Button>

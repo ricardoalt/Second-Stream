@@ -171,7 +171,10 @@ export async function runAddClientFlow(
 
 	if (hasPrimaryContact(data)) {
 		try {
-			await deps.createCompanyContact(company.id, toPrimaryContactPayload(data));
+			await deps.createCompanyContact(
+				company.id,
+				toPrimaryContactPayload(data),
+			);
 		} catch {
 			return { companyId: company.id, createState: "partial-contact" };
 		}

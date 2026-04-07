@@ -533,7 +533,11 @@ export function AdminDashboardPageContent({
 									<div className="flex items-center justify-end">
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
-												<Button variant="ghost" size="icon" aria-label="Open agent actions">
+												<Button
+													variant="ghost"
+													size="icon"
+													aria-label="Open agent actions"
+												>
 													<MoreHorizontal className="h-4 w-4" />
 												</Button>
 											</DropdownMenuTrigger>

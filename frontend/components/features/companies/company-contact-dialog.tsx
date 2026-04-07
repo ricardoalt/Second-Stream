@@ -10,25 +10,19 @@
 
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useState } from "react";
+import { ConfirmModal } from "@/components/patterns/dialogs/modal";
 import { LoadingButton } from "@/components/patterns/feedback/loading-button";
-import { getModalWidthClass } from "@/components/patterns/dialogs/modal";
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+	DialogFormActions,
+	DialogFormBody,
+	DialogFormContent,
+	DialogFormFooter,
+	DialogFormHeader,
+} from "@/components/shared/forms/dialog-form-primitives";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
-	DialogContent,
 	DialogDescription,
-	DialogFooter,
-	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
@@ -41,6 +35,7 @@ import {
 	isValidEmail,
 	isValidPhone,
 } from "@/lib/forms/schemas";
+import { useUnsavedChanges } from "@/lib/hooks/use-unsaved-changes";
 import type { CompanyContact } from "@/lib/types/company";
 
 interface CompanyContactDialogProps {
@@ -81,7 +76,6 @@ export function CompanyContactDialog({
 	onSubmit,
 }: CompanyContactDialogProps) {
 	const [open, setOpen] = useState(false);
-	const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 	const [identityError, setIdentityError] = useState<string | null>(null);
 	const [submitError, setSubmitError] = useState<string | null>(null);
 	const isEditMode = Boolean(contact);
@@ -176,32 +170,28 @@ export function CompanyContactDialog({
 		}
 	}, [identityError, nameValue, emailValue, phoneValue]);
 
-	const handleOpenChange = (nextOpen: boolean) => {
-		if (!nextOpen) {
-			if (form.state.isDirty) {
-				setShowDiscardConfirm(true);
-				return;
-			}
-			setOpen(false);
-			form.reset();
-			return;
-		}
-		setOpen(true);
-	};
-
-	const handleDiscardConfirm = () => {
-		setShowDiscardConfirm(false);
+	const closeAndReset = () => {
 		setOpen(false);
 		form.reset();
 	};
 
+	const { showDiscardConfirm, guardClose, confirmDiscard, cancelDiscard } =
+		useUnsavedChanges({
+			isDirty: form.state.isDirty,
+			onDiscard: closeAndReset,
+		});
+
 	return (
 		<>
-			<Dialog open={open} onOpenChange={handleOpenChange}>
+			<Dialog
+				open={open}
+				onOpenChange={(nextOpen) => {
+					if (nextOpen) setOpen(true);
+					else guardClose();
+				}}
+			>
 				<DialogTrigger asChild>{trigger}</DialogTrigger>
-				<DialogContent
-					className={`${getModalWidthClass("sm")} max-h-[90vh] overflow-y-auto`}
-				>
+				<DialogFormContent size="sm">
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();
@@ -209,7 +199,7 @@ export function CompanyContactDialog({
 							form.handleSubmit();
 						}}
 					>
-						<DialogHeader>
+						<DialogFormHeader>
 							<DialogTitle>
 								{isEditMode ? "Edit Contact" : "Add Contact"}
 							</DialogTitle>
@@ -218,9 +208,9 @@ export function CompanyContactDialog({
 									? "Update company contact details."
 									: "Add a new contact to this company."}
 							</DialogDescription>
-						</DialogHeader>
+						</DialogFormHeader>
 
-						<div className="grid gap-4 py-4">
+						<DialogFormBody>
 							{/* Name */}
 							<form.Field name="name">
 								{(field) => (
@@ -413,16 +403,16 @@ export function CompanyContactDialog({
 									{submitError}
 								</p>
 							)}
-						</div>
+						</DialogFormBody>
 
-						<DialogFooter>
+						<DialogFormFooter>
 							<form.Subscribe selector={(state) => state.isSubmitting}>
 								{(isSubmitting) => (
-									<>
+									<DialogFormActions>
 										<Button
 											type="button"
 											variant="outline"
-											onClick={() => handleOpenChange(false)}
+											onClick={guardClose}
 											disabled={isSubmitting}
 										>
 											Cancel
@@ -430,33 +420,25 @@ export function CompanyContactDialog({
 										<LoadingButton type="submit" loading={isSubmitting}>
 											{isEditMode ? "Save Changes" : "Add Contact"}
 										</LoadingButton>
-									</>
+									</DialogFormActions>
 								)}
 							</form.Subscribe>
-						</DialogFooter>
+						</DialogFormFooter>
 					</form>
-				</DialogContent>
+				</DialogFormContent>
 			</Dialog>
 
-			<AlertDialog
+			<ConfirmModal
 				open={showDiscardConfirm}
-				onOpenChange={setShowDiscardConfirm}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
-						<AlertDialogDescription>
-							Your changes will be lost if you close without saving.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Keep editing</AlertDialogCancel>
-						<AlertDialogAction onClick={handleDiscardConfirm}>
-							Discard
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				onOpenChange={(next) => {
+					if (!next) cancelDiscard();
+				}}
+				title="Discard unsaved changes?"
+				description="Your changes will be lost if you close without saving."
+				confirmText="Discard"
+				variant="destructive"
+				onConfirm={confirmDiscard}
+			/>
 		</>
 	);
 }

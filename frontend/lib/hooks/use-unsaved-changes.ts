@@ -1,4 +1,9 @@
 import { useState } from "react";
+import {
+	resolveUnsavedCloseAttempt,
+	resolveUnsavedCloseCancel,
+	resolveUnsavedCloseConfirm,
+} from "@/lib/hooks/unsaved-changes-flow";
 
 /**
  * Guards dialog/modal close when there are unsaved changes.
@@ -31,20 +36,28 @@ export function useUnsavedChanges({
 	const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
 	const guardClose = () => {
-		if (isDirty) {
+		const resolution = resolveUnsavedCloseAttempt(isDirty);
+		if (resolution.shouldOpenConfirm) {
 			setShowDiscardConfirm(true);
-		} else {
+		}
+
+		if (resolution.shouldClose) {
 			onDiscard();
 		}
 	};
 
 	const confirmDiscard = () => {
-		setShowDiscardConfirm(false);
-		onDiscard();
+		const resolution = resolveUnsavedCloseConfirm();
+		setShowDiscardConfirm(resolution.shouldOpenConfirm);
+
+		if (resolution.shouldClose) {
+			onDiscard();
+		}
 	};
 
 	const cancelDiscard = () => {
-		setShowDiscardConfirm(false);
+		const resolution = resolveUnsavedCloseCancel();
+		setShowDiscardConfirm(resolution.shouldOpenConfirm);
 	};
 
 	return { showDiscardConfirm, guardClose, confirmDiscard, cancelDiscard };

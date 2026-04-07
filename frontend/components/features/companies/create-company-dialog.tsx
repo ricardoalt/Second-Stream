@@ -10,29 +10,26 @@
 import { useForm } from "@tanstack/react-form";
 import { Building2 } from "lucide-react";
 import { useState } from "react";
+import { ConfirmModal } from "@/components/patterns/dialogs/modal";
 import { LoadingButton } from "@/components/patterns/feedback/loading-button";
-import { getModalWidthClass } from "@/components/patterns/dialogs/modal";
 import {
-	CompactSectorSelect,
 	formatSubsector,
 } from "@/components/shared/forms/compact-sector-select";
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+	DialogFormActions,
+	DialogFormBody,
+	DialogFormContent,
+	DialogFormFooter,
+	DialogFormHeader,
+} from "@/components/shared/forms/dialog-form-primitives";
+import {
+	IndustryPicker,
+	SubIndustryPicker,
+} from "@/components/shared/forms/industry-pickers";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
-	DialogContent,
 	DialogDescription,
-	DialogFooter,
-	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
@@ -49,6 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { isForbiddenError } from "@/lib/api/client";
 import { companySchema } from "@/lib/forms/schemas";
 import { useToast } from "@/lib/hooks/use-toast";
+import { useUnsavedChanges } from "@/lib/hooks/use-unsaved-changes";
 import type { Sector, Subsector } from "@/lib/sectors-config";
 import { sectorsConfig } from "@/lib/sectors-config";
 import { useCompanyStore } from "@/lib/stores/company-store";
@@ -94,7 +92,6 @@ export function CreateCompanyDialog({
 }: CreateCompanyDialogProps) {
 	const isEditMode = Boolean(companyToEdit);
 	const [open, setOpen] = useState(isEditMode);
-	const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 	const { createCompany, updateCompany } = useCompanyStore();
 	const { toast } = useToast();
 
@@ -200,24 +197,7 @@ export function CreateCompanyDialog({
 		},
 	});
 
-	const handleOpenChange = (nextOpen: boolean) => {
-		if (!nextOpen) {
-			if (form.state.isDirty) {
-				setShowDiscardConfirm(true);
-				return;
-			}
-			setOpen(false);
-			form.reset();
-			if (isEditMode) {
-				onSuccess?.(null);
-			}
-			return;
-		}
-		setOpen(true);
-	};
-
-	const handleDiscardConfirm = () => {
-		setShowDiscardConfirm(false);
+	const closeAndReset = () => {
 		setOpen(false);
 		form.reset();
 		if (isEditMode) {
@@ -225,9 +205,21 @@ export function CreateCompanyDialog({
 		}
 	};
 
+	const { showDiscardConfirm, guardClose, confirmDiscard, cancelDiscard } =
+		useUnsavedChanges({
+			isDirty: form.state.isDirty,
+			onDiscard: closeAndReset,
+		});
+
 	return (
 		<>
-			<Dialog open={open} onOpenChange={handleOpenChange}>
+			<Dialog
+				open={open}
+				onOpenChange={(nextOpen) => {
+					if (nextOpen) setOpen(true);
+					else guardClose();
+				}}
+			>
 				{!isEditMode && (
 					<DialogTrigger asChild>
 						{trigger ?? (
@@ -239,9 +231,7 @@ export function CreateCompanyDialog({
 					</DialogTrigger>
 				)}
 
-				<DialogContent
-					className={`${getModalWidthClass("md")} max-h-[90vh] overflow-y-auto`}
-				>
+				<DialogFormContent size="md">
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();
@@ -249,7 +239,7 @@ export function CreateCompanyDialog({
 							form.handleSubmit();
 						}}
 					>
-						<DialogHeader>
+						<DialogFormHeader>
 							<DialogTitle>
 								{isEditMode ? "Edit Company" : "Create New Company"}
 							</DialogTitle>
@@ -258,9 +248,9 @@ export function CreateCompanyDialog({
 									? "Update company information"
 									: "Add company details"}
 							</DialogDescription>
-						</DialogHeader>
+						</DialogFormHeader>
 
-						<div className="py-4 space-y-4">
+						<DialogFormBody>
 							{/* Company Name */}
 							<form.Field
 								name="name"
@@ -396,23 +386,43 @@ export function CreateCompanyDialog({
 											const sectorHasError =
 												sectorField.state.meta.isTouched &&
 												sectorField.state.meta.errors.length > 0;
+											const subsectorHasError =
+												subsectorField.state.meta.isTouched &&
+												subsectorField.state.meta.errors.length > 0;
 
 											return (
-												<CompactSectorSelect
-													sector={sectorField.state.value}
-													subsector={subsectorField.state.value}
-													onSectorChange={(sector) => {
-														sectorField.handleChange(sector);
-													}}
-													onSubsectorChange={(subsector) => {
-														subsectorField.handleChange(subsector);
-													}}
-													error={
-														sectorHasError
-															? sectorField.state.meta.errors[0]?.toString()
-															: undefined
-													}
-												/>
+												<div className="grid gap-4">
+													<div className="grid gap-2">
+														<IndustryPicker
+															value={sectorField.state.value}
+															onValueChange={(sector) => {
+																sectorField.handleChange(sector);
+																subsectorField.handleChange("");
+															}}
+															aria-invalid={sectorHasError}
+														/>
+														{sectorHasError && (
+															<p className="text-xs text-destructive" role="alert">
+																{sectorField.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+													<div className="grid gap-2">
+														<SubIndustryPicker
+															value={subsectorField.state.value}
+															onValueChange={(subsector) => {
+																subsectorField.handleChange(subsector);
+															}}
+															sector={sectorField.state.value}
+															aria-invalid={subsectorHasError}
+														/>
+														{subsectorHasError && (
+															<p className="text-xs text-destructive" role="alert">
+																{subsectorField.state.meta.errors[0]}
+															</p>
+														)}
+													</div>
+												</div>
 											);
 										}}
 									</form.Field>
@@ -435,16 +445,16 @@ export function CreateCompanyDialog({
 									</div>
 								)}
 							</form.Field>
-						</div>
+						</DialogFormBody>
 
-						<DialogFooter>
+						<DialogFormFooter>
 							<form.Subscribe selector={(state) => state.isSubmitting}>
 								{(isSubmitting) => (
-									<>
+									<DialogFormActions>
 										<Button
 											type="button"
 											variant="outline"
-											onClick={() => handleOpenChange(false)}
+											onClick={guardClose}
 											disabled={isSubmitting}
 										>
 											Cancel
@@ -452,33 +462,25 @@ export function CreateCompanyDialog({
 										<LoadingButton type="submit" loading={isSubmitting}>
 											{isEditMode ? "Update Company" : "Create Company"}
 										</LoadingButton>
-									</>
+									</DialogFormActions>
 								)}
 							</form.Subscribe>
-						</DialogFooter>
+						</DialogFormFooter>
 					</form>
-				</DialogContent>
+				</DialogFormContent>
 			</Dialog>
 
-			<AlertDialog
+			<ConfirmModal
 				open={showDiscardConfirm}
-				onOpenChange={setShowDiscardConfirm}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
-						<AlertDialogDescription>
-							Your changes will be lost if you close without saving.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Keep editing</AlertDialogCancel>
-						<AlertDialogAction onClick={handleDiscardConfirm}>
-							Discard
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				onOpenChange={(next) => {
+					if (!next) cancelDiscard();
+				}}
+				title="Discard unsaved changes?"
+				description="Your changes will be lost if you close without saving."
+				confirmText="Discard"
+				variant="destructive"
+				onConfirm={confirmDiscard}
+			/>
 		</>
 	);
 }

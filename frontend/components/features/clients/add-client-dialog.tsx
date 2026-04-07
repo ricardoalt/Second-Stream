@@ -3,9 +3,6 @@
 import { useForm } from "@tanstack/react-form";
 import {
 	Building2,
-	Check,
-	ChevronsUpDown,
-	Factory,
 	Loader2,
 	Mail,
 	MapPin,
@@ -15,25 +12,29 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type ComponentProps, type ReactNode, useState } from "react";
+import {
+	AccountStatusToggle,
+	ClientFieldLabel as FieldLabel,
+	ClientInputWithIcon as InputWithIcon,
+} from "@/components/features/clients/client-form-primitives";
 import { ConfirmModal } from "@/components/patterns/dialogs/modal";
 import {
+	DialogFormBody,
+	DialogFormContent,
+	DialogFormFooter,
+	DialogFormHeader,
+} from "@/components/shared/forms/dialog-form-primitives";
+import {
+	IndustryPicker,
+	SubIndustryPicker,
+} from "@/components/shared/forms/industry-pickers";
+import {
 	Button,
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
 	Dialog,
-	DialogContent,
 	DialogDescription,
-	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
 	Input,
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
 	Select,
 	SelectContent,
 	SelectItem,
@@ -45,15 +46,8 @@ import {
 import { submitAddClientAndBuildHandoff } from "@/lib/add-client-submit";
 import { addClientSchema } from "@/lib/forms/schemas";
 import { useUnsavedChanges } from "@/lib/hooks/use-unsaved-changes";
-import type { Sector } from "@/lib/sectors-config";
-import {
-	getSectorsByGroup,
-	getSubsectors,
-	SECTOR_GROUPS,
-	sectorsConfig,
-} from "@/lib/sectors-config";
+import { type Sector, sectorsConfig } from "@/lib/sectors-config";
 import { useCompanyStore } from "@/lib/stores/company-store";
-import { cn } from "@/lib/utils";
 
 const DEFAULT_FORM = {
 	name: "",
@@ -75,11 +69,7 @@ const DEFAULT_FORM = {
 
 type DefaultForm = typeof DEFAULT_FORM;
 
-const REQUIRED_FIELDS = [
-	"name",
-	"sector",
-	"customerType",
-] as const;
+const REQUIRED_FIELDS = ["name", "sector", "customerType"] as const;
 
 const isSector = (value: string): value is Sector => {
 	return sectorsConfig.some((sector) => sector.id === value);
@@ -159,11 +149,6 @@ export function AddClientDialog({
 		},
 	});
 
-	const selectedSector = form.state.values.sector;
-	const availableSubsectors = isSector(selectedSector)
-		? getSubsectors(selectedSector)
-		: [];
-
 	const closeAndReset = () => {
 		setOpen(false);
 		form.reset();
@@ -198,7 +183,8 @@ export function AddClientDialog({
 					</DialogTrigger>
 				)}
 
-				<DialogContent
+				<DialogFormContent
+					size="lg"
 					className="w-[min(94vw,780px)] max-w-none gap-0 overflow-hidden rounded-2xl border border-border/40 bg-surface-container-lowest p-0 shadow-lg"
 					showCloseButton={true}
 				>
@@ -209,16 +195,16 @@ export function AddClientDialog({
 							form.handleSubmit();
 						}}
 					>
-						<DialogHeader className="flex flex-col gap-1.5 border-b border-border/15 px-7 pb-5 pt-6 text-left">
+						<DialogFormHeader className="flex flex-col gap-1.5 border-b border-border/15 px-7 pb-5 pt-6 text-left">
 							<DialogTitle className="font-display text-[1.65rem] font-semibold tracking-tight text-foreground">
 								Add New Client
 							</DialogTitle>
 							<DialogDescription className="text-[13px] leading-relaxed text-muted-foreground">
 								Register a new industrial partner to the Kinetic Stream system
 							</DialogDescription>
-						</DialogHeader>
+						</DialogFormHeader>
 
-						<div className="max-h-[min(64vh,560px)] overflow-y-auto bg-surface-container-lowest/60">
+						<DialogFormBody className="max-h-[min(64vh,560px)] gap-0 overflow-y-auto bg-surface-container-lowest/60 p-0">
 							<div className="flex flex-col gap-6 px-7 py-6">
 								<section className="space-y-5">
 									<SectionHeading
@@ -241,7 +227,9 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel required>Company name</FieldLabel>
+														<FieldLabel required htmlFor={field.name}>
+															Company name
+														</FieldLabel>
 														<InputWithIcon
 															id={field.name}
 															icon={<Building2 className="size-4" />}
@@ -277,16 +265,18 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel required>Industry type</FieldLabel>
-														<IndustryPicker
-															id={field.name}
-															value={field.state.value}
-															onValueChange={(value) => {
-																field.handleChange(value);
-																form.setFieldValue("subsector", "");
-															}}
-															aria-invalid={hasError}
-														/>
+														<FieldLabel required htmlFor={field.name}>
+															Industry type
+														</FieldLabel>
+												<IndustryPicker
+													id={field.name}
+													value={field.state.value}
+													onValueChange={(value) => {
+														field.handleChange(value);
+														form.setFieldValue("subsector", "");
+													}}
+													aria-invalid={hasError}
+												/>
 														{hasError && (
 															<p className="text-xs text-destructive">
 																{field.state.meta.errors[0]}
@@ -312,7 +302,9 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel required>Client type</FieldLabel>
+														<FieldLabel required htmlFor={field.name}>
+															Client type
+														</FieldLabel>
 														<SelectWithIcon
 															id={field.name}
 															icon={<Building2 className="size-4" />}
@@ -344,29 +336,15 @@ export function AddClientDialog({
 										<form.Field name="accountStatus">
 											{(field) => (
 												<div className="space-y-1.5">
-													<FieldLabel>Account status</FieldLabel>
-													<div className="flex h-10 gap-0 rounded-lg border border-border/40 bg-surface-container-high/40 p-[3px]">
-														{(
-															[
-																{ value: "active", label: "Active" },
-																{ value: "prospect", label: "Prospect" },
-															] as const
-														).map((option) => (
-															<button
-																key={option.value}
-																type="button"
-																className={cn(
-																	"flex-1 rounded-md px-5 py-1 text-sm font-semibold tracking-wide transition-all duration-200",
-																	field.state.value === option.value
-																		? "bg-primary text-primary-foreground shadow-sm"
-																		: "text-muted-foreground hover:text-foreground",
-																)}
-																onClick={() => field.handleChange(option.value)}
-															>
-																{option.label}
-															</button>
-														))}
-													</div>
+													<FieldLabel htmlFor="add-client-account-status-toggle">
+														Account status
+													</FieldLabel>
+													<AccountStatusToggle
+														aria-label="Account status"
+														id="add-client-account-status-toggle"
+														value={field.state.value}
+														onValueChange={field.handleChange}
+													/>
 												</div>
 											)}
 										</form.Field>
@@ -380,15 +358,20 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel>Sub-industry</FieldLabel>
-														<SubIndustryPicker
-															id={field.name}
-															value={field.state.value}
-															onValueChange={(v) => field.handleChange(v)}
-															options={availableSubsectors}
-															disabled={!selectedSector}
-															aria-invalid={hasError}
-														/>
+														<FieldLabel htmlFor={field.name}>
+															Sub-industry
+														</FieldLabel>
+												<SubIndustryPicker
+													id={field.name}
+													value={field.state.value}
+													onValueChange={(v) => field.handleChange(v)}
+													sector={
+														isSector(form.state.values.sector)
+															? form.state.values.sector
+															: ""
+													}
+													aria-invalid={hasError}
+												/>
 														{hasError && (
 															<p className="text-xs text-destructive">
 																{field.state.meta.errors[0]}
@@ -402,8 +385,9 @@ export function AddClientDialog({
 										<form.Field name="companyNotes">
 											{(field) => (
 												<div className="space-y-1.5">
-													<FieldLabel>Notes</FieldLabel>
+													<FieldLabel htmlFor={field.name}>Notes</FieldLabel>
 													<Textarea
+														id={field.name}
 														value={field.state.value ?? ""}
 														onChange={(e) => field.handleChange(e.target.value)}
 														onBlur={field.handleBlur}
@@ -430,7 +414,9 @@ export function AddClientDialog({
 										<form.Field name="contactName">
 											{(field) => (
 												<div className="space-y-1.5">
-													<FieldLabel>Full legal name</FieldLabel>
+													<FieldLabel htmlFor={field.name}>
+														Full legal name
+													</FieldLabel>
 													<InputWithIcon
 														id={field.name}
 														icon={<User className="size-4" />}
@@ -450,7 +436,9 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel>Email address</FieldLabel>
+														<FieldLabel htmlFor={field.name}>
+															Email address
+														</FieldLabel>
 														<InputWithIcon
 															id={field.name}
 															type="email"
@@ -482,7 +470,9 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel>Phone number</FieldLabel>
+														<FieldLabel htmlFor={field.name}>
+															Phone number
+														</FieldLabel>
 														<InputWithIcon
 															id={field.name}
 															icon={<Phone className="size-4" />}
@@ -507,8 +497,9 @@ export function AddClientDialog({
 										<form.Field name="contactTitle">
 											{(field) => (
 												<div className="space-y-1.5">
-													<FieldLabel>Title</FieldLabel>
+													<FieldLabel htmlFor={field.name}>Title</FieldLabel>
 													<Input
+														id={field.name}
 														value={field.state.value}
 														onChange={(e) => field.handleChange(e.target.value)}
 														onBlur={field.handleBlur}
@@ -538,7 +529,9 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel>Location name</FieldLabel>
+														<FieldLabel htmlFor={field.name}>
+															Location name
+														</FieldLabel>
 														<Input
 															id={field.name}
 															value={field.state.value}
@@ -563,8 +556,11 @@ export function AddClientDialog({
 										<form.Field name="locationAddress">
 											{(field) => (
 												<div className="space-y-1.5">
-													<FieldLabel>Street address</FieldLabel>
+													<FieldLabel htmlFor={field.name}>
+														Street address
+													</FieldLabel>
 													<Input
+														id={field.name}
 														value={field.state.value}
 														onChange={(e) => field.handleChange(e.target.value)}
 														onBlur={field.handleBlur}
@@ -584,7 +580,7 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel>City</FieldLabel>
+														<FieldLabel htmlFor={field.name}>City</FieldLabel>
 														<Input
 															id={field.name}
 															value={field.state.value}
@@ -613,7 +609,9 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel>State / Province</FieldLabel>
+														<FieldLabel htmlFor={field.name}>
+															State / Province
+														</FieldLabel>
 														<Input
 															id={field.name}
 															value={field.state.value}
@@ -642,7 +640,9 @@ export function AddClientDialog({
 													field.state.meta.errors.length > 0;
 												return (
 													<div className="space-y-1.5">
-														<FieldLabel>ZIP / Postal code</FieldLabel>
+														<FieldLabel htmlFor={field.name}>
+															ZIP / Postal code
+														</FieldLabel>
 														<Input
 															id={field.name}
 															value={field.state.value}
@@ -674,9 +674,9 @@ export function AddClientDialog({
 									</div>
 								)}
 							</div>
-						</div>
+						</DialogFormBody>
 
-						<div className="flex items-center justify-between border-t border-border/15 bg-surface-container-low/60 px-7 py-4">
+						<DialogFormFooter className="flex items-center justify-between border-t border-border/15 bg-surface-container-low/60 px-7 py-4">
 							<button
 								type="button"
 								onClick={closeAndReset}
@@ -706,9 +706,9 @@ export function AddClientDialog({
 									Create Client
 								</Button>
 							</div>
-						</div>
+						</DialogFormFooter>
 					</form>
-				</DialogContent>
+				</DialogFormContent>
 			</Dialog>
 
 			<ConfirmModal
@@ -723,168 +723,6 @@ export function AddClientDialog({
 				onConfirm={confirmDiscard}
 			/>
 		</>
-	);
-}
-
-function IndustryPicker({
-	value,
-	onValueChange,
-	id,
-	...triggerProps
-}: {
-	value: string;
-	onValueChange: (value: string) => void;
-	id?: string;
-} & Pick<ComponentProps<"button">, "aria-invalid" | "aria-describedby">) {
-	const [open, setOpen] = useState(false);
-	const selectedLabel = sectorsConfig.find(
-		(sector) => sector.id === value,
-	)?.label;
-
-	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<button
-					id={id}
-					type="button"
-					role="combobox"
-					aria-expanded={open}
-					className={cn(
-						"flex h-10 w-full items-center gap-2.5 rounded-md border border-input bg-surface-container-low/60 px-3 text-sm transition-colors",
-						"hover:bg-surface-container-low/80",
-						"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring",
-						!value && "text-muted-foreground",
-					)}
-					{...triggerProps}
-				>
-					<Factory className="size-4 shrink-0 text-muted-foreground/50" />
-					<span className="flex-1 truncate text-left">
-						{selectedLabel ?? "Select industry"}
-					</span>
-					<ChevronsUpDown className="size-4 shrink-0 opacity-40" />
-				</button>
-			</PopoverTrigger>
-			<PopoverContent
-				className="p-0"
-				align="start"
-				style={{ width: "var(--radix-popover-trigger-width)" }}
-			>
-				<Command>
-					<CommandInput placeholder="Search industry…" />
-					<CommandList>
-						<CommandEmpty>No industry found.</CommandEmpty>
-						{(
-							Object.keys(SECTOR_GROUPS) as Array<keyof typeof SECTOR_GROUPS>
-						).map((groupKey) => {
-							const group = SECTOR_GROUPS[groupKey];
-							const sectors = getSectorsByGroup(groupKey);
-							return (
-								<CommandGroup key={groupKey} heading={group.label}>
-									{sectors.map((sector) => (
-										<CommandItem
-											key={sector.id}
-											value={sector.label}
-											onSelect={() => {
-												onValueChange(sector.id);
-												setOpen(false);
-											}}
-										>
-											<Check
-												className={cn(
-													"mr-2 size-4",
-													value === sector.id ? "opacity-100" : "opacity-0",
-												)}
-											/>
-											{sector.label}
-										</CommandItem>
-									))}
-								</CommandGroup>
-							);
-						})}
-					</CommandList>
-				</Command>
-			</PopoverContent>
-		</Popover>
-	);
-}
-
-function SubIndustryPicker({
-	value,
-	onValueChange,
-	options,
-	disabled,
-	id,
-	...triggerProps
-}: {
-	value: string;
-	onValueChange: (value: string) => void;
-	options: { id: string; label: string }[];
-	disabled: boolean;
-	id?: string;
-} & Pick<ComponentProps<"button">, "aria-invalid" | "aria-describedby">) {
-	const [open, setOpen] = useState(false);
-	const selectedLabel = options.find(
-		(subsector) => subsector.id === value,
-	)?.label;
-
-	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<button
-					id={id}
-					type="button"
-					role="combobox"
-					aria-expanded={open}
-					disabled={disabled}
-					className={cn(
-						"flex h-10 w-full items-center gap-2 rounded-md border border-input bg-surface-container-low/60 px-3 text-sm transition-colors",
-						"hover:bg-surface-container-low/80",
-						"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring",
-						"disabled:cursor-not-allowed disabled:opacity-50",
-						!value && "text-muted-foreground",
-					)}
-					{...triggerProps}
-				>
-					<span className="flex-1 truncate text-left">
-						{selectedLabel ??
-							(disabled ? "Select industry first" : "Select sub-industry")}
-					</span>
-					<ChevronsUpDown className="size-4 shrink-0 opacity-40" />
-				</button>
-			</PopoverTrigger>
-			<PopoverContent
-				className="p-0"
-				align="start"
-				style={{ width: "var(--radix-popover-trigger-width)" }}
-			>
-				<Command>
-					<CommandInput placeholder="Search sub-industry…" />
-					<CommandList>
-						<CommandEmpty>No sub-industry found.</CommandEmpty>
-						<CommandGroup>
-							{options.map((subsector) => (
-								<CommandItem
-									key={subsector.id}
-									value={subsector.label}
-									onSelect={() => {
-										onValueChange(subsector.id);
-										setOpen(false);
-									}}
-								>
-									<Check
-										className={cn(
-											"mr-2 size-4",
-											value === subsector.id ? "opacity-100" : "opacity-0",
-										)}
-									/>
-									{subsector.label}
-								</CommandItem>
-							))}
-						</CommandGroup>
-					</CommandList>
-				</Command>
-			</PopoverContent>
-		</Popover>
 	);
 }
 
@@ -907,40 +745,6 @@ function SectionHeading({
 	);
 }
 
-function FieldLabel({
-	required,
-	children,
-}: {
-	required?: boolean;
-	children: ReactNode;
-}) {
-	return (
-		<p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-			{children} {required && <span className="text-destructive">*</span>}
-		</p>
-	);
-}
-
-function InputWithIcon({
-	icon,
-	className,
-	...props
-}: ComponentProps<typeof Input> & {
-	icon: ReactNode;
-}) {
-	return (
-		<div className="relative">
-			<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground/50">
-				{icon}
-			</div>
-			<Input
-				className={cn("h-10 bg-surface-container-low/60 pl-10", className)}
-				{...props}
-			/>
-		</div>
-	);
-}
-
 function SelectWithIcon({
 	icon,
 	value,
@@ -958,9 +762,11 @@ function SelectWithIcon({
 	children: ReactNode;
 	disabled?: boolean;
 	id?: string;
-} & Pick<
+} & Partial<
+	Pick<
 	ComponentProps<typeof SelectTrigger>,
 	"aria-invalid" | "aria-describedby"
+	>
 >) {
 	return (
 		<Select

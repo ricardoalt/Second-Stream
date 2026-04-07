@@ -104,16 +104,14 @@ export function DataTable<T>({
 							return (
 								<details key={key} className="group">
 									<summary
-									className="grid cursor-pointer items-center gap-4 px-6 py-4 marker:content-none hover:bg-muted/50"
-									style={{
-										gridTemplateColumns: columns
-											.map((col) => col.width || "1fr")
-											.concat(
-												expandChevronPosition === "end" ? "40px" : [],
-											)
-											.join(" "),
-									}}
-								>
+										className="grid cursor-pointer items-center gap-4 px-6 py-4 marker:content-none hover:bg-muted/50"
+										style={{
+											gridTemplateColumns: columns
+												.map((col) => col.width || "1fr")
+												.concat(expandChevronPosition === "end" ? "40px" : [])
+												.join(" "),
+										}}
+									>
 										{columns.map((col, colIndex) => (
 											<div key={col.key}>
 												{expandChevronPosition === "start" && colIndex === 0 ? (
@@ -121,7 +119,9 @@ export function DataTable<T>({
 														<div className="text-muted-foreground transition-transform group-open:rotate-180">
 															<ChevronDown className="h-4 w-4" />
 														</div>
-														<div className="min-w-0 flex-1">{col.cell(item)}</div>
+														<div className="min-w-0 flex-1">
+															{col.cell(item)}
+														</div>
 													</div>
 												) : (
 													col.cell(item)

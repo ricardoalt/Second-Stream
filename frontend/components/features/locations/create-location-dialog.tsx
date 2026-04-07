@@ -3,18 +3,19 @@
 import { useForm } from "@tanstack/react-form";
 import { MapPin } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import {
-	ConfirmModal,
-	getModalWidthClass,
-} from "@/components/patterns/dialogs/modal";
+import { ConfirmModal } from "@/components/patterns/dialogs/modal";
 import { LoadingButton } from "@/components/patterns/feedback/loading-button";
+import {
+	DialogFormActions,
+	DialogFormBody,
+	DialogFormContent,
+	DialogFormFooter,
+	DialogFormHeader,
+} from "@/components/shared/forms/dialog-form-primitives";
 import {
 	Button,
 	Dialog,
-	DialogContent,
 	DialogDescription,
-	DialogFooter,
-	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
 	Input,
@@ -37,6 +38,10 @@ import {
 	isAddressType,
 	type LocationSummary,
 } from "@/lib/types/company";
+import {
+	resolveDiscardConfirm,
+	resolveSubmitSuccess,
+} from "./location-dialog-flow";
 
 const REQUIRED_FIELDS = ["name", "city", "state", "zipCode"] as const;
 
@@ -120,9 +125,12 @@ export function CreateLocationDialog({
 						description: `${result.data.name} has been updated successfully.`,
 					});
 
-					setOpen(false);
+					const submitResult = resolveSubmitSuccess(location);
+					if (submitResult.shouldClose) {
+						setOpen(false);
+					}
 					form.reset();
-					onSuccess?.(location);
+					onSuccess?.(submitResult.onSuccessPayload);
 					return;
 				}
 
@@ -137,9 +145,12 @@ export function CreateLocationDialog({
 					description: `${result.data.name} has been created successfully.`,
 				});
 
-				setOpen(false);
+				const submitResult = resolveSubmitSuccess(location);
+				if (submitResult.shouldClose) {
+					setOpen(false);
+				}
 				form.reset();
-				onSuccess?.(location);
+				onSuccess?.(submitResult.onSuccessPayload);
 			} catch (error) {
 				if (!isForbiddenError(error)) {
 					toast({
@@ -162,10 +173,13 @@ export function CreateLocationDialog({
 	}, [defaultValues, open, form]);
 
 	const closeAndReset = () => {
-		setOpen(false);
+		const discardResult = resolveDiscardConfirm({ isEditMode });
+		if (discardResult.shouldClose) {
+			setOpen(false);
+		}
 		form.reset(defaultValues);
-		if (isEditMode) {
-			onSuccess?.(null);
+		if (discardResult.onSuccessPayload === null) {
+			onSuccess?.(discardResult.onSuccessPayload);
 		}
 	};
 
@@ -195,7 +209,7 @@ export function CreateLocationDialog({
 					</DialogTrigger>
 				)}
 
-				<DialogContent className={getModalWidthClass("sm")}>
+				<DialogFormContent size="sm">
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();
@@ -203,7 +217,7 @@ export function CreateLocationDialog({
 							form.handleSubmit();
 						}}
 					>
-						<DialogHeader>
+						<DialogFormHeader>
 							<DialogTitle>
 								{isEditMode ? "Edit Location" : "Create New Location"}
 							</DialogTitle>
@@ -212,9 +226,9 @@ export function CreateLocationDialog({
 									? "Update location information."
 									: "Add a new location/site for this company."}
 							</DialogDescription>
-						</DialogHeader>
+						</DialogFormHeader>
 
-						<div className="grid gap-4 py-4">
+						<DialogFormBody>
 							<form.Field
 								name="name"
 								validators={{
@@ -474,23 +488,25 @@ export function CreateLocationDialog({
 									</div>
 								)}
 							</form.Field>
-						</div>
+						</DialogFormBody>
 
-						<DialogFooter>
-							<Button
-								type="button"
-								variant="outline"
-								onClick={guardClose}
-								disabled={form.state.isSubmitting}
-							>
-								Cancel
-							</Button>
-							<LoadingButton type="submit" loading={form.state.isSubmitting}>
-								{isEditMode ? "Update Location" : "Create Location"}
-							</LoadingButton>
-						</DialogFooter>
+						<DialogFormFooter>
+							<DialogFormActions>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={guardClose}
+									disabled={form.state.isSubmitting}
+								>
+									Cancel
+								</Button>
+								<LoadingButton type="submit" loading={form.state.isSubmitting}>
+									{isEditMode ? "Update Location" : "Create Location"}
+								</LoadingButton>
+							</DialogFormActions>
+						</DialogFormFooter>
 					</form>
-				</DialogContent>
+				</DialogFormContent>
 			</Dialog>
 
 			<ConfirmModal

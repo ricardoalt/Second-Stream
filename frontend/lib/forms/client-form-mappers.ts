@@ -1,6 +1,10 @@
 import type { ClientProfile } from "@/lib/mappers/company-client";
-import { getSectorConfig, isSectorId, isSubsectorInSector } from "@/lib/sectors-config";
-import type { AddressType } from "@/lib/types/company";
+import {
+	getSectorConfig,
+	isSectorId,
+	isSubsectorInSector,
+} from "@/lib/sectors-config";
+import type { AddressType, CompanyUpdate } from "@/lib/types/company";
 
 export type EditClientFormValues = {
 	companyName: string;
@@ -61,14 +65,19 @@ function resolveIndustryLabel(sector: string, subsector: string): string {
 }
 
 export function buildEditClientCompanyPayload(values: EditClientFormValues) {
+	const sector = values.sector.trim();
+	if (!isSectorId(sector)) {
+		throw new Error("Please select a valid sector");
+	}
+
 	return {
 		name: values.companyName.trim(),
-		industry: resolveIndustryLabel(values.sector.trim(), values.subsector.trim()),
-		sector: values.sector.trim(),
+		industry: resolveIndustryLabel(sector, values.subsector.trim()),
+		sector,
 		subsector: values.subsector.trim(),
 		accountStatus: values.accountStatus,
 		notes: values.companyNotes.trim(),
-	};
+	} satisfies CompanyUpdate;
 }
 
 export function buildEditClientContactPayload(

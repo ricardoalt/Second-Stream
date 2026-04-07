@@ -15,8 +15,8 @@ export function CompleteView({
 	onGoToDrafts: () => void;
 }) {
 	return (
-		<section className="flex flex-col flex-1 px-6 pt-8 pb-6">
-			<div className="flex items-start gap-3 mb-2">
+		<section className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 pt-8 pb-6">
+			<div className="mb-2 flex items-start gap-3">
 				<div className="rounded-xl bg-primary/10 p-2.5">
 					<CheckCircle className="h-5 w-5 text-primary" />
 				</div>
@@ -24,14 +24,14 @@ export function CompleteView({
 					<h3 className="font-display text-xl font-semibold tracking-tight">
 						Waste Streams Created
 					</h3>
-					<p className="text-sm text-muted-foreground mt-0.5 max-w-md">
+					<p className="mt-0.5 max-w-lg text-sm text-muted-foreground">
 						{confirmed} stream{confirmed === 1 ? "" : "s"} confirmed and
 						created. {skipped} stream{skipped === 1 ? "" : "s"} kept as draft.
 					</p>
 				</div>
 			</div>
 
-			<div className="mt-auto flex items-center justify-end gap-3 pt-6">
+			<div className="mt-auto flex flex-wrap items-center justify-end gap-3 pt-6">
 				<Button variant="ghost" onClick={onGoToDrafts}>
 					Done
 				</Button>
@@ -56,14 +56,14 @@ export function NoResultsView({
 	onCreateManually: () => void;
 }) {
 	return (
-		<section className="flex flex-1 flex-col items-center justify-center px-6 py-14 text-center">
+		<section className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center px-6 py-14 text-center">
 			<div className="rounded-full bg-muted/70 p-4">
 				<AlertCircle className="h-7 w-7 text-muted-foreground" />
 			</div>
 			<h3 className="mt-4 font-display text-lg font-semibold tracking-tight">
 				No streams detected
 			</h3>
-			<p className="mt-1 max-w-md text-sm text-muted-foreground">
+			<p className="mt-1 max-w-lg text-sm text-muted-foreground">
 				Second Stream AI could not identify candidates from this input.
 			</p>
 
@@ -94,7 +94,7 @@ export function ErrorView({
 	return (
 		<div
 			role="alert"
-			className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col items-center justify-center flex-1 px-6 py-12"
+			className="animate-in fade-in slide-in-from-bottom-2 mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center px-6 py-12 duration-300"
 		>
 			<div className="rounded-full bg-destructive/10 p-4 mb-4">
 				<AlertCircle className="h-8 w-8 text-destructive" />
@@ -103,7 +103,7 @@ export function ErrorView({
 			<h3 className="font-display text-lg font-semibold tracking-tight mb-1">
 				Something went wrong
 			</h3>
-			<p className="text-sm text-muted-foreground text-center max-w-sm mb-6">
+			<p className="mb-6 max-w-lg text-center text-sm text-muted-foreground">
 				{error}
 			</p>
 
