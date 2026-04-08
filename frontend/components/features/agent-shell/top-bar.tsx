@@ -88,7 +88,7 @@ export function TopBar({ user, onLogout }: TopBarProps) {
 				<div className="flex items-center gap-2">
 					<Button
 						onClick={discoveryWizard.open}
-						className="bg-gradient-to-r from-[#006565] to-[#008080] text-white hover:opacity-90"
+						className="bg-[var(--gradient-discovery)] text-white hover:opacity-90"
 					>
 						<Sparkles data-icon="inline-start" aria-hidden="true" />
 						Discovery Wizard

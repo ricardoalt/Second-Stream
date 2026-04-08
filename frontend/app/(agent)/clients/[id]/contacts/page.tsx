@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Users } from "lucide-react";
+import { AlertCircle, MapPin, Users } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyContactsCard } from "@/components/features/companies/company-contacts-card";
@@ -114,10 +114,18 @@ export default function ClientContactsPage(props: {
 					</CardContent>
 				</Card>
 			) : error ? (
-				<Card>
-					<CardContent className="space-y-4 p-6">
-						<p className="text-sm text-destructive">{error}</p>
-						<Button variant="outline" onClick={() => void loadContactsHub()}>
+				<Card className="border-0 bg-destructive/5 shadow-xs">
+					<CardContent className="flex items-center gap-3 py-3">
+						<AlertCircle
+							aria-hidden
+							className="size-4 shrink-0 text-destructive"
+						/>
+						<p className="flex-1 text-sm text-destructive">{error}</p>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => void loadContactsHub()}
+						>
 							Retry
 						</Button>
 					</CardContent>

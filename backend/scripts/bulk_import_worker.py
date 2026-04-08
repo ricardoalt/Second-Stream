@@ -20,7 +20,7 @@ logger = structlog.get_logger(__name__)
 _shutdown_event: asyncio.Event | None = None
 
 POLL_BASE_SECONDS = 2.0
-POLL_MAX_SECONDS = 60.0
+POLL_MAX_SECONDS = 5.0
 POLL_JITTER_PCT = 0.2
 REAPER_INTERVAL_SECONDS = 60.0
 LOOP_ERROR_BACKOFF_BASE_SECONDS = 1.0
@@ -33,6 +33,10 @@ def _final_status(value: str) -> str:
     if value == "uploaded":
         return "retrying"
     return "success"
+
+
+def _duration_ms(started_at: float) -> float:
+    return round((time.perf_counter() - started_at) * 1000, 2)
 
 
 def _handle_signal(signum: int) -> None:
@@ -81,22 +85,29 @@ async def run_worker() -> None:
                         if discovery_text_source.import_run_id is not None
                         else None
                     )
+                    session_id = str(discovery_text_source.session_id)
+                    organization_id = str(discovery_text_source.organization_id)
                     await db.commit()
                     logger.info(
-                        "discovery_text_start",
+                        "discovery_text_source_claimed",
                         source_id=source_id,
                         run_id=run_id,
+                        session_id=session_id,
+                        organization_id=organization_id,
+                        source_type=discovery_text_source.source_type,
                     )
                     processing_started = time.perf_counter()
                     await discovery_service.process_text_source(
                         db, source_id=discovery_text_source.id
                     )
-                    duration_ms = round((time.perf_counter() - processing_started) * 1000, 2)
                     logger.info(
-                        "discovery_text_end",
+                        "discovery_text_source_completed",
                         source_id=source_id,
                         run_id=run_id,
-                        duration_ms=duration_ms,
+                        session_id=session_id,
+                        organization_id=organization_id,
+                        source_type=discovery_text_source.source_type,
+                        total_duration_ms=_duration_ms(processing_started),
                     )
                     idle_backoff = POLL_BASE_SECONDS
                     continue
@@ -118,9 +129,11 @@ async def run_worker() -> None:
                 run_id = str(run.id)
                 filename = run.source_filename
                 logger.info(
-                    "bulk_import_start",
+                    "bulk_import_run_claimed",
                     run_id=run_id,
+                    organization_id=str(run.organization_id),
                     filename=filename,
+                    source_type=run.source_type,
                 )
                 await db.commit()
                 try:
@@ -130,25 +143,28 @@ async def run_worker() -> None:
                     final_status = _final_status(run.status)
                     final_error_code = run.processing_error
                     await db.commit()
-                    total_duration_ms = round((time.perf_counter() - run_started) * 1000, 2)
                     logger.info(
-                        "bulk_import_end",
+                        "bulk_import_run_completed",
                         run_id=run_id,
+                        organization_id=str(run.organization_id),
                         filename=filename,
                         status=final_status,
                         run_status=final_run_status,
-                        duration_ms=total_duration_ms,
+                        source_type=run.source_type,
+                        total_duration_ms=_duration_ms(run_started),
                         error_code=final_error_code,
                     )
                     idle_backoff = POLL_BASE_SECONDS
                 except Exception:
                     await db.rollback()
                     logger.error(
-                        "bulk_import_end",
+                        "bulk_import_run_completed",
                         run_id=run_id,
+                        organization_id=str(run.organization_id),
                         filename=filename,
                         status="failed",
                         run_status=run.status,
+                        source_type=run.source_type,
                         error_code="worker_unexpected_error",
                         exc_info=True,
                     )

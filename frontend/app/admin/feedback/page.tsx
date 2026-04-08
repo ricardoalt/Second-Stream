@@ -33,6 +33,7 @@ import {
 	StatRail,
 } from "@/components/patterns";
 import {
+	FadeIn,
 	HoverLift,
 	Pressable,
 } from "@/components/patterns/animations/motion-components";
@@ -319,7 +320,7 @@ export default function AdminFeedbackPage() {
 	if (!selectedOrgId) {
 		return (
 			<div className="flex items-center justify-center min-h-[400px]">
-				<div className="text-center space-y-2">
+				<div className="flex flex-col gap-2 text-center">
 					<p className="text-muted-foreground">
 						Select an organization to view feedback
 					</p>
@@ -338,7 +339,7 @@ export default function AdminFeedbackPage() {
 					<AlertDialogContent>
 						<AlertDialogHeader>
 							<AlertDialogTitle>Delete feedback?</AlertDialogTitle>
-							<AlertDialogDescription className="mt-3 space-y-2">
+							<AlertDialogDescription className="mt-3 flex flex-col gap-2">
 								<span className="block text-destructive font-medium">
 									This action cannot be undone.
 								</span>
@@ -353,7 +354,7 @@ export default function AdminFeedbackPage() {
 							</AlertDialogDescription>
 						</AlertDialogHeader>
 
-						<div className="space-y-2">
+						<div className="flex flex-col gap-2">
 							<Label htmlFor="feedback-delete-confirm">
 								Type <span className="font-mono font-semibold">DELETE</span> to
 								confirm:
@@ -382,25 +383,29 @@ export default function AdminFeedbackPage() {
 						</AlertDialogFooter>
 					</AlertDialogContent>
 				</AlertDialog>
-				<PageHeader
-					title="User Feedback"
-					subtitle="Review and manage user feedback"
-					actions={
-						<Pressable>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={loadFeedback}
-								disabled={loading}
-							>
-								<RefreshCw
-									className={cn("h-4 w-4 mr-2", loading && "animate-spin")}
-								/>
-								Refresh
-							</Button>
-						</Pressable>
-					}
-				/>
+				<FadeIn direction="up">
+					<PageHeader
+						title="User Feedback"
+						subtitle="Review and manage user feedback"
+						actions={
+							<Pressable>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={loadFeedback}
+									disabled={loading}
+								>
+									<RefreshCw
+										data-icon="inline-start"
+										aria-hidden="true"
+										className={cn(loading && "animate-spin")}
+									/>
+									Refresh
+								</Button>
+							</Pressable>
+						}
+					/>
+				</FadeIn>
 
 				<StatRail columns={3}>
 					<HoverLift>
@@ -488,7 +493,7 @@ export default function AdminFeedbackPage() {
 				<Card>
 					<CardContent className="pt-4">
 						{loading ? (
-							<div className="space-y-3">
+							<div className="flex flex-col gap-3">
 								{["s1", "s2", "s3", "s4", "s5"].map((key) => (
 									<Skeleton key={key} className="h-16 w-full" />
 								))}
@@ -597,7 +602,7 @@ export default function AdminFeedbackPage() {
 															<Button
 																variant="ghost"
 																size="icon"
-																className="h-6 w-6 shrink-0"
+																className="size-6 shrink-0"
 																onClick={() => handleToggleExpand(item.id)}
 																aria-label={
 																	isExpanded
@@ -607,9 +612,9 @@ export default function AdminFeedbackPage() {
 																aria-expanded={isExpanded}
 															>
 																{isExpanded ? (
-																	<ChevronUp className="h-4 w-4" />
+																	<ChevronUp className="size-4" />
 																) : (
-																	<ChevronDown className="h-4 w-4" />
+																	<ChevronDown className="size-4" />
 																)}
 															</Button>
 														</div>
@@ -627,7 +632,7 @@ export default function AdminFeedbackPage() {
 																		variant="ghost"
 																		size="icon"
 																		className={cn(
-																			"h-8 w-8",
+																			"size-8",
 																			!isResolved &&
 																				"text-success hover:text-success/80 hover:bg-success/10",
 																		)}
@@ -642,9 +647,9 @@ export default function AdminFeedbackPage() {
 																		}
 																	>
 																		{isResolved ? (
-																			<RotateCcw className="h-4 w-4" />
+																			<RotateCcw className="size-4" />
 																		) : (
-																			<Check className="h-4 w-4" />
+																			<Check className="size-4" />
 																		)}
 																	</Button>
 																</TooltipTrigger>
@@ -658,11 +663,11 @@ export default function AdminFeedbackPage() {
 																		<Button
 																			variant="ghost"
 																			size="icon"
-																			className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+																			className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
 																			onClick={() => setDeleteTarget(item)}
 																			aria-label="Delete feedback"
 																		>
-																			<Trash2 className="h-4 w-4" />
+																			<Trash2 className="size-4" />
 																		</Button>
 																	</TooltipTrigger>
 																	<TooltipContent>
@@ -676,13 +681,13 @@ export default function AdminFeedbackPage() {
 												{isExpanded ? (
 													<TableRow className="bg-muted/30">
 														<TableCell colSpan={5} className="py-4">
-															<div className="space-y-3">
+															<div className="flex flex-col gap-3">
 																<div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-																	<Paperclip className="h-4 w-4" />
+																	<Paperclip className="size-4" />
 																	Attachments
 																</div>
 																{attachmentsLoadingState ? (
-																	<div className="space-y-2">
+																	<div className="flex flex-col gap-2">
 																		<Skeleton className="h-16 w-full" />
 																		<Skeleton className="h-16 w-full" />
 																	</div>
@@ -706,7 +711,7 @@ export default function AdminFeedbackPage() {
 																		No attachments.
 																	</p>
 																) : (
-																	<div className="space-y-2">
+																	<div className="flex flex-col gap-2">
 																		{attachments.map((attachment) => (
 																			<div
 																				key={attachment.id}
@@ -726,7 +731,7 @@ export default function AdminFeedbackPage() {
 																					/>
 																				) : (
 																					<div className="flex h-12 w-12 items-center justify-center rounded-md border border-border bg-muted">
-																						<FileText className="h-5 w-5 text-muted-foreground" />
+																						<FileText className="size-5 text-muted-foreground" />
 																					</div>
 																				)}
 																				<div className="min-w-0 flex-1">
@@ -749,7 +754,10 @@ export default function AdminFeedbackPage() {
 																						target="_blank"
 																						rel="noreferrer noopener"
 																					>
-																						<Download className="h-4 w-4 mr-2" />
+																						<Download
+																							data-icon="inline-start"
+																							aria-hidden="true"
+																						/>
 																						Download
 																					</a>
 																				</Button>

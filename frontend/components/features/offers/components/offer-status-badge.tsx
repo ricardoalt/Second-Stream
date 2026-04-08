@@ -1,3 +1,4 @@
+import type { VariantProps } from "class-variance-authority";
 import {
 	CheckCircle2,
 	Clock3,
@@ -7,45 +8,46 @@ import {
 	XCircle,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Badge, type badgeVariants } from "@/components/ui/badge";
 import { OFFER_STAGE_LABELS } from "../mock-data";
 import type { OfferStage } from "../types";
+
+type BadgeVariant = VariantProps<typeof badgeVariants>["variant"];
 
 const statusConfig: Record<
 	OfferStage,
 	{
 		icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-		className: string;
+		variant: BadgeVariant;
 	}
 > = {
 	requires_data: {
 		icon: FileEdit,
-		className: "bg-muted text-muted-foreground border-transparent",
+		variant: "neutral-subtle",
 	},
 	proposal_ready: {
 		icon: Hourglass,
-		className: "bg-info/20 text-info-foreground border-transparent",
+		variant: "info-subtle",
 	},
 	offer_sent: {
 		icon: Send,
-		className: "bg-info/20 text-info-foreground border-transparent",
+		variant: "primary-subtle",
 	},
 	in_negotiation: {
 		icon: Clock3,
-		className: "bg-warning/20 text-warning-foreground border-transparent",
+		variant: "warning-subtle",
 	},
 	accepted: {
 		icon: CheckCircle2,
-		className: "bg-success/20 text-success-foreground border-transparent",
+		variant: "success-subtle",
 	},
 	declined: {
 		icon: XCircle,
-		className: "bg-destructive/15 text-destructive border-transparent",
+		variant: "destructive-subtle",
 	},
 	expired: {
 		icon: Clock3,
-		className: "bg-muted text-muted-foreground border-transparent",
+		variant: "neutral-subtle",
 	},
 };
 
@@ -54,10 +56,7 @@ export function OfferStatusBadge({ stage }: { stage: OfferStage }) {
 	const Icon = config.icon;
 
 	return (
-		<Badge
-			className={cn("rounded-full border-0", config.className)}
-			variant="secondary"
-		>
+		<Badge variant={config.variant} className="rounded-full gap-1">
 			<Icon aria-hidden className="size-3" />
 			{OFFER_STAGE_LABELS[stage]}
 		</Badge>

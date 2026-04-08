@@ -1,21 +1,13 @@
 "use client";
 
 /**
- * @deprecated Use `ConfirmDialog` from `@/components/patterns` instead.
+ * ConfirmArchiveDialog — specialized archive confirmation for entities with
+ * optional active-user detection. Supports two modes:
+ *   - Normal: standard archive warning
+ *   - Force (hasActiveUsers=true): warns that archiving deactivates members
  *
- * This component has been replaced by the standardized ConfirmDialog pattern.
- * The new component is more flexible and handles all confirmation scenarios.
- *
- * Still used in:
- * - app/admin/organizations/[id]/page.tsx
- * - app/admin/organizations/page.tsx
- *
- * Migration path:
- * - Replace `ConfirmArchiveDialog` with `ConfirmDialog`
- * - Use props: `title`, `description`, `confirmText="Archive"`, `variant="destructive"`
- * - Remove entityType/entityName props, inline the text in `description`
- *
- * TODO: Migrate admin pages and delete this file
+ * Not replaceable with the generic ConfirmDialog because of the two-mode
+ * (onConfirm / onForceConfirm) behavior.
  */
 
 import { Archive, Users } from "lucide-react";

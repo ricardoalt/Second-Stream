@@ -10,6 +10,7 @@ import {
 	MoreHorizontal,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { AutoTeamAvatar } from "@/components/features/shared/team-avatar";
 import { StatusChip } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { AutoTeamAvatar } from "@/components/ui/team-avatar";
 import { useAuth } from "@/lib/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import { isDraftStream, type StreamRow, type StreamStatus } from "./types";

@@ -22,9 +22,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrgAvatar } from "@/components/features/admin";
 import { ConfirmOrgPurgeForceDialog } from "@/components/features/admin/confirm-org-purge-force-dialog";
-import { KpiCard, PageShell, StatRail } from "@/components/patterns";
+import {
+	ConfirmDialog,
+	HoverLift,
+	KpiCard,
+	PageShell,
+	StatRail,
+} from "@/components/patterns";
 import { ConfirmArchiveDialog } from "@/components/patterns/dialogs/confirm-archive-dialog";
-import { ConfirmRestoreDialog } from "@/components/patterns/dialogs/confirm-restore-dialog";
 import { ArchivedBanner } from "@/components/shared/archived-banner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,6 +73,7 @@ import {
 } from "@/lib/errors/organization-lifecycle";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
 import type { User, UserRole } from "@/lib/types/user";
+import { cn } from "@/lib/utils";
 
 const AddUserModal = dynamic(
 	() =>
@@ -356,7 +362,7 @@ export default function OrganizationDetailPage() {
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-center">
 				<Link href="/admin/organizations">
 					<Button variant="ghost" size="icon" className="shrink-0">
-						<ArrowLeft className="h-4 w-4" />
+						<ArrowLeft className="size-4" />
 					</Button>
 				</Link>
 				<div className="flex items-center gap-4 flex-1 min-w-0">
@@ -367,9 +373,9 @@ export default function OrganizationDetailPage() {
 					/>
 					<div className="flex-1 min-w-0">
 						<div className="flex items-center gap-3 flex-wrap">
-							<h2 className="text-2xl font-semibold tracking-tight truncate">
+							<h1 className="font-display text-2xl font-semibold tracking-tight truncate">
 								{organization.name}
-							</h2>
+							</h1>
 							<Badge
 								variant={organization.isActive ? "success-subtle" : "muted"}
 							>
@@ -383,7 +389,7 @@ export default function OrganizationDetailPage() {
 				</div>
 				<div className="flex items-center gap-2 shrink-0">
 					<Button onClick={handleOpenWorkspace}>
-						<LayoutDashboard className="mr-2 h-4 w-4" />
+						<LayoutDashboard data-icon="inline-start" aria-hidden />
 						Workspace
 					</Button>
 					<Button
@@ -393,9 +399,7 @@ export default function OrganizationDetailPage() {
 						disabled={isLoading}
 						aria-label="Refresh organization data"
 					>
-						<RefreshCcw
-							className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
-						/>
+						<RefreshCcw className={cn("size-4", isLoading && "animate-spin")} />
 					</Button>
 					<Button
 						variant="outline"
@@ -407,19 +411,19 @@ export default function OrganizationDetailPage() {
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button variant="outline" size="icon" disabled={lifecycleLoading}>
-								<MoreHorizontal className="h-4 w-4" />
+								<MoreHorizontal className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							{organization.isActive ? (
 								<DropdownMenuItem onClick={() => setArchiveDialogOpen(true)}>
-									<Archive className="mr-2 h-4 w-4" />
+									<Archive className="size-4" aria-hidden />
 									Archive
 								</DropdownMenuItem>
 							) : (
 								<>
 									<DropdownMenuItem onClick={() => setRestoreDialogOpen(true)}>
-										<RotateCcw className="mr-2 h-4 w-4" />
+										<RotateCcw className="size-4" aria-hidden />
 										Restore
 									</DropdownMenuItem>
 									<DropdownMenuSeparator />
@@ -427,7 +431,7 @@ export default function OrganizationDetailPage() {
 										onClick={() => setPurgeDialogOpen(true)}
 										className="text-destructive focus:text-destructive"
 									>
-										<Trash2 className="mr-2 h-4 w-4" />
+										<Trash2 className="size-4" aria-hidden />
 										Permanently Delete...
 									</DropdownMenuItem>
 								</>
@@ -441,13 +445,13 @@ export default function OrganizationDetailPage() {
 				<div className="flex items-center gap-6 text-sm text-muted-foreground px-1">
 					{organization.contactEmail && (
 						<div className="flex items-center gap-2">
-							<Mail className="h-4 w-4" />
+							<Mail className="size-4" />
 							<span>{organization.contactEmail}</span>
 						</div>
 					)}
 					{organization.contactPhone && (
 						<div className="flex items-center gap-2">
-							<Phone className="h-4 w-4" />
+							<Phone className="size-4" />
 							<span>{organization.contactPhone}</span>
 						</div>
 					)}
@@ -467,24 +471,30 @@ export default function OrganizationDetailPage() {
 			)}
 
 			<StatRail columns={3}>
-				<KpiCard
-					title="Total Members"
-					value={stats.total}
-					icon={Users}
-					variant="default"
-				/>
-				<KpiCard
-					title="Active Members"
-					value={stats.active}
-					icon={CheckCircle}
-					variant="success"
-				/>
-				<KpiCard
-					title="Inactive"
-					value={stats.inactive}
-					icon={XCircle}
-					variant="muted"
-				/>
+				<HoverLift>
+					<KpiCard
+						title="Total Members"
+						value={stats.total}
+						icon={Users}
+						variant="default"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Active Members"
+						value={stats.active}
+						icon={CheckCircle}
+						variant="success"
+					/>
+				</HoverLift>
+				<HoverLift>
+					<KpiCard
+						title="Inactive"
+						value={stats.inactive}
+						icon={XCircle}
+						variant="muted"
+					/>
+				</HoverLift>
 			</StatRail>
 
 			<Card>
@@ -556,12 +566,14 @@ export default function OrganizationDetailPage() {
 				hasActiveUsers={archiveForceMode}
 			/>
 
-			<ConfirmRestoreDialog
+			<ConfirmDialog
 				open={restoreDialogOpen}
 				onOpenChange={setRestoreDialogOpen}
 				onConfirm={handleRestore}
-				entityType="organization"
-				entityName={organization.name}
+				title="Restore organization?"
+				description={`Are you sure you want to restore this organization? It will become editable again and appear in active lists.\n\n${organization.name}`}
+				confirmText="Restore"
+				variant="default"
 				loading={lifecycleLoading}
 			/>
 

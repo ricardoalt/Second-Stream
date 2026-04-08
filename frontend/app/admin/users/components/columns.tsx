@@ -43,7 +43,7 @@ export function getColumns(deps: ColumnDeps): ColumnDef<User>[] {
 					className="h-8 px-2 -ml-2"
 				>
 					Name
-					<ArrowUpDown className="ml-2 h-4 w-4" aria-hidden="true" />
+					<ArrowUpDown data-icon="inline-end" aria-hidden="true" />
 				</Button>
 			),
 			cell: ({ row }) => {
@@ -81,7 +81,7 @@ export function getColumns(deps: ColumnDeps): ColumnDef<User>[] {
 					className="h-8 px-2 -ml-2"
 				>
 					Email
-					<ArrowUpDown className="ml-2 h-4 w-4" aria-hidden="true" />
+					<ArrowUpDown data-icon="inline-end" aria-hidden="true" />
 				</Button>
 			),
 			cell: ({ row }) => (
@@ -96,7 +96,7 @@ export function getColumns(deps: ColumnDeps): ColumnDef<User>[] {
 			cell: ({ row }) => {
 				const user = row.original;
 				return (
-					<div className="flex flex-col space-y-0.5">
+					<div className="flex flex-col gap-0.5">
 						<span
 							className={
 								user.isActive ? "text-success" : "text-muted-foreground"
@@ -146,7 +146,7 @@ export function getColumns(deps: ColumnDeps): ColumnDef<User>[] {
 						}}
 					>
 						{updatingUserId === user.id ? (
-							<RefreshCcw className="h-4 w-4 animate-spin" aria-hidden="true" />
+							<RefreshCcw className="size-4 animate-spin" aria-hidden="true" />
 						) : user.isSuperuser ? (
 							"Admin"
 						) : (
@@ -172,9 +172,9 @@ export function getColumns(deps: ColumnDeps): ColumnDef<User>[] {
 						}
 					>
 						{updatingUserId === user.id ? (
-							<RefreshCcw className="h-4 w-4 animate-spin" aria-hidden="true" />
+							<RefreshCcw className="size-4 animate-spin" aria-hidden="true" />
 						) : user.isActive ? (
-							<Ban className="h-4 w-4" aria-hidden="true" />
+							<Ban className="size-4" aria-hidden="true" />
 						) : (
 							"Activate"
 						)}

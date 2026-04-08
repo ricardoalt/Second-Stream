@@ -59,7 +59,7 @@ export function ScoreSelector({
 							// for stars between current+1 and hovered. Checked before the
 							// solid-fill branch so it is reachable (previously dead code).
 							hoveredValue > value && score > value && score <= hoveredValue
-								? "fill-amber-400/30 text-amber-500/60"
+								? "fill-rating-star/30 text-rating-star/60"
 								: // Solid fill: either a rated star, or hovering at/below current
 									score <= (hoveredValue || value)
 									? "fill-amber-400 text-amber-500"

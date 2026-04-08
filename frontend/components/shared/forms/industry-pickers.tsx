@@ -16,8 +16,8 @@ import {
 import {
 	getSectorsByGroup,
 	getSubsectors,
-	type Sector,
 	SECTOR_GROUPS,
+	type Sector,
 	sectorsConfig,
 } from "@/lib/sectors-config";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,9 @@ export function IndustryPicker({
 	triggerClassName?: string;
 } & TriggerA11yProps) {
 	const [open, setOpen] = useState(false);
-	const selectedLabel = sectorsConfig.find((sector) => sector.id === value)?.label;
+	const selectedLabel = sectorsConfig.find(
+		(sector) => sector.id === value,
+	)?.label;
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -127,7 +129,9 @@ export function SubIndustryPicker({
 	const [open, setOpen] = useState(false);
 	const options = sector ? getSubsectors(sector) : [];
 	const disabled = !sector;
-	const selectedLabel = options.find((subsector) => subsector.id === value)?.label;
+	const selectedLabel = options.find(
+		(subsector) => subsector.id === value,
+	)?.label;
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>

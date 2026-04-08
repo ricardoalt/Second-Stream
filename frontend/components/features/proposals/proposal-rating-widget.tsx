@@ -199,7 +199,7 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
 				size="sm"
 				className={cn(
 					"gap-1.5 transition-colors",
-					isRated && "border-amber-400/50 text-amber-600 dark:text-amber-400",
+					isRated && "border-rating-star/50 text-rating-star",
 					className,
 				)}
 				{...props}
@@ -207,7 +207,9 @@ const TriggerButton = React.forwardRef<HTMLButtonElement, TriggerButtonProps>(
 				<Star
 					className={cn(
 						"h-3.5 w-3.5",
-						isRated ? "fill-amber-400 text-amber-500" : "text-muted-foreground",
+						isRated
+							? "fill-rating-star text-rating-star"
+							: "text-muted-foreground",
 					)}
 				/>
 				{isRated ? (
@@ -297,9 +299,7 @@ function RatingForm({
 					<p
 						className={cn(
 							"text-xs tabular-nums",
-							comment.length >= 900
-								? "text-amber-500"
-								: "text-muted-foreground",
+							comment.length >= 900 ? "text-warning" : "text-muted-foreground",
 						)}
 					>
 						{comment.length}/1000

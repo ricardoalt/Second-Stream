@@ -273,13 +273,13 @@ export default function AdminProposalRatingsPage() {
 							<Button
 								variant="ghost"
 								size="icon"
-								className="h-8 w-8 text-muted-foreground hover:text-foreground"
+								className="size-8 text-muted-foreground hover:text-foreground"
 								onClick={loadList}
 								disabled={loading}
 								aria-label="Refresh"
 							>
 								<RefreshCw
-									className={cn("h-4 w-4", loading && "animate-spin")}
+									className={cn("size-4", loading && "animate-spin")}
 								/>
 							</Button>
 						</Pressable>
@@ -399,7 +399,7 @@ export default function AdminProposalRatingsPage() {
 
 				{/* Table content */}
 				{loading ? (
-					<div className="space-y-3 p-6">
+					<div className="flex flex-col gap-3 p-6">
 						<Skeleton className="h-10 w-full" />
 						<Skeleton className="h-10 w-full" />
 						<Skeleton className="h-10 w-full" />
@@ -544,7 +544,10 @@ export default function AdminProposalRatingsPage() {
 																	href={routes.streams.detail(item.projectId)}
 																>
 																	View proposal
-																	<ExternalLink className="h-3 w-3" />
+																	<ExternalLink
+																		data-icon="inline-end"
+																		aria-hidden="true"
+																	/>
 																</Link>
 															</Button>
 														</TableCell>
@@ -616,7 +619,7 @@ function ExpandedDetail({
 	if (!detail) return null;
 
 	return (
-		<div className="space-y-4 py-1">
+		<div className="flex flex-col gap-4 py-1">
 			<div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
 				<DistributionChart
 					label="Coverage"
@@ -636,11 +639,11 @@ function ExpandedDetail({
 			</div>
 
 			{detail.comments.length > 0 && (
-				<div className="space-y-2">
+				<div className="flex flex-col gap-2">
 					<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 						Comments ({detail.comments.length})
 					</p>
-					<div className="space-y-1.5">
+					<div className="flex flex-col gap-1.5">
 						{detail.comments.map((commentItem) => (
 							<div
 								key={`${commentItem.updatedAt}-${commentItem.comment}`}
@@ -681,7 +684,7 @@ function DistributionChart({
 					{avg.toFixed(1)}
 				</span>
 			</div>
-			<div className="space-y-1.5">
+			<div className="flex flex-col gap-1.5">
 				{scores.map((score) => {
 					const count = distribution[score] ?? 0;
 					const percent = (count / maxCount) * 100;

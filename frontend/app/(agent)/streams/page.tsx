@@ -1,13 +1,11 @@
 "use client";
 
 import {
+	AlertCircle,
 	ArrowUpRight,
-	ChevronLeft,
-	ChevronRight,
 	Download,
 	Filter,
 	Loader2,
-	Search,
 	Sparkles,
 	Trash2,
 } from "lucide-react";
@@ -33,16 +31,16 @@ import {
 } from "@/components/features/streams/use-stream-filters";
 import {
 	EmptyState,
+	FadeIn,
+	FilterBar,
+	HoverLift,
 	KpiCard,
 	PageHeader,
 	PageShell,
-	StatRail,
-} from "@/components/patterns";
-import {
-	FadeIn,
-	HoverLift,
 	Pressable,
-} from "@/components/patterns/animations/motion-components";
+	StatRail,
+	TablePagination,
+} from "@/components/patterns";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -54,15 +52,8 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { bulkImportAPI } from "@/lib/api/bulk-import";
@@ -78,6 +69,15 @@ import {
 	useStreamsMissingInfo,
 } from "@/lib/stores/streams-store";
 import { computeWasteStreamsKpis } from "@/lib/utils/compute-waste-streams-kpis";
+
+const STATUS_OPTIONS = [
+	{ value: "all", label: "All statuses" },
+	{ value: "active", label: "Active" },
+	{ value: "draft", label: "Draft" },
+	{ value: "missing_info", label: "Missing info" },
+	{ value: "blocked", label: "Blocked" },
+	{ value: "ready_for_offer", label: "Ready for offer" },
+];
 
 export default function AgentStreamsPage() {
 	const discoveryWizard = useDiscoveryWizard();
@@ -107,17 +107,13 @@ export default function AgentStreamsPage() {
 	const [deleteAllOpen, setDeleteAllOpen] = useState(false);
 	const [deleteAllConfirmation, setDeleteAllConfirmation] = useState("");
 	const [isDeletingAllDrafts, setIsDeletingAllDrafts] = useState(false);
-
 	const [highlightedDraftId, setHighlightedDraftId] = useState<string | null>(
 		null,
 	);
-
-	// ── Missing Information state ──
 	const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(
 		null,
 	);
 
-	// ── Computed data ──
 	const operationalStreams = allStreams;
 	const sharedFilters = useMemo(
 		() => ({ search, clientFilter, statusFilter }),
@@ -142,8 +138,22 @@ export default function AgentStreamsPage() {
 		excludeStatusOption,
 	);
 
-	// ── Derived KPIs ──
 	const kpis = useMemo(() => computeWasteStreamsKpis(allStreams), [allStreams]);
+
+	const clientOptions = useMemo(
+		() => [
+			{ value: "all", label: "All clients" },
+			...[...new Set(operationalStreams.map((s) => s.client))].map(
+				(client) => ({ value: client, label: client }),
+			),
+		],
+		[operationalStreams],
+	);
+
+	const activeFilterCount =
+		(search.trim() ? 1 : 0) +
+		(clientFilter !== "all" ? 1 : 0) +
+		(statusFilter !== "all" ? 1 : 0);
 
 	useEffect(() => {
 		if (!isInitialized) {
@@ -160,14 +170,10 @@ export default function AgentStreamsPage() {
 		}
 	}, [filteredFollowUps, selectedFollowUpId]);
 
-	// ── Handlers ──
 	async function handleConfirmDraft(id: string, editorState: DraftEditorState) {
 		const draft = draftRowsById[id];
-		if (!draft) {
-			return;
-		}
+		if (!draft) return;
 
-		// Inline confirmation — bypass modal and confirm directly via API
 		setConfirmingDraftIds((prev) => new Set(prev).add(id));
 		setHighlightedDraftId(null);
 
@@ -193,11 +199,10 @@ export default function AgentStreamsPage() {
 
 			await bulkImportAPI.decideDiscoveryDraft(draft.itemId, payload);
 			toast.success("Draft confirmed and converted to waste stream");
-			// Auto-refresh the streams list
 			void loadStreams();
-		} catch (error) {
+		} catch (err) {
 			toast.error(
-				error instanceof Error ? error.message : "Failed to confirm draft",
+				err instanceof Error ? err.message : "Failed to confirm draft",
 			);
 		} finally {
 			setConfirmingDraftIds((prev) => {
@@ -222,9 +227,7 @@ export default function AgentStreamsPage() {
 	}
 
 	async function handleDeleteAllDrafts() {
-		if (isDeletingAllDrafts || draftStreams.length === 0) {
-			return;
-		}
+		if (isDeletingAllDrafts || draftStreams.length === 0) return;
 
 		setIsDeletingAllDrafts(true);
 		const currentDraftRows = draftStreams
@@ -268,10 +271,7 @@ export default function AgentStreamsPage() {
 	}
 
 	function formatKpi(value: number | null): string | null {
-		if (value === null) {
-			return null;
-		}
-
+		if (value === null) return null;
 		return String(value);
 	}
 
@@ -311,13 +311,46 @@ export default function AgentStreamsPage() {
 				</HoverLift>
 			</StatRail>
 
+			{/* Shared filters — apply across all tabs */}
+			<FilterBar
+				search={{
+					value: search,
+					onChange: setSearch,
+					placeholder: "Search stream, client, waste type…",
+				}}
+				filters={[
+					{
+						key: "client",
+						placeholder: "All clients",
+						value: clientFilter,
+						onChange: setClientFilter,
+						options: clientOptions,
+						width: "w-[180px]",
+					},
+					{
+						key: "status",
+						placeholder: "All statuses",
+						value: statusFilter,
+						onChange: setStatusFilter,
+						options: STATUS_OPTIONS,
+						width: "w-[160px]",
+					},
+				]}
+				activeFilterCount={activeFilterCount}
+				onClear={() => {
+					setSearch("");
+					setClientFilter("all");
+					setStatusFilter("all");
+				}}
+			/>
+
 			{loading && !isInitialized ? (
-				<div className="rounded-xl border border-border/50 bg-surface-container-lowest p-4">
+				<div className="overflow-hidden rounded-xl border border-border/60 bg-surface-container-lowest p-4">
 					<div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
 						<Loader2 aria-hidden className="size-4 animate-spin" />
 						Loading streams…
 					</div>
-					<div className="space-y-2">
+					<div className="flex flex-col gap-2">
 						<Skeleton className="h-10 w-full" />
 						{Array.from({ length: 4 }).map((_, index) => (
 							<Skeleton
@@ -330,12 +363,17 @@ export default function AgentStreamsPage() {
 			) : null}
 
 			{error ? (
-				<div className="rounded-lg bg-destructive/5 px-4 py-3 text-sm text-destructive">
-					{error}
-				</div>
+				<Card className="border-0 bg-destructive/5 shadow-xs">
+					<CardContent className="flex items-center gap-3 py-3">
+						<AlertCircle
+							aria-hidden
+							className="size-4 shrink-0 text-destructive"
+						/>
+						<p className="text-sm text-destructive">{error}</p>
+					</CardContent>
+				</Card>
 			) : null}
 
-			{/* ── Unified tabs with 2026 Animations ── */}
 			<FadeIn direction="up" delay={0.15}>
 				<Tabs
 					value={activeTab}
@@ -373,64 +411,8 @@ export default function AgentStreamsPage() {
 					{/* ── Tab: All Active ── */}
 					<TabsContent
 						value="all"
-						className="mt-6 overflow-hidden rounded-xl border border-border/50 bg-surface-container-lowest"
+						className="mt-6 overflow-hidden rounded-xl border border-border/60 bg-surface-container-lowest"
 					>
-						{/* Search / Filters */}
-						{activeTab === "all" && (
-							<div className="grid gap-3 border-b border-border/50 bg-surface-container/30 p-4 lg:grid-cols-[1.4fr_repeat(2,minmax(0,1fr))]">
-								<div className="relative">
-									<Search
-										aria-hidden
-										className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-									/>
-									<Input
-										value={search}
-										onChange={(event) => setSearch(event.target.value)}
-										placeholder="Search stream, client, waste type"
-										className="border-border/40 bg-surface-container-lowest pl-9 transition-colors focus:bg-surface"
-									/>
-								</div>
-
-								<Select value={clientFilter} onValueChange={setClientFilter}>
-									<SelectTrigger className="border-border/40 bg-surface-container-lowest">
-										<SelectValue placeholder="Client" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectGroup>
-											<SelectItem value="all">All clients</SelectItem>
-											{[
-												...new Set(
-													operationalStreams.map((stream) => stream.client),
-												),
-											].map((client) => (
-												<SelectItem key={client} value={client}>
-													{client}
-												</SelectItem>
-											))}
-										</SelectGroup>
-									</SelectContent>
-								</Select>
-
-								<Select value={statusFilter} onValueChange={setStatusFilter}>
-									<SelectTrigger className="border-border/40 bg-surface-container-lowest">
-										<SelectValue placeholder="Status" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectGroup>
-											<SelectItem value="all">All statuses</SelectItem>
-											<SelectItem value="active">Active</SelectItem>
-											<SelectItem value="draft">Draft</SelectItem>
-											<SelectItem value="missing_info">Missing info</SelectItem>
-											<SelectItem value="blocked">Blocked</SelectItem>
-											<SelectItem value="ready_for_offer">
-												Ready for offer
-											</SelectItem>
-										</SelectGroup>
-									</SelectContent>
-								</Select>
-							</div>
-						)}
-
 						{filteredStreams.length > 0 ? (
 							<StreamsAllTable
 								rows={filteredStreams}
@@ -439,7 +421,7 @@ export default function AgentStreamsPage() {
 						) : (
 							<div className="p-6">
 								<EmptyState
-									icon={Search}
+									icon={Filter}
 									title="No streams found"
 									description="Try adjusting your filters or search term."
 									action={
@@ -460,37 +442,15 @@ export default function AgentStreamsPage() {
 							</div>
 						)}
 
-						{/* Pagination Footer */}
-						<div className="flex items-center justify-between border-t border-border/50 bg-surface-container/30 px-4 py-3">
-							<p className="text-xs text-secondary">
-								Showing{" "}
-								<span className="font-medium text-foreground">
-									{filteredStreams.length}
-								</span>{" "}
-								of{" "}
-								<span className="font-medium text-foreground">
-									{operationalStreams.length}
-								</span>{" "}
-								active streams
-							</p>
-							<div className="flex items-center gap-1">
-								<button
-									type="button"
-									className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-surface-container hover:text-foreground disabled:opacity-50"
-								>
-									<ChevronLeft aria-hidden className="size-4" />
-								</button>
-								<span className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-medium text-primary-foreground">
-									1
-								</span>
-								<button
-									type="button"
-									className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-all hover:bg-surface-container hover:text-foreground disabled:opacity-50"
-								>
-									<ChevronRight aria-hidden className="size-4" />
-								</button>
-							</div>
-						</div>
+						<TablePagination
+							total={operationalStreams.length}
+							showing={filteredStreams.length}
+							page={1}
+							pageCount={1}
+							onPrevious={() => {}}
+							onNext={() => {}}
+							itemLabel="active streams"
+						/>
 
 						{/* ── Insight Card ── */}
 						<div className="mt-4 flex items-start gap-4 rounded-xl border border-primary/10 bg-gradient-to-br from-primary/8 to-primary/3 p-5 shadow-sm backdrop-blur-sm">
@@ -529,7 +489,7 @@ export default function AgentStreamsPage() {
 					{/* ── Tab: Drafts ── */}
 					<TabsContent
 						value="drafts"
-						className="mt-6 overflow-hidden rounded-xl border border-border/50 bg-surface-container-lowest"
+						className="mt-6 overflow-hidden rounded-xl border border-border/60 bg-surface-container-lowest"
 					>
 						<div className="flex items-start justify-between gap-4 p-4">
 							<div>
@@ -551,9 +511,13 @@ export default function AgentStreamsPage() {
 										disabled={draftStreams.length === 0 || isDeletingAllDrafts}
 									>
 										{isDeletingAllDrafts ? (
-											<Loader2 className="mr-1.5 size-4 animate-spin" />
+											<Loader2
+												data-icon="inline-start"
+												aria-hidden
+												className="animate-spin"
+											/>
 										) : (
-											<Trash2 className="mr-1.5 size-4" />
+											<Trash2 data-icon="inline-start" aria-hidden />
 										)}
 										Delete All Drafts
 									</Button>
@@ -606,42 +570,15 @@ export default function AgentStreamsPage() {
 						</div>
 
 						{filteredDrafts.length > 0 ? (
-							<>
-								<StreamsDraftsTable
-									rows={filteredDrafts}
-									onConfirm={handleConfirmDraft}
-									onDelete={handleDeleteDraft}
-									highlightedId={highlightedDraftId}
-									confirmingIds={confirmingDraftIds}
-									deletingIds={deletingDraftIds}
-									disableActions={isDeletingAllDrafts}
-								/>
-
-								{/* Pagination Footer */}
-								<div className="flex items-center justify-between border-t border-border/50 px-4 py-3">
-									<p className="text-xs text-muted-foreground">
-										Showing {filteredDrafts.length} of {draftStreams.length}{" "}
-										pending drafts
-									</p>
-									<div className="flex items-center gap-1">
-										<button
-											type="button"
-											className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-surface-container hover:text-foreground"
-										>
-											<ChevronLeft aria-hidden className="size-4" />
-										</button>
-										<span className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground">
-											1
-										</span>
-										<button
-											type="button"
-											className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-surface-container hover:text-foreground"
-										>
-											<ChevronRight aria-hidden className="size-4" />
-										</button>
-									</div>
-								</div>
-							</>
+							<StreamsDraftsTable
+								rows={filteredDrafts}
+								onConfirm={handleConfirmDraft}
+								onDelete={handleDeleteDraft}
+								highlightedId={highlightedDraftId}
+								confirmingIds={confirmingDraftIds}
+								deletingIds={deletingDraftIds}
+								disableActions={isDeletingAllDrafts}
+							/>
 						) : (
 							<div className="p-6">
 								<EmptyState
@@ -652,12 +589,22 @@ export default function AgentStreamsPage() {
 								/>
 							</div>
 						)}
+
+						<TablePagination
+							total={draftStreams.length}
+							showing={filteredDrafts.length}
+							page={1}
+							pageCount={1}
+							onPrevious={() => {}}
+							onNext={() => {}}
+							itemLabel="pending drafts"
+						/>
 					</TabsContent>
 
 					{/* ── Tab: Missing Information ── */}
 					<TabsContent
 						value="missing-info"
-						className="mt-6 rounded-xl border border-border/50 bg-surface-container-lowest p-4"
+						className="mt-6 rounded-xl border border-border/60 bg-surface-container-lowest p-4"
 					>
 						<StreamsFollowUpBoard
 							items={filteredFollowUps}

@@ -3,6 +3,11 @@
 import { ArrowRight, ChevronDown, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ProgressCard } from "@/components/features/shared/progress-card";
+import {
+	getAvatarColorForName,
+	TeamAvatar,
+} from "@/components/features/shared/team-avatar";
 import { KpiCard } from "@/components/patterns/data-display/kpi-card";
 import { StatRail } from "@/components/patterns/data-display/stat-rail";
 import { StatusChip } from "@/components/patterns/feedback/status-chip";
@@ -12,15 +17,13 @@ import {
 } from "@/components/patterns/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { DataTable, SectionDivider } from "@/components/ui/data-table";
+import { DataTable, SectionDivider } from "@/components/ui/css-grid-table";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ProgressCard } from "@/components/ui/progress-card";
-import { getAvatarColorForName, TeamAvatar } from "@/components/ui/team-avatar";
 import { dashboardAPI } from "@/lib/api/dashboard";
 import type { OfferPipelineResponseDTO } from "@/lib/api/offers";
 import { offersAPI } from "@/lib/api/offers";

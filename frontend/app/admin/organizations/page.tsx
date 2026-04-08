@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrgCard } from "@/components/features/admin";
 import {
+	ConfirmDialog,
 	EmptyState,
 	FadeIn,
 	FilterBar,
@@ -39,14 +40,6 @@ const ConfirmArchiveDialog = dynamic(
 	() =>
 		import("@/components/patterns/dialogs/confirm-archive-dialog").then(
 			(mod) => mod.ConfirmArchiveDialog,
-		),
-	{ ssr: false, loading: () => null },
-);
-
-const ConfirmRestoreDialog = dynamic(
-	() =>
-		import("@/components/patterns/dialogs/confirm-restore-dialog").then(
-			(mod) => mod.ConfirmRestoreDialog,
 		),
 	{ ssr: false, loading: () => null },
 );
@@ -85,6 +78,7 @@ import {
 	showOrganizationPurgeForceResultToast,
 } from "@/lib/errors/organization-lifecycle";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
+import { cn } from "@/lib/utils";
 
 function slugify(text: string): string {
 	return text
@@ -343,13 +337,13 @@ export default function AdminOrganizationsPage() {
 									aria-label="Refresh organizations list"
 								>
 									<RefreshCcw
-										className={`size-4 ${isLoading ? "animate-spin" : ""}`}
+										className={cn("size-4", isLoading && "animate-spin")}
 									/>
 								</Button>
 							</Pressable>
 							<Pressable>
 								<Button onClick={() => setCreateModalOpen(true)}>
-									<Plus className="size-4 mr-2" />
+									<Plus data-icon="inline-start" aria-hidden="true" />
 									New Organization
 								</Button>
 							</Pressable>
@@ -400,10 +394,10 @@ export default function AdminOrganizationsPage() {
 			{isLoading ? (
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 					{[1, 2, 3].map((i) => (
-						<div key={i} className="p-6 border rounded-lg space-y-4">
+						<div key={i} className="flex flex-col gap-4 rounded-lg border p-6">
 							<div className="flex items-start gap-4">
 								<Skeleton className="h-14 w-14 rounded-xl" />
-								<div className="flex-1 space-y-2">
+								<div className="flex flex-1 flex-col gap-2">
 									<Skeleton className="h-5 w-32" />
 									<Skeleton className="h-4 w-24" />
 								</div>
@@ -434,7 +428,7 @@ export default function AdminOrganizationsPage() {
 					action={
 						!searchQuery && !selectedOrgId ? (
 							<Button onClick={() => setCreateModalOpen(true)}>
-								<Plus className="size-4 mr-2" />
+								<Plus data-icon="inline-start" aria-hidden="true" />
 								Create Organization
 							</Button>
 						) : undefined
@@ -492,8 +486,8 @@ export default function AdminOrganizationsPage() {
 							Add a new tenant organization to the platform
 						</DialogDescription>
 					</DialogHeader>
-					<div className="space-y-4 py-4">
-						<div className="space-y-2">
+					<div className="flex flex-col gap-4 py-4">
+						<div className="flex flex-col gap-2">
 							<Label htmlFor="name">Name *</Label>
 							<Input
 								id="name"
@@ -502,7 +496,7 @@ export default function AdminOrganizationsPage() {
 								onChange={(e) => handleNameChange(e.target.value)}
 							/>
 						</div>
-						<div className="space-y-2">
+						<div className="flex flex-col gap-2">
 							<Label htmlFor="slug">Slug *</Label>
 							<Input
 								id="slug"
@@ -515,7 +509,7 @@ export default function AdminOrganizationsPage() {
 								Auto-generated from name. URL-friendly identifier.
 							</p>
 						</div>
-						<div className="space-y-2">
+						<div className="flex flex-col gap-2">
 							<Label htmlFor="contactEmail">Contact Email</Label>
 							<Input
 								id="contactEmail"
@@ -527,7 +521,7 @@ export default function AdminOrganizationsPage() {
 								}
 							/>
 						</div>
-						<div className="space-y-2">
+						<div className="flex flex-col gap-2">
 							<Label htmlFor="contactPhone">Contact Phone</Label>
 							<Input
 								id="contactPhone"
@@ -553,7 +547,13 @@ export default function AdminOrganizationsPage() {
 							onClick={handleCreateOrganization}
 							disabled={!canSubmitForm || submitting}
 						>
-							{submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+							{submitting && (
+								<Loader2
+									data-icon="inline-start"
+									aria-hidden="true"
+									className="animate-spin"
+								/>
+							)}
 							{submitting ? "Creating..." : "Create"}
 						</Button>
 					</DialogFooter>
@@ -584,15 +584,17 @@ export default function AdminOrganizationsPage() {
 				hasActiveUsers={archiveForceMode}
 			/>
 
-			<ConfirmRestoreDialog
+			<ConfirmDialog
 				open={restoreDialogOpen}
 				onOpenChange={(open) => {
 					setRestoreDialogOpen(open);
 					if (!open) setSelectedOrg(null);
 				}}
 				onConfirm={handleRestore}
-				entityType="organization"
-				entityName={selectedOrg?.name ?? ""}
+				title="Restore organization?"
+				description={`Are you sure you want to restore this organization? It will become editable again and appear in active lists.\n\n${selectedOrg?.name ?? ""}`}
+				confirmText="Restore"
+				variant="default"
 				loading={lifecycleLoading}
 			/>
 

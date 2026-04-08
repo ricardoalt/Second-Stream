@@ -16,8 +16,6 @@ export { StatRail } from "./data-display/stat-rail";
 // ── Dialogs ──
 export { ConfirmArchiveDialog } from "./dialogs/confirm-archive-dialog";
 export { ConfirmDialog } from "./dialogs/confirm-dialog";
-export { ConfirmPurgeDialog } from "./dialogs/confirm-purge-dialog";
-export { ConfirmRestoreDialog } from "./dialogs/confirm-restore-dialog";
 export type { ModalSize, ModalSizeInput } from "./dialogs/modal";
 export {
 	ConfirmModal,
@@ -53,3 +51,4 @@ export { TablePagination } from "./navigation/table-pagination";
 
 // ── Tables ──
 export { DataTable } from "./tables/data-table";
+export { TableContainer } from "./tables/table-container";

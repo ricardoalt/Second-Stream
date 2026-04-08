@@ -119,7 +119,8 @@ export function ResetPasswordDialog({
 					>
 						{submitting ? (
 							<RefreshCcw
-								className="mr-2 h-4 w-4 animate-spin"
+								data-icon="inline-start"
+								className="animate-spin"
 								aria-hidden="true"
 							/>
 						) : null}

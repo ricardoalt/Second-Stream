@@ -1,10 +1,14 @@
+import { type ComponentProps, createElement } from "react";
 import {
 	getModalWidthClass,
 	type ModalSizeInput,
 } from "@/components/patterns/dialogs/modal";
-import { DialogContent, DialogFooter, DialogHeader } from "@/components/ui/dialog";
+import {
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { createElement, type ComponentProps } from "react";
 
 export const DIALOG_FORM_BODY_CLASS = "grid gap-4 py-4";
 export const DIALOG_FORM_FOOTER_CLASS = "pt-2";
@@ -77,6 +81,9 @@ export function DialogFormActions({
 }: DialogFormActionsProps) {
 	return createElement("div", {
 		...props,
-		className: cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className),
+		className: cn(
+			"flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+			className,
+		),
 	});
 }

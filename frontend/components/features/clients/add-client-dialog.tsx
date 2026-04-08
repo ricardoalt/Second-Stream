@@ -268,15 +268,15 @@ export function AddClientDialog({
 														<FieldLabel required htmlFor={field.name}>
 															Industry type
 														</FieldLabel>
-												<IndustryPicker
-													id={field.name}
-													value={field.state.value}
-													onValueChange={(value) => {
-														field.handleChange(value);
-														form.setFieldValue("subsector", "");
-													}}
-													aria-invalid={hasError}
-												/>
+														<IndustryPicker
+															id={field.name}
+															value={field.state.value}
+															onValueChange={(value) => {
+																field.handleChange(value);
+																form.setFieldValue("subsector", "");
+															}}
+															aria-invalid={hasError}
+														/>
 														{hasError && (
 															<p className="text-xs text-destructive">
 																{field.state.meta.errors[0]}
@@ -361,17 +361,17 @@ export function AddClientDialog({
 														<FieldLabel htmlFor={field.name}>
 															Sub-industry
 														</FieldLabel>
-												<SubIndustryPicker
-													id={field.name}
-													value={field.state.value}
-													onValueChange={(v) => field.handleChange(v)}
-													sector={
-														isSector(form.state.values.sector)
-															? form.state.values.sector
-															: ""
-													}
-													aria-invalid={hasError}
-												/>
+														<SubIndustryPicker
+															id={field.name}
+															value={field.state.value}
+															onValueChange={(v) => field.handleChange(v)}
+															sector={
+																isSector(form.state.values.sector)
+																	? form.state.values.sector
+																	: ""
+															}
+															aria-invalid={hasError}
+														/>
 														{hasError && (
 															<p className="text-xs text-destructive">
 																{field.state.meta.errors[0]}
@@ -764,8 +764,8 @@ function SelectWithIcon({
 	id?: string;
 } & Partial<
 	Pick<
-	ComponentProps<typeof SelectTrigger>,
-	"aria-invalid" | "aria-describedby"
+		ComponentProps<typeof SelectTrigger>,
+		"aria-invalid" | "aria-describedby"
 	>
 >) {
 	return (

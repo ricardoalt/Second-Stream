@@ -4,8 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-// Design System: Industrial Precision & Fluidity
-// Data Table - Fluid grid without divider lines
+/**
+ * CssGridTable — lightweight CSS-grid table with expandable rows.
+ * Use this for simple expandable-row layouts (e.g. admin dashboard streams).
+ *
+ * For sortable, filterable, paginated tables use the canonical DataTable
+ * from @/components/patterns/tables/data-table (TanStack Table-based).
+ *
+ * @see components/patterns/tables/data-table.tsx
+ */
 
 type ColumnDef<T> = {
 	key: string;

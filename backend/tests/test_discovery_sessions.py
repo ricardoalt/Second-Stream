@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -15,6 +16,15 @@ from app.models.discovery_session import DiscoverySession, DiscoverySource
 from app.models.user import UserRole
 from app.models.voice_interview import VoiceInterview
 from app.services.bulk_import_ai_extractor import ParsedRow
+
+
+def test_discovery_text_processing_includes_structured_logging_events() -> None:
+    source = inspect.getsource(
+        discovery_service_module.DiscoverySessionService.process_text_source
+    )
+    assert "discovery_text_bedrock_call_completed" in source
+    assert "_log_text_stage_completed" in source
+    assert "discovery_text_source_completed" in source
 
 
 async def _attach_discovery_file_source(

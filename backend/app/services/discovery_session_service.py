@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import re
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -129,6 +130,36 @@ class DiscoverySessionService:
 
     def __init__(self) -> None:
         self._bulk_import_service = BulkImportService()
+
+    def _text_source_log_context(
+        self,
+        *,
+        source: DiscoverySource,
+        run: ImportRun | None,
+    ) -> dict[str, str | None]:
+        return {
+            "source_id": str(source.id),
+            "session_id": str(source.session_id),
+            "organization_id": str(source.organization_id),
+            "run_id": str(run.id) if run is not None else None,
+            "filename": run.source_filename if run is not None else None,
+            "source_type": source.source_type,
+        }
+
+    def _log_text_stage_completed(
+        self,
+        *,
+        source: DiscoverySource,
+        run: ImportRun,
+        stage: str,
+        started_at: float,
+    ) -> None:
+        logger.info(
+            "discovery_text_stage_completed",
+            **self._text_source_log_context(source=source, run=run),
+            stage=stage,
+            duration_ms=round((time.perf_counter() - started_at) * 1000, 2),
+        )
 
     async def create_session(
         self,
@@ -731,6 +762,7 @@ class DiscoverySessionService:
         return len(sources)
 
     async def process_text_source(self, db: AsyncSession, *, source_id: UUID) -> None:
+        total_started = time.perf_counter()
         try:
             source_result = await db.execute(
                 select(DiscoverySource).where(DiscoverySource.id == source_id).with_for_update()
@@ -753,14 +785,42 @@ class DiscoverySessionService:
                 return
 
             extracted_text = (source.text_content or "").strip()
+            validate_started = time.perf_counter()
             if len(extracted_text) < MIN_DISCOVERY_TEXT_LENGTH:
                 raise ValueError("Text too short to process")
-
-            extraction = await bulk_import_ai_extractor.extract_parsed_rows_from_text(
-                extracted_text=extracted_text,
-                filename=run.source_filename,
-                source_type="bulk_import",
+            self._log_text_stage_completed(
+                source=source,
+                run=run,
+                stage="validating_text",
+                started_at=validate_started,
             )
+
+            bedrock_started = time.perf_counter()
+            try:
+                extraction = await bulk_import_ai_extractor.extract_parsed_rows_from_text(
+                    extracted_text=extracted_text,
+                    filename=run.source_filename,
+                    source_type="bulk_import",
+                )
+                logger.info(
+                    "discovery_text_bedrock_call_completed",
+                    **self._text_source_log_context(source=source, run=run),
+                    status="success",
+                    bedrock_duration_ms=round((time.perf_counter() - bedrock_started) * 1000, 2),
+                    route=extraction.diagnostics.route,
+                    char_count=extraction.diagnostics.char_count,
+                    truncated=extraction.diagnostics.truncated,
+                )
+            except Exception:
+                logger.info(
+                    "discovery_text_bedrock_call_completed",
+                    **self._text_source_log_context(source=source, run=run),
+                    status="failed",
+                    bedrock_duration_ms=round((time.perf_counter() - bedrock_started) * 1000, 2),
+                )
+                raise
+
+            categorize_started = time.perf_counter()
             await db.execute(delete(ImportItem).where(ImportItem.run_id == run.id))
             staged_items = await self._bulk_import_service.build_items_for_parsed_rows(
                 db,
@@ -792,6 +852,18 @@ class DiscoverySessionService:
             source.completed_at = datetime.now(UTC)
             await self.sync_session_for_source(db, source=source)
             await db.commit()
+            self._log_text_stage_completed(
+                source=source,
+                run=run,
+                stage="categorizing",
+                started_at=categorize_started,
+            )
+            logger.info(
+                "discovery_text_source_completed",
+                **self._text_source_log_context(source=source, run=run),
+                run_status=run.status,
+                total_duration_ms=round((time.perf_counter() - total_started) * 1000, 2),
+            )
         except Exception as exc:
             await db.rollback()
             await self._handle_text_processing_failure(db, source_id=source_id, exc=exc)

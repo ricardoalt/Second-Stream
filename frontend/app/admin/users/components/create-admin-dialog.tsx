@@ -206,11 +206,12 @@ export function CreateAdminDialog({
 					<Button onClick={handleSubmit} disabled={!canSubmit || submitting}>
 						{submitting ? (
 							<RefreshCcw
-								className="mr-2 h-4 w-4 animate-spin"
+								data-icon="inline-start"
+								className="animate-spin"
 								aria-hidden="true"
 							/>
 						) : (
-							<UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+							<UserPlus data-icon="inline-start" aria-hidden="true" />
 						)}
 						Create Admin
 					</Button>

@@ -1,3 +1,4 @@
+import type { VariantProps } from "class-variance-authority";
 import {
 	AlertTriangle,
 	CheckCircle2,
@@ -6,51 +7,52 @@ import {
 	PauseCircle,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Badge, type badgeVariants } from "@/components/ui/badge";
 import type { StreamStatus } from "./types";
+
+type BadgeVariant = VariantProps<typeof badgeVariants>["variant"];
 
 const statusConfig: Record<
 	StreamStatus,
 	{
 		label: string;
-		className: string;
+		variant: BadgeVariant;
 		icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 	}
 > = {
 	draft: {
 		label: "Draft",
-		className: "bg-muted text-muted-foreground border-transparent",
+		variant: "neutral-subtle",
 		icon: FileEdit,
 	},
 	active: {
 		label: "Active",
-		className: "bg-primary/15 text-primary border-transparent",
+		variant: "primary-subtle",
 		icon: CheckCircle2,
 	},
 	missing_info: {
 		label: "Missing info",
-		className: "bg-warning/20 text-warning-foreground border-transparent",
+		variant: "warning-subtle",
 		icon: AlertTriangle,
 	},
 	in_review: {
 		label: "In review",
-		className: "bg-info/20 text-info-foreground border-transparent",
+		variant: "info-subtle",
 		icon: Clock3,
 	},
 	ready_for_offer: {
 		label: "Ready for offer",
-		className: "bg-success/20 text-success-foreground border-transparent",
+		variant: "success-subtle",
 		icon: CheckCircle2,
 	},
 	blocked: {
 		label: "Blocked",
-		className: "bg-destructive/15 text-destructive border-transparent",
+		variant: "destructive-subtle",
 		icon: PauseCircle,
 	},
 	completed: {
 		label: "Completed",
-		className: "bg-success/20 text-success-foreground border-transparent",
+		variant: "success-subtle",
 		icon: CheckCircle2,
 	},
 };
@@ -60,10 +62,7 @@ export function StreamStatusBadge({ status }: { status: StreamStatus }) {
 	const Icon = config.icon;
 
 	return (
-		<Badge
-			variant="secondary"
-			className={cn("rounded-full border-0", config.className)}
-		>
+		<Badge variant={config.variant} className="rounded-full gap-1">
 			<Icon aria-hidden className="size-3" />
 			{config.label}
 		</Badge>

@@ -30,6 +30,8 @@ const badgeVariants = cva(
 					"border border-badge-primary-border bg-badge-primary-bg text-badge-primary-text hover:opacity-80",
 				"neutral-subtle":
 					"border border-badge-neutral-border bg-badge-neutral-bg text-badge-neutral-text hover:opacity-80",
+				"info-subtle":
+					"border border-badge-info-border bg-badge-info-bg text-badge-info-text hover:opacity-80",
 			},
 		},
 		defaultVariants: {

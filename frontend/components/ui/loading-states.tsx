@@ -336,7 +336,7 @@ export function TechnicalDataLoader({
 						</p>
 						<div className="w-full bg-muted/30 rounded-full h-2 overflow-hidden">
 							<div
-								className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-[width] duration-1000 ease-out"
+								className="h-full bg-[var(--gradient-progress)] transition-[width] duration-1000 ease-out"
 								style={{ width: `${Math.min(progress, 100)}%` }}
 							/>
 						</div>

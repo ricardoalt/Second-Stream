@@ -12,9 +12,7 @@ import { Building2 } from "lucide-react";
 import { useState } from "react";
 import { ConfirmModal } from "@/components/patterns/dialogs/modal";
 import { LoadingButton } from "@/components/patterns/feedback/loading-button";
-import {
-	formatSubsector,
-} from "@/components/shared/forms/compact-sector-select";
+import { formatSubsector } from "@/components/shared/forms/compact-sector-select";
 import {
 	DialogFormActions,
 	DialogFormBody,
@@ -402,7 +400,10 @@ export function CreateCompanyDialog({
 															aria-invalid={sectorHasError}
 														/>
 														{sectorHasError && (
-															<p className="text-xs text-destructive" role="alert">
+															<p
+																className="text-xs text-destructive"
+																role="alert"
+															>
 																{sectorField.state.meta.errors[0]}
 															</p>
 														)}
@@ -417,7 +418,10 @@ export function CreateCompanyDialog({
 															aria-invalid={subsectorHasError}
 														/>
 														{subsectorHasError && (
-															<p className="text-xs text-destructive" role="alert">
+															<p
+																className="text-xs text-destructive"
+																role="alert"
+															>
 																{subsectorField.state.meta.errors[0]}
 															</p>
 														)}

@@ -184,6 +184,26 @@
 		oklch(1 0 0 / 0.12) 0%,
 		oklch(1 0 0 / 0.04) 100%
 	);
+	--gradient-discovery: linear-gradient(
+		135deg,
+		oklch(0.4 0.13 175) 0%,
+		oklch(0.52 0.15 172) 100%
+	);
+	--gradient-progress: linear-gradient(
+		90deg,
+		var(--primary) 0%,
+		var(--primary-container) 100%
+	);
+
+	/* ── Rating stars ── */
+	--rating-star: var(--amber);
+	--rating-star-empty: oklch(0.82 0.02 78);
+
+	/* ── File category colors ── */
+	--file-lab: oklch(0.55 0.15 240);
+	--file-sds: oklch(0.68 0.16 78);
+	--file-photo: oklch(0.52 0.15 295);
+	--file-general: oklch(0.52 0.03 240);
 
 	/* ── Logo Brand — converted from HSL ── */
 	--logo-primary: oklch(0.47 0.12 240);
@@ -264,51 +284,55 @@
 	/* ── Badge System 2026 — semantic tokens ── */
 	--badge-success-bg: color-mix(
 		in oklch,
-		var(--success) 14%,
+		var(--success) 20%,
 		var(--background)
 	);
-	--badge-success-text: oklch(0.33 0.13 150);
-	--badge-success-border: color-mix(in oklch, var(--success) 35%, transparent);
+	--badge-success-text: oklch(0.28 0.14 150);
+	--badge-success-border: color-mix(in oklch, var(--success) 42%, transparent);
 
 	--badge-warning-bg: color-mix(
 		in oklch,
-		var(--warning) 14%,
+		var(--warning) 20%,
 		var(--background)
 	);
-	--badge-warning-text: oklch(0.36 0.11 68);
-	--badge-warning-border: color-mix(in oklch, var(--warning) 35%, transparent);
+	--badge-warning-text: oklch(0.31 0.12 68);
+	--badge-warning-border: color-mix(in oklch, var(--warning) 42%, transparent);
 
 	--badge-destructive-bg: color-mix(
 		in oklch,
-		var(--destructive) 12%,
+		var(--destructive) 18%,
 		var(--background)
 	);
-	--badge-destructive-text: oklch(0.36 0.16 25);
+	--badge-destructive-text: oklch(0.31 0.17 25);
 	--badge-destructive-border: color-mix(
 		in oklch,
-		var(--destructive) 30%,
+		var(--destructive) 38%,
 		transparent
 	);
 
 	--badge-primary-bg: color-mix(
 		in oklch,
-		var(--primary) 12%,
+		var(--primary) 18%,
 		var(--background)
 	);
-	--badge-primary-text: oklch(0.36 0.09 175);
-	--badge-primary-border: color-mix(in oklch, var(--primary) 30%, transparent);
+	--badge-primary-text: oklch(0.31 0.1 175);
+	--badge-primary-border: color-mix(in oklch, var(--primary) 38%, transparent);
 
 	--badge-neutral-bg: color-mix(
 		in oklch,
-		var(--foreground) 6%,
+		var(--foreground) 10%,
 		var(--background)
 	);
-	--badge-neutral-text: oklch(0.28 0.012 235);
+	--badge-neutral-text: oklch(0.23 0.014 235);
 	--badge-neutral-border: color-mix(
 		in oklch,
-		var(--foreground) 14%,
+		var(--foreground) 20%,
 		transparent
 	);
+
+	--badge-info-bg: color-mix(in oklch, var(--info) 18%, var(--background));
+	--badge-info-text: oklch(0.3 0.11 238);
+	--badge-info-border: color-mix(in oklch, var(--info) 40%, transparent);
 }
 
 /* ── Dark Mode — Pure OKLCH, with dimension ── */
@@ -451,11 +475,25 @@
 	--accent-warm-subtle: oklch(0.28 0.05 75);
 
 	/* ── Badge tokens dark mode — lighter text for dark backgrounds ── */
-	--badge-success-text: oklch(0.78 0.14 145);
-	--badge-warning-text: oklch(0.84 0.14 80);
-	--badge-destructive-text: oklch(0.8 0.18 25);
-	--badge-primary-text: oklch(0.78 0.12 175);
-	--badge-neutral-text: oklch(0.72 0.01 235);
+	--badge-success-text: oklch(0.8 0.15 145);
+	--badge-warning-text: oklch(0.86 0.15 80);
+	--badge-destructive-text: oklch(0.82 0.19 25);
+	--badge-primary-text: oklch(0.8 0.13 175);
+	--badge-neutral-text: oklch(0.76 0.012 235);
+	--badge-info-text: oklch(0.78 0.13 238);
+
+	/* ── Semantic replacements dark mode ── */
+	--rating-star: oklch(0.86 0.16 78);
+	--rating-star-empty: oklch(0.4 0.03 78);
+	--file-lab: oklch(0.7 0.14 240);
+	--file-sds: oklch(0.82 0.15 78);
+	--file-photo: oklch(0.68 0.14 295);
+	--file-general: oklch(0.68 0.025 240);
+	--gradient-discovery: linear-gradient(
+		135deg,
+		oklch(0.52 0.12 175) 0%,
+		oklch(0.65 0.14 172) 100%
+	);
 }
 
 /* ============================================================================
@@ -581,6 +619,17 @@
 	--color-badge-neutral-bg: var(--badge-neutral-bg);
 	--color-badge-neutral-text: var(--badge-neutral-text);
 	--color-badge-neutral-border: var(--badge-neutral-border);
+	--color-badge-info-bg: var(--badge-info-bg);
+	--color-badge-info-text: var(--badge-info-text);
+	--color-badge-info-border: var(--badge-info-border);
+
+	/* Semantic tokens for hardcoded color replacements */
+	--color-rating-star: var(--rating-star);
+	--color-rating-star-empty: var(--rating-star-empty);
+	--color-file-lab: var(--file-lab);
+	--color-file-sds: var(--file-sds);
+	--color-file-photo: var(--file-photo);
+	--color-file-general: var(--file-general);
 
 	--font-sans: var(--font-sans);
 	--font-display: var(--font-display);

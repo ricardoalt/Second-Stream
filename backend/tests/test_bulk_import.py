@@ -1,6 +1,7 @@
 import asyncio
 import builtins
 import importlib
+import inspect
 import multiprocessing
 import time
 import uuid
@@ -37,6 +38,7 @@ from app.services.bulk_import_service import BulkImportService
 from app.services.document_text_extractor import ExtractedTextResult
 from app.services.storage_delete_service import StorageDeleteError, delete_storage_keys
 from app.templates.assessment_questionnaire import get_assessment_questionnaire
+from scripts import bulk_import_worker as bulk_import_worker_module
 from scripts.healthcheck_bulk_import_worker import _cmdline_matches_worker
 
 
@@ -4219,6 +4221,10 @@ def test_bulk_import_service_imports_without_openpyxl(monkeypatch):
     assert hasattr(reloaded, "BulkImportService")
 
 
+def test_bulk_import_worker_poll_max_seconds_fast_pickup() -> None:
+    assert bulk_import_worker_module.POLL_MAX_SECONDS == 5.0
+
+
 @pytest.mark.asyncio
 async def test_process_run_xlsx_without_openpyxl_marks_run_failed(db_session, monkeypatch):
     uid = uuid.uuid4().hex[:8]
@@ -4489,6 +4495,12 @@ async def test_ai_timeout_marks_run_failed(db_session, monkeypatch):
 
     assert run.status == "failed"
     assert run.processing_error == "ai_timeout"
+
+
+def test_process_run_includes_structured_logging_events() -> None:
+    source = inspect.getsource(BulkImportService.process_run)
+    assert "_log_stage_completed" in source
+    assert "bulk_import_bedrock_call_completed" in source
 
 
 @pytest.mark.asyncio

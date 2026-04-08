@@ -250,6 +250,22 @@ def _log_diagnostics(diagnostics: ExtractionDiagnostics | None) -> dict[str, obj
 class BulkImportService:
     """Bulk import orchestration across worker and API layers."""
 
+    def _run_log_context(self, run: ImportRun) -> dict[str, str]:
+        return {
+            "run_id": str(run.id),
+            "organization_id": str(run.organization_id),
+            "filename": run.source_filename,
+            "source_type": run.source_type,
+        }
+
+    def _log_stage_completed(self, run: ImportRun, *, stage: str, started_at: float) -> None:
+        logger.info(
+            "bulk_import_stage_completed",
+            **self._run_log_context(run),
+            stage=stage,
+            duration_ms=round((time.perf_counter() - started_at) * 1000, 2),
+        )
+
     async def sync_discovery_session_for_run(
         self,
         db: AsyncSession,
@@ -430,16 +446,24 @@ class BulkImportService:
                 return
 
             await self._persist_progress_checkpoint(db, run, "reading_file")
+            read_started = time.perf_counter()
             file_bytes = await download_file_content(run.source_file_path)
             if not file_bytes:
                 raise ValueError("empty_file")
             if len(file_bytes) > MAX_IMPORT_FILE_BYTES:
                 raise ParserLimitError("max_file_size_exceeded")
+            self._log_stage_completed(run, stage="reading_file", started_at=read_started)
 
             await self._persist_progress_checkpoint(db, run, "identifying_locations")
+            identify_started = time.perf_counter()
             extension = Path(run.source_filename).suffix.casefold()
             if extension not in ALLOWED_BULK_IMPORT_EXTENSIONS:
                 raise ValueError("unsupported_file_type")
+            self._log_stage_completed(
+                run,
+                stage="identifying_locations",
+                started_at=identify_started,
+            )
 
             await self._persist_progress_checkpoint(db, run, "extracting_streams")
             ai_started = time.perf_counter()
@@ -450,28 +474,27 @@ class BulkImportService:
                 )
                 ai_call_duration_ms = round((time.perf_counter() - ai_started) * 1000, 2)
                 logger.info(
-                    "bulk_import_api_status",
-                    run_id=str(run.id),
-                    filename=run.source_filename,
+                    "bulk_import_bedrock_call_completed",
+                    **self._run_log_context(run),
                     status="success",
-                    duration_ms=ai_call_duration_ms,
+                    bedrock_duration_ms=ai_call_duration_ms,
                     **_log_diagnostics(extraction_result.diagnostics),
                 )
                 parsed_rows = extraction_result.rows
             except BulkImportAIExtractorError as exc:
                 ai_call_duration_ms = round((time.perf_counter() - ai_started) * 1000, 2)
                 logger.info(
-                    "bulk_import_api_status",
-                    run_id=str(run.id),
-                    filename=run.source_filename,
+                    "bulk_import_bedrock_call_completed",
+                    **self._run_log_context(run),
                     status="failed",
-                    duration_ms=ai_call_duration_ms,
+                    bedrock_duration_ms=ai_call_duration_ms,
                     error_code=exc.code,
                     **_log_diagnostics(exc.diagnostics),
                 )
                 raise ValueError(exc.code) from exc
 
             await self._persist_progress_checkpoint(db, run, "categorizing")
+            categorize_started = time.perf_counter()
             await db.execute(delete(ImportItem).where(ImportItem.run_id == run.id))
             staged_items = await self._build_import_items(db, run, parsed_rows)
 
@@ -487,6 +510,7 @@ class BulkImportService:
                 run.processing_error = None
                 await self.sync_discovery_session_for_run(db, run_id=run.id)
                 await db.flush()
+                self._log_stage_completed(run, stage="categorizing", started_at=categorize_started)
                 return
 
             if len(staged_items) > MAX_IMPORT_ITEMS:
@@ -500,6 +524,7 @@ class BulkImportService:
             run.processing_error = None
             await self.sync_discovery_session_for_run(db, run_id=run.id)
             await db.flush()
+            self._log_stage_completed(run, stage="categorizing", started_at=categorize_started)
         except Exception as exc:
             await db.rollback()
             await self._handle_processing_failure(db, run_id=run_id, exc=exc)
