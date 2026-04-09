@@ -69,9 +69,13 @@ export function resolveDiscoveryDecisionResolutions(params: {
 
 	const suggestedLocationName = (candidate.suggestedLocationName ?? "").trim();
 	const suggestedLocationCity = (candidate.suggestedLocationCity ?? "").trim();
-	const suggestedLocationState = (candidate.suggestedLocationState ?? "").trim();
-	const suggestedLocationAddress = (candidate.suggestedLocationAddress ?? "").trim();
- 	const aiLocationAccepted = candidate.aiSuggestedLocationAccepted === true;
+	const suggestedLocationState = (
+		candidate.suggestedLocationState ?? ""
+	).trim();
+	const suggestedLocationAddress = (
+		candidate.suggestedLocationAddress ?? ""
+	).trim();
+	const aiLocationAccepted = candidate.aiSuggestedLocationAccepted === true;
 
 	const locationResolution = locationId
 		? {
@@ -79,9 +83,9 @@ export function resolveDiscoveryDecisionResolutions(params: {
 				locationId,
 			}
 		: aiLocationAccepted &&
-		  suggestedLocationName &&
-		  suggestedLocationCity &&
-		  suggestedLocationState
+				suggestedLocationName &&
+				suggestedLocationCity &&
+				suggestedLocationState
 			? {
 					mode: "create_new" as const,
 					name: suggestedLocationName,
@@ -449,20 +453,24 @@ export function resolveCandidatesAfterFieldChange(params: {
 		const currentClientId = candidate.clientId ?? "";
 		const nextClientId = value;
 		const shouldResetLocation = nextClientId !== currentClientId;
+
+		if (shouldResetLocation) {
+			return {
+				...candidate,
+				clientId: nextClientId,
+				aiSuggestedClientAccepted: false,
+				locationId: null,
+				aiSuggestedLocationAccepted: false,
+				locationResolutionHint: "missing",
+				locationSuggestionLabel: null,
+			};
+		}
+
 		return {
 			...candidate,
 			clientId: nextClientId,
 			aiSuggestedClientAccepted: false,
-			locationId: shouldResetLocation ? null : candidate.locationId,
-			aiSuggestedLocationAccepted: shouldResetLocation
-				? false
-				: candidate.aiSuggestedLocationAccepted,
-			locationResolutionHint: shouldResetLocation
-				? "missing"
-				: candidate.locationResolutionHint,
-			locationSuggestionLabel: shouldResetLocation
-				? null
-				: candidate.locationSuggestionLabel,
+			locationId: candidate.locationId,
 		};
 	});
 }

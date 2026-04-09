@@ -213,8 +213,10 @@ export function mapCandidateRows(
 	return rows.map((row) => {
 		const parsedVolume = parseVolumeSummary(row.volumeSummary);
 		const suggestedNames = resolveSuggestedClientAndLocation({
-			rawSuggestedClientName: row.suggestedCompanyLabel ?? row.companyLabel ?? null,
-			rawSuggestedLocationName: row.suggestedLocationName ?? row.locationLabel ?? null,
+			rawSuggestedClientName:
+				row.suggestedCompanyLabel ?? row.companyLabel ?? null,
+			rawSuggestedLocationName:
+				row.suggestedLocationName ?? row.locationLabel ?? null,
 			suggestedLocationCity: row.suggestedLocationCity ?? null,
 			locationLabel: row.locationLabel ?? null,
 			hasStructuredLocationSuggestion:

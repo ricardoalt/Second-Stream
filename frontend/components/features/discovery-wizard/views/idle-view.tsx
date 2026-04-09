@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
+import { CompanyCombobox } from "@/components/features/shared/company-combobox";
 import { LocationCombobox } from "@/components/features/shared/location-combobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

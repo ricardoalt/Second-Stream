@@ -111,7 +111,8 @@ export function LocationCombobox({
 		suggestedValue: normalizedSuggestedValue,
 		isSuggestedAccepted:
 			isSuggestedAccepted ||
-			(parseAiCreateLocationSelection(value ?? "") !== null && !selectedLocation),
+			(parseAiCreateLocationSelection(value ?? "") !== null &&
+				!selectedLocation),
 		canCreateFromSuggestion: canCreateFromSuggestionResolved,
 		placeholder,
 	});
@@ -156,10 +157,14 @@ export function LocationCombobox({
 							<CommandGroup heading="AI suggestion">
 								{canCreateFromSuggestionResolved ? (
 									<CommandItem
-										value={buildAiCreateLocationSelection(normalizedSuggestedValue)}
+										value={buildAiCreateLocationSelection(
+											normalizedSuggestedValue,
+										)}
 										onSelect={() => {
 											onValueChange?.(
-												buildAiCreateLocationSelection(normalizedSuggestedValue),
+												buildAiCreateLocationSelection(
+													normalizedSuggestedValue,
+												),
 											);
 											setOpen(false);
 										}}
@@ -167,8 +172,12 @@ export function LocationCombobox({
 										Create "{normalizedSuggestedValue}" from AI suggestion
 									</CommandItem>
 								) : (
-									<CommandItem disabled value={`AI suggested ${normalizedSuggestedValue}`}>
-										AI suggested "{normalizedSuggestedValue}" — add city/state to create
+									<CommandItem
+										disabled
+										value={`AI suggested ${normalizedSuggestedValue}`}
+									>
+										AI suggested "{normalizedSuggestedValue}" — add city/state
+										to create
 									</CommandItem>
 								)}
 							</CommandGroup>

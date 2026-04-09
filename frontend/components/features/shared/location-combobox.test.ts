@@ -4,7 +4,7 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 
 const locationComboboxModule = await import("./location-combobox");
 
-	describe("location combobox labels", () => {
+describe("location combobox labels", () => {
 	it("shows existing location name when a real selection exists", () => {
 		expect(
 			locationComboboxModule.resolveLocationTriggerLabel({
@@ -48,18 +48,20 @@ const locationComboboxModule = await import("./location-combobox");
 				canCreateFromSuggestion: false,
 				placeholder: "Select location",
 			}),
-		).toBe("AI suggested: Baton Rouge - Baton Rouge (add city/state to create)");
+		).toBe(
+			"AI suggested: Baton Rouge - Baton Rouge (add city/state to create)",
+		);
 	});
 
 	it("falls back to placeholder when no selection or suggestion exists", () => {
-			expect(
-				locationComboboxModule.resolveLocationTriggerLabel({
-					selectedLocationLabel: null,
-					suggestedValue: null,
-					isSuggestedAccepted: false,
-					canCreateFromSuggestion: false,
-					placeholder: "Select location",
-				}),
-			).toBe("Select location");
-		});
+		expect(
+			locationComboboxModule.resolveLocationTriggerLabel({
+				selectedLocationLabel: null,
+				suggestedValue: null,
+				isSuggestedAccepted: false,
+				canCreateFromSuggestion: false,
+				placeholder: "Select location",
+			}),
+		).toBe("Select location");
+	});
 });

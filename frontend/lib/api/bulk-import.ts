@@ -321,7 +321,7 @@ export const bulkImportAPI = {
 				? {
 						mode: "existing" as const,
 						company_id: companyResolution.companyId,
-				  }
+					}
 				: companyResolution?.mode === "create_new"
 					? {
 							mode: "create_new" as const,
@@ -329,7 +329,7 @@ export const bulkImportAPI = {
 							industry: companyResolution.industry,
 							sector: companyResolution.sector,
 							subsector: companyResolution.subsector,
-					  }
+						}
 					: undefined;
 		const serializedLocationResolution =
 			locationResolution?.mode === "existing"

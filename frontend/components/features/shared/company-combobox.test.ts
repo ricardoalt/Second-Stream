@@ -4,7 +4,7 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 
 const companyComboboxModule = await import("./company-combobox");
 
-	describe("company combobox labels", () => {
+describe("company combobox labels", () => {
 	it("shows existing company name when a real selection exists", () => {
 		expect(
 			companyComboboxModule.resolveCompanyTriggerLabel({
@@ -38,13 +38,13 @@ const companyComboboxModule = await import("./company-combobox");
 	});
 
 	it("falls back to placeholder when no selection or suggestion exists", () => {
-			expect(
-				companyComboboxModule.resolveCompanyTriggerLabel({
-					selectedCompanyName: null,
-					suggestedValue: null,
-					isSuggestedAccepted: false,
-					placeholder: "Select company",
-				}),
-			).toBe("Select company");
-		});
+		expect(
+			companyComboboxModule.resolveCompanyTriggerLabel({
+				selectedCompanyName: null,
+				suggestedValue: null,
+				isSuggestedAccepted: false,
+				placeholder: "Select company",
+			}),
+		).toBe("Select company");
+	});
 });

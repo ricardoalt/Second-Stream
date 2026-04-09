@@ -480,7 +480,11 @@ export function DraftConfirmationModal({
 		for (const action of prefillActions) {
 			onCandidateFieldChange(action.itemId, "clientId", action.clientId);
 		}
-	}, [candidates, onCandidateFieldChange, suggestedClientMatches.draftClientMatches]);
+	}, [
+		candidates,
+		onCandidateFieldChange,
+		suggestedClientMatches.draftClientMatches,
+	]);
 
 	// Progress calculation
 	const progressPercentage = useMemo(() => {
@@ -692,12 +696,12 @@ export function DraftConfirmationModal({
 																</TooltipContent>
 															</Tooltip>
 														) : null}
-								{resolutionState.suggestedLocationLabel ? (
-									<span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-										AI suggested:{" "}
-										{resolutionState.suggestedLocationLabel}
-									</span>
-								) : null}
+														{resolutionState.suggestedLocationLabel ? (
+															<span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+																AI suggested:{" "}
+																{resolutionState.suggestedLocationLabel}
+															</span>
+														) : null}
 														{(candidate.clientId ?? "").trim().length === 0 &&
 														candidate.suggestedClientName &&
 														(suggestedClientMatches.draftClientMatches[
@@ -901,13 +905,15 @@ export function DraftConfirmationModal({
 																	>
 																		Client
 																	</label>
-											<CompanyCombobox
-												value={candidate.clientId ?? ""}
-												suggestedValue={suggestedClientPrefill}
-												isSuggestedAccepted={aiSuggestedClientAccepted}
-												onValueChange={(value) => {
-														onCandidateFieldChange(
-															candidate.itemId,
+																	<CompanyCombobox
+																		value={candidate.clientId ?? ""}
+																		suggestedValue={suggestedClientPrefill}
+																		isSuggestedAccepted={
+																			aiSuggestedClientAccepted
+																		}
+																		onValueChange={(value) => {
+																			onCandidateFieldChange(
+																				candidate.itemId,
 																				"clientId",
 																				value,
 																			);
@@ -921,36 +927,41 @@ export function DraftConfirmationModal({
 																				);
 																			}
 																		}}
-												showCreate={
-													createNewAvailability.canCreateClient
-												}
+																		showCreate={
+																			createNewAvailability.canCreateClient
+																		}
 																		disabled={
 																			disableActions ||
 																			candidate.clientLocked === true
 																		}
 																		placeholder="Select existing client"
-												className="h-9"
-											/>
-											{aiSuggestedClientAccepted ? (
-												<p className="text-xs text-blue-700">
-													Will create client from AI suggestion on confirm.
-												</p>
-											) : null}
-											{candidate.clientLocked ? (
-												<p className="text-xs text-muted-foreground">
-													Client is fixed by wizard scope.
-												</p>
-											) : null}
-											{(candidate.clientId ?? "").trim().length === 0 &&
-											candidate.suggestedClientName &&
-											(suggestedClientMatches.draftClientMatches[candidate.itemId]
-												?.length ?? 0) === 0 ? (
-													<p className="text-xs text-muted-foreground">
-														AI suggested client: {candidate.suggestedClientName}. Use
-														create-new if this client does not exist yet.
-													</p>
-												) : null}
-											{errors?.clientId ? (
+																		className="h-9"
+																	/>
+																	{aiSuggestedClientAccepted ? (
+																		<p className="text-xs text-blue-700">
+																			Will create client from AI suggestion on
+																			confirm.
+																		</p>
+																	) : null}
+																	{candidate.clientLocked ? (
+																		<p className="text-xs text-muted-foreground">
+																			Client is fixed by wizard scope.
+																		</p>
+																	) : null}
+																	{(candidate.clientId ?? "").trim().length ===
+																		0 &&
+																	candidate.suggestedClientName &&
+																	(suggestedClientMatches.draftClientMatches[
+																		candidate.itemId
+																	]?.length ?? 0) === 0 ? (
+																		<p className="text-xs text-muted-foreground">
+																			AI suggested client:{" "}
+																			{candidate.suggestedClientName}. Use
+																			create-new if this client does not exist
+																			yet.
+																		</p>
+																	) : null}
+																	{errors?.clientId ? (
 																		<motion.p
 																			className="text-xs text-destructive"
 																			initial={{ opacity: 0, y: -5 }}
@@ -968,20 +979,24 @@ export function DraftConfirmationModal({
 																	>
 																		Location
 																	</label>
-											<LocationCombobox
-												companyId={candidate.clientId ?? ""}
-												value={candidate.locationId ?? ""}
-												suggestedValue={suggestedLocationPrefill}
-												canCreateFromSuggestion={canCreateSuggestedLocation}
-												isSuggestedAccepted={
-													candidate.aiSuggestedLocationAccepted === true
-												}
-												allowSuggestionWithoutCompany={
-													candidate.aiSuggestedClientAccepted === true
-												}
-												onValueChange={(value) =>
-													onCandidateFieldChange(
-														candidate.itemId,
+																	<LocationCombobox
+																		companyId={candidate.clientId ?? ""}
+																		value={candidate.locationId ?? ""}
+																		suggestedValue={suggestedLocationPrefill}
+																		canCreateFromSuggestion={
+																			canCreateSuggestedLocation
+																		}
+																		isSuggestedAccepted={
+																			candidate.aiSuggestedLocationAccepted ===
+																			true
+																		}
+																		allowSuggestionWithoutCompany={
+																			candidate.aiSuggestedClientAccepted ===
+																			true
+																		}
+																		onValueChange={(value) =>
+																			onCandidateFieldChange(
+																				candidate.itemId,
 																				"locationId",
 																				value,
 																			)
@@ -991,20 +1006,23 @@ export function DraftConfirmationModal({
 																				? "Select or create location"
 																				: "Select client first"
 																		}
-												className="h-9"
-											/>
-											{aiSuggestedLocationAccepted && canCreateSuggestedLocation ? (
-												<p className="text-xs text-blue-700">
-													Will create location from AI suggestion on confirm.
-												</p>
-											) : null}
-											{!canCreateSuggestedLocation &&
-												(candidate.suggestedLocationName ?? "").trim().length > 0 ? (
-													<p className="text-xs text-muted-foreground">
-														AI suggested location needs city/state before it can be
-														created.
-													</p>
-												) : null}
+																		className="h-9"
+																	/>
+																	{aiSuggestedLocationAccepted &&
+																	canCreateSuggestedLocation ? (
+																		<p className="text-xs text-blue-700">
+																			Will create location from AI suggestion on
+																			confirm.
+																		</p>
+																	) : null}
+																	{!canCreateSuggestedLocation &&
+																	(candidate.suggestedLocationName ?? "").trim()
+																		.length > 0 ? (
+																		<p className="text-xs text-muted-foreground">
+																			AI suggested location needs city/state
+																			before it can be created.
+																		</p>
+																	) : null}
 																	{!createNewAvailability.canCreateLocation ? (
 																		<p className="text-xs text-muted-foreground">
 																			Select a client first to enable create-new
@@ -1022,11 +1040,11 @@ export function DraftConfirmationModal({
 																	) : null}
 																	{resolutionState.ambiguousLocation &&
 																	resolutionState.suggestedLocationLabel ? (
-													<p className="text-xs text-muted-foreground">
-														AI suggested location:{" "}
-														{resolutionState.suggestedLocationLabel}.
-														Choose the final location explicitly.
-													</p>
+																		<p className="text-xs text-muted-foreground">
+																			AI suggested location:{" "}
+																			{resolutionState.suggestedLocationLabel}.
+																			Choose the final location explicitly.
+																		</p>
 																	) : null}
 																</div>
 

@@ -12,9 +12,7 @@ export type CandidateValidationErrors = Partial<
 	Record<CandidateEditableField, string>
 >;
 
-export const REQUIRED_FIELDS = new Set<CandidateEditableField>([
-	"material",
-]);
+export const REQUIRED_FIELDS = new Set<CandidateEditableField>(["material"]);
 
 export const NON_EDITABLE_FIELDS = new Set<keyof DraftCandidate>([
 	"itemId",
@@ -58,7 +56,8 @@ export function validateCandidateForConfirmation(
 
 	if (!(candidate.locationId ?? "").trim()) {
 		const clientResolvable =
-			(candidate.clientId ?? "").trim().length > 0 || hasSuggestedClient(candidate);
+			(candidate.clientId ?? "").trim().length > 0 ||
+			hasSuggestedClient(candidate);
 		if (!(clientResolvable && hasSuggestedCreateNewLocation(candidate))) {
 			errors.locationId = "Location is required";
 		}

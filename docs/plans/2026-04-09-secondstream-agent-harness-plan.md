@@ -19,6 +19,8 @@
 - `Discovery Brief` refresh model v1: automatic on relevant product events + explicit manual refresh action
 - `Discovery Brief` transparency model: structured rationale, provenance, confidence, assumptions, and change diff; no raw chain-of-thought exposure
 - Broker correction model: structured point-level feedback, not only whole-brief voting and not freeform overwrite as the primary path
+- `Discovery Brief` to workspace relationship: the brief produces reviewable workspace suggestions; it does not write directly to canonical workspace truth
+- First historical knowledge collection: `historical waste-stream dossiers`
 
 ---
 
@@ -336,6 +338,15 @@ Purpose:
 - outlet fit patterns
 - compliance playbooks
 
+Recommended first collection to build:
+- `historical waste-stream dossiers`
+
+Why first:
+- directly supports the Discovery Completion Agent
+- aligns with the current discovery-first product thesis
+- can be built from current workflows before deeper pricing/compliance intelligence is mature
+- creates the substrate for later pricing and compliance collections
+
 Example folders:
 - `org/{org_id}/knowledge/pricing/`
 - `org/{org_id}/knowledge/materials/`
@@ -437,6 +448,12 @@ Correction rule:
   - `Approve as current working brief`
 - avoid making whole-brief thumbs-up/down the primary feedback mechanism
 - avoid freeform human overwrite of the brief as the primary correction path in v1
+
+Brief-to-workspace rule:
+- the Discovery Brief may emit structured `workspace suggestions`
+- those suggestions should be reviewable and promotable by the broker
+- the Discovery Brief itself must not write directly into canonical workspace truth
+- accepted suggestions may then update workspace truth through the normal reviewable product path
 
 The `Discovery Brief` should contain:
 - what is already known

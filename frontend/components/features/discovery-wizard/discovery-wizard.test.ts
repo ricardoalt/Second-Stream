@@ -873,10 +873,11 @@ describe("candidate confirmation flow", () => {
 		);
 
 		const decideDraftWithoutFallback = mock(async () => ({}) as never);
-		const validationErrors = await discoveryWizardModule.confirmCandidateDecision({
-			candidate,
-			decideDiscoveryDraft: decideDraftWithoutFallback,
-		});
+		const validationErrors =
+			await discoveryWizardModule.confirmCandidateDecision({
+				candidate,
+				decideDiscoveryDraft: decideDraftWithoutFallback,
+			});
 
 		expect(validationErrors.locationId).toBeDefined();
 		expect(decideDraftWithoutFallback).not.toHaveBeenCalled();

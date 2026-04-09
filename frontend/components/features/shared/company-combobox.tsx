@@ -121,7 +121,9 @@ export function CompanyCombobox({
 						{hasSuggestedValue ? (
 							<CommandGroup heading="AI suggestion">
 								<CommandItem
-									value={buildAiCreateCompanySelection(normalizedSuggestedValue)}
+									value={buildAiCreateCompanySelection(
+										normalizedSuggestedValue,
+									)}
 									onSelect={() => {
 										onValueChange?.(
 											buildAiCreateCompanySelection(normalizedSuggestedValue),
