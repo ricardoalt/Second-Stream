@@ -64,7 +64,7 @@ interface CreateCompanyDialogProps {
 		name: string;
 		industry: string;
 		sector: Sector;
-		subsector: Subsector;
+		subsector: Subsector | null;
 		notes?: string;
 		customerType?: CustomerType;
 	};

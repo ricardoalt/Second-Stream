@@ -9,7 +9,7 @@ import type { AddressType, CompanyUpdate } from "@/lib/types/company";
 export type EditClientFormValues = {
 	companyName: string;
 	sector: string;
-	subsector?: string | null;
+	subsector: string;
 	accountStatus: "active" | "prospect";
 	companyNotes: string;
 	contactName: string;
@@ -70,7 +70,7 @@ function resolveIndustryLabel(sector: string, subsector: string): string {
 
 export function buildEditClientCompanyPayload(values: EditClientFormValues) {
 	const sector = values.sector.trim();
-	const subsector = values.subsector?.trim() ?? "";
+	const subsector = values.subsector.trim();
 	if (!isSectorId(sector)) {
 		throw new Error("Please select a valid sector");
 	}

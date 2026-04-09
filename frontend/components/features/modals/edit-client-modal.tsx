@@ -73,7 +73,8 @@ export function EditClientModal({
 			return false;
 		}
 
-		const rawDetails = (err.details as { errors?: unknown } | undefined)?.errors;
+		const rawDetails = (err.details as { errors?: unknown } | undefined)
+			?.errors;
 		if (!Array.isArray(rawDetails)) {
 			return false;
 		}
@@ -320,7 +321,9 @@ export function EditClientModal({
 												field.state.meta.errors.length > 0;
 											return (
 												<div className="grid min-w-0 gap-1.5">
-													<FieldLabel htmlFor={field.name}>Sub-industry</FieldLabel>
+													<FieldLabel htmlFor={field.name}>
+														Sub-industry
+													</FieldLabel>
 													<SubIndustryPicker
 														id={field.name}
 														value={field.state.value}

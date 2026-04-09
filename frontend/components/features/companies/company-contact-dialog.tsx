@@ -191,7 +191,7 @@ export function CompanyContactDialog({
 				}}
 			>
 				<DialogTrigger asChild>{trigger}</DialogTrigger>
-				<DialogFormContent size="sm">
+				<DialogFormContent size="md">
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();

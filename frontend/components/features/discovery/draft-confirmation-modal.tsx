@@ -507,9 +507,8 @@ export function resolveCandidateBatchResolutionState(
 	};
 }
 
-const MODAL_SHELL_WIDTH_CLASS =
-	"w-[calc(100vw-2rem)] max-w-[1240px] sm:max-w-[1240px]";
-const MODAL_CONTENT_WIDTH_CLASS = "mx-auto w-full max-w-[1160px]";
+const MODAL_SHELL_WIDTH_CLASS = "w-[calc(100vw-3rem)] max-w-[1100px]";
+const MODAL_CONTENT_WIDTH_CLASS = "mx-auto w-full";
 const DESKTOP_TABLE_COLUMNS_CLASS =
 	"grid-cols-[minmax(0,2.3fr)_minmax(120px,1fr)_minmax(72px,0.7fr)_minmax(72px,0.6fr)_minmax(96px,0.9fr)_minmax(196px,1.45fr)]";
 

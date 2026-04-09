@@ -170,7 +170,7 @@ export function LocationContactDialog({
 				}}
 			>
 				<DialogTrigger asChild>{trigger}</DialogTrigger>
-				<DialogFormContent size="sm">
+				<DialogFormContent size="md">
 					<form
 						onSubmit={(event) => {
 							event.preventDefault();
