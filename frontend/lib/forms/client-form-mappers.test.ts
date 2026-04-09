@@ -103,6 +103,45 @@ describe("client-form-mappers", () => {
 		expect(companyUpdate.sector).toBe("manufacturing_industrial");
 	});
 
+	it("maps payload with sector-only taxonomy when subsector is missing", () => {
+		const payload = buildEditClientCompanyPayload({
+			companyName: "Northstar",
+			sector: "manufacturing_industrial",
+			accountStatus: "active",
+			companyNotes: "",
+			contactName: "",
+			contactTitle: "",
+			contactEmail: "",
+			contactPhone: "",
+		});
+
+		expect(payload).toEqual({
+			name: "Northstar",
+			industry: "Manufacturing & Industrial",
+			sector: "manufacturing_industrial",
+			subsector: null,
+			accountStatus: "active",
+			notes: "",
+		});
+	});
+
+	it("normalizes whitespace-only subsector to null", () => {
+		const payload = buildEditClientCompanyPayload({
+			companyName: "Northstar",
+			sector: "manufacturing_industrial",
+			subsector: "   ",
+			accountStatus: "active",
+			companyNotes: "",
+			contactName: "",
+			contactTitle: "",
+			contactEmail: "",
+			contactPhone: "",
+		});
+
+		expect(payload.subsector).toBeNull();
+		expect(payload.industry).toBe("Manufacturing & Industrial");
+	});
+
 	it("rejects sector values outside supported taxonomy", () => {
 		expect(() =>
 			buildEditClientCompanyPayload({

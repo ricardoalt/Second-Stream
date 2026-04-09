@@ -9,7 +9,7 @@ import type { AddressType, CompanyUpdate } from "@/lib/types/company";
 export type EditClientFormValues = {
 	companyName: string;
 	sector: string;
-	subsector: string;
+	subsector?: string | null;
 	accountStatus: "active" | "prospect";
 	companyNotes: string;
 	contactName: string;
@@ -34,7 +34,7 @@ export function buildEditClientInitialValues(
 	return {
 		companyName: profile.name,
 		sector: profile.sector,
-		subsector: profile.subsector,
+		subsector: profile.subsector ?? "",
 		accountStatus: profile.accountStatus ?? "active",
 		companyNotes: profile.notes,
 		contactName: profile.primaryContact?.name ?? "",
@@ -47,6 +47,10 @@ export function buildEditClientInitialValues(
 function resolveIndustryLabel(sector: string, subsector: string): string {
 	if (!isSectorId(sector)) {
 		throw new Error("Please select a valid sector");
+	}
+
+	if (subsector.length === 0) {
+		return getSectorConfig(sector)?.label ?? sector;
 	}
 
 	if (!isSubsectorInSector(sector, subsector)) {
@@ -66,15 +70,16 @@ function resolveIndustryLabel(sector: string, subsector: string): string {
 
 export function buildEditClientCompanyPayload(values: EditClientFormValues) {
 	const sector = values.sector.trim();
+	const subsector = values.subsector?.trim() ?? "";
 	if (!isSectorId(sector)) {
 		throw new Error("Please select a valid sector");
 	}
 
 	return {
 		name: values.companyName.trim(),
-		industry: resolveIndustryLabel(sector, values.subsector.trim()),
+		industry: resolveIndustryLabel(sector, subsector),
 		sector,
-		subsector: values.subsector.trim(),
+		subsector: subsector.length > 0 ? subsector : null,
 		accountStatus: values.accountStatus,
 		notes: values.companyNotes.trim(),
 	} satisfies CompanyUpdate;

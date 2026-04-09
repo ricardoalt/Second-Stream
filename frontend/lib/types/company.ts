@@ -12,7 +12,7 @@ export interface CompanyBase {
 	name: string;
 	industry: string;
 	sector: Sector;
-	subsector: Subsector;
+	subsector: Subsector | null;
 	customerType: CustomerType;
 	accountStatus?: AccountStatus;
 	notes?: string;

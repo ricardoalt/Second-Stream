@@ -50,7 +50,7 @@ export type ClientProfile = {
 	customerType: CustomerType;
 	accountStatus: AccountStatus | null;
 	sector: string;
-	subsector: string;
+	subsector: string | null;
 	notes: string;
 	locationCount: number;
 	locations: LocationSummary[];

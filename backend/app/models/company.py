@@ -54,9 +54,9 @@ class Company(BaseModel):
         index=True,
         comment="commercial, industrial, residential, municipal, other",
     )
-    subsector: Mapped[str] = mapped_column(
+    subsector: Mapped[str | None] = mapped_column(
         String(100),
-        nullable=False,
+        nullable=True,
         comment="Specific subsector within the sector (e.g., food_processing, hotel)",
     )
 

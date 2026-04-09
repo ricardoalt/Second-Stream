@@ -603,8 +603,8 @@ export function DraftConfirmationModal({
 						Confirm identified streams
 					</DialogTitle>
 					<DialogDescription className="sr-only">
-						Review AI-extracted chemical waste manifests before system
-						ingestion.
+						Review the waste streams AI found. Confirm the ones you want to
+						keep.
 					</DialogDescription>
 
 					{/* Header */}
@@ -620,8 +620,8 @@ export function DraftConfirmationModal({
 									Confirm Identified Streams
 								</h2>
 								<p className="mt-0.5 max-w-[42rem] text-sm text-muted-foreground">
-									Review AI-extracted chemical waste manifests before system
-									ingestion.
+									Review the waste streams AI found. Confirm the ones you want
+									to keep.
 								</p>
 
 								{/* Progress Bar */}
@@ -802,6 +802,7 @@ export function DraftConfirmationModal({
 														) : null}
 														{resolutionState.suggestedLocationLabel ? (
 															<span className="inline-flex items-center gap-1 rounded bg-blue-50/70 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+																<Sparkles className="size-2.5 shrink-0" />
 																AI suggests:{" "}
 																{resolutionState.suggestedLocationLabel}
 															</span>
@@ -812,6 +813,7 @@ export function DraftConfirmationModal({
 															candidate.itemId
 														]?.length ?? 0) > 0 ? (
 															<span className="inline-flex items-center gap-1 rounded bg-blue-50/70 px-1.5 py-0.5 text-[10px] text-blue-700">
+																<Sparkles className="size-2.5 shrink-0" />
 																Match candidate found for “
 																{candidate.suggestedClientName}”
 															</span>
@@ -922,7 +924,11 @@ export function DraftConfirmationModal({
 																	</Button>
 																</TooltipTrigger>
 																<TooltipContent side="top">
-																	<p>Confirm and create waste stream</p>
+																	<p>
+																		{resolutionState.requiresResolution
+																			? "Select a client and location to confirm"
+																			: "Confirm and create waste stream"}
+																	</p>
 																</TooltipContent>
 															</Tooltip>
 
@@ -931,8 +937,8 @@ export function DraftConfirmationModal({
 																	<TooltipTrigger asChild>
 																		<Button
 																			variant="ghost"
-																			size="icon"
-																			className="h-8 w-8 text-muted-foreground hover:text-destructive transition-all duration-200 hover:scale-110"
+																			size="sm"
+																			className="h-8 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all duration-200 hover:scale-105 active:scale-95"
 																			onClick={() =>
 																				onRejectCandidate(candidate.itemId)
 																			}
@@ -941,7 +947,10 @@ export function DraftConfirmationModal({
 																			{showSpinner ? (
 																				<Loader2 className="size-3.5 animate-spin" />
 																			) : (
-																				<Trash2 className="size-3.5" />
+																				<>
+																					<Trash2 className="mr-1 size-3.5" />
+																					Discard
+																				</>
 																			)}
 																		</Button>
 																	</TooltipTrigger>
@@ -1112,6 +1121,12 @@ export function DraftConfirmationModal({
 																		placeholder="Select location..."
 																		className="h-9"
 																	/>
+																	{!(candidate.clientId ?? "").trim() &&
+																	!aiSuggestedClientBadgeVisible ? (
+																		<p className="text-xs text-muted-foreground">
+																			Select a client first
+																		</p>
+																	) : null}
 																	{suggestedLocationPrefill ? (
 																		<p className="text-xs text-muted-foreground">
 																			AI suggests: {suggestedLocationPrefill}
@@ -1318,33 +1333,46 @@ export function DraftConfirmationModal({
 									<div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground cursor-help">
 										<Sparkles className="size-4 shrink-0 text-primary" />
 										<span className="truncate">
-											{confirmedCount > 0 && pendingCount > 0 ? (
-												<>
-													<strong className="text-success">
-														{confirmedCount}
-													</strong>{" "}
-													confirmed · <strong>{pendingCount}</strong> left as
-													drafts
-												</>
-											) : resolutionSummary.hasMixedResolvedAndIncomplete ? (
-												<>
-													<strong className="text-success">
-														{resolutionSummary.resolvedCount}
-													</strong>{" "}
-													resolved ·{" "}
-													<strong>{resolutionSummary.incompleteCount}</strong>{" "}
-													incomplete
-												</>
-											) : confirmedCount > 0 ? (
-												<>
-													<strong className="text-success">
-														{confirmedCount}
-													</strong>{" "}
-													confirmed · ready to finish
-												</>
+											{confirmedCount > 0 ? (
+												confirmedCount === totalCount ? (
+													<>
+														<strong className="text-success">
+															{confirmedCount}
+														</strong>
+														of {totalCount} confirmed · ready to finish
+													</>
+												) : (
+													<>
+														<strong className="text-success">
+															{confirmedCount}
+														</strong>
+														of {totalCount} confirmed
+														{resolutionSummary.incompleteCount > 0 ? (
+															<>
+																{" "}
+																·{" "}
+																<strong>
+																	{resolutionSummary.incompleteCount}
+																</strong>{" "}
+																need resolution
+															</>
+														) : null}
+													</>
+												)
 											) : (
 												<>
-													<strong>{pendingCount}</strong> still in review
+													<strong>{totalCount}</strong>
+													stream{totalCount === 1 ? "" : "s"} to review
+													{resolutionSummary.incompleteCount > 0 ? (
+														<>
+															{" "}
+															·{" "}
+															<strong>
+																{resolutionSummary.incompleteCount}
+															</strong>{" "}
+															need resolution
+														</>
+													) : null}
 												</>
 											)}
 										</span>

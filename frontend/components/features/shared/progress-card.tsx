@@ -85,7 +85,12 @@ export const ProgressCard = memo(function ProgressCard({
 						</div>
 					</div>
 
-					<StatusChip status={statusVariant} variant="subtle" size="sm">
+					<StatusChip
+						status={statusVariant}
+						variant="subtle"
+						size="sm"
+						className="min-w-[140px] justify-center"
+					>
 						{statusLabel}
 					</StatusChip>
 				</div>

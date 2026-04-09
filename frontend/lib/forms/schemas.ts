@@ -141,7 +141,7 @@ export const editClientSchema = z
 			.refine((value) => isSectorId(value.trim()), {
 				message: "Please select a valid sector",
 			}),
-		subsector: z.string().min(1, "Please select a subsector"),
+		subsector: z.string().default(""),
 		accountStatus: z.enum(ACCOUNT_STATUSES, {
 			required_error: "Please select an account status",
 		}),
@@ -152,7 +152,14 @@ export const editClientSchema = z
 		contactPhone: z.string().default(""),
 	})
 	.refine(
-		(data) => isSubsectorInSector(data.sector.trim(), data.subsector.trim()),
+		(data) => {
+			const subsector = data.subsector.trim();
+			if (subsector.length === 0) {
+				return true;
+			}
+
+			return isSubsectorInSector(data.sector.trim(), subsector);
+		},
 		{
 			message: "Please select a valid subsector for the selected sector.",
 			path: ["subsector"],

@@ -48,6 +48,15 @@ describe("editClientSchema validation", () => {
 		}
 	});
 
+	it("accepts empty subsector when sector is selected", () => {
+		const parsed = editClientSchema.safeParse({
+			...baseData,
+			subsector: "",
+		});
+
+		expect(parsed.success).toBe(true);
+	});
+
 	it("accepts empty optional contact fields", () => {
 		const parsed = editClientSchema.safeParse({
 			...baseData,

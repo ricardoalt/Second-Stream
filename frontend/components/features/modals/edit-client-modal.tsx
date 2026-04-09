@@ -30,6 +30,7 @@ import {
 	Input,
 	Textarea,
 } from "@/components/ui";
+import { APIClientError } from "@/lib/api/client";
 import { companiesAPI } from "@/lib/api/companies";
 import {
 	buildEditClientCompanyPayload,
@@ -66,6 +67,60 @@ export function EditClientModal({
 	onSaved,
 }: EditClientModalProps) {
 	const [error, setError] = useState<string | null>(null);
+
+	const applyBackendValidationErrors = (err: APIClientError): boolean => {
+		if (err.code !== "VALIDATION_ERROR") {
+			return false;
+		}
+
+		const rawDetails = (err.details as { errors?: unknown } | undefined)?.errors;
+		if (!Array.isArray(rawDetails)) {
+			return false;
+		}
+
+		let appliedAny = false;
+
+		for (const issue of rawDetails) {
+			if (typeof issue !== "object" || issue === null) {
+				continue;
+			}
+
+			const path = (issue as { loc?: unknown }).loc;
+			const message = (issue as { msg?: unknown }).msg;
+			if (!Array.isArray(path) || typeof message !== "string") {
+				continue;
+			}
+
+			const fieldName = path[path.length - 1];
+			if (typeof fieldName !== "string") {
+				continue;
+			}
+
+			const resolvedFieldName =
+				fieldName === "name"
+					? "companyName"
+					: fieldName === "account_status"
+						? "accountStatus"
+						: fieldName;
+
+			if (
+				resolvedFieldName === "subsector" ||
+				resolvedFieldName === "sector" ||
+				resolvedFieldName === "companyName" ||
+				resolvedFieldName === "accountStatus"
+			) {
+				form.setFieldMeta(
+					resolvedFieldName as keyof ReturnType<
+						typeof buildEditClientInitialValues
+					>,
+					(meta) => ({ ...meta, isTouched: true, errors: [message] }),
+				);
+				appliedAny = true;
+			}
+		}
+
+		return appliedAny;
+	};
 
 	const form = useForm({
 		defaultValues: buildEditClientInitialValues(profile),
@@ -108,6 +163,15 @@ export function EditClientModal({
 				onClose();
 				onSaved?.();
 			} catch (err) {
+				if (err instanceof APIClientError) {
+					if (applyBackendValidationErrors(err)) {
+						setError("Please review the highlighted fields and try again.");
+						return;
+					}
+					setError(err.message);
+					return;
+				}
+
 				setError(err instanceof Error ? err.message : "Failed to save changes");
 			}
 		},
@@ -218,45 +282,65 @@ export function EditClientModal({
 												!value.trim() ? "Please select a sector" : undefined,
 										}}
 									>
-										{(field) => (
-											<div className="grid gap-1.5">
-												<FieldLabel required htmlFor={field.name}>
-													Industry type
-												</FieldLabel>
-												<IndustryPicker
-													id={field.name}
-													value={field.state.value}
-													onValueChange={(value) => {
-														field.handleChange(value);
-														form.setFieldValue("subsector", "");
-													}}
-													triggerClassName="bg-surface"
-												/>
-											</div>
-										)}
+										{(field) => {
+											const hasError =
+												field.state.meta.isTouched &&
+												field.state.meta.errors.length > 0;
+											return (
+												<div className="grid gap-1.5">
+													<FieldLabel required htmlFor={field.name}>
+														Industry type
+													</FieldLabel>
+													<IndustryPicker
+														id={field.name}
+														value={field.state.value}
+														onValueChange={(value) => {
+															field.handleChange(value);
+															form.setFieldValue("subsector", "");
+														}}
+														triggerClassName="bg-surface"
+														aria-invalid={hasError}
+													/>
+													{hasError && (
+														<p className="text-xs text-destructive">
+															{field.state.meta.errors[0]}
+														</p>
+													)}
+												</div>
+											);
+										}}
 									</form.Field>
 								</div>
 
 								<div className="grid gap-4">
 									<form.Field name="subsector">
-										{(field) => (
-											<div className="grid min-w-0 gap-1.5">
-												<FieldLabel htmlFor={field.name}>
-													Sub-industry
-												</FieldLabel>
-												<SubIndustryPicker
-													id={field.name}
-													value={field.state.value}
-													onValueChange={(value) => field.handleChange(value)}
-													sector={
-														isSector(form.state.values.sector)
-															? form.state.values.sector
-															: ""
-													}
-													triggerClassName="bg-surface"
-												/>
-											</div>
-										)}
+										{(field) => {
+											const hasError =
+												field.state.meta.isTouched &&
+												field.state.meta.errors.length > 0;
+											return (
+												<div className="grid min-w-0 gap-1.5">
+													<FieldLabel htmlFor={field.name}>Sub-industry</FieldLabel>
+													<SubIndustryPicker
+														id={field.name}
+														value={field.state.value}
+														onValueChange={(value) => field.handleChange(value)}
+														sector={
+															isSector(form.state.values.sector)
+																? form.state.values.sector
+																: ""
+														}
+														triggerClassName="bg-surface"
+														aria-invalid={hasError}
+													/>
+													{hasError && (
+														<p className="text-xs text-destructive">
+															{field.state.meta.errors[0]}
+														</p>
+													)}
+												</div>
+											);
+										}}
 									</form.Field>
 
 									<div className="grid gap-x-5 gap-y-4 md:grid-cols-2">

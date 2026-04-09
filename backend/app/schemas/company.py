@@ -8,11 +8,20 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.schemas.common import BaseSchema
 from app.schemas.company_contact import CompanyContactRead
 from app.schemas.location import LocationSummary
+
+
+def _normalize_subsector(value: object) -> object:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        trimmed = value.strip()
+        return trimmed if trimmed else None
+    return value
 
 
 class CompanyBase(BaseSchema):
@@ -26,9 +35,8 @@ class CompanyBase(BaseSchema):
         max_length=50,
         description="Sector: commercial, industrial, residential, municipal, other",
     )
-    subsector: str = Field(
-        ...,
-        min_length=1,
+    subsector: str | None = Field(
+        None,
         max_length=100,
         description="Specific subsector within sector (e.g., food_processing, hotel)",
     )
@@ -36,6 +44,11 @@ class CompanyBase(BaseSchema):
     tags: list[str] = Field(default_factory=list)
     customer_type: Literal["buyer", "generator", "both"] = "both"
     account_status: Literal["active", "prospect"] = "active"
+
+    @field_validator("subsector", mode="before")
+    @classmethod
+    def normalize_blank_subsector_to_none(cls, value: object) -> object:
+        return _normalize_subsector(value)
 
 
 class CompanyCreate(CompanyBase):
@@ -55,6 +68,11 @@ class CompanyUpdate(BaseSchema):
     tags: list[str] | None = None
     customer_type: Literal["buyer", "generator", "both"] | None = None
     account_status: Literal["active", "prospect"] | None = None
+
+    @field_validator("subsector", mode="before")
+    @classmethod
+    def normalize_blank_subsector_to_none(cls, value: object) -> object:
+        return _normalize_subsector(value)
 
 
 class CompanySummary(CompanyBase):

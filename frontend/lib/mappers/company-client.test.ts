@@ -32,7 +32,10 @@ const baseCompanySummary = (
 	name: overrides?.name ?? "Northstar Chemicals",
 	industry: overrides?.industry ?? "Chemicals",
 	sector: overrides?.sector ?? "chemicals_pharmaceuticals",
-	subsector: overrides?.subsector ?? "chemical_manufacturing",
+	subsector:
+		overrides && Object.hasOwn(overrides, "subsector")
+			? (overrides.subsector as CompanySummary["subsector"])
+			: "chemical_manufacturing",
 	customerType: overrides?.customerType ?? "generator",
 	accountStatus: overrides?.accountStatus,
 	notes: overrides?.notes,
@@ -123,6 +126,16 @@ describe("company-client mappers", () => {
 		expect(profile.accountStatus).toBe("prospect");
 		expect(profile.archivedAt).toBeNull();
 		expect(profile.notes).toBe("High-volume account");
+	});
+
+	it("preserves null subsector from backend profile payloads", () => {
+		const detail = baseCompanyDetail({
+			subsector: null,
+		});
+
+		const profile = toClientProfile(detail);
+
+		expect(profile.subsector).toBeNull();
 	});
 
 	it("formats truthful offers-count signals for related streams", () => {

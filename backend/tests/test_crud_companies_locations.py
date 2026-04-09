@@ -223,6 +223,63 @@ async def test_update_company(client: AsyncClient, db_session, set_current_user)
 
 
 @pytest.mark.asyncio
+async def test_create_company_allows_null_subsector(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Nullable Subsector Create", "org-null-sub-create")
+    user = await create_user(
+        db_session,
+        email=f"null-sub-create-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    set_current_user(user)
+    response = await client.post(
+        "/api/v1/companies/",
+        json={
+            "name": "No Subsector Co",
+            "industry": "Manufacturing & Industrial",
+            "sector": "manufacturing_industrial",
+            "subsector": None,
+            "customerType": "generator",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["subsector"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_company_normalizes_blank_subsector_to_null(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Nullable Subsector Update", "org-null-sub-update")
+    user = await create_user(
+        db_session,
+        email=f"null-sub-update-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Subsector Company")
+
+    set_current_user(user)
+    response = await client.put(
+        f"/api/v1/companies/{company.id}",
+        json={"subsector": "   "},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["subsector"] is None
+
+
+@pytest.mark.asyncio
 async def test_list_locations(client: AsyncClient, db_session, set_current_user):
     uid = uuid.uuid4().hex[:8]
     org = await create_org(db_session, "Org List Loc", "org-list-loc")

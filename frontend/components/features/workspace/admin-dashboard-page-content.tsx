@@ -511,6 +511,7 @@ export function AdminDashboardPageContent({
 											status={chipStatus}
 											variant="subtle"
 											size="sm"
+											className="min-w-[140px] justify-center"
 											{...(days > 0 ? { days: Math.min(days, 28) } : {})}
 										>
 											{queueReasonLabel(primary.queuePriorityReason)}
@@ -519,7 +520,12 @@ export function AdminDashboardPageContent({
 								}
 
 								return (
-									<StatusChip status="success" variant="subtle" size="sm">
+									<StatusChip
+										status="success"
+										variant="subtle"
+										size="sm"
+										className="min-w-[140px] justify-center"
+									>
 										On Track
 									</StatusChip>
 								);
