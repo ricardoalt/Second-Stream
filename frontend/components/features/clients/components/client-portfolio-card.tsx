@@ -1,5 +1,13 @@
-import { ArrowUpRight, Building2, Factory, Mail, Phone } from "lucide-react";
+import {
+	ArrowUpRight,
+	Building2,
+	Clock,
+	Factory,
+	Mail,
+	Phone,
+} from "lucide-react";
 import Link from "next/link";
+import { MetaBadge } from "@/components/patterns";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -46,9 +54,11 @@ export function ClientPortfolioCard({ client }: { client: PortfolioRow }) {
 						<p className="text-[0.68rem] uppercase tracking-[0.08em] text-secondary">
 							Updated
 						</p>
-						<p className="mt-1 text-sm font-semibold text-foreground">
-							{new Date(client.updatedAt).toLocaleDateString()}
-						</p>
+						<div className="mt-1">
+							<MetaBadge icon={Clock}>
+								{new Date(client.updatedAt).toLocaleDateString()}
+							</MetaBadge>
+						</div>
 					</div>
 				</div>
 

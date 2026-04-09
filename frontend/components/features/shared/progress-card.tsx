@@ -1,5 +1,6 @@
+import { Building2, Clock } from "lucide-react";
 import { memo } from "react";
-import { StatusChip } from "@/components/patterns";
+import { MetaBadge, StatusChip } from "@/components/patterns";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -56,13 +57,17 @@ export const ProgressCard = memo(function ProgressCard({
 			<div className="flex items-center justify-between gap-4">
 				<div className="min-w-0 flex-1">
 					<p className="truncate font-medium text-foreground">{title}</p>
-					<p className="truncate text-xs text-muted-foreground">
-						{subtitle}
-						<span className="mx-1.5 text-muted-foreground/60">•</span>
-						Created {date}
-						<span className="mx-1.5 text-muted-foreground/60">•</span>({daysOld}{" "}
-						days old)
-					</p>
+					<div className="mt-0.5 flex min-w-0 items-center gap-2">
+						<span className="flex min-w-0 items-center gap-1 truncate text-xs font-medium text-foreground/70">
+							<Building2 className="size-3 shrink-0 text-muted-foreground" />
+							<span className="truncate">{subtitle}</span>
+						</span>
+						<span className="text-muted-foreground/50">·</span>
+						<span className="shrink-0 text-xs text-muted-foreground">
+							{date}
+						</span>
+						<MetaBadge icon={Clock}>{daysOld}d</MetaBadge>
+					</div>
 				</div>
 
 				<div className="flex items-center gap-6">

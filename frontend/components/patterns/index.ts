@@ -11,6 +11,7 @@ export {
 export { ActionCard } from "./data-display/action-card";
 export { AnimatedNumber } from "./data-display/animated-number";
 export { KpiCard } from "./data-display/kpi-card";
+export { MetaBadge } from "./data-display/meta-badge";
 export { StatRail } from "./data-display/stat-rail";
 
 // ── Dialogs ──

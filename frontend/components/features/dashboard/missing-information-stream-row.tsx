@@ -1,4 +1,5 @@
 import { AlertCircle, CheckCircle2, Clock, Mail } from "lucide-react";
+import { MetaBadge } from "@/components/patterns";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { MissingInformationStream } from "./field-agent-dashboard.types";
@@ -89,18 +90,9 @@ export function MissingInformationStreamRow({
 				</div>
 
 				<div className="flex items-center justify-end gap-6">
-					<div className="text-right">
-						<p
-							className={cn(
-								"text-sm font-semibold",
-								stream.priority === "critical"
-									? "text-destructive"
-									: "text-foreground",
-							)}
-						>
-							{stream.lastTouched}
-						</p>
-						<p className="text-[10px] text-muted-foreground mt-0.5 capitalize">
+					<div className="flex flex-col items-end gap-1">
+						<MetaBadge icon={Clock}>{stream.lastTouched}</MetaBadge>
+						<p className="text-[10px] text-muted-foreground capitalize">
 							{stream.priority} priority
 						</p>
 					</div>

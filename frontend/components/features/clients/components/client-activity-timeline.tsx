@@ -1,10 +1,12 @@
 import {
 	ClipboardPenLine,
+	Clock,
 	FileCheck2,
 	Mail,
 	Phone,
 	Workflow,
 } from "lucide-react";
+import { MetaBadge } from "@/components/patterns";
 import {
 	Card,
 	CardContent,
@@ -73,7 +75,7 @@ export function ClientActivityTimeline({
 									{item.description}
 								</p>
 							</div>
-							<p className="text-xs text-muted-foreground">{item.at}</p>
+							<MetaBadge icon={Clock}>{item.at}</MetaBadge>
 						</div>
 					);
 				})}

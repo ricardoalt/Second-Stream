@@ -1,5 +1,6 @@
-import { MoreHorizontal } from "lucide-react";
+import { Clock, MoreHorizontal } from "lucide-react";
 import Link from "next/link";
+import { MetaBadge } from "@/components/patterns";
 import {
 	Table,
 	TableBody,
@@ -64,8 +65,8 @@ export function OffersPipelineTable({
 						<TableCell className="px-4 py-3 font-medium text-foreground">
 							{formatCurrency(offer.valueUsd)}
 						</TableCell>
-						<TableCell className="px-4 py-3 text-muted-foreground">
-							{offer.updatedAt}
+						<TableCell className="px-4 py-3">
+							<MetaBadge icon={Clock}>{offer.updatedAt}</MetaBadge>
 						</TableCell>
 						<TableCell className="px-4 py-3 text-right">
 							<button
