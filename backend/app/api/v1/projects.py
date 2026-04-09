@@ -96,6 +96,77 @@ PROJECT_DETAIL_TIMELINE_LIMIT = 10
 bulk_import_service = BulkImportService()
 
 
+def _sanitize_dashboard_text(value: object, max_len: int) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if len(cleaned) > max_len:
+        return cleaned[:max_len]
+    return cleaned
+
+
+def _sanitize_dashboard_confidence(value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, float):
+        parsed = int(value)
+    elif isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            parsed = int(stripped)
+        except ValueError:
+            return None
+    else:
+        return None
+    if parsed < 0:
+        return 0
+    if parsed > 100:
+        return 100
+    return parsed
+
+
+def _resolve_dashboard_confidence(*, primary: object, fallback: object) -> int | None:
+    primary_value = _sanitize_dashboard_confidence(primary)
+    if primary_value is not None:
+        return primary_value
+    return _sanitize_dashboard_confidence(fallback)
+
+
+def _sanitize_dashboard_evidence(value: object, *, max_items: int = 10) -> list[str]:
+    if value is None:
+        return []
+    candidates: list[str] = []
+    if isinstance(value, list):
+        for entry in value:
+            cleaned = _sanitize_dashboard_text(entry, max_len=500)
+            if cleaned:
+                candidates.append(cleaned)
+    elif isinstance(value, str):
+        for chunk in value.split("|"):
+            cleaned = _sanitize_dashboard_text(chunk, max_len=500)
+            if cleaned:
+                candidates.append(cleaned)
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = candidate.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(candidate)
+        if len(deduped) >= max_items:
+            break
+    return deduped
+
+
 async def _resolve_project_owner_user_id(
     *,
     db: AsyncDB,
@@ -716,6 +787,8 @@ async def _build_draft_dashboard_rows(
         entrypoint_location_company_name,
     ) in query_rows:
         normalized_data = item.normalized_data if isinstance(item.normalized_data, dict) else {}
+        extracted_data = item.extracted_data if isinstance(item.extracted_data, dict) else {}
+        user_amendments = item.user_amendments if isinstance(item.user_amendments, dict) else {}
         parent_data = (
             parent_item.normalized_data
             if parent_item is not None and isinstance(parent_item.normalized_data, dict)
@@ -723,6 +796,26 @@ async def _build_draft_dashboard_rows(
         )
         resolved_company_id = entrypoint_company_id or entrypoint_location_company_id
         resolved_company_label = entrypoint_company_name or entrypoint_location_company_name
+        if run.entrypoint_type == "organization":
+            company_resolution = user_amendments.get("company_resolution")
+            if isinstance(company_resolution, dict):
+                selected_company_id = company_resolution.get("company_id")
+                selected_company_name = company_resolution.get("name")
+                if isinstance(selected_company_id, str):
+                    try:
+                        resolved_company_id = UUID(selected_company_id)
+                    except ValueError:
+                        pass
+                if isinstance(selected_company_name, str) and selected_company_name.strip():
+                    resolved_company_label = selected_company_name.strip()
+            if resolved_company_label is None:
+                normalized_company_name = normalized_data.get("company_name")
+                if isinstance(normalized_company_name, str) and normalized_company_name.strip():
+                    resolved_company_label = normalized_company_name.strip()
+            if resolved_company_label is None:
+                normalized_client_name = normalized_data.get("client")
+                if isinstance(normalized_client_name, str) and normalized_client_name.strip():
+                    resolved_company_label = normalized_client_name.strip()
         if company_id is not None and (
             resolved_company_id is None or resolved_company_id != company_id
         ):
@@ -772,7 +865,48 @@ async def _build_draft_dashboard_rows(
                 stream_name=stream_name,
                 company_id=resolved_company_id,
                 company_label=resolved_company_label,
+                suggested_company_label=(
+                    _sanitize_dashboard_text(normalized_data.get("company_name"), max_len=255)
+                    or _sanitize_dashboard_text(normalized_data.get("client"), max_len=255)
+                    or None
+                ),
                 location_label=location_label,
+                suggested_location_name=(
+                    _sanitize_dashboard_text(normalized_data.get("location_name"), max_len=255)
+                    or None
+                ),
+                suggested_location_city=(
+                    _sanitize_dashboard_text(normalized_data.get("location_city"), max_len=100)
+                    or None
+                ),
+                suggested_location_state=(
+                    _sanitize_dashboard_text(normalized_data.get("location_state"), max_len=100)
+                    or None
+                ),
+                suggested_location_address=(
+                    _sanitize_dashboard_text(normalized_data.get("location_address"), max_len=500)
+                    or None
+                ),
+                suggested_client_confidence=(
+                    _resolve_dashboard_confidence(
+                        primary=normalized_data.get("suggested_client_confidence"),
+                        fallback=extracted_data.get("suggested_client_confidence"),
+                    )
+                ),
+                suggested_client_evidence=(
+                    _sanitize_dashboard_evidence(normalized_data.get("suggested_client_evidence"))
+                    or _sanitize_dashboard_evidence(extracted_data.get("suggested_client_evidence"))
+                ),
+                suggested_location_confidence=(
+                    _resolve_dashboard_confidence(
+                        primary=normalized_data.get("suggested_location_confidence"),
+                        fallback=extracted_data.get("suggested_location_confidence"),
+                    )
+                ),
+                suggested_location_evidence=(
+                    _sanitize_dashboard_evidence(normalized_data.get("suggested_location_evidence"))
+                    or _sanitize_dashboard_evidence(extracted_data.get("suggested_location_evidence"))
+                ),
                 volume_summary=_extract_volume_summary(normalized_data),
                 last_activity_at=item.updated_at,
                 source_type=run.source_type,

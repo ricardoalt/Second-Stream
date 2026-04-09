@@ -62,7 +62,7 @@ export function ScoreSelector({
 								? "fill-rating-star/30 text-rating-star/60"
 								: // Solid fill: either a rated star, or hovering at/below current
 									score <= (hoveredValue || value)
-									? "fill-amber-400 text-amber-500"
+									? "fill-rating-star text-rating-star"
 									: "text-muted-foreground/40",
 							!disabled && "active:scale-90",
 						)}

@@ -18,7 +18,6 @@ from sqlalchemy.orm import selectinload
 from app.authz.authz import raise_org_access_denied, raise_resource_not_found
 from app.core.config import settings
 from app.models.bulk_import import ImportItem, ImportRun
-from app.models.company import Company
 from app.models.discovery_session import DiscoverySession, DiscoverySource
 from app.models.user import User
 from app.models.voice_interview import VoiceInterview
@@ -166,13 +165,15 @@ class DiscoverySessionService:
         db: AsyncSession,
         *,
         organization_id: UUID,
-        company_id: UUID,
+        company_id: UUID | None,
+        location_id: UUID | None,
         user_id: UUID,
         assigned_owner_user_id: UUID | None,
     ) -> DiscoverySession:
-        await self._load_company_in_scope(
-            db, organization_id=organization_id, company_id=company_id
-        )
+        # Discovery wizard is confirm-only: session scope is always organization-level.
+        # NOTE: company/location are accepted for compatibility but intentionally ignored.
+        _ = company_id
+        _ = location_id
         resolved_owner_id = await self._resolve_assigned_owner_user_id(
             db,
             organization_id=organization_id,
@@ -181,7 +182,8 @@ class DiscoverySessionService:
         )
         session = DiscoverySession(
             organization_id=organization_id,
-            company_id=company_id,
+            company_id=None,
+            location_id=None,
             status="draft",
             created_by_user_id=user_id,
             assigned_owner_user_id=resolved_owner_id,
@@ -479,19 +481,20 @@ class DiscoverySessionService:
                     source.completed_at = started_at
                     continue
                 storage_key = f"imports/discovery-sessions/{session.id}/texts/{source.id}.txt"
+                entrypoint_type, entrypoint_id = self._resolve_entrypoint(session)
 
                 run = ImportRun(
                     id=uuid4(),
                     organization_id=session.organization_id,
-                    entrypoint_type="company",
-                    entrypoint_id=session.company_id,
+                    entrypoint_type=entrypoint_type,
+                    entrypoint_id=entrypoint_id,
                     source_file_path=storage_key,
                     source_filename=f"discovery-session-{source.id}.txt",
                     source_type="bulk_import",
                     status="uploaded",
                     progress_step="discovery_text_pending",
                     processing_attempts=0,
-                    processing_available_at=started_at,
+                    processing_available_at=None,
                     created_by_user_id=run_owner_user_id,
                 )
                 db.add(run)
@@ -644,6 +647,7 @@ class DiscoverySessionService:
         return DiscoverySessionResponse(
             id=session.id,
             company_id=session.company_id,
+            location_id=session.location_id,
             assigned_owner_user_id=session.assigned_owner_user_id,
             status=_session_status_literal(session.status),
             started_at=session.started_at,
@@ -656,63 +660,66 @@ class DiscoverySessionService:
         )
 
     async def claim_next_text_source(self, db: AsyncSession) -> DiscoverySource | None:
-        result = await db.execute(
-            select(DiscoverySource)
-            .join(ImportRun, ImportRun.id == DiscoverySource.import_run_id)
-            .where(DiscoverySource.source_type == "text")
-            .where(DiscoverySource.status == "uploaded")
-            .where(DiscoverySource.import_run_id.is_not(None))
-            .where(ImportRun.status == "uploaded")
-            .where(ImportRun.progress_step == "discovery_text_pending")
-            .where(
-                (ImportRun.processing_available_at.is_(None))
-                | (ImportRun.processing_available_at <= func.now())
+        for _ in range(10):
+            result = await db.execute(
+                select(DiscoverySource)
+                .join(ImportRun, ImportRun.id == DiscoverySource.import_run_id)
+                .where(DiscoverySource.source_type == "text")
+                .where(DiscoverySource.status == "uploaded")
+                .where(DiscoverySource.import_run_id.is_not(None))
+                .where(ImportRun.status == "uploaded")
+                .where(ImportRun.progress_step == "discovery_text_pending")
+                .where(
+                    (ImportRun.processing_available_at.is_(None))
+                    | (ImportRun.processing_available_at <= func.now())
+                )
+                .order_by(DiscoverySource.created_at.desc(), DiscoverySource.id.desc())
+                .with_for_update(skip_locked=True)
+                .limit(1)
             )
-            .order_by(DiscoverySource.created_at)
-            .with_for_update(skip_locked=True)
-            .limit(1)
-        )
-        source = result.scalar_one_or_none()
-        if source is None:
-            return None
+            source = result.scalar_one_or_none()
+            if source is None:
+                return None
 
-        now = datetime.now(UTC)
-        if source.import_run_id is None:
-            source.status = "failed"
-            source.processing_error = "Text source missing import run"
-            source.completed_at = now
-            return None
+            now = datetime.now(UTC)
+            if source.import_run_id is None:
+                source.status = "failed"
+                source.processing_error = "Text source missing import run"
+                source.completed_at = now
+                continue
 
-        run_result = await db.execute(
-            select(ImportRun).where(ImportRun.id == source.import_run_id).with_for_update()
-        )
-        run = run_result.scalar_one_or_none()
-        if run is None:
-            source.status = "failed"
-            source.processing_error = "Import run missing for text source"
-            source.completed_at = now
-            return None
+            run_result = await db.execute(
+                select(ImportRun).where(ImportRun.id == source.import_run_id).with_for_update()
+            )
+            run = run_result.scalar_one_or_none()
+            if run is None:
+                source.status = "failed"
+                source.processing_error = "Import run missing for text source"
+                source.completed_at = now
+                continue
 
-        if run.processing_attempts >= TEXT_SOURCE_MAX_ATTEMPTS:
-            source.status = "failed"
-            source.processing_error = "max_attempts_reached"
-            source.completed_at = now
-            run.status = "failed"
-            run.progress_step = None
-            run.processing_error = "max_attempts_reached"
-            run.processing_available_at = None
-            return None
+            if run.processing_attempts >= TEXT_SOURCE_MAX_ATTEMPTS:
+                source.status = "failed"
+                source.processing_error = "max_attempts_reached"
+                source.completed_at = now
+                run.status = "failed"
+                run.progress_step = None
+                run.processing_error = "max_attempts_reached"
+                run.processing_available_at = None
+                continue
 
-        source.status = "processing"
-        source.processing_error = None
-        source.started_at = now
-        run.processing_attempts += 1
-        run.status = "processing"
-        run.progress_step = "discovery_text_extracting"
-        run.processing_started_at = now
-        run.processing_available_at = now + timedelta(seconds=TEXT_SOURCE_LEASE_SECONDS)
-        run.processing_error = None
-        return source
+            source.status = "processing"
+            source.processing_error = None
+            source.started_at = now
+            run.processing_attempts += 1
+            run.status = "processing"
+            run.progress_step = "discovery_text_extracting"
+            run.processing_started_at = now
+            run.processing_available_at = now + timedelta(seconds=TEXT_SOURCE_LEASE_SECONDS)
+            run.processing_error = None
+            return source
+
+        return None
 
     async def requeue_stale_text_sources(self, db: AsyncSession, limit: int = 100) -> int:
         cutoff = datetime.now(UTC) - timedelta(seconds=TEXT_SOURCE_LEASE_SECONDS)
@@ -802,14 +809,15 @@ class DiscoverySessionService:
                     filename=run.source_filename,
                     source_type="bulk_import",
                 )
+                diagnostics = getattr(extraction, "diagnostics", None)
                 logger.info(
                     "discovery_text_bedrock_call_completed",
                     **self._text_source_log_context(source=source, run=run),
                     status="success",
                     bedrock_duration_ms=round((time.perf_counter() - bedrock_started) * 1000, 2),
-                    route=extraction.diagnostics.route,
-                    char_count=extraction.diagnostics.char_count,
-                    truncated=extraction.diagnostics.truncated,
+                    route=getattr(diagnostics, "route", None),
+                    char_count=getattr(diagnostics, "char_count", None),
+                    truncated=getattr(diagnostics, "truncated", None),
                 )
             except Exception:
                 logger.info(
@@ -1052,25 +1060,13 @@ class DiscoverySessionService:
                 detail="File extension and MIME type do not match supported audio formats.",
             )
 
-    async def _load_company_in_scope(
-        self,
-        db: AsyncSession,
-        *,
-        organization_id: UUID,
-        company_id: UUID,
-    ) -> Company:
-        company = await db.get(Company, company_id)
-        if company is None:
-            raise_resource_not_found(
-                "Company not found",
-                details={"company_id": str(company_id)},
-            )
-        assert company is not None
-        if company.organization_id != organization_id:
-            raise_org_access_denied(org_id=str(organization_id))
-        if company.archived_at is not None:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Company is archived")
-        return company
+    @staticmethod
+    def _resolve_entrypoint(session: DiscoverySession) -> tuple[str, UUID]:
+        if session.company_id is None:
+            return "organization", session.organization_id
+        if session.location_id is not None:
+            return "location", session.location_id
+        return "company", session.company_id
 
     def _build_file_run(
         self,
@@ -1082,11 +1078,12 @@ class DiscoverySessionService:
     ) -> ImportRun:
         if source.source_storage_key is None or source.source_filename is None:
             raise ValueError("file_source_missing_storage")
+        entrypoint_type, entrypoint_id = self._resolve_entrypoint(session)
         return ImportRun(
             id=uuid4(),
             organization_id=session.organization_id,
-            entrypoint_type="company",
-            entrypoint_id=session.company_id,
+            entrypoint_type=entrypoint_type,
+            entrypoint_id=entrypoint_id,
             source_file_path=source.source_storage_key,
             source_filename=source.source_filename,
             source_type="bulk_import",
@@ -1106,12 +1103,13 @@ class DiscoverySessionService:
     ) -> tuple[ImportRun, VoiceInterview]:
         if source.source_storage_key is None or source.source_filename is None:
             raise ValueError("audio_source_missing_storage")
+        entrypoint_type, entrypoint_id = self._resolve_entrypoint(session)
 
         run = ImportRun(
             id=uuid4(),
             organization_id=session.organization_id,
-            entrypoint_type="company",
-            entrypoint_id=session.company_id,
+            entrypoint_type=entrypoint_type,
+            entrypoint_id=entrypoint_id,
             source_file_path=source.source_storage_key,
             source_filename=source.source_filename,
             source_type="voice_interview",

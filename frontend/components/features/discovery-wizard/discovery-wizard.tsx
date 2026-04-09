@@ -68,7 +68,6 @@ interface FinalizeReviewResult {
 interface DiscoveryWizardProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	defaultCompanyId?: string;
 	defaultText?: string;
 }
 
@@ -107,6 +106,88 @@ function sourceTypeLabelFromDraft(
 	return "Bulk import";
 }
 
+function normalizeSuggestionToken(value: string | null | undefined): string {
+	return (value ?? "").trim().toLocaleLowerCase();
+}
+
+export function resolveSuggestedClientAndLocation(params: {
+	rawSuggestedClientName: string | null;
+	rawSuggestedLocationName: string | null;
+	suggestedLocationCity: string | null;
+	locationLabel: string | null;
+	hasStructuredLocationSuggestion: boolean;
+}): {
+	suggestedClientName: string | null;
+	suggestedLocationName: string | null;
+} {
+	const {
+		rawSuggestedClientName,
+		rawSuggestedLocationName,
+		suggestedLocationCity,
+		locationLabel,
+		hasStructuredLocationSuggestion,
+	} = params;
+
+	const suggestedClientName = (rawSuggestedClientName ?? "").trim();
+	const suggestedLocationName = (rawSuggestedLocationName ?? "").trim();
+
+	if (!suggestedClientName) {
+		return {
+			suggestedClientName: null,
+			suggestedLocationName: suggestedLocationName || null,
+		};
+	}
+
+	if (suggestedLocationName) {
+		return {
+			suggestedClientName,
+			suggestedLocationName,
+		};
+	}
+
+	if (hasStructuredLocationSuggestion) {
+		return {
+			suggestedClientName,
+			suggestedLocationName: null,
+		};
+	}
+
+	const separatorIndex = suggestedClientName.indexOf(" - ");
+	if (separatorIndex <= 0) {
+		return {
+			suggestedClientName,
+			suggestedLocationName: null,
+		};
+	}
+
+	const clientPart = suggestedClientName.slice(0, separatorIndex).trim();
+	const locationPart = suggestedClientName.slice(separatorIndex + 3).trim();
+	if (!clientPart || !locationPart) {
+		return {
+			suggestedClientName,
+			suggestedLocationName: null,
+		};
+	}
+
+	const normalizedLocationPart = normalizeSuggestionToken(locationPart);
+	const cityMatches =
+		normalizeSuggestionToken(suggestedLocationCity) === normalizedLocationPart;
+	const labelMatches =
+		normalizeSuggestionToken(locationLabel) === normalizedLocationPart;
+
+	if (!(cityMatches || labelMatches)) {
+		return {
+			suggestedClientName,
+			suggestedLocationName: null,
+		};
+	}
+
+	return {
+		suggestedClientName: clientPart,
+		suggestedLocationName: locationPart,
+	};
+}
+
 export async function confirmTerminalDiscoverySnapshot({
 	sessionId,
 	terminalSession,
@@ -131,16 +212,59 @@ export function mapCandidateRows(
 ): DraftCandidate[] {
 	return rows.map((row) => {
 		const parsedVolume = parseVolumeSummary(row.volumeSummary);
+		const suggestedNames = resolveSuggestedClientAndLocation({
+			rawSuggestedClientName: row.suggestedCompanyLabel ?? row.companyLabel ?? null,
+			rawSuggestedLocationName: row.suggestedLocationName ?? row.locationLabel ?? null,
+			suggestedLocationCity: row.suggestedLocationCity ?? null,
+			locationLabel: row.locationLabel ?? null,
+			hasStructuredLocationSuggestion:
+				Boolean((row.suggestedLocationName ?? "").trim()) ||
+				Boolean((row.suggestedLocationCity ?? "").trim()) ||
+				Boolean((row.suggestedLocationState ?? "").trim()) ||
+				Boolean((row.suggestedLocationAddress ?? "").trim()),
+		});
 		const targetLocationId =
 			row.target?.entrypointType === "location"
 				? row.target.entrypointId
 				: null;
+		const resolvedClientId = defaultClientId ?? row.companyId ?? null;
+		const hasLocationConflict = row.draftKind === "location_only";
+		const resolvedLocationId = hasLocationConflict
+			? null
+			: (targetLocationId ?? defaultLocationId);
+		const hasSuggestedLocation =
+			resolvedLocationId === null &&
+			resolvedClientId !== null &&
+			(row.locationLabel ?? "").trim().length > 0;
+		const isAmbiguousLocation = hasSuggestedLocation && hasLocationConflict;
 
 		return {
 			itemId: row.itemId,
 			runId: row.runId,
-			clientId: row.companyId ?? defaultClientId,
-			locationId: targetLocationId ?? defaultLocationId,
+			suggestedClientName: suggestedNames.suggestedClientName,
+			aiSuggestedClientAccepted: false,
+			suggestedClientConfidence: row.suggestedClientConfidence ?? null,
+			suggestedClientEvidence: row.suggestedClientEvidence ?? [],
+			suggestedLocationName: suggestedNames.suggestedLocationName,
+			aiSuggestedLocationAccepted: false,
+			suggestedLocationCity: row.suggestedLocationCity ?? null,
+			suggestedLocationState: row.suggestedLocationState ?? null,
+			suggestedLocationAddress: row.suggestedLocationAddress ?? null,
+			suggestedLocationConfidence: row.suggestedLocationConfidence ?? null,
+			suggestedLocationEvidence: row.suggestedLocationEvidence ?? [],
+			clientId: resolvedClientId,
+			clientLocked: defaultClientId !== null,
+			locationId: resolvedLocationId,
+			locationResolutionHint: isAmbiguousLocation
+				? "ambiguous"
+				: hasSuggestedLocation
+					? "suggested"
+					: resolvedLocationId
+						? "none"
+						: "missing",
+			locationSuggestionLabel: hasSuggestedLocation
+				? (row.locationLabel ?? null)
+				: null,
 			material: row.streamName,
 			volume: row.volumeSummary,
 			frequency: parsedVolume.frequency,
@@ -154,31 +278,12 @@ export function mapCandidateRows(
 }
 
 export function canStartDiscovery(params: {
-	companyId: string;
-	locationId: string;
 	filesCount: number;
 	hasAudio: boolean;
 	hasValidTextSource: boolean;
 }): boolean {
-	const { companyId, locationId, filesCount, hasAudio, hasValidTextSource } =
-		params;
-	return (
-		companyId !== "" &&
-		locationId !== "" &&
-		(filesCount > 0 || hasAudio || hasValidTextSource)
-	);
-}
-
-export function resolveLocationIdOnCompanyChange(params: {
-	previousCompanyId: string;
-	nextCompanyId: string;
-	currentLocationId: string;
-}): string {
-	const { previousCompanyId, nextCompanyId, currentLocationId } = params;
-	if (previousCompanyId !== nextCompanyId) {
-		return "";
-	}
-	return currentLocationId;
+	const { filesCount, hasAudio, hasValidTextSource } = params;
+	return filesCount > 0 || hasAudio || hasValidTextSource;
 }
 
 export function canSaveQuickEntry(params: {
@@ -219,21 +324,18 @@ export function resolveLocationResolution(params: {
 	};
 }
 
-export function resolveDiscoverySessionCompanyScope(params: {
-	companyId: string;
-	locationId: string;
-}): string {
-	const { companyId } = params;
-	return companyId;
-}
-
 export async function confirmCandidateDecision(params: {
 	candidate: DraftCandidate;
 	decideDiscoveryDraft: DecideDiscoveryDraftFn;
 	defaultLocationId?: string;
 }): Promise<CandidateValidationErrors> {
 	const { candidate, decideDiscoveryDraft, defaultLocationId } = params;
-	const validationErrors = validateCandidateForConfirmation(candidate);
+	const validationCandidate: DraftCandidate = {
+		...candidate,
+		locationId: candidate.locationId ?? defaultLocationId ?? null,
+	};
+	const validationErrors =
+		validateCandidateForConfirmation(validationCandidate);
 	if (Object.keys(validationErrors).length > 0) {
 		return validationErrors;
 	}
@@ -323,7 +425,6 @@ export function resolveCandidateModalInstruction(params: {
 export function DiscoveryWizard({
 	open,
 	onOpenChange,
-	defaultCompanyId,
 	defaultText,
 }: DiscoveryWizardProps): ReactElement {
 	const router = useRouter();
@@ -415,7 +516,6 @@ export function DiscoveryWizard({
 									"idle" | "submitting"
 								>
 							}
-							{...(defaultCompanyId ? { defaultCompanyId } : {})}
 							{...(defaultText ? { defaultText } : {})}
 							onDiscover={orchestration.startDiscovery}
 							onClose={() => onOpenChange(false)}

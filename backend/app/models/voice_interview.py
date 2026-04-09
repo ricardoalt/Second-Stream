@@ -49,8 +49,8 @@ class VoiceInterview(BaseModel):
     organization_id: Mapped[UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    company_id: Mapped[UUID] = mapped_column(
-        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    company_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=True
     )
     location_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("locations.id", ondelete="SET NULL"), nullable=True

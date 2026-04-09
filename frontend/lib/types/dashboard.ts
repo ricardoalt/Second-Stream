@@ -57,7 +57,7 @@ export interface DraftTarget {
 	runId: string;
 	itemId: string;
 	sourceType: DraftSourceType;
-	entrypointType: "company" | "location";
+	entrypointType: "organization" | "company" | "location";
 	entrypointId: string;
 }
 
@@ -94,7 +94,16 @@ export interface DraftItemRow {
 	streamName: string;
 	companyId: string | null;
 	companyLabel: string | null;
+	suggestedCompanyLabel?: string | null;
+	suggestedClientConfidence?: number | null;
+	suggestedClientEvidence?: string[];
 	locationLabel: string | null;
+	suggestedLocationName?: string | null;
+	suggestedLocationCity?: string | null;
+	suggestedLocationState?: string | null;
+	suggestedLocationAddress?: string | null;
+	suggestedLocationConfidence?: number | null;
+	suggestedLocationEvidence?: string[];
 	volumeSummary: string | null;
 	lastActivityAt: string;
 	sourceType: DraftSourceType;

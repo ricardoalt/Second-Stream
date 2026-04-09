@@ -9,7 +9,6 @@ import {
 	useState,
 } from "react";
 import { DiscoveryWizard } from "@/components/features/discovery-wizard/discovery-wizard";
-import { useCompanyStore } from "@/lib/stores/company-store";
 
 type DiscoveryWizardContextValue = {
 	isOpen: boolean;
@@ -24,7 +23,6 @@ const DiscoveryWizardContext =
 export function DiscoveryWizardProvider({ children }: { children: ReactNode }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [defaultText, setDefaultText] = useState<string | undefined>(undefined);
-	const companyId = useCompanyStore((state) => state.currentCompany?.id);
 
 	const open = useCallback(() => {
 		setDefaultText(undefined);
@@ -60,7 +58,6 @@ export function DiscoveryWizardProvider({ children }: { children: ReactNode }) {
 				open={isOpen}
 				onOpenChange={handleWizardOpenChange}
 				{...(defaultText !== undefined ? { defaultText } : {})}
-				{...(companyId ? { defaultCompanyId: companyId } : {})}
 			/>
 		</DiscoveryWizardContext.Provider>
 	);

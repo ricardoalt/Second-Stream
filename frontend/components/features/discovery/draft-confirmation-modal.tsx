@@ -11,11 +11,14 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CompanyCombobox } from "@/components/features/shared/company-combobox";
+import { LocationCombobox } from "@/components/features/shared/location-combobox";
 import {
 	DRAFT_FREQUENCY_OPTIONS,
 	DRAFT_UNITS_OPTIONS,
 } from "@/components/features/streams/draft-field-options";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -42,8 +45,14 @@ import type {
 	CandidateEditableField,
 	CandidateValidationErrors,
 } from "@/lib/discovery-confirmation-utils";
+import { useCompanyStore } from "@/lib/stores/company-store";
 import type { DraftCandidate } from "@/lib/types/discovery";
 import { cn } from "@/lib/utils";
+
+interface CompanyMatchCandidate {
+	id: string;
+	name: string;
+}
 
 export function useDraftConfirmationModal(initialOpen = false) {
 	const [open, setOpen] = useState(initialOpen);
@@ -101,6 +110,311 @@ export function canRejectCandidates(
 	return typeof onRejectCandidate === "function";
 }
 
+export interface CandidateResolutionState {
+	missingClient: boolean;
+	missingLocation: boolean;
+	ambiguousLocation: boolean;
+	suggestedLocationLabel: string | null;
+	requiresResolution: boolean;
+}
+
+export interface CandidateBatchResolutionState {
+	resolvedCount: number;
+	incompleteCount: number;
+	hasMixedResolvedAndIncomplete: boolean;
+}
+
+function hasAcceptedCreateNewClient(candidate: DraftCandidate): boolean {
+	return (
+		candidate.aiSuggestedClientAccepted === true &&
+		(candidate.suggestedClientName ?? "").trim().length > 0
+	);
+}
+
+function hasAcceptedCreateNewLocation(candidate: DraftCandidate): boolean {
+	return (
+		candidate.aiSuggestedLocationAccepted === true &&
+		(candidate.suggestedLocationName ?? "").trim().length > 0 &&
+		(candidate.suggestedLocationCity ?? "").trim().length > 0 &&
+		(candidate.suggestedLocationState ?? "").trim().length > 0
+	);
+}
+
+export function resolveCandidateResolutionState(
+	candidate: DraftCandidate,
+): CandidateResolutionState {
+	const clientResolved =
+		(candidate.clientId ?? "").trim().length > 0 ||
+		hasAcceptedCreateNewClient(candidate);
+	const locationResolved =
+		(candidate.locationId ?? "").trim().length > 0 ||
+		hasAcceptedCreateNewLocation(candidate);
+	const missingClient = !clientResolved;
+	const missingLocation = !locationResolved;
+	const ambiguousLocation =
+		missingLocation && candidate.locationResolutionHint === "ambiguous";
+	const suggestedLocationLabel =
+		missingLocation &&
+		(candidate.suggestedLocationName ||
+			candidate.locationResolutionHint === "suggested" ||
+			candidate.locationResolutionHint === "ambiguous")
+			? (candidate.suggestedLocationName ??
+				candidate.locationSuggestionLabel ??
+				candidate.locationLabel ??
+				null)
+			: null;
+
+	return {
+		missingClient,
+		missingLocation,
+		ambiguousLocation,
+		suggestedLocationLabel,
+		requiresResolution: missingClient || missingLocation,
+	};
+}
+
+export function canResolveLocationForCandidate(
+	candidate: DraftCandidate,
+): boolean {
+	return (
+		(candidate.clientId ?? "").trim().length > 0 ||
+		hasAcceptedCreateNewClient(candidate)
+	);
+}
+
+export function resolveConfirmableDrafts(candidates: DraftCandidate[]): {
+	confirmableIds: string[];
+	blockedIds: string[];
+} {
+	return candidates.reduce(
+		(acc, candidate) => {
+			if (resolveCandidateResolutionState(candidate).requiresResolution) {
+				acc.blockedIds.push(candidate.itemId);
+				return acc;
+			}
+			acc.confirmableIds.push(candidate.itemId);
+			return acc;
+		},
+		{ confirmableIds: [] as string[], blockedIds: [] as string[] },
+	);
+}
+
+function normalizeSuggestion(value?: string | null): string {
+	return (value ?? "").trim().toLocaleLowerCase();
+}
+
+export function applyClientResolutionBySuggestedClient(params: {
+	candidates: DraftCandidate[];
+	targetItemId: string;
+	resolvedClientId: string;
+}): DraftCandidate[] {
+	const { candidates, targetItemId, resolvedClientId } = params;
+	const trimmedResolvedClientId = resolvedClientId.trim();
+	if (!trimmedResolvedClientId) {
+		return candidates;
+	}
+
+	const target = candidates.find(
+		(candidate) => candidate.itemId === targetItemId,
+	);
+	if (!target) {
+		return candidates;
+	}
+
+	const normalizedSuggestedClient = normalizeSuggestion(
+		target.suggestedClientName,
+	);
+
+	return candidates.map((candidate) => {
+		const isTarget = candidate.itemId === targetItemId;
+		const candidateSuggestedClient = normalizeSuggestion(
+			candidate.suggestedClientName,
+		);
+		const shouldAutoApply =
+			normalizedSuggestedClient.length > 0 &&
+			candidateSuggestedClient === normalizedSuggestedClient &&
+			!(candidate.clientId ?? "").trim();
+
+		if (!isTarget && !shouldAutoApply) {
+			return candidate;
+		}
+
+		const nextLocationId =
+			(candidate.locationId ?? "").trim().length > 0 &&
+			candidate.clientId === trimmedResolvedClientId
+				? candidate.locationId
+				: null;
+
+		return {
+			...candidate,
+			clientId: trimmedResolvedClientId,
+			locationId: nextLocationId,
+			locationResolutionHint: nextLocationId ? "none" : "missing",
+			locationSuggestionLabel: null,
+		};
+	});
+}
+
+export function resolveSuggestedClientMatches(params: {
+	candidates: DraftCandidate[];
+	companies: CompanyMatchCandidate[];
+}): { draftClientMatches: Record<string, string[]> } {
+	const { candidates, companies } = params;
+	const companiesByNormalizedName = new Map<string, string[]>();
+
+	for (const company of companies) {
+		const normalizedName = normalizeSuggestion(company.name);
+		if (!normalizedName) {
+			continue;
+		}
+		const existing = companiesByNormalizedName.get(normalizedName);
+		if (existing) {
+			existing.push(company.id);
+			continue;
+		}
+		companiesByNormalizedName.set(normalizedName, [company.id]);
+	}
+
+	const draftClientMatches: Record<string, string[]> = {};
+	for (const candidate of candidates) {
+		const normalizedSuggestedName = normalizeSuggestion(
+			candidate.suggestedClientName,
+		);
+		if (!normalizedSuggestedName) {
+			continue;
+		}
+		draftClientMatches[candidate.itemId] =
+			companiesByNormalizedName.get(normalizedSuggestedName) ?? [];
+	}
+
+	return { draftClientMatches };
+}
+
+export function resolveAutoPrefillClientResolutions(params: {
+	candidates: DraftCandidate[];
+	draftClientMatches: Record<string, string[]>;
+}): Array<{ itemId: string; clientId: string }> {
+	const { candidates, draftClientMatches } = params;
+	const actions: Array<{ itemId: string; clientId: string }> = [];
+
+	for (const candidate of candidates) {
+		if ((candidate.clientId ?? "").trim().length > 0) {
+			continue;
+		}
+		const matches = draftClientMatches[candidate.itemId] ?? [];
+		if (matches.length !== 1) {
+			continue;
+		}
+		actions.push({
+			itemId: candidate.itemId,
+			clientId: matches[0] ?? "",
+		});
+	}
+
+	return actions;
+}
+
+export function resolveCreateNewAvailability(candidate: DraftCandidate): {
+	canCreateClient: boolean;
+	canCreateLocation: boolean;
+} {
+	return {
+		canCreateClient: candidate.clientLocked !== true,
+		canCreateLocation: canResolveLocationForCandidate(candidate),
+	};
+}
+
+export function canCreateLocationFromSuggestion(
+	candidate: DraftCandidate,
+): boolean {
+	return (
+		(candidate.locationId ?? "").trim().length === 0 &&
+		(candidate.suggestedLocationName ?? "").trim().length > 0 &&
+		(candidate.suggestedLocationCity ?? "").trim().length > 0 &&
+		(candidate.suggestedLocationState ?? "").trim().length > 0
+	);
+}
+
+export function isAiClientSuggestionAccepted(params: {
+	candidate: DraftCandidate;
+	draftClientMatches: Record<string, string[]>;
+}): boolean {
+	const { candidate, draftClientMatches } = params;
+	if ((candidate.clientId ?? "").trim().length > 0) {
+		return false;
+	}
+
+	if ((candidate.suggestedClientName ?? "").trim().length === 0) {
+		return false;
+	}
+
+	const exactMatchCount = (draftClientMatches[candidate.itemId] ?? []).length;
+	if (exactMatchCount === 1) {
+		return false;
+	}
+
+	return candidate.aiSuggestedClientAccepted === true;
+}
+
+function trimToNull(value?: string | null): string | null {
+	const normalized = (value ?? "").trim();
+	return normalized.length > 0 ? normalized : null;
+}
+
+export function resolveClientSuggestedPrefillValue(
+	candidate: DraftCandidate,
+): string | null {
+	if ((candidate.clientId ?? "").trim().length > 0) {
+		return null;
+	}
+
+	const suggestedClientName = trimToNull(candidate.suggestedClientName);
+	if (!suggestedClientName) {
+		return null;
+	}
+
+	if (suggestedClientName.includes(" - ")) {
+		return null;
+	}
+
+	return suggestedClientName;
+}
+
+export function resolveLocationSuggestedPrefillValue(
+	candidate: DraftCandidate,
+): string | null {
+	if ((candidate.locationId ?? "").trim().length > 0) {
+		return null;
+	}
+
+	const name = trimToNull(candidate.suggestedLocationName);
+	if (!name) {
+		return trimToNull(candidate.locationSuggestionLabel);
+	}
+
+	const city = trimToNull(candidate.suggestedLocationCity);
+	if (!city) {
+		return name;
+	}
+
+	return `${name} - ${city}`;
+}
+
+export function resolveCandidateBatchResolutionState(
+	candidates: DraftCandidate[],
+): CandidateBatchResolutionState {
+	const incompleteCount = candidates.filter(
+		(candidate) =>
+			resolveCandidateResolutionState(candidate).requiresResolution,
+	).length;
+	const resolvedCount = Math.max(candidates.length - incompleteCount, 0);
+	return {
+		resolvedCount,
+		incompleteCount,
+		hasMixedResolvedAndIncomplete: resolvedCount > 0 && incompleteCount > 0,
+	};
+}
+
 const MODAL_SHELL_WIDTH_CLASS =
 	"w-[calc(100vw-2rem)] max-w-[1240px] sm:max-w-[1240px]";
 const MODAL_CONTENT_WIDTH_CLASS = "mx-auto w-full max-w-[1160px]";
@@ -122,17 +436,51 @@ export function DraftConfirmationModal({
 	disableActions = false,
 	isBulkConfirming = false,
 }: DraftConfirmationModalProps) {
+	const { companies, loadCompanies } = useCompanyStore();
+	const [hasLoadedCompanies, setHasLoadedCompanies] = useState(false);
+
+	useEffect(() => {
+		if (hasLoadedCompanies) {
+			return;
+		}
+		void loadCompanies().finally(() => {
+			setHasLoadedCompanies(true);
+		});
+	}, [hasLoadedCompanies, loadCompanies]);
+
 	const pendingCount = candidates.filter((c) => c.status === "pending").length;
 	const showRejectAction = canRejectCandidates(onRejectCandidate);
 	const confirmedCount = candidates.filter(
 		(c) => c.status === "confirmed",
 	).length;
+	const resolutionSummary = resolveCandidateBatchResolutionState(candidates);
 	const totalCount = candidates.length;
 	const remainingDraftCount = Math.max(totalCount - confirmedCount, 0);
 	const remainingDraftLabel =
 		remainingDraftCount === 1
 			? "1 saved as draft"
 			: `${remainingDraftCount} saved as drafts`;
+	const suggestedClientMatches = useMemo(
+		() =>
+			resolveSuggestedClientMatches({
+				candidates,
+				companies: companies.map((company) => ({
+					id: company.id,
+					name: company.name,
+				})),
+			}),
+		[candidates, companies],
+	);
+
+	useEffect(() => {
+		const prefillActions = resolveAutoPrefillClientResolutions({
+			candidates,
+			draftClientMatches: suggestedClientMatches.draftClientMatches,
+		});
+		for (const action of prefillActions) {
+			onCandidateFieldChange(action.itemId, "clientId", action.clientId);
+		}
+	}, [candidates, onCandidateFieldChange, suggestedClientMatches.draftClientMatches]);
 
 	// Progress calculation
 	const progressPercentage = useMemo(() => {
@@ -241,6 +589,24 @@ export function DraftConfirmationModal({
 									const isPending = candidate.status === "pending";
 									const isEditing = editingCandidateId === candidate.itemId;
 									const errors = candidateErrors[candidate.itemId];
+									const resolutionState =
+										resolveCandidateResolutionState(candidate);
+									const suggestedClientPrefill =
+										resolveClientSuggestedPrefillValue(candidate);
+									const suggestedLocationPrefill =
+										resolveLocationSuggestedPrefillValue(candidate);
+									const canCreateSuggestedLocation =
+										canCreateLocationFromSuggestion(candidate);
+									const aiSuggestedClientAccepted =
+										isAiClientSuggestionAccepted({
+											candidate,
+											draftClientMatches:
+												suggestedClientMatches.draftClientMatches,
+										});
+									const aiSuggestedLocationAccepted =
+										candidate.aiSuggestedLocationAccepted === true;
+									const createNewAvailability =
+										resolveCreateNewAvailability(candidate);
 									const showSpinner = isCandidateBusy({
 										candidate,
 										confirmingId,
@@ -297,6 +663,22 @@ export function DraftConfirmationModal({
 														{candidate.material}
 													</p>
 													<div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+														{resolutionState.requiresResolution ? (
+															<Badge
+																variant="outline"
+																className="h-5 border-amber-300/60 bg-amber-50/60 px-1.5 text-[10px] text-amber-700"
+															>
+																Needs client/location resolution
+															</Badge>
+														) : null}
+														{resolutionState.ambiguousLocation ? (
+															<Badge
+																variant="outline"
+																className="h-5 border-blue-300/60 bg-blue-50/60 px-1.5 text-[10px] text-blue-700"
+															>
+																Ambiguous location suggestion
+															</Badge>
+														) : null}
 														{candidate.locationLabel ? (
 															<Tooltip>
 																<TooltipTrigger asChild>
@@ -309,6 +691,22 @@ export function DraftConfirmationModal({
 																	<p>Location: {candidate.locationLabel}</p>
 																</TooltipContent>
 															</Tooltip>
+														) : null}
+								{resolutionState.suggestedLocationLabel ? (
+									<span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+										AI suggested:{" "}
+										{resolutionState.suggestedLocationLabel}
+									</span>
+								) : null}
+														{(candidate.clientId ?? "").trim().length === 0 &&
+														candidate.suggestedClientName &&
+														(suggestedClientMatches.draftClientMatches[
+															candidate.itemId
+														]?.length ?? 0) > 0 ? (
+															<span className="inline-flex items-center gap-1 rounded bg-blue-50/70 px-1.5 py-0.5 text-[10px] text-blue-700">
+																Match candidate found for “
+																{candidate.suggestedClientName}”
+															</span>
 														) : null}
 													</div>
 												</div>
@@ -399,6 +797,7 @@ export function DraftConfirmationModal({
 																		}
 																		disabled={
 																			!isPending ||
+																			resolutionState.requiresResolution ||
 																			disableActions ||
 																			showSpinner
 																		}
@@ -495,6 +894,142 @@ export function DraftConfirmationModal({
 													>
 														<div className="border-t border-border/40 bg-muted/20 px-6 py-4">
 															<div className="grid gap-4 sm:grid-cols-3">
+																<div className="space-y-1.5 sm:col-span-3">
+																	<label
+																		htmlFor={`client-${candidate.itemId}`}
+																		className="text-xs font-medium text-muted-foreground"
+																	>
+																		Client
+																	</label>
+											<CompanyCombobox
+												value={candidate.clientId ?? ""}
+												suggestedValue={suggestedClientPrefill}
+												isSuggestedAccepted={aiSuggestedClientAccepted}
+												onValueChange={(value) => {
+														onCandidateFieldChange(
+															candidate.itemId,
+																				"clientId",
+																				value,
+																			);
+																			if (
+																				value !== (candidate.clientId ?? "")
+																			) {
+																				onCandidateFieldChange(
+																					candidate.itemId,
+																					"locationId",
+																					"",
+																				);
+																			}
+																		}}
+												showCreate={
+													createNewAvailability.canCreateClient
+												}
+																		disabled={
+																			disableActions ||
+																			candidate.clientLocked === true
+																		}
+																		placeholder="Select existing client"
+												className="h-9"
+											/>
+											{aiSuggestedClientAccepted ? (
+												<p className="text-xs text-blue-700">
+													Will create client from AI suggestion on confirm.
+												</p>
+											) : null}
+											{candidate.clientLocked ? (
+												<p className="text-xs text-muted-foreground">
+													Client is fixed by wizard scope.
+												</p>
+											) : null}
+											{(candidate.clientId ?? "").trim().length === 0 &&
+											candidate.suggestedClientName &&
+											(suggestedClientMatches.draftClientMatches[candidate.itemId]
+												?.length ?? 0) === 0 ? (
+													<p className="text-xs text-muted-foreground">
+														AI suggested client: {candidate.suggestedClientName}. Use
+														create-new if this client does not exist yet.
+													</p>
+												) : null}
+											{errors?.clientId ? (
+																		<motion.p
+																			className="text-xs text-destructive"
+																			initial={{ opacity: 0, y: -5 }}
+																			animate={{ opacity: 1, y: 0 }}
+																		>
+																			{errors.clientId}
+																		</motion.p>
+																	) : null}
+																</div>
+
+																<div className="space-y-1.5 sm:col-span-3">
+																	<label
+																		htmlFor={`location-${candidate.itemId}`}
+																		className="text-xs font-medium text-muted-foreground"
+																	>
+																		Location
+																	</label>
+											<LocationCombobox
+												companyId={candidate.clientId ?? ""}
+												value={candidate.locationId ?? ""}
+												suggestedValue={suggestedLocationPrefill}
+												canCreateFromSuggestion={canCreateSuggestedLocation}
+												isSuggestedAccepted={
+													candidate.aiSuggestedLocationAccepted === true
+												}
+												allowSuggestionWithoutCompany={
+													candidate.aiSuggestedClientAccepted === true
+												}
+												onValueChange={(value) =>
+													onCandidateFieldChange(
+														candidate.itemId,
+																				"locationId",
+																				value,
+																			)
+																		}
+																		placeholder={
+																			candidate.clientId
+																				? "Select or create location"
+																				: "Select client first"
+																		}
+												className="h-9"
+											/>
+											{aiSuggestedLocationAccepted && canCreateSuggestedLocation ? (
+												<p className="text-xs text-blue-700">
+													Will create location from AI suggestion on confirm.
+												</p>
+											) : null}
+											{!canCreateSuggestedLocation &&
+												(candidate.suggestedLocationName ?? "").trim().length > 0 ? (
+													<p className="text-xs text-muted-foreground">
+														AI suggested location needs city/state before it can be
+														created.
+													</p>
+												) : null}
+																	{!createNewAvailability.canCreateLocation ? (
+																		<p className="text-xs text-muted-foreground">
+																			Select a client first to enable create-new
+																			location.
+																		</p>
+																	) : null}
+																	{errors?.locationId ? (
+																		<motion.p
+																			className="text-xs text-destructive"
+																			initial={{ opacity: 0, y: -5 }}
+																			animate={{ opacity: 1, y: 0 }}
+																		>
+																			{errors.locationId}
+																		</motion.p>
+																	) : null}
+																	{resolutionState.ambiguousLocation &&
+																	resolutionState.suggestedLocationLabel ? (
+													<p className="text-xs text-muted-foreground">
+														AI suggested location:{" "}
+														{resolutionState.suggestedLocationLabel}.
+														Choose the final location explicitly.
+													</p>
+																	) : null}
+																</div>
+
 																<div className="space-y-1.5 sm:col-span-3">
 																	<label
 																		htmlFor={`material-${candidate.itemId}`}
@@ -679,6 +1214,15 @@ export function DraftConfirmationModal({
 													</strong>{" "}
 													confirmed · <strong>{pendingCount}</strong> left as
 													drafts
+												</>
+											) : resolutionSummary.hasMixedResolvedAndIncomplete ? (
+												<>
+													<strong className="text-success">
+														{resolutionSummary.resolvedCount}
+													</strong>{" "}
+													resolved ·{" "}
+													<strong>{resolutionSummary.incompleteCount}</strong>{" "}
+													incomplete
 												</>
 											) : confirmedCount > 0 ? (
 												<>

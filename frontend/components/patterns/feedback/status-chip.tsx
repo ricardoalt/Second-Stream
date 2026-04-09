@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  */
 
 const statusChipVariants = cva(
-	"inline-flex items-center justify-center gap-1.5 font-medium transition-colors",
+	"inline-flex items-center justify-start gap-1.5 font-medium transition-colors",
 	{
 		variants: {
 			// Estados de decisión del dominio
@@ -51,20 +51,29 @@ const statusChipVariants = cva(
 				// Filled: Background sólido (default)
 				filled: "",
 
-				// Subtle: Background más suave usando color-mix
+				// Subtle: Uses badge semantic tokens (same tokens as Badge -subtle variants)
 				subtle: cn(
-					"border-transparent",
-					"data-[status=go]:bg-[color-mix(in_srgb,var(--success)_18%,transparent)]",
-					"data-[status=no-go]:bg-[color-mix(in_srgb,var(--destructive)_18%,transparent)]",
-					"data-[status=investigate]:bg-[color-mix(in_srgb,var(--warning)_18%,transparent)]",
-					"data-[status=success]:bg-[color-mix(in_srgb,var(--success)_18%,transparent)]",
-					"data-[status=error]:bg-[color-mix(in_srgb,var(--destructive)_18%,transparent)]",
-					"data-[status=warning]:bg-[color-mix(in_srgb,var(--warning)_18%,transparent)]",
-					"data-[status=info]:bg-[color-mix(in_srgb,var(--primary)_18%,transparent)]",
-					"data-[status=active]:bg-[color-mix(in_srgb,var(--primary)_18%,transparent)]",
-					"data-[status=completed]:bg-[color-mix(in_srgb,var(--success)_18%,transparent)]",
-					"data-[status=pending]:bg-[color-mix(in_srgb,var(--muted)_30%,transparent)]",
-					"data-[status=pipeline]:bg-[color-mix(in_srgb,var(--info)_18%,transparent)]",
+					// success family: go, success, completed, compliant
+					"data-[status=go]:bg-badge-success-bg data-[status=go]:text-badge-success-text data-[status=go]:border-badge-success-border",
+					"data-[status=success]:bg-badge-success-bg data-[status=success]:text-badge-success-text data-[status=success]:border-badge-success-border",
+					"data-[status=completed]:bg-badge-success-bg data-[status=completed]:text-badge-success-text data-[status=completed]:border-badge-success-border",
+					"data-[status=compliant]:bg-badge-success-bg data-[status=compliant]:text-badge-success-text data-[status=compliant]:border-badge-success-border",
+					// destructive family: no-go, error, non-compliant
+					"data-[status=no-go]:bg-badge-destructive-bg data-[status=no-go]:text-badge-destructive-text data-[status=no-go]:border-badge-destructive-border",
+					"data-[status=error]:bg-badge-destructive-bg data-[status=error]:text-badge-destructive-text data-[status=error]:border-badge-destructive-border",
+					"data-[status=non-compliant]:bg-badge-destructive-bg data-[status=non-compliant]:text-badge-destructive-text data-[status=non-compliant]:border-badge-destructive-border",
+					// warning family: investigate, warning, partial
+					"data-[status=investigate]:bg-badge-warning-bg data-[status=investigate]:text-badge-warning-text data-[status=investigate]:border-badge-warning-border",
+					"data-[status=warning]:bg-badge-warning-bg data-[status=warning]:text-badge-warning-text data-[status=warning]:border-badge-warning-border",
+					"data-[status=partial]:bg-badge-warning-bg data-[status=partial]:text-badge-warning-text data-[status=partial]:border-badge-warning-border",
+					// info family: info, pipeline
+					"data-[status=info]:bg-badge-info-bg data-[status=info]:text-badge-info-text data-[status=info]:border-badge-info-border",
+					"data-[status=pipeline]:bg-badge-info-bg data-[status=pipeline]:text-badge-info-text data-[status=pipeline]:border-badge-info-border",
+					// primary family: active
+					"data-[status=active]:bg-badge-primary-bg data-[status=active]:text-badge-primary-text data-[status=active]:border-badge-primary-border",
+					// neutral family: pending, archived
+					"data-[status=pending]:bg-badge-neutral-bg data-[status=pending]:text-badge-neutral-text data-[status=pending]:border-badge-neutral-border",
+					"data-[status=archived]:bg-badge-neutral-bg data-[status=archived]:text-badge-neutral-text data-[status=archived]:border-badge-neutral-border",
 				),
 
 				// Ghost: Sin background, solo borde y texto
@@ -182,7 +191,7 @@ const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(
 				{...props}
 			>
 				{icon && <span className="shrink-0">{icon}</span>}
-				{label}
+				<span>{label}</span>
 			</span>
 		);
 	},

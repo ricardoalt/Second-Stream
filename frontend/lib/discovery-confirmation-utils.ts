@@ -1,6 +1,8 @@
 import type { DraftCandidate } from "@/lib/types/discovery";
 
 export type CandidateEditableField =
+	| "clientId"
+	| "locationId"
 	| "material"
 	| "volume"
 	| "frequency"
@@ -12,8 +14,6 @@ export type CandidateValidationErrors = Partial<
 
 export const REQUIRED_FIELDS = new Set<CandidateEditableField>([
 	"material",
-	"volume",
-	"frequency",
 ]);
 
 export const NON_EDITABLE_FIELDS = new Set<keyof DraftCandidate>([
@@ -25,21 +25,47 @@ export const NON_EDITABLE_FIELDS = new Set<keyof DraftCandidate>([
 	"status",
 ]);
 
+function hasSuggestedClient(candidate: DraftCandidate): boolean {
+	if (candidate.aiSuggestedClientAccepted !== true) {
+		return false;
+	}
+
+	return (candidate.suggestedClientName ?? "").trim().length > 0;
+}
+
+function hasSuggestedCreateNewLocation(candidate: DraftCandidate): boolean {
+	if (candidate.aiSuggestedLocationAccepted !== true) {
+		return false;
+	}
+
+	return (
+		(candidate.suggestedLocationName ?? "").trim().length > 0 &&
+		(candidate.suggestedLocationCity ?? "").trim().length > 0 &&
+		(candidate.suggestedLocationState ?? "").trim().length > 0
+	);
+}
+
 export function validateCandidateForConfirmation(
 	candidate: DraftCandidate,
 ): CandidateValidationErrors {
 	const errors: CandidateValidationErrors = {};
 
+	if (!(candidate.clientId ?? "").trim()) {
+		if (!hasSuggestedClient(candidate)) {
+			errors.clientId = "Client is required";
+		}
+	}
+
+	if (!(candidate.locationId ?? "").trim()) {
+		const clientResolvable =
+			(candidate.clientId ?? "").trim().length > 0 || hasSuggestedClient(candidate);
+		if (!(clientResolvable && hasSuggestedCreateNewLocation(candidate))) {
+			errors.locationId = "Location is required";
+		}
+	}
+
 	if (!candidate.material.trim()) {
 		errors.material = "Material is required";
-	}
-
-	if (!(candidate.volume ?? "").trim()) {
-		errors.volume = "Volume is required";
-	}
-
-	if (!(candidate.frequency ?? "").trim()) {
-		errors.frequency = "Frequency is required";
 	}
 
 	return errors;

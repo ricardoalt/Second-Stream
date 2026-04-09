@@ -1,5 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, Ban, RefreshCcw } from "lucide-react";
+import { StatusChip } from "@/components/patterns/feedback/status-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -97,13 +98,14 @@ export function getColumns(deps: ColumnDeps): ColumnDef<User>[] {
 				const user = row.original;
 				return (
 					<div className="flex flex-col gap-0.5">
-						<span
-							className={
-								user.isActive ? "text-success" : "text-muted-foreground"
-							}
+						<StatusChip
+							status={user.isActive ? "active" : "pending"}
+							variant="subtle"
+							size="xs"
+							shape="pill"
 						>
 							{user.isActive ? "Active" : "Disabled"}
-						</span>
+						</StatusChip>
 						{!user.isVerified && (
 							<span className="text-xs text-muted-foreground">Unverified</span>
 						)}

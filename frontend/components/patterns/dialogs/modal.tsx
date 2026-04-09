@@ -201,3 +201,7 @@ export function ConfirmModal({
 		</Dialog>
 	);
 }
+
+// Note: For confirmation dialogs (archive, delete, destructive actions), use
+// ConfirmDialog from @/components/patterns/dialogs/confirm-dialog (AlertDialog-based).
+// ConfirmModal (above) is for general non-destructive confirmation within a flow.

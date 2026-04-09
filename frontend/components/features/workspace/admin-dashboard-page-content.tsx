@@ -17,7 +17,7 @@ import {
 } from "@/components/patterns/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { DataTable, SectionDivider } from "@/components/ui/css-grid-table";
+import { GridTable, SectionDivider } from "@/components/ui/css-grid-table";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -456,7 +456,7 @@ export function AdminDashboardPageContent({
 					</Button>
 				}
 			>
-				<DataTable
+				<GridTable
 					data={teamGroups.slice(0, 6)}
 					keyExtractor={(group) => group.ownerUserId}
 					columns={[

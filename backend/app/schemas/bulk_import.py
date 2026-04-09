@@ -31,7 +31,7 @@ class BulkImportUploadResponse(BaseSchema):
 
 class BulkImportRunResponse(BaseSchema):
     id: UUID
-    entrypoint_type: Literal["company", "location"]
+    entrypoint_type: Literal["organization", "company", "location"]
     entrypoint_id: UUID
     source_filename: str
     source_type: RunSourceType
@@ -100,6 +100,25 @@ BulkImportLocationResolution = Annotated[
 ]
 
 
+class BulkImportCompanyResolutionExisting(BaseSchema):
+    mode: Literal["existing"]
+    company_id: UUID
+
+
+class BulkImportCompanyResolutionCreateNew(BaseSchema):
+    mode: Literal["create_new"]
+    name: str = Field(min_length=1, max_length=255)
+    industry: str | None = Field(default=None, max_length=100)
+    sector: str | None = Field(default=None, max_length=50)
+    subsector: str | None = Field(default=None, max_length=100)
+
+
+BulkImportCompanyResolution = Annotated[
+    BulkImportCompanyResolutionExisting | BulkImportCompanyResolutionCreateNew,
+    Field(discriminator="mode"),
+]
+
+
 class BulkImportItemPatchRequest(BaseSchema):
     action: Literal["accept", "amend", "reject", "reset"]
     normalized_data: dict[str, object] | None = None
@@ -152,6 +171,7 @@ class BulkImportDiscoveryDraftDecisionRequest(BaseSchema):
     action: Literal["confirm", "reject"]
     normalized_data: dict[str, object] | None = None
     review_notes: str | None = Field(default=None, max_length=1000)
+    company_resolution: BulkImportCompanyResolution | None = None
     location_resolution: BulkImportLocationResolution | None = None
     confirm_create_new: bool | None = None
     owner_user_id: UUID | None = None

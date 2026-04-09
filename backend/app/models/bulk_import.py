@@ -31,7 +31,7 @@ class ImportRun(BaseModel):
 
     __table_args__ = (
         CheckConstraint(
-            "entrypoint_type IN ('company', 'location')",
+            "entrypoint_type IN ('organization', 'company', 'location')",
             name="ck_import_runs_entrypoint_type",
         ),
         CheckConstraint(

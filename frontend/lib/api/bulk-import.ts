@@ -26,7 +26,7 @@ export type ItemStatus =
 	| "invalid";
 
 export type ItemType = "location" | "project";
-export type EntrypointType = "company" | "location";
+export type EntrypointType = "organization" | "company" | "location";
 export type RunSourceType = "bulk_import" | "voice_interview";
 export type ItemAction = "accept" | "amend" | "reject" | "reset";
 
@@ -89,6 +89,19 @@ export type BulkImportLocationResolution =
 			city: string;
 			state: string;
 			address?: string;
+	  };
+
+export type BulkImportCompanyResolution =
+	| {
+			mode: "existing";
+			companyId: string;
+	  }
+	| {
+			mode: "create_new";
+			name: string;
+			industry?: string;
+			sector?: string;
+			subsector?: string;
 	  };
 
 export interface BulkImportItem {
@@ -295,12 +308,29 @@ export const bulkImportAPI = {
 			action: "confirm" | "reject";
 			normalizedData?: Record<string, unknown>;
 			reviewNotes?: string;
+			companyResolution?: BulkImportCompanyResolution;
 			locationResolution?: BulkImportLocationResolution;
 			confirmCreateNew?: boolean;
 			ownerUserId?: string;
 		},
 	): Promise<BulkImportDiscoveryDraftDecisionResponse> {
+		const companyResolution = payload.companyResolution;
 		const locationResolution = payload.locationResolution;
+		const serializedCompanyResolution =
+			companyResolution?.mode === "existing"
+				? {
+						mode: "existing" as const,
+						company_id: companyResolution.companyId,
+				  }
+				: companyResolution?.mode === "create_new"
+					? {
+							mode: "create_new" as const,
+							name: companyResolution.name,
+							industry: companyResolution.industry,
+							sector: companyResolution.sector,
+							subsector: companyResolution.subsector,
+					  }
+					: undefined;
 		const serializedLocationResolution =
 			locationResolution?.mode === "existing"
 				? {
@@ -328,6 +358,7 @@ export const bulkImportAPI = {
 				action: payload.action,
 				normalized_data: payload.normalizedData,
 				review_notes: payload.reviewNotes,
+				company_resolution: serializedCompanyResolution,
 				location_resolution: serializedLocationResolution,
 				confirm_create_new: payload.confirmCreateNew,
 				owner_user_id: payload.ownerUserId,

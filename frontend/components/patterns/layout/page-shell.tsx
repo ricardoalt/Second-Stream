@@ -81,7 +81,9 @@ PageShell.Section = React.forwardRef<HTMLElement, PageShellSectionProps>(
 				{(title || actions) && (
 					<div className="flex items-center justify-between">
 						{title && (
-							<h2 className="text-sm font-semibold text-foreground">{title}</h2>
+							<h2 className="font-display text-sm font-semibold text-foreground">
+								{title}
+							</h2>
 						)}
 						{actions && (
 							<div className="flex items-center gap-2">{actions}</div>

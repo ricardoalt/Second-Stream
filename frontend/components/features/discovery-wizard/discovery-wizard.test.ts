@@ -19,6 +19,7 @@ function buildSession(
 	return {
 		id: "session-1",
 		companyId: "company-1",
+		locationId: null,
 		assignedOwnerUserId: null,
 		status: "review_ready",
 		startedAt: null,
@@ -100,8 +101,22 @@ describe("review helpers", () => {
 			{
 				itemId: "item-1",
 				runId: "run-1",
+				suggestedClientName: "Acme",
+				suggestedClientConfidence: null,
+				suggestedClientEvidence: [],
+				aiSuggestedClientAccepted: false,
+				suggestedLocationName: "Plant A",
+				aiSuggestedLocationAccepted: false,
+				suggestedLocationCity: null,
+				suggestedLocationState: null,
+				suggestedLocationAddress: null,
+				suggestedLocationConfidence: null,
+				suggestedLocationEvidence: [],
 				clientId: "company-1",
+				clientLocked: true,
 				locationId: "location-1",
+				locationResolutionHint: "none",
+				locationSuggestionLabel: null,
 				material: "PET flakes",
 				volume: "120 kg/week",
 				frequency: "week",
@@ -111,6 +126,286 @@ describe("review helpers", () => {
 				confidence: 0.91,
 				status: "pending",
 			},
+		]);
+	});
+
+	it("maps organization-scoped draft targets as unresolved candidates for explicit confirmation", () => {
+		const rows: DraftItemRow[] = [
+			{
+				kind: "draft_item",
+				bucket: "needs_confirmation",
+				itemId: "item-org-1",
+				runId: "run-org-1",
+				groupId: null,
+				streamName: "Mixed Org Stream",
+				companyId: null,
+				companyLabel: null,
+				locationLabel: null,
+				volumeSummary: "90 kg/week",
+				lastActivityAt: "2026-01-01T00:00:00Z",
+				sourceType: "bulk_import",
+				sourceFilename: "org.csv",
+				suggestedCompanyLabel: "Indorama",
+				suggestedLocationName: "North Plant",
+				suggestedLocationCity: "Monterrey",
+				suggestedLocationState: "NL",
+				suggestedLocationAddress: "Ave 123",
+				draftStatus: "pending_review",
+				confidence: 0.67,
+				draftKind: "orphan_stream",
+				confirmable: true,
+				target: {
+					targetKind: "confirmation_flow",
+					runId: "run-org-1",
+					itemId: "item-org-1",
+					sourceType: "bulk_import",
+					entrypointType: "organization",
+					entrypointId: "org-1",
+				},
+			},
+		];
+
+		expect(discoveryWizardModule.mapCandidateRows(rows, null, null)).toEqual([
+			{
+				itemId: "item-org-1",
+				runId: "run-org-1",
+				suggestedClientName: "Indorama",
+				suggestedClientConfidence: null,
+				suggestedClientEvidence: [],
+				aiSuggestedClientAccepted: false,
+				suggestedLocationName: "North Plant",
+				aiSuggestedLocationAccepted: false,
+				suggestedLocationCity: "Monterrey",
+				suggestedLocationState: "NL",
+				suggestedLocationAddress: "Ave 123",
+				suggestedLocationConfidence: null,
+				suggestedLocationEvidence: [],
+				clientId: null,
+				clientLocked: false,
+				locationId: null,
+				locationResolutionHint: "missing",
+				locationSuggestionLabel: null,
+				material: "Mixed Org Stream",
+				volume: "90 kg/week",
+				frequency: "week",
+				units: "kg",
+				locationLabel: null,
+				source: "org.csv",
+				confidence: 0.67,
+				status: "pending",
+			},
+		]);
+	});
+
+	it("keeps suggested company label intact when structured location fields are present", () => {
+		const rows: DraftItemRow[] = [
+			{
+				kind: "draft_item",
+				bucket: "needs_confirmation",
+				itemId: "item-mixed-1",
+				runId: "run-mixed-1",
+				groupId: null,
+				streamName: "Spent Solvent",
+				companyId: null,
+				companyLabel: null,
+				suggestedCompanyLabel: "EXXON - Baton Rouge",
+				locationLabel: null,
+				suggestedLocationName: null,
+				suggestedLocationCity: "Baton Rouge",
+				suggestedLocationState: "LA",
+				suggestedLocationAddress: null,
+				volumeSummary: "70 kg/week",
+				lastActivityAt: "2026-01-01T00:00:00Z",
+				sourceType: "bulk_import",
+				sourceFilename: "mixed.csv",
+				draftStatus: "pending_review",
+				confidence: 0.62,
+				draftKind: "orphan_stream",
+				queuePriority: "normal",
+				queuePriorityReason: "normal",
+				confirmable: true,
+				target: {
+					targetKind: "confirmation_flow",
+					runId: "run-mixed-1",
+					itemId: "item-mixed-1",
+					sourceType: "bulk_import",
+					entrypointType: "organization",
+					entrypointId: "org-1",
+				},
+			},
+		];
+
+		expect(discoveryWizardModule.mapCandidateRows(rows, null, null)).toEqual([
+			expect.objectContaining({
+				suggestedClientName: "EXXON - Baton Rouge",
+				suggestedLocationName: null,
+				suggestedLocationCity: "Baton Rouge",
+				suggestedLocationState: "LA",
+			}),
+		]);
+	});
+
+	it("does not split suggested company label when structured location suggestion is present", () => {
+		const rows: DraftItemRow[] = [
+			{
+				kind: "draft_item",
+				bucket: "needs_confirmation",
+				itemId: "item-structured-1",
+				runId: "run-structured-1",
+				groupId: null,
+				streamName: "Spent Catalyst",
+				companyId: null,
+				companyLabel: null,
+				suggestedCompanyLabel: "EXXON - Baton Rouge",
+				locationLabel: null,
+				suggestedLocationName: "North Plant",
+				suggestedLocationCity: "Baton Rouge",
+				suggestedLocationState: "LA",
+				suggestedLocationAddress: "500 Main",
+				volumeSummary: "70 kg/week",
+				lastActivityAt: "2026-01-01T00:00:00Z",
+				sourceType: "bulk_import",
+				sourceFilename: "structured.csv",
+				draftStatus: "pending_review",
+				confidence: 0.62,
+				draftKind: "orphan_stream",
+				queuePriority: "normal",
+				queuePriorityReason: "normal",
+				confirmable: true,
+				target: {
+					targetKind: "confirmation_flow",
+					runId: "run-structured-1",
+					itemId: "item-structured-1",
+					sourceType: "bulk_import",
+					entrypointType: "organization",
+					entrypointId: "org-1",
+				},
+			},
+		];
+
+		expect(discoveryWizardModule.mapCandidateRows(rows, null, null)).toEqual([
+			expect.objectContaining({
+				suggestedClientName: "EXXON - Baton Rouge",
+				suggestedLocationName: "North Plant",
+				suggestedLocationCity: "Baton Rouge",
+				suggestedLocationState: "LA",
+				suggestedLocationAddress: "500 Main",
+			}),
+		]);
+	});
+
+	it("allows candidate confirmation when volume/frequency are missing but client/location/material are resolved", async () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-optional-volume-frequency",
+			runId: "run-optional",
+			clientId: "company-1",
+			locationId: "location-1",
+			material: "Recovered PET",
+			volume: null,
+			frequency: null,
+			units: null,
+			locationLabel: "Plant A",
+			source: "streams.csv",
+			confidence: 0.8,
+			status: "pending",
+		};
+
+		const decideDraft = mock(async () => ({}) as never);
+		const errors = await discoveryWizardModule.confirmCandidateDecision({
+			candidate,
+			decideDiscoveryDraft: decideDraft,
+		});
+
+		expect(errors).toEqual({});
+		expect(decideDraft).toHaveBeenCalledWith(
+			"item-optional-volume-frequency",
+			expect.objectContaining({
+				action: "confirm",
+			}),
+		);
+	});
+
+	it("auto-applies client resolution to same suggested client names in batch", () => {
+		const candidates: DraftCandidate[] = [
+			{
+				...{
+					itemId: "item-1",
+					runId: "run-1",
+					clientId: null,
+					locationId: null,
+					material: "PET flakes",
+					volume: "120 kg/week",
+					frequency: "weekly",
+					units: "kg",
+					locationLabel: "Plant A",
+					source: "streams.csv",
+					confidence: 0.91,
+					status: "pending" as const,
+				},
+				suggestedClientName: "INDORAMA",
+				suggestedLocationName: "Plant A",
+			},
+			{
+				...{
+					itemId: "item-2",
+					runId: "run-1",
+					clientId: null,
+					locationId: null,
+					material: "PET resin",
+					volume: "90 kg/week",
+					frequency: "weekly",
+					units: "kg",
+					locationLabel: "Plant B",
+					source: "streams.csv",
+					confidence: 0.9,
+					status: "pending" as const,
+				},
+				suggestedClientName: "INDORAMA",
+				suggestedLocationName: "Plant B",
+			},
+			{
+				...{
+					itemId: "item-3",
+					runId: "run-1",
+					clientId: null,
+					locationId: null,
+					material: "Paper",
+					volume: "20 kg/week",
+					frequency: "weekly",
+					units: "kg",
+					locationLabel: "Plant C",
+					source: "streams.csv",
+					confidence: 0.8,
+					status: "pending" as const,
+				},
+				suggestedClientName: "ACME",
+				suggestedLocationName: "Plant C",
+			},
+		];
+
+		expect(
+			orchestrationModule.resolveCandidatesAfterFieldChange({
+				candidates,
+				itemId: "item-1",
+				field: "clientId",
+				value: "company-77",
+			}),
+		).toEqual([
+			expect.objectContaining({
+				itemId: "item-1",
+				clientId: "company-77",
+				locationId: null,
+			}),
+			expect.objectContaining({
+				itemId: "item-2",
+				clientId: "company-77",
+				locationId: null,
+			}),
+			expect.objectContaining({
+				itemId: "item-3",
+				clientId: null,
+				locationId: null,
+			}),
 		]);
 	});
 
@@ -340,8 +635,8 @@ describe("candidate confirmation flow", () => {
 		});
 
 		expect(errors.material).toBeDefined();
-		expect(errors.volume).toBeDefined();
-		expect(errors.frequency).toBeDefined();
+		expect(errors.volume).toBeUndefined();
+		expect(errors.frequency).toBeUndefined();
 		expect(decideDraft).not.toHaveBeenCalled();
 	});
 
@@ -419,28 +714,68 @@ describe("candidate confirmation flow", () => {
 		]);
 	});
 
-	it("requires selected location before discovery can start", () => {
+	it("allows none scope start when valid sources exist", () => {
 		expect(
 			discoveryWizardModule.canStartDiscovery({
-				companyId: "company-1",
-				locationId: "",
 				filesCount: 1,
+				hasAudio: false,
+				hasValidTextSource: false,
+			}),
+		).toBe(true);
+	});
+
+	it("allows starting discovery from voice notes only", () => {
+		expect(
+			discoveryWizardModule.canStartDiscovery({
+				filesCount: 0,
+				hasAudio: true,
+				hasValidTextSource: false,
+			}),
+		).toBe(true);
+	});
+
+	it("allows starting discovery from valid text only", () => {
+		expect(
+			discoveryWizardModule.canStartDiscovery({
+				filesCount: 0,
+				hasAudio: false,
+				hasValidTextSource: true,
+			}),
+		).toBe(true);
+	});
+
+	it("blocks discovery when no valid source was provided", () => {
+		expect(
+			discoveryWizardModule.canStartDiscovery({
+				filesCount: 0,
 				hasAudio: false,
 				hasValidTextSource: false,
 			}),
 		).toBe(false);
 	});
 
-	it("explains when discovery is blocked by missing location", () => {
+	it("explains when discovery is blocked by missing sources", () => {
 		expect(
 			idleViewModule.getDiscoveryBlockedReason({
-				companyId: "company-1",
-				locationId: "",
-				filesCount: 1,
+				filesCount: 0,
 				hasAudio: false,
 				hasValidTextSource: false,
 			}),
-		).toBe("Select a default location to enable discovery.");
+		).toBe("Add a file, voice note, or at least 20 characters of notes.");
+	});
+
+	it("builds discovery session create payload without pre-scope fields", () => {
+		expect(
+			orchestrationModule.resolveDiscoverySessionCreatePayload({
+				assignedOwnerUserId: null,
+			}),
+		).toEqual({});
+
+		expect(
+			orchestrationModule.resolveDiscoverySessionCreatePayload({
+				assignedOwnerUserId: "user-123",
+			}),
+		).toEqual({ assignedOwnerUserId: "user-123" });
 	});
 
 	it("auto-selects the only available location for discovery", () => {
@@ -460,16 +795,6 @@ describe("candidate confirmation flow", () => {
 			idleViewModule.resolveDiscoveryAutoLocation({
 				currentLocationId: "",
 				availableLocationIds: ["location-1", "location-2"],
-			}),
-		).toBe("");
-	});
-
-	it("resets selected location when client changes", () => {
-		expect(
-			discoveryWizardModule.resolveLocationIdOnCompanyChange({
-				previousCompanyId: "company-1",
-				nextCompanyId: "company-2",
-				currentLocationId: "location-1",
 			}),
 		).toBe("");
 	});
@@ -548,26 +873,273 @@ describe("candidate confirmation flow", () => {
 		);
 
 		const decideDraftWithoutFallback = mock(async () => ({}) as never);
-		await discoveryWizardModule.confirmCandidateDecision({
+		const validationErrors = await discoveryWizardModule.confirmCandidateDecision({
 			candidate,
 			decideDiscoveryDraft: decideDraftWithoutFallback,
 		});
 
-		expect(decideDraftWithoutFallback).toHaveBeenCalledWith(
-			"item-1",
-			expect.not.objectContaining({
-				locationResolution: expect.anything(),
-			}),
-		);
+		expect(validationErrors.locationId).toBeDefined();
+		expect(decideDraftWithoutFallback).not.toHaveBeenCalled();
 	});
 
-	it("keeps discovery session creation company-scoped", () => {
+	it("builds discovery decision resolutions with company and location contracts", () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-22",
+			runId: "run-22",
+			clientId: "company-22",
+			locationId: "location-22",
+			material: "PET",
+			volume: "100 kg/week",
+			frequency: "weekly",
+			units: "kg",
+			locationLabel: "Plant A",
+			source: "x.csv",
+			confidence: 0.9,
+			status: "pending",
+		};
+
 		expect(
-			discoveryWizardModule.resolveDiscoverySessionCompanyScope({
-				companyId: "company-1",
-				locationId: "location-1",
+			orchestrationModule.resolveDiscoveryDecisionResolutions({
+				candidate,
+				defaultLocationId: "",
 			}),
-		).toBe("company-1");
+		).toEqual({
+			companyResolution: {
+				mode: "existing",
+				companyId: "company-22",
+			},
+			locationResolution: {
+				mode: "existing",
+				locationId: "location-22",
+			},
+		});
+	});
+
+	it("uses default location fallback when candidate location is missing", () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-23",
+			runId: "run-23",
+			clientId: "company-23",
+			locationId: null,
+			material: "Paper",
+			volume: "100 kg/week",
+			frequency: "weekly",
+			units: "kg",
+			locationLabel: null,
+			source: "x.csv",
+			confidence: 0.9,
+			status: "pending",
+		};
+
+		expect(
+			orchestrationModule.resolveDiscoveryDecisionResolutions({
+				candidate,
+				defaultLocationId: "location-fallback",
+			}),
+		).toEqual({
+			companyResolution: {
+				mode: "existing",
+				companyId: "company-23",
+			},
+			locationResolution: {
+				mode: "existing",
+				locationId: "location-fallback",
+			},
+		});
+	});
+
+	it("builds discovery decision resolutions with create_new location when AI suggestion has enough data", () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-create-new-location",
+			runId: "run-create-new-location",
+			clientId: "company-44",
+			locationId: null,
+			material: "Recovered paper",
+			volume: "100 kg/week",
+			frequency: "weekly",
+			units: "kg",
+			locationLabel: null,
+			source: "x.csv",
+			confidence: 0.9,
+			status: "pending",
+			suggestedLocationName: "Suggested Plant",
+			aiSuggestedLocationAccepted: true,
+			suggestedLocationCity: "Monterrey",
+			suggestedLocationState: "NL",
+			suggestedLocationAddress: "Ave 123",
+		};
+
+		expect(
+			orchestrationModule.resolveDiscoveryDecisionResolutions({
+				candidate,
+				defaultLocationId: "",
+			}),
+		).toEqual({
+			companyResolution: {
+				mode: "existing",
+				companyId: "company-44",
+			},
+			locationResolution: {
+				mode: "create_new",
+				name: "Suggested Plant",
+				city: "Monterrey",
+				state: "NL",
+				address: "Ave 123",
+			},
+		});
+	});
+
+	it("does not build create_new location when suggestion was not accepted", () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-create-new-location-unaccepted",
+			runId: "run-create-new-location-unaccepted",
+			clientId: "company-44",
+			locationId: null,
+			material: "Recovered paper",
+			volume: "100 kg/week",
+			frequency: "weekly",
+			units: "kg",
+			locationLabel: null,
+			source: "x.csv",
+			confidence: 0.9,
+			status: "pending",
+			suggestedLocationName: "Suggested Plant",
+			suggestedLocationCity: "Monterrey",
+			suggestedLocationState: "NL",
+			aiSuggestedLocationAccepted: false,
+		};
+
+		expect(
+			orchestrationModule.resolveDiscoveryDecisionResolutions({
+				candidate,
+				defaultLocationId: "",
+			}),
+		).toEqual({
+			companyResolution: {
+				mode: "existing",
+				companyId: "company-44",
+			},
+		});
+	});
+
+	it("does not build create_new location when AI suggestion is incomplete", () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-incomplete-location-suggestion",
+			runId: "run-incomplete-location-suggestion",
+			clientId: "company-55",
+			locationId: null,
+			material: "Recovered paper",
+			volume: "100 kg/week",
+			frequency: "weekly",
+			units: "kg",
+			locationLabel: null,
+			source: "x.csv",
+			confidence: 0.9,
+			status: "pending",
+			suggestedLocationName: "Suggested Plant",
+			suggestedLocationCity: "",
+			suggestedLocationState: "NL",
+		};
+
+		expect(
+			orchestrationModule.resolveDiscoveryDecisionResolutions({
+				candidate,
+				defaultLocationId: "",
+			}),
+		).toEqual({
+			companyResolution: {
+				mode: "existing",
+				companyId: "company-55",
+			},
+		});
+	});
+
+	it("builds create_new company resolution from AI suggestion when no client is explicitly selected", () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-create-new-company",
+			runId: "run-create-new-company",
+			clientId: null,
+			locationId: null,
+			material: "Recovered paper",
+			volume: "100 kg/week",
+			frequency: "weekly",
+			units: "kg",
+			locationLabel: null,
+			source: "x.csv",
+			confidence: 0.9,
+			status: "pending",
+			suggestedClientName: "AI Suggested New Client",
+			aiSuggestedClientAccepted: true,
+		};
+
+		expect(
+			orchestrationModule.resolveDiscoveryDecisionResolutions({
+				candidate,
+				defaultLocationId: "",
+			}),
+		).toEqual({
+			companyResolution: {
+				mode: "create_new",
+				name: "AI Suggested New Client",
+			},
+		});
+	});
+
+	it("does not build create_new company resolution when suggestion was not accepted", () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-create-new-company-gated",
+			runId: "run-create-new-company-gated",
+			clientId: null,
+			material: "Recovered paper",
+			volume: "100 kg/week",
+			frequency: "weekly",
+			units: "kg",
+			locationId: null,
+			locationLabel: null,
+			source: "x.csv",
+			confidence: 0.9,
+			status: "pending",
+			suggestedClientName: "AI Suggested New Client",
+			aiSuggestedClientAccepted: false,
+		};
+
+		expect(
+			orchestrationModule.resolveDiscoveryDecisionResolutions({
+				candidate,
+				defaultLocationId: "",
+			}),
+		).toEqual({});
+	});
+
+	it("builds create_new company resolution only when AI suggestion is accepted", () => {
+		const candidate: DraftCandidate = {
+			itemId: "item-create-new-company-accepted",
+			runId: "run-create-new-company-accepted",
+			clientId: null,
+			material: "Recovered paper",
+			volume: "100 kg/week",
+			frequency: "weekly",
+			units: "kg",
+			locationId: null,
+			locationLabel: null,
+			source: "x.csv",
+			confidence: 0.9,
+			status: "pending",
+			suggestedClientName: "AI Suggested New Client",
+			aiSuggestedClientAccepted: true,
+		};
+
+		expect(
+			orchestrationModule.resolveDiscoveryDecisionResolutions({
+				candidate,
+				defaultLocationId: "",
+			}),
+		).toEqual({
+			companyResolution: {
+				mode: "create_new",
+				name: "AI Suggested New Client",
+			},
+		});
 	});
 
 	it("shows Assign Owner only for org-admin or superadmin", () => {

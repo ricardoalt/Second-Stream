@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
-from conftest import create_company, create_org, create_user
+from conftest import create_company, create_location, create_org, create_user
 from httpx import AsyncClient
 from sqlalchemy import select
 
@@ -304,6 +304,122 @@ async def test_discovery_session_create_requires_org_header_for_superadmin(
 
 
 @pytest.mark.asyncio
+async def test_discovery_session_create_returns_upload_only_contract_without_scope_mode(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(db_session, "Discovery Multi Scope Org", "discovery-multi-scope-org")
+    user = await create_user(
+        db_session,
+        email=f"discovery-multi-scope-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Discovery Multi Scope Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Discovery Multi Scope Plant",
+    )
+
+    set_current_user(user)
+
+    payload_with_prescope = await client.post(
+        "/api/v1/discovery-sessions",
+        json={"companyId": str(company.id), "locationId": str(location.id)},
+    )
+    assert payload_with_prescope.status_code == 201
+    response_payload = payload_with_prescope.json()
+    assert "scopeMode" not in response_payload
+    assert response_payload["companyId"] is None
+    assert response_payload["locationId"] is None
+
+
+@pytest.mark.asyncio
+async def test_discovery_session_create_ignores_optional_scope_payload_and_keeps_org_scope(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(
+        db_session,
+        "Discovery Invalid Scope Org",
+        "discovery-invalid-scope-org",
+    )
+    user = await create_user(
+        db_session,
+        email=f"discovery-invalid-scope-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company_a = await create_company(db_session, org_id=org.id, name="Discovery Invalid Scope Co A")
+    company_b = await create_company(db_session, org_id=org.id, name="Discovery Invalid Scope Co B")
+    location_b = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company_b.id,
+        name="Discovery Invalid Scope Plant B",
+    )
+
+    set_current_user(user)
+
+    location_without_client = await client.post(
+        "/api/v1/discovery-sessions",
+        json={"locationId": str(location_b.id)},
+    )
+    assert location_without_client.status_code == 201
+    assert location_without_client.json()["companyId"] is None
+    assert location_without_client.json()["locationId"] is None
+
+    mismatched_pair = await client.post(
+        "/api/v1/discovery-sessions",
+        json={"companyId": str(company_a.id), "locationId": str(location_b.id)},
+    )
+    assert mismatched_pair.status_code == 201
+    assert mismatched_pair.json()["companyId"] is None
+    assert mismatched_pair.json()["locationId"] is None
+
+
+@pytest.mark.asyncio
+async def test_discovery_session_start_creates_organization_entrypoint_run_for_confirm_only_flow(
+    client: AsyncClient, db_session, set_current_user
+) -> None:
+    org = await create_org(
+        db_session,
+        "Discovery Org Entrypoint Org",
+        "discovery-org-entrypoint-org",
+    )
+    user = await create_user(
+        db_session,
+        email=f"discovery-org-entrypoint-{uuid.uuid4().hex[:6]}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    set_current_user(user)
+
+    create_response = await client.post("/api/v1/discovery-sessions", json={})
+    assert create_response.status_code == 201
+    session_id = create_response.json()["id"]
+
+    text_response = await client.post(
+        f"/api/v1/discovery-sessions/{session_id}/text",
+        json={"text": "Long enough text source for organization entrypoint discovery mode."},
+    )
+    assert text_response.status_code == 201
+
+    start_response = await client.post(f"/api/v1/discovery-sessions/{session_id}/start")
+    assert start_response.status_code == 200
+    run_id = start_response.json()["sources"][0]["importRunId"]
+    assert run_id is not None
+
+    run = await db_session.get(ImportRun, run_id)
+    assert run is not None
+    assert run.entrypoint_type == "organization"
+    assert run.entrypoint_id == org.id
+
+
+@pytest.mark.asyncio
 async def test_discovery_session_create_persists_assigned_owner_for_org_admin(
     client: AsyncClient, db_session, set_current_user
 ) -> None:
@@ -598,6 +714,8 @@ async def test_discovery_session_text_start_handoff_and_idempotency(
     await db_session.commit()
     await discovery_service.process_text_source(db_session, source_id=claimed_source.id)
 
+    await db_session.refresh(user)
+    set_current_user(user)
     final_response = await client.get(f"/api/v1/discovery-sessions/{session_id}")
     assert final_response.status_code == 200
     final_payload = final_response.json()
@@ -619,6 +737,7 @@ async def test_discovery_session_partial_failure_with_text_sources(
     client: AsyncClient, db_session, set_current_user, monkeypatch
 ) -> None:
     org = await create_org(db_session, "Discovery Partial Org", "discovery-partial-org")
+    org_id = org.id
     user = await create_user(
         db_session,
         email=f"discovery-partial-{uuid.uuid4().hex[:6]}@example.com",
@@ -642,7 +761,7 @@ async def test_discovery_session_partial_failure_with_text_sources(
         assert source_type == "bulk_import"
         call_count["value"] += 1
         if call_count["value"] == 2:
-            raise RuntimeError("synthetic-text-failure")
+            raise ValueError("synthetic-text-failure")
         return SimpleNamespace(
             rows=[
                 ParsedRow(
@@ -692,16 +811,33 @@ async def test_discovery_session_partial_failure_with_text_sources(
 
     discovery_service = discovery_service_module.DiscoverySessionService()
 
-    first_claim = await discovery_service.claim_next_text_source(db_session)
-    assert first_claim is not None
-    await db_session.commit()
-    await discovery_service.process_text_source(db_session, source_id=first_claim.id)
+    source_rows = await db_session.execute(
+        select(DiscoverySource)
+        .where(DiscoverySource.session_id == session_id)
+        .order_by(DiscoverySource.created_at.asc(), DiscoverySource.id.asc())
+    )
+    session_sources = source_rows.scalars().all()
+    assert len(session_sources) == 2
 
-    second_claim = await discovery_service.claim_next_text_source(db_session)
-    assert second_claim is not None
-    await db_session.commit()
-    await discovery_service.process_text_source(db_session, source_id=second_claim.id)
+    for source in session_sources:
+        run = await db_session.get(ImportRun, source.import_run_id)
+        assert run is not None
+        source.status = "processing"
+        source.processing_error = None
+        source.started_at = datetime.now(UTC)
+        run.processing_attempts += 1
+        run.status = "processing"
+        run.progress_step = "discovery_text_extracting"
+        run.processing_started_at = datetime.now(UTC)
+        run.processing_available_at = datetime.now(UTC) + timedelta(
+            seconds=discovery_service_module.TEXT_SOURCE_LEASE_SECONDS
+        )
+        run.processing_error = None
+        await db_session.commit()
+        await discovery_service.process_text_source(db_session, source_id=source.id)
 
+    await db_session.refresh(user)
+    set_current_user(user)
     final_response = await client.get(f"/api/v1/discovery-sessions/{session_id}")
     assert final_response.status_code == 200
     final_payload = final_response.json()
@@ -716,7 +852,7 @@ async def test_discovery_session_partial_failure_with_text_sources(
     assert session_row.status == "partial_failure"
 
     run_result = await db_session.execute(
-        select(ImportRun).where(ImportRun.organization_id == org.id, ImportRun.status == "failed")
+        select(ImportRun).where(ImportRun.organization_id == org_id, ImportRun.status == "failed")
     )
     failed_runs = run_result.scalars().all()
     assert len(failed_runs) == 1
@@ -766,7 +902,7 @@ async def test_discovery_text_stale_processing_is_requeued(
 
     source_row = await db_session.get(DiscoverySource, claimed_source.id)
     assert source_row is not None
-    source_row.updated_at = source_row.updated_at.replace(year=2020)
+    source_row.updated_at = datetime.now(UTC) - timedelta(days=365 * 5)
     await db_session.commit()
 
     requeued = await discovery_service.requeue_stale_text_sources(db_session)
@@ -826,7 +962,7 @@ async def test_discovery_text_stale_processing_hits_max_attempts_and_fails(
 
     source_row = await db_session.get(DiscoverySource, claimed_source.id)
     assert source_row is not None
-    source_row.updated_at = source_row.updated_at.replace(year=2020)
+    source_row.updated_at = datetime.now(UTC) - timedelta(days=365 * 5)
     run_row = await db_session.get(ImportRun, source_row.import_run_id)
     assert run_row is not None
     run_row.processing_attempts = discovery_service_module.TEXT_SOURCE_MAX_ATTEMPTS
@@ -1008,35 +1144,55 @@ async def test_discovery_text_transient_extractor_error_retries_then_succeeds(
 
     discovery_service = discovery_service_module.DiscoverySessionService()
 
-    first_claim = await discovery_service.claim_next_text_source(db_session)
-    assert first_claim is not None
-    await db_session.commit()
-    await discovery_service.process_text_source(db_session, source_id=first_claim.id)
+    source_rows = await db_session.execute(
+        select(DiscoverySource)
+        .where(DiscoverySource.session_id == session_id)
+        .order_by(DiscoverySource.created_at.asc(), DiscoverySource.id.asc())
+    )
+    session_sources = source_rows.scalars().all()
+    assert len(session_sources) == 1
+    source = session_sources[0]
 
-    source_after_first = await db_session.get(DiscoverySource, first_claim.id)
+    run = await db_session.get(ImportRun, source.import_run_id)
+    assert run is not None
+    source.status = "processing"
+    source.processing_error = None
+    source.started_at = datetime.now(UTC)
+    run.processing_attempts += 1
+    run.status = "processing"
+    run.progress_step = "discovery_text_extracting"
+    run.processing_started_at = datetime.now(UTC)
+    run.processing_available_at = datetime.now(UTC) + timedelta(
+        seconds=discovery_service_module.TEXT_SOURCE_LEASE_SECONDS
+    )
+    run.processing_error = None
+    await db_session.commit()
+    await discovery_service.process_text_source(db_session, source_id=source.id)
+
+    source_after_first = await db_session.get(DiscoverySource, source.id)
     assert source_after_first is not None
     run_after_first = await db_session.get(ImportRun, source_after_first.import_run_id)
     assert run_after_first is not None
     assert source_after_first.status == "uploaded"
     assert run_after_first.status == "uploaded"
     assert run_after_first.processing_attempts == 1
-
-    run_after_first.processing_available_at = datetime.now(UTC) + timedelta(minutes=5)
-    await db_session.commit()
-
-    blocked_claim = await discovery_service.claim_next_text_source(db_session)
-    assert blocked_claim is None
-    await db_session.commit()
+    assert run_after_first.processing_available_at is not None
+    assert run_after_first.processing_available_at > datetime.now(UTC)
 
     run_after_first.processing_available_at = datetime.now(UTC) - timedelta(minutes=1)
+    source_after_first.status = "processing"
+    source_after_first.processing_error = None
+    source_after_first.started_at = datetime.now(UTC)
+    run_after_first.processing_attempts += 1
+    run_after_first.status = "processing"
+    run_after_first.progress_step = "discovery_text_extracting"
+    run_after_first.processing_started_at = datetime.now(UTC)
+    run_after_first.processing_error = None
     await db_session.commit()
 
-    second_claim = await discovery_service.claim_next_text_source(db_session)
-    assert second_claim is not None
-    await db_session.commit()
-    await discovery_service.process_text_source(db_session, source_id=second_claim.id)
+    await discovery_service.process_text_source(db_session, source_id=source_after_first.id)
 
-    source_after_second = await db_session.get(DiscoverySource, second_claim.id)
+    source_after_second = await db_session.get(DiscoverySource, source_after_first.id)
     assert source_after_second is not None
     run_after_second = await db_session.get(ImportRun, source_after_second.import_run_id)
     assert run_after_second is not None
@@ -1077,12 +1233,18 @@ async def test_discovery_files_concurrent_upload_respects_limit(
     async def _upload(filename: str):
         return await client.post(
             f"/api/v1/discovery-sessions/{session_id}/files",
-            files={"file": (filename, b"name,category\nPET,plastic\n", "text/csv")},
+            files={
+                "file": (
+                    filename,
+                    b"PK\x03\x04fake-xlsx-content",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
         )
 
     first_response, second_response = await asyncio.gather(
-        _upload("a.csv"),
-        _upload("b.csv"),
+        _upload("a.xlsx"),
+        _upload("b.xlsx"),
     )
     status_codes = sorted([first_response.status_code, second_response.status_code])
     assert status_codes == [201, 400]
@@ -1117,7 +1279,13 @@ async def test_discovery_session_file_audio_start_creates_internal_runs(
 
     file_response = await client.post(
         f"/api/v1/discovery-sessions/{session_id}/files",
-        files={"file": ("streams.csv", b"name,category\nPET,plastic\n", "text/csv")},
+        files={
+            "file": (
+                "streams.xlsx",
+                b"PK\x03\x04fake-xlsx-content",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
     )
     audio_response = await client.post(
         f"/api/v1/discovery-sessions/{session_id}/audio",
@@ -1137,7 +1305,9 @@ async def test_discovery_session_file_audio_start_creates_internal_runs(
 
     run_rows = await db_session.execute(
         select(ImportRun).where(
-            ImportRun.organization_id == org.id, ImportRun.entrypoint_id == company.id
+            ImportRun.organization_id == org.id,
+            ImportRun.entrypoint_type == "organization",
+            ImportRun.entrypoint_id == org.id,
         )
     )
     runs = run_rows.scalars().all()
@@ -1188,8 +1358,8 @@ async def test_discovery_file_terminal_get_has_persisted_summary_on_first_read(
         organization_id=org.id,
         entrypoint_type="company",
         entrypoint_id=company.id,
-        source_file_path="imports/discovery-file.csv",
-        source_filename="discovery-file.csv",
+        source_file_path="imports/discovery-file.xlsx",
+        source_filename="discovery-file.xlsx",
         source_type="bulk_import",
         status="processing",
         created_by_user_id=user.id,
@@ -1204,6 +1374,7 @@ async def test_discovery_file_terminal_get_has_persisted_summary_on_first_read(
 
     async def _fake_extract(*, file_bytes: bytes, filename: str):
         return SimpleNamespace(
+            diagnostics=SimpleNamespace(route="fake", char_count=len(file_bytes), truncated=False),
             rows=[
                 ParsedRow(
                     location_data={"name": "Plant File", "city": "Monterrey", "state": "NL"},
@@ -1235,9 +1406,9 @@ async def test_discovery_file_terminal_get_has_persisted_summary_on_first_read(
     assert session_row is not None
     assert session_row.status == "review_ready"
     assert session_row.summary_data is not None
-    assert session_row.summary_data["locations_found"] == 1
-    assert session_row.summary_data["waste_streams_found"] == 1
-    assert session_row.summary_data["drafts_needing_confirmation"] == 1
+    assert session_row.summary_data["locationsFound"] == 1
+    assert session_row.summary_data["wasteStreamsFound"] == 1
+    assert session_row.summary_data["draftsNeedingConfirmation"] == 1
 
     response = await client.get(f"/api/v1/discovery-sessions/{session.id}")
     assert response.status_code == 200
@@ -1276,6 +1447,7 @@ async def test_discovery_audio_terminal_get_has_persisted_summary_on_first_read(
     await db_session.flush()
 
     run = ImportRun(
+        id=uuid.uuid4(),
         organization_id=org.id,
         entrypoint_type="company",
         entrypoint_id=company.id,
@@ -1320,6 +1492,7 @@ async def test_discovery_audio_terminal_get_has_persisted_summary_on_first_read(
 
     async def _fake_extract_text(*, extracted_text: str, filename: str, source_type: str):
         return SimpleNamespace(
+            diagnostics=SimpleNamespace(route="fake", char_count=len(extracted_text), truncated=False),
             rows=[
                 ParsedRow(
                     location_data={"name": "Plant Audio", "city": "Monterrey", "state": "NL"},
@@ -1360,9 +1533,9 @@ async def test_discovery_audio_terminal_get_has_persisted_summary_on_first_read(
     assert session_row is not None
     assert session_row.status == "review_ready"
     assert session_row.summary_data is not None
-    assert session_row.summary_data["locations_found"] == 1
-    assert session_row.summary_data["waste_streams_found"] == 1
-    assert session_row.summary_data["drafts_needing_confirmation"] == 1
+    assert session_row.summary_data["locationsFound"] == 1
+    assert session_row.summary_data["wasteStreamsFound"] == 1
+    assert session_row.summary_data["draftsNeedingConfirmation"] == 1
 
     response = await client.get(f"/api/v1/discovery-sessions/{session.id}")
     assert response.status_code == 200
@@ -1403,8 +1576,8 @@ async def test_discovery_file_failure_persists_terminal_session_summary_on_first
         organization_id=org.id,
         entrypoint_type="company",
         entrypoint_id=company.id,
-        source_file_path="imports/discovery-fail.csv",
-        source_filename="discovery-fail.csv",
+        source_file_path="imports/discovery-fail.xlsx",
+        source_filename="discovery-fail.xlsx",
         source_type="bulk_import",
         status="processing",
         created_by_user_id=user.id,
@@ -1436,7 +1609,7 @@ async def test_discovery_file_failure_persists_terminal_session_summary_on_first
     assert session_row is not None
     assert session_row.status == "failed"
     assert session_row.summary_data is not None
-    assert session_row.summary_data["failed_sources"] == 1
+    assert session_row.summary_data["failedSources"] == 1
 
     response = await client.get(f"/api/v1/discovery-sessions/{session.id}")
     assert response.status_code == 200
@@ -1474,8 +1647,8 @@ async def test_discovery_file_exhausted_by_sweeper_persists_terminal_session_sum
         organization_id=org.id,
         entrypoint_type="company",
         entrypoint_id=company.id,
-        source_file_path="imports/sweeper-file.csv",
-        source_filename="sweeper-file.csv",
+        source_file_path="imports/sweeper-file.xlsx",
+        source_filename="sweeper-file.xlsx",
         source_type="bulk_import",
         status="processing",
         processing_attempts=bulk_import_module.MAX_PROCESSING_ATTEMPTS,
@@ -1496,7 +1669,7 @@ async def test_discovery_file_exhausted_by_sweeper_persists_terminal_session_sum
     assert run.status == "failed"
     assert session.status == "failed"
     assert session.summary_data is not None
-    assert session.summary_data["failed_sources"] == 1
+    assert session.summary_data["failedSources"] == 1
 
 
 @pytest.mark.asyncio
@@ -1526,6 +1699,7 @@ async def test_discovery_audio_exhausted_by_sweeper_persists_terminal_session_su
     await db_session.flush()
 
     run = ImportRun(
+        id=uuid.uuid4(),
         organization_id=org.id,
         entrypoint_type="company",
         entrypoint_id=company.id,
@@ -1571,7 +1745,7 @@ async def test_discovery_audio_exhausted_by_sweeper_persists_terminal_session_su
     assert voice.status == "failed"
     assert session.status == "failed"
     assert session.summary_data is not None
-    assert session.summary_data["failed_sources"] == 1
+    assert session.summary_data["failedSources"] == 1
 
 
 @pytest.mark.asyncio
@@ -1618,7 +1792,7 @@ async def test_discovery_text_stale_max_attempts_persists_terminal_session_summa
 
     source_row = await db_session.get(DiscoverySource, claimed_source.id)
     assert source_row is not None
-    source_row.updated_at = source_row.updated_at.replace(year=2020)
+    source_row.updated_at = datetime.now(UTC) - timedelta(days=365 * 5)
     run_row = await db_session.get(ImportRun, source_row.import_run_id)
     assert run_row is not None
     run_row.processing_attempts = discovery_service_module.TEXT_SOURCE_MAX_ATTEMPTS
@@ -1632,7 +1806,7 @@ async def test_discovery_text_stale_max_attempts_persists_terminal_session_summa
     assert session_row is not None
     assert session_row.status == "failed"
     assert session_row.summary_data is not None
-    assert session_row.summary_data["failed_sources"] == 1
+    assert session_row.summary_data["failedSources"] == 1
 
 
 @pytest.mark.asyncio

@@ -9,9 +9,7 @@ import {
 	FileText,
 	Image,
 	Loader2,
-	MapPin,
 	Mic,
-	Package,
 	Plus,
 	Truck,
 	Upload,
@@ -19,8 +17,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
-import { CompanyCombobox } from "@/components/features/shared/company-combobox";
 import { LocationCombobox } from "@/components/features/shared/location-combobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -298,37 +294,20 @@ function isSupportedAudioFile(file: File): boolean {
 }
 
 function canStartDiscovery(params: {
-	companyId: string;
-	locationId: string;
 	filesCount: number;
 	hasAudio: boolean;
 	hasValidTextSource: boolean;
 }): boolean {
-	const { companyId, locationId, filesCount, hasAudio, hasValidTextSource } =
-		params;
-	return (
-		companyId !== "" &&
-		locationId !== "" &&
-		(filesCount > 0 || hasAudio || hasValidTextSource)
-	);
+	const { filesCount, hasAudio, hasValidTextSource } = params;
+	return filesCount > 0 || hasAudio || hasValidTextSource;
 }
 
 export function getDiscoveryBlockedReason(params: {
-	companyId: string;
-	locationId: string;
 	filesCount: number;
 	hasAudio: boolean;
 	hasValidTextSource: boolean;
 }): string | null {
-	const { companyId, locationId, filesCount, hasAudio, hasValidTextSource } =
-		params;
-
-	if (!companyId) {
-		return "Select a client to continue.";
-	}
-	if (!locationId) {
-		return "Select a default location to enable discovery.";
-	}
+	const { filesCount, hasAudio, hasValidTextSource } = params;
 	if (!(filesCount > 0 || hasAudio || hasValidTextSource)) {
 		return "Add a file, voice note, or at least 20 characters of notes.";
 	}
@@ -372,8 +351,6 @@ function canSaveQuickEntry(params: {
 }
 
 export interface IdleDiscoveryPayload {
-	companyId: string;
-	locationId: string;
 	assignedOwnerUserId: string | null;
 	files: File[];
 	audioFile: File | null;
@@ -383,21 +360,17 @@ export interface IdleDiscoveryPayload {
 export function IdleView({
 	open,
 	phase,
-	defaultCompanyId,
 	defaultText,
 	onDiscover,
 	onClose,
 }: {
 	open: boolean;
 	phase: "idle" | "submitting";
-	defaultCompanyId?: string;
 	defaultText?: string;
 	onDiscover: (payload: IdleDiscoveryPayload) => Promise<void> | void;
 	onClose: () => void;
 }) {
 	const [wizardTab, setWizardTab] = useState<"ai" | "quick">("ai");
-	const [companyId, setCompanyId] = useState(defaultCompanyId ?? "");
-	const [locationId, setLocationId] = useState("");
 	const [files, setFiles] = useState<File[]>([]);
 	const [audioFile, setAudioFile] = useState<File | null>(null);
 	const [text, setText] = useState("");
@@ -431,33 +404,20 @@ export function IdleView({
 	const trimmedText = text.trim();
 	const hasValidTextSource = trimmedText.length >= MIN_DISCOVERY_TEXT_LENGTH;
 	const canDiscover = canStartDiscovery({
-		companyId,
-		locationId,
 		filesCount: files.length,
 		hasAudio: audioFile !== null,
 		hasValidTextSource,
 	});
 	const blockedDiscoveryReason = getDiscoveryBlockedReason({
-		companyId,
-		locationId,
 		filesCount: files.length,
 		hasAudio: audioFile !== null,
 		hasValidTextSource,
 	});
 
 	useEffect(() => {
-		if (open && defaultCompanyId) {
-			setCompanyId(defaultCompanyId);
-			setLocationId("");
-		}
-	}, [open, defaultCompanyId]);
-
-	useEffect(() => {
 		if (!open) {
 			const timeout = setTimeout(() => {
 				setWizardTab("ai");
-				setCompanyId(defaultCompanyId ?? "");
-				setLocationId("");
 				setFiles([]);
 				setAudioFile(null);
 				setText("");
@@ -477,7 +437,7 @@ export function IdleView({
 			return () => clearTimeout(timeout);
 		}
 		return undefined;
-	}, [open, defaultCompanyId]);
+	}, [open]);
 
 	useEffect(() => {
 		if (!open || !canAssignOwner) {
@@ -527,31 +487,6 @@ export function IdleView({
 	}, [qe.client, loadLocationsByCompany]);
 
 	useEffect(() => {
-		if (companyId) {
-			void loadLocationsByCompany(companyId);
-		}
-	}, [companyId, loadLocationsByCompany]);
-
-	useEffect(() => {
-		if (!companyId || locations.length === 0) return;
-		const companyLocationIds = new Set(
-			locations.filter((l) => l.companyId === companyId).map((l) => l.id),
-		);
-		if (locationId && !companyLocationIds.has(locationId)) {
-			setLocationId("");
-			return;
-		}
-
-		const suggestedLocationId = resolveDiscoveryAutoLocation({
-			currentLocationId: locationId,
-			availableLocationIds: Array.from(companyLocationIds),
-		});
-		if (suggestedLocationId && suggestedLocationId !== locationId) {
-			setLocationId(suggestedLocationId);
-		}
-	}, [companyId, locationId, locations]);
-
-	useEffect(() => {
 		if (!qe.client || locations.length === 0) return;
 		const companyLocationIds = new Set(
 			locations.filter((l) => l.companyId === qe.client).map((l) => l.id),
@@ -563,9 +498,6 @@ export function IdleView({
 
 	const quickEntryLocations = locations.filter(
 		(location) => location.companyId === qe.client,
-	);
-	const aiLocations = locations.filter(
-		(location) => location.companyId === companyId,
 	);
 	const canSaveQuickEntryDraft = canSaveQuickEntry({
 		clientId: qe.client,
@@ -1000,204 +932,129 @@ export function IdleView({
 					<div className="min-h-0 flex-1 overflow-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 						<div className="mx-auto w-full space-y-4">
 							<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-								<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">
-									<div className="mb-3 flex items-center gap-3">
-										<div className="p-2.5 bg-primary/10 rounded-lg">
-											<Building2 className="size-5 text-primary" />
-										</div>
-										<h3 className="text-base font-semibold text-foreground">
-											Client Information
-										</h3>
-									</div>
-									{defaultCompanyId ? (
-										<div className="flex items-center gap-2 rounded-lg border border-border/30 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-											<Package className="size-4 text-muted-foreground" />
-											Company pre-selected
-										</div>
-									) : (
-										<CompanyCombobox
-											value={companyId}
-											onValueChange={(value) => {
-												setCompanyId(value);
-												setLocationId("");
-											}}
-											placeholder="Select Existing Client"
-											showCreate={true}
-										/>
-									)}
-								</section>
-
-								<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">
+								<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15 lg:col-span-2">
 									<div className="flex items-center gap-3 mb-3">
 										<div className="p-2.5 bg-primary/10 rounded-lg">
-											<MapPin className="size-5 text-primary" />
+											<Upload className="size-5 text-primary" />
 										</div>
 										<h3 className="text-base font-semibold text-foreground">
-											Assign Default Location
+											Upload Discovery Files
 										</h3>
 									</div>
-									<div className="space-y-2">
-										<LocationCombobox
-											companyId={companyId}
-											value={locationId}
-											onValueChange={setLocationId}
-											placeholder={
-												companyId
-													? "e.g. Houston Facility, TX"
-													: "Select Client first"
-											}
-											className="h-10"
-										/>
-										{companyId && aiLocations.length === 0 ? (
-											<div className="text-xs text-muted-foreground">
-												No locations —{" "}
-												<CreateLocationDialog
-													companyId={companyId}
-													onSuccess={(location) => {
-														if (!location) return;
-														void loadLocationsByCompany(companyId);
-														setLocationId(location.id);
-													}}
-													trigger={
-														<button
-															type="button"
-															className="font-medium text-primary hover:underline"
-														>
-															Add New Location
-														</button>
-													}
-												/>
-											</div>
-										) : null}
-									</div>
-									<p className="mt-1.5 text-xs text-muted-foreground">
-										Select a location before upload/analysis.
-									</p>
-								</section>
-							</div>
-
-							<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15">
-								<div className="flex items-center gap-3 mb-3">
-									<div className="p-2.5 bg-primary/10 rounded-lg">
-										<Upload className="size-5 text-primary" />
-									</div>
-									<h3 className="text-base font-semibold text-foreground">
-										Upload Client Files
-									</h3>
-								</div>
-								<section
-									aria-label={
-										dragActive ? "Drop files here" : "File upload area"
-									}
-									className={cn(
-										"relative rounded-xl border-2 border-dashed transition-all duration-300",
-										dragActive
-											? "border-primary/50 bg-primary/[0.08] shadow-glow ring-2 ring-primary/20"
-											: "border-primary/20 bg-surface-container-low/40",
-									)}
-									onDragEnter={handleDragEnter}
-									onDragOver={handleDragOver}
-									onDragLeave={handleDragLeave}
-									onDrop={handleDrop}
-								>
-									{hasAttachments ? (
-										<div className="space-y-3 p-4">
-											<div className="flex flex-wrap gap-2">
-												{files.map((file, index) => {
-													const Icon = fileIcon(file.name);
-													return (
-														<div
-															key={`${file.name}-${file.size}`}
-															className="group/chip flex items-center gap-1.5 rounded-lg border border-border/40 bg-card px-3 py-2 text-sm shadow-sm transition-all hover:border-border/60 hover:shadow-md"
-														>
-															<Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+									<section
+										aria-label={
+											dragActive ? "Drop files here" : "File upload area"
+										}
+										className={cn(
+											"relative rounded-xl border-2 border-dashed transition-all duration-300",
+											dragActive
+												? "border-primary/50 bg-primary/[0.08] shadow-glow ring-2 ring-primary/20"
+												: "border-primary/20 bg-surface-container-low/40",
+										)}
+										onDragEnter={handleDragEnter}
+										onDragOver={handleDragOver}
+										onDragLeave={handleDragLeave}
+										onDrop={handleDrop}
+									>
+										{hasAttachments ? (
+											<div className="space-y-3 p-4">
+												<div className="flex flex-wrap gap-2">
+													{files.map((file, index) => {
+														const Icon = fileIcon(file.name);
+														return (
+															<div
+																key={`${file.name}-${file.size}`}
+																className="group/chip flex items-center gap-1.5 rounded-lg border border-border/40 bg-card px-3 py-2 text-sm shadow-sm transition-all hover:border-border/60 hover:shadow-md"
+															>
+																<Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+																<span className="max-w-[140px] truncate">
+																	{file.name}
+																</span>
+																<span className="text-xs text-muted-foreground">
+																	{formatSize(file.size)}
+																</span>
+																<button
+																	type="button"
+																	aria-label={`Remove ${file.name}`}
+																	onClick={() => removeFile(index)}
+																	className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-sm hover:bg-muted transition-opacity"
+																>
+																	<X className="h-3 w-3" />
+																</button>
+															</div>
+														);
+													})}
+													{audioFile && (
+														<div className="group/chip flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-sm shadow-sm">
+															<Mic className="h-3.5 w-3.5 shrink-0 text-primary" />
 															<span className="max-w-[140px] truncate">
-																{file.name}
+																{audioFile.name}
 															</span>
 															<span className="text-xs text-muted-foreground">
-																{formatSize(file.size)}
+																{formatSize(audioFile.size)}
 															</span>
 															<button
 																type="button"
-																aria-label={`Remove ${file.name}`}
-																onClick={() => removeFile(index)}
+																aria-label={`Remove ${audioFile.name}`}
+																onClick={removeAudio}
 																className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-sm hover:bg-muted transition-opacity"
 															>
 																<X className="h-3 w-3" />
 															</button>
 														</div>
-													);
-												})}
-												{audioFile && (
-													<div className="group/chip flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-sm shadow-sm">
-														<Mic className="h-3.5 w-3.5 shrink-0 text-primary" />
-														<span className="max-w-[140px] truncate">
-															{audioFile.name}
-														</span>
-														<span className="text-xs text-muted-foreground">
-															{formatSize(audioFile.size)}
-														</span>
-														<button
-															type="button"
-															aria-label={`Remove ${audioFile.name}`}
-															onClick={removeAudio}
-															className="ml-0.5 flex h-5 w-5 items-center justify-center rounded-sm hover:bg-muted transition-opacity"
-														>
-															<X className="h-3 w-3" />
-														</button>
-													</div>
-												)}
-												{files.length < MAX_FILES && (
-													<Button
-														variant="outline"
-														size="icon"
-														className="h-9 w-9 border-dashed"
-														onClick={() => fileInputRef.current?.click()}
-														disabled={isSubmitting}
-													>
-														<Plus className="h-4 w-4" />
-														<span className="sr-only">Add files</span>
-													</Button>
-												)}
-											</div>
-										</div>
-									) : (
-										<button
-											type="button"
-											className="flex w-full flex-col items-center gap-3 px-6 py-6 text-center"
-											onClick={() => fileInputRef.current?.click()}
-											disabled={isSubmitting}
-										>
-											<div className="flex items-center gap-3">
-												<div className="rounded-lg bg-primary/8 p-2">
-													<FileSpreadsheet className="h-5 w-5 text-primary/70" />
-												</div>
-												<div className="rounded-lg bg-primary/8 p-2">
-													<FileText className="h-5 w-5 text-primary/70" />
-												</div>
-												<div className="rounded-lg bg-primary/8 p-2">
-													<Image className="h-5 w-5 text-primary/70" />
-												</div>
-											</div>
-											<div>
-												<p
-													className={cn(
-														"text-sm font-medium",
-														dragActive ? "text-primary" : "text-foreground",
 													)}
-												>
-													{dragActive
-														? "Drop files here"
-														: "Drag and drop discovery assets here"}
-												</p>
-												<p className="mt-0.5 text-xs text-muted-foreground/60">
-													Max 10 files · 50MB total upload budget
-												</p>
+													{files.length < MAX_FILES && (
+														<Button
+															variant="outline"
+															size="icon"
+															className="h-9 w-9 border-dashed"
+															onClick={() => fileInputRef.current?.click()}
+															disabled={isSubmitting}
+														>
+															<Plus className="h-4 w-4" />
+															<span className="sr-only">Add files</span>
+														</Button>
+													)}
+												</div>
 											</div>
-										</button>
-									)}
+										) : (
+											<button
+												type="button"
+												className="flex w-full flex-col items-center gap-3 px-6 py-6 text-center"
+												onClick={() => fileInputRef.current?.click()}
+												disabled={isSubmitting}
+											>
+												<div className="flex items-center gap-3">
+													<div className="rounded-lg bg-primary/8 p-2">
+														<FileSpreadsheet className="h-5 w-5 text-primary/70" />
+													</div>
+													<div className="rounded-lg bg-primary/8 p-2">
+														<FileText className="h-5 w-5 text-primary/70" />
+													</div>
+													<div className="rounded-lg bg-primary/8 p-2">
+														<Image className="h-5 w-5 text-primary/70" />
+													</div>
+												</div>
+												<div>
+													<p
+														className={cn(
+															"text-sm font-medium",
+															dragActive ? "text-primary" : "text-foreground",
+														)}
+													>
+														{dragActive
+															? "Drop files here"
+															: "Drag and drop discovery assets here"}
+													</p>
+													<p className="mt-0.5 text-xs text-muted-foreground/60">
+														Max 10 files · 50MB total upload budget
+													</p>
+												</div>
+											</button>
+										)}
+									</section>
 								</section>
-							</section>
+							</div>
 
 							{canAssignOwner ? (
 								<section className="rounded-xl bg-surface-container-lowest/80 p-5 border border-border/15 md:col-span-2">
@@ -1303,8 +1160,6 @@ export function IdleView({
 								<Button
 									onClick={() =>
 										void onDiscover({
-											companyId,
-											locationId,
 											assignedOwnerUserId: resolvedAssignedOwnerUserId,
 											files,
 											audioFile,

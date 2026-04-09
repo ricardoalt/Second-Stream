@@ -26,7 +26,10 @@ export function AgentShellLayout({ children }: AgentShellLayoutProps) {
 				<AppSidebar userName={fullName} userEmail={userEmail} />
 				<div className="flex min-w-0 flex-1 flex-col">
 					<TopBar user={user} onLogout={logout} />
-					<main id="main-content" className="flex-1 overflow-y-auto p-6">
+					<main
+						id="main-content"
+						className="flex-1 overflow-y-auto bg-page-gradient p-6"
+					>
 						<div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
 							{children}
 						</div>

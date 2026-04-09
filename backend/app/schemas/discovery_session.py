@@ -23,7 +23,8 @@ DiscoverySourceStatus = Literal["uploaded", "processing", "review_ready", "faile
 
 
 class DiscoverySessionCreateRequest(BaseSchema):
-    company_id: UUID
+    company_id: UUID | None = None
+    location_id: UUID | None = None
     assigned_owner_user_id: UUID | None = None
 
 
@@ -60,7 +61,8 @@ class DiscoverySessionSummaryResponse(BaseSchema):
 
 class DiscoverySessionResponse(BaseSchema):
     id: UUID
-    company_id: UUID
+    company_id: UUID | None = None
+    location_id: UUID | None = None
     assigned_owner_user_id: UUID | None = None
     status: DiscoverySessionStatus
     started_at: datetime | None = None

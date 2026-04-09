@@ -48,7 +48,7 @@ interface DataTableProps<T> {
  * - Ghost borders at 20% opacity per accessibility rule
  *
  * @example
- * <DataTable
+ * <GridTable
  *   data={teamGroups}
  *   columns={[
  *     { key: "agent", header: "Agent Name", width: "2fr", cell: (g) => ... },
@@ -58,7 +58,7 @@ interface DataTableProps<T> {
  *   expandedContent={(g) => <StreamList streams={g.streams} />}
  * />
  */
-export function DataTable<T>({
+export function GridTable<T>({
 	data,
 	columns,
 	keyExtractor,
@@ -77,7 +77,7 @@ export function DataTable<T>({
 		>
 			{/* Header Row */}
 			<div
-				className="grid gap-4 bg-muted px-6 py-3"
+				className="grid gap-4 bg-surface-container-low/60 px-6 py-3"
 				style={{
 					gridTemplateColumns: columns
 						.map((col) => col.width || "1fr")
@@ -87,7 +87,7 @@ export function DataTable<T>({
 				{columns.map((col) => (
 					<span
 						key={col.key}
-						className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+						className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground"
 					>
 						{col.header}
 					</span>
@@ -111,7 +111,7 @@ export function DataTable<T>({
 							return (
 								<details key={key} className="group">
 									<summary
-										className="grid cursor-pointer items-center gap-4 px-6 py-4 marker:content-none hover:bg-muted/50"
+										className="grid cursor-pointer items-center gap-4 px-6 py-4 marker:content-none hover:bg-surface-container-low/50"
 										style={{
 											gridTemplateColumns: columns
 												.map((col) => col.width || "1fr")
@@ -141,7 +141,7 @@ export function DataTable<T>({
 											</div>
 										) : null}
 									</summary>
-									<div className="bg-muted px-6 py-4">
+									<div className="bg-surface-container-low/60 px-6 py-4">
 										{expandedContent(item)}
 									</div>
 								</details>
@@ -252,3 +252,8 @@ export const SectionDivider = memo(function SectionDivider({
 		</div>
 	);
 });
+
+/**
+ * @deprecated Use GridTable instead.
+ */
+export const DataTable = GridTable;

@@ -7,15 +7,15 @@ import { apiClient } from "./client";
 
 const BASE = "/discovery-sessions";
 
+export interface DiscoverySessionCreatePayload {
+	assignedOwnerUserId?: string;
+}
+
 export const discoverySessionsAPI = {
 	async create(
-		companyId: string,
-		assignedOwnerUserId?: string,
+		payload: DiscoverySessionCreatePayload,
 	): Promise<DiscoverySessionCreateResponse> {
-		return apiClient.post<DiscoverySessionCreateResponse>(BASE, {
-			companyId,
-			...(assignedOwnerUserId ? { assignedOwnerUserId } : {}),
-		});
+		return apiClient.post<DiscoverySessionCreateResponse>(BASE, payload);
 	},
 
 	async uploadFile(sessionId: string, file: File): Promise<DiscoverySource> {

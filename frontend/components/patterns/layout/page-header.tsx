@@ -43,11 +43,13 @@ interface PageHeaderProps {
 	/** Page title (h1) */
 	title: string;
 	/** Optional subtitle/description */
-	subtitle?: string;
+	subtitle?: string | ReactNode;
 	/** Icon from lucide-react */
 	icon?: LucideIcon;
-	/** Badge text (e.g., "Beta", "New") */
-	badge?: string;
+	/** Custom leading element — replaces icon slot; use for back buttons, avatars, etc. */
+	leading?: ReactNode;
+	/** Badge content — string renders as a pill span; ReactNode for custom Badge components */
+	badge?: string | ReactNode;
 	/** Action buttons or elements */
 	actions?: ReactNode;
 	/** Breadcrumb navigation */
@@ -64,6 +66,7 @@ export function PageHeader({
 	title,
 	subtitle,
 	icon: Icon,
+	leading,
 	badge,
 	actions,
 	breadcrumbs,
@@ -85,11 +88,13 @@ export function PageHeader({
 			)}
 		>
 			<div className="flex items-start gap-3">
-				{Icon && !isHero && (
+				{leading && !isHero ? (
+					leading
+				) : Icon && !isHero ? (
 					<div className="rounded-lg bg-primary/10 p-2.5 hidden sm:flex">
 						<Icon className="h-5 w-5 text-primary" />
 					</div>
-				)}
+				) : null}
 				<div className="flex flex-col gap-1">
 					{/* Superlabel (breadcrumb-style category label) */}
 					{superlabel && (
@@ -109,11 +114,14 @@ export function PageHeader({
 						>
 							{title}
 						</h1>
-						{badge && (
-							<span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-								{badge}
-							</span>
-						)}
+						{badge &&
+							(typeof badge === "string" ? (
+								<span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+									{badge}
+								</span>
+							) : (
+								badge
+							))}
 					</div>
 
 					{subtitle && (

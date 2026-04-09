@@ -52,17 +52,17 @@ interface KpiCardProps {
 
 const variantStyles: Record<NonNullable<KpiCardProps["variant"]>, string> = {
 	default:
-		"bg-card border-border/60 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
+		"bg-card border-border/60 shadow-xs hover:shadow-sm hover:-translate-y-px transition-[shadow,transform] duration-200",
 	accent:
-		"bg-primary/5 border-primary/30 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
+		"bg-primary/5 border-primary/30 shadow-xs hover:shadow-sm hover:-translate-y-px transition-[shadow,transform] duration-200",
 	success:
-		"bg-success/5 border-success/30 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
+		"bg-success/5 border-success/30 shadow-xs hover:shadow-sm hover:-translate-y-px transition-[shadow,transform] duration-200",
 	warning:
-		"bg-warning/5 border-warning/30 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
+		"bg-warning/5 border-warning/30 shadow-xs hover:shadow-sm hover:-translate-y-px transition-[shadow,transform] duration-200",
 	destructive:
-		"bg-destructive/5 border-destructive/30 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
+		"bg-destructive/5 border-destructive/30 shadow-xs hover:shadow-sm hover:-translate-y-px transition-[shadow,transform] duration-200",
 	muted:
-		"bg-muted/50 border-muted-foreground/20 shadow-xs hover:shadow-sm transition-[shadow,transform] duration-200",
+		"bg-muted/50 border-muted-foreground/20 shadow-xs hover:shadow-sm hover:-translate-y-px transition-[shadow,transform] duration-200",
 };
 
 const changeStyles: Record<

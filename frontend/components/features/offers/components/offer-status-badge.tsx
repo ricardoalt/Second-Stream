@@ -1,4 +1,3 @@
-import type { VariantProps } from "class-variance-authority";
 import {
 	CheckCircle2,
 	Clock3,
@@ -8,46 +7,49 @@ import {
 	XCircle,
 } from "lucide-react";
 import type { ComponentType } from "react";
-import { Badge, type badgeVariants } from "@/components/ui/badge";
+import {
+	StatusChip,
+	type StatusChipProps,
+} from "@/components/patterns/feedback/status-chip";
 import { OFFER_STAGE_LABELS } from "../mock-data";
 import type { OfferStage } from "../types";
 
-type BadgeVariant = VariantProps<typeof badgeVariants>["variant"];
+type ChipStatus = NonNullable<StatusChipProps["status"]>;
 
 const statusConfig: Record<
 	OfferStage,
 	{
 		icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-		variant: BadgeVariant;
+		status: ChipStatus;
 	}
 > = {
 	requires_data: {
 		icon: FileEdit,
-		variant: "neutral-subtle",
+		status: "pending",
 	},
 	proposal_ready: {
 		icon: Hourglass,
-		variant: "info-subtle",
+		status: "info",
 	},
 	offer_sent: {
 		icon: Send,
-		variant: "primary-subtle",
+		status: "active",
 	},
 	in_negotiation: {
 		icon: Clock3,
-		variant: "warning-subtle",
+		status: "warning",
 	},
 	accepted: {
 		icon: CheckCircle2,
-		variant: "success-subtle",
+		status: "success",
 	},
 	declined: {
 		icon: XCircle,
-		variant: "destructive-subtle",
+		status: "error",
 	},
 	expired: {
 		icon: Clock3,
-		variant: "neutral-subtle",
+		status: "archived",
 	},
 };
 
@@ -56,9 +58,9 @@ export function OfferStatusBadge({ stage }: { stage: OfferStage }) {
 	const Icon = config.icon;
 
 	return (
-		<Badge variant={config.variant} className="rounded-full gap-1">
+		<StatusChip status={config.status} variant="subtle" size="sm" shape="pill">
 			<Icon aria-hidden className="size-3" />
 			{OFFER_STAGE_LABELS[stage]}
-		</Badge>
+		</StatusChip>
 	);
 }

@@ -35,8 +35,22 @@ export type CandidateStatus = "pending" | "confirmed" | "skipped";
 export type DraftCandidate = {
 	itemId: string;
 	runId: string;
+	suggestedClientName?: string | null;
+	suggestedClientConfidence?: number | null;
+	suggestedClientEvidence?: string[];
+	aiSuggestedClientAccepted?: boolean;
+	suggestedLocationName?: string | null;
+	aiSuggestedLocationAccepted?: boolean;
+	suggestedLocationCity?: string | null;
+	suggestedLocationState?: string | null;
+	suggestedLocationAddress?: string | null;
+	suggestedLocationConfidence?: number | null;
+	suggestedLocationEvidence?: string[];
 	clientId: string | null;
+	clientLocked?: boolean;
 	locationId: string | null;
+	locationResolutionHint?: "none" | "missing" | "suggested" | "ambiguous";
+	locationSuggestionLabel?: string | null;
 	material: string;
 	volume: string | null;
 	frequency?: string | null;
@@ -60,7 +74,8 @@ export interface DiscoverySessionSummary {
 
 export interface DiscoverySessionResult {
 	id: string;
-	companyId: string;
+	companyId: string | null;
+	locationId: string | null;
 	assignedOwnerUserId: string | null;
 	status: DiscoverySessionStatus;
 	startedAt: string | null;

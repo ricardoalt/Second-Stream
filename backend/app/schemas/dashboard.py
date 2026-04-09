@@ -82,7 +82,7 @@ class DraftTargetResponse(BaseSchema):
     run_id: UUID
     item_id: UUID
     source_type: Literal["bulk_import", "voice_interview"]
-    entrypoint_type: Literal["company", "location"]
+    entrypoint_type: Literal["organization", "company", "location"]
     entrypoint_id: UUID
 
 
@@ -95,7 +95,16 @@ class DraftItemDashboardRow(BaseSchema):
     stream_name: str
     company_id: UUID | None = None
     company_label: str | None = None
+    suggested_company_label: str | None = None
+    suggested_client_confidence: int | None = None
+    suggested_client_evidence: list[str] = Field(default_factory=list)
     location_label: str | None = None
+    suggested_location_name: str | None = None
+    suggested_location_city: str | None = None
+    suggested_location_state: str | None = None
+    suggested_location_address: str | None = None
+    suggested_location_confidence: int | None = None
+    suggested_location_evidence: list[str] = Field(default_factory=list)
     volume_summary: str | None = None
     last_activity_at: datetime
     source_type: Literal["bulk_import", "voice_interview"]

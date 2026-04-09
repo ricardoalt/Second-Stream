@@ -283,7 +283,21 @@ class BulkImportAIExtractor:
                 "sector": "",
                 "subsector": "",
                 "estimated_volume": "",
+                "company_name": stream.suggested_client_name or "",
+                "location_name": stream.suggested_location_name or "",
+                "location_city": stream.suggested_location_city or "",
+                "location_state": stream.suggested_location_state or "",
+                "location_address": stream.suggested_location_address or "",
             }
+
+            if stream.suggested_client_confidence is not None:
+                raw["suggested_client_confidence"] = str(stream.suggested_client_confidence)
+            if stream.suggested_client_evidence:
+                raw["suggested_client_evidence"] = " | ".join(stream.suggested_client_evidence)
+            if stream.suggested_location_confidence is not None:
+                raw["suggested_location_confidence"] = str(stream.suggested_location_confidence)
+            if stream.suggested_location_evidence:
+                raw["suggested_location_evidence"] = " | ".join(stream.suggested_location_evidence)
 
             if location_data is not None:
                 raw["location_confidence"] = str(location_data.confidence)
@@ -359,6 +373,8 @@ class BulkImportAIExtractor:
 
             merged_evidence = list(dict.fromkeys([*existing.evidence, *stream.evidence]))
             merged_metadata = self._merge_metadata(existing.metadata, stream.metadata)
+            merged_metadata = self._merge_suggested_client(existing=existing, incoming=stream, merged_metadata=merged_metadata)
+            merged_metadata = self._merge_suggested_location(existing=existing, incoming=stream, merged_metadata=merged_metadata)
             category, merged_metadata = self._merge_stream_category(
                 existing=existing,
                 incoming=stream,
@@ -376,6 +392,56 @@ class BulkImportAIExtractor:
                 name=existing.name,
                 category=category,
                 location_ref=existing.location_ref or stream.location_ref,
+                suggested_client_name=self._prefer_suggested_text(
+                    existing.suggested_client_name,
+                    stream.suggested_client_name,
+                    existing_confidence=existing.suggested_client_confidence,
+                    incoming_confidence=stream.suggested_client_confidence,
+                ),
+                suggested_client_confidence=self._prefer_suggested_confidence(
+                    existing_confidence=existing.suggested_client_confidence,
+                    incoming_confidence=stream.suggested_client_confidence,
+                    existing_text=existing.suggested_client_name,
+                    incoming_text=stream.suggested_client_name,
+                ),
+                suggested_client_evidence=self._merge_suggested_evidence(
+                    existing.suggested_client_evidence,
+                    stream.suggested_client_evidence,
+                ),
+                suggested_location_name=self._prefer_suggested_text(
+                    existing.suggested_location_name,
+                    stream.suggested_location_name,
+                    existing_confidence=existing.suggested_location_confidence,
+                    incoming_confidence=stream.suggested_location_confidence,
+                ),
+                suggested_location_city=self._prefer_suggested_text(
+                    existing.suggested_location_city,
+                    stream.suggested_location_city,
+                    existing_confidence=existing.suggested_location_confidence,
+                    incoming_confidence=stream.suggested_location_confidence,
+                ),
+                suggested_location_state=self._prefer_suggested_text(
+                    existing.suggested_location_state,
+                    stream.suggested_location_state,
+                    existing_confidence=existing.suggested_location_confidence,
+                    incoming_confidence=stream.suggested_location_confidence,
+                ),
+                suggested_location_address=self._prefer_suggested_text(
+                    existing.suggested_location_address,
+                    stream.suggested_location_address,
+                    existing_confidence=existing.suggested_location_confidence,
+                    incoming_confidence=stream.suggested_location_confidence,
+                ),
+                suggested_location_confidence=self._prefer_suggested_confidence(
+                    existing_confidence=existing.suggested_location_confidence,
+                    incoming_confidence=stream.suggested_location_confidence,
+                    existing_text=existing.suggested_location_name,
+                    incoming_text=stream.suggested_location_name,
+                ),
+                suggested_location_evidence=self._merge_suggested_evidence(
+                    existing.suggested_location_evidence,
+                    stream.suggested_location_evidence,
+                ),
                 description=description,
                 metadata=merged_metadata,
                 confidence=max(existing.confidence, stream.confidence),
@@ -473,6 +539,140 @@ class BulkImportAIExtractor:
         if metadata is None:
             return ""
         return json.dumps(metadata, sort_keys=True, separators=(",", ":"))
+
+    def _prefer_suggested_text(
+        self,
+        existing: str | None,
+        incoming: str | None,
+        *,
+        existing_confidence: int | None,
+        incoming_confidence: int | None,
+    ) -> str | None:
+        existing_text = (existing or "").strip()
+        incoming_text = (incoming or "").strip()
+        if not existing_text and not incoming_text:
+            return None
+        if not existing_text:
+            return incoming_text
+        if not incoming_text:
+            return existing_text
+
+        if self._normalize_token(existing_text) == self._normalize_token(incoming_text):
+            return existing_text
+
+        if (incoming_confidence or 0) > (existing_confidence or 0):
+            return incoming_text
+        return existing_text
+
+    def _prefer_suggested_confidence(
+        self,
+        *,
+        existing_confidence: int | None,
+        incoming_confidence: int | None,
+        existing_text: str | None,
+        incoming_text: str | None,
+    ) -> int | None:
+        has_existing = bool((existing_text or "").strip())
+        has_incoming = bool((incoming_text or "").strip())
+        if not has_existing and not has_incoming:
+            return None
+        if not has_existing:
+            return incoming_confidence
+        if not has_incoming:
+            return existing_confidence
+        return max(existing_confidence or 0, incoming_confidence or 0)
+
+    def _merge_suggested_evidence(
+        self,
+        existing: list[str] | None,
+        incoming: list[str] | None,
+    ) -> list[str] | None:
+        merged = list(dict.fromkeys([*(existing or []), *(incoming or [])]))
+        if not merged:
+            return None
+        return merged[:10]
+
+    def _merge_suggested_client(
+        self,
+        *,
+        existing: BulkImportAIWasteStreamOutput,
+        incoming: BulkImportAIWasteStreamOutput,
+        merged_metadata: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        existing_name = (existing.suggested_client_name or "").strip()
+        incoming_name = (incoming.suggested_client_name or "").strip()
+        if not existing_name or not incoming_name:
+            return merged_metadata
+        if self._normalize_token(existing_name) == self._normalize_token(incoming_name):
+            return merged_metadata
+
+        preferred, alternate = (
+            (incoming_name, existing_name)
+            if (incoming.suggested_client_confidence or 0)
+            > (existing.suggested_client_confidence or 0)
+            else (existing_name, incoming_name)
+        )
+        if self._normalize_token(preferred) == self._normalize_token(alternate):
+            return merged_metadata
+
+        next_metadata = dict(merged_metadata) if merged_metadata is not None else {}
+        alternates: list[str] = []
+        existing_values = next_metadata.get("suggested_client_alternates")
+        if isinstance(existing_values, list):
+            alternates.extend([value for value in existing_values if isinstance(value, str) and value.strip()])
+        alternates.append(alternate)
+
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for value in alternates:
+            normalized = self._normalize_token(value)
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped.append(value)
+        next_metadata["suggested_client_alternates"] = deduped
+        return next_metadata
+
+    def _merge_suggested_location(
+        self,
+        *,
+        existing: BulkImportAIWasteStreamOutput,
+        incoming: BulkImportAIWasteStreamOutput,
+        merged_metadata: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        existing_name = (existing.suggested_location_name or "").strip()
+        incoming_name = (incoming.suggested_location_name or "").strip()
+        if not existing_name or not incoming_name:
+            return merged_metadata
+        if self._normalize_token(existing_name) == self._normalize_token(incoming_name):
+            return merged_metadata
+
+        preferred, alternate = (
+            (incoming_name, existing_name)
+            if (incoming.suggested_location_confidence or 0)
+            > (existing.suggested_location_confidence or 0)
+            else (existing_name, incoming_name)
+        )
+        if self._normalize_token(preferred) == self._normalize_token(alternate):
+            return merged_metadata
+
+        next_metadata = dict(merged_metadata) if merged_metadata is not None else {}
+        alternates: list[str] = []
+        existing_values = next_metadata.get("suggested_location_alternates")
+        if isinstance(existing_values, list):
+            alternates.extend([value for value in existing_values if isinstance(value, str) and value.strip()])
+        alternates.append(alternate)
+
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for value in alternates:
+            normalized = self._normalize_token(value)
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped.append(value)
+        next_metadata["suggested_location_alternates"] = deduped
+        return next_metadata
 
     def _merge_metadata(
         self,

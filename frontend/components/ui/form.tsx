@@ -1,3 +1,8 @@
+/**
+ * @deprecated This file provides react-hook-form integration but the project uses
+ * TanStack Form (@tanstack/react-form) for all feature forms. This file is unused
+ * and kept only for potential external reference. Do NOT use in new features.
+ */
 import type * as LabelPrimitive from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";
 import * as React from "react";

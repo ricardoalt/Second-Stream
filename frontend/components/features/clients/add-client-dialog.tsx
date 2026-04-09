@@ -185,7 +185,7 @@ export function AddClientDialog({
 
 				<DialogFormContent
 					size="lg"
-					className="w-[min(94vw,780px)] max-w-none gap-0 overflow-hidden rounded-2xl border border-border/40 bg-surface-container-lowest p-0 shadow-lg"
+					className="gap-0 overflow-hidden rounded-2xl border border-border/40 bg-surface-container-lowest p-0 shadow-lg"
 					showCloseButton={true}
 				>
 					<form

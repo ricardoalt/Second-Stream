@@ -139,7 +139,8 @@ async def upload_bulk_import_file(
 @router.get("/runs/pending", response_model=BulkImportRunResponse | None)
 async def get_pending_run(
     entrypoint_type: Annotated[
-        Literal["company", "location"], Query(description="company or location")
+        Literal["organization", "company", "location"],
+        Query(description="organization, company, or location"),
     ],
     entrypoint_id: Annotated[UUID, Query(description="Company or location UUID")],
     current_user: CurrentBulkImportUser,
@@ -322,6 +323,7 @@ async def decide_discovery_draft_item(
             action=payload.action,
             normalized_data=payload.normalized_data,
             review_notes=payload.review_notes,
+            company_resolution=payload.company_resolution,
             location_resolution=payload.location_resolution,
             confirm_create_new=payload.confirm_create_new,
             owner_user_id=payload.owner_user_id,
@@ -479,6 +481,13 @@ async def _validate_entrypoint(
         assert company is not None
         if company.organization_id != org_id:
             raise_org_access_denied(org_id=str(org_id))
+        return
+    if entrypoint_type == "organization":
+        if entrypoint_id != org_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Organization entrypoint must match current organization",
+            )
         return
     if entrypoint_type == "location":
         location = await db.get(Location, entrypoint_id)

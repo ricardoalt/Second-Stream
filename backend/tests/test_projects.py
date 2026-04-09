@@ -16,6 +16,7 @@ from sqlalchemy import select
 from app.api.v1.projects import _count_dashboard_rows, _count_dashboard_rows_split
 from app.models.bulk_import import ImportItem, ImportRun
 from app.models.discovery_session import DiscoverySource
+from app.models.discovery_session import DiscoverySession
 from app.models.intake_suggestion import IntakeSuggestion
 from app.models.project import Project
 from app.models.proposal import Proposal
@@ -52,9 +53,19 @@ def _set_project_completion(project: Project, completed_fields: int) -> None:
 
 
 async def _attach_discovery_source(db_session, *, run: ImportRun, source_type: str = "file"):
+    discovery_session = DiscoverySession(
+        organization_id=run.organization_id,
+        company_id=run.entrypoint_id if run.entrypoint_type == "company" else None,
+        location_id=run.entrypoint_id if run.entrypoint_type == "location" else None,
+        status="review_ready",
+        created_by_user_id=run.created_by_user_id,
+    )
+    db_session.add(discovery_session)
+    await db_session.flush()
+
     source = DiscoverySource(
         organization_id=run.organization_id,
-        session_id=uuid.uuid4(),
+        session_id=discovery_session.id,
         source_type=source_type,
         status="review_ready",
         import_run_id=run.id,
@@ -668,9 +679,9 @@ async def test_dashboard_counts_and_rows_are_consistent(
     assert payload["counts"]["intelligenceReport"] == 1
     assert payload["counts"]["proposal"] == 1
     assert payload["total"] == 2
-    assert [item["streamName"] for item in payload["items"]] == [
-        "Needs Confirmation Stream",
+    assert sorted(item["streamName"] for item in payload["items"]) == [
         "Missing Info Stream",
+        "Needs Confirmation Stream",
     ]
     items_by_name = {item["streamName"]: item for item in payload["items"]}
     needs_confirmation_row = items_by_name["Needs Confirmation Stream"]
@@ -680,6 +691,7 @@ async def test_dashboard_counts_and_rows_are_consistent(
     assert needs_confirmation_row["pendingConfirmation"] is True
     assert needs_confirmation_row["missingRequiredInfo"] is True
     assert needs_confirmation_row["missingFields"] == [
+        "Type of Waste Generated",
         "Existing Waste Handling Practices (select all that apply)",
         "What are your primary objectives? (select all that apply)",
         "Timeframe for implementation",
@@ -1099,6 +1111,11 @@ async def test_dashboard_needs_confirmation_can_filter_by_discovery_session_id(
             "name": "Session A Draft",
             "category": "plastics",
             "project_type": "Assessment",
+            "company_name": "Suggested Session A Client",
+            "location_name": "Suggested Session A Plant",
+            "location_city": "Monterrey",
+            "location_state": "NL",
+            "location_address": "Avenida 1",
         },
     )
     draft_b = ImportItem(
@@ -1126,6 +1143,83 @@ async def test_dashboard_needs_confirmation_can_filter_by_discovery_session_id(
     payload = response.json()
     assert payload["counts"]["needsConfirmation"] == 1
     assert [item["streamName"] for item in payload["items"]] == ["Session A Draft"]
+    row = payload["items"][0]
+    assert row["companyLabel"] == "Draft Session Filter Co"
+    assert row["suggestedCompanyLabel"] == "Suggested Session A Client"
+    assert row["suggestedLocationName"] == "Suggested Session A Plant"
+    assert row["suggestedLocationCity"] == "Monterrey"
+    assert row["suggestedLocationState"] == "NL"
+    assert row["suggestedLocationAddress"] == "Avenida 1"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_needs_confirmation_exposes_structured_suggestion_confidence_and_evidence(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Draft Suggestion Signals",
+        "org-draft-suggestion-signals",
+    )
+    user = await create_user(
+        db_session,
+        email=f"draft-suggestion-signals-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Signals Co")
+
+    run = ImportRun(
+        organization_id=org.id,
+        entrypoint_type="company",
+        entrypoint_id=company.id,
+        source_file_path="imports/signals.csv",
+        source_filename="signals.csv",
+        source_type="bulk_import",
+        status="review_ready",
+        created_by_user_id=user.id,
+    )
+    db_session.add(run)
+    await db_session.flush()
+    await _attach_discovery_source(db_session, run=run, source_type="file")
+
+    draft = ImportItem(
+        organization_id=org.id,
+        run_id=run.id,
+        item_type="project",
+        status="pending_review",
+        group_id="grp-signals-1",
+        extracted_data={
+            "suggested_client_confidence": "88",
+            "suggested_client_evidence": "Header: Client Signals Co",
+            "suggested_location_confidence": "83",
+            "suggested_location_evidence": "Row 14 city/state columns",
+        },
+        normalized_data={
+            "name": "Signals Draft",
+            "category": "plastics",
+            "project_type": "Assessment",
+            "company_name": "Signals Co",
+            "location_name": "North Plant",
+            "location_city": "Monterrey",
+            "location_state": "NL",
+            "location_address": "Avenida 1",
+        },
+    )
+    db_session.add(draft)
+    await db_session.commit()
+
+    set_current_user(user)
+    response = await client.get("/api/v1/projects/dashboard?bucket=needs_confirmation")
+    assert response.status_code == 200
+    payload = response.json()
+    row = payload["items"][0]
+    assert row["suggestedClientConfidence"] == 88
+    assert row["suggestedClientEvidence"] == ["Header: Client Signals Co"]
+    assert row["suggestedLocationConfidence"] == 83
+    assert row["suggestedLocationEvidence"] == ["Row 14 city/state columns"]
 
 
 @pytest.mark.asyncio
@@ -1421,7 +1515,7 @@ async def test_dashboard_proposal_follow_up_transition_rejects_invalid_and_same_
 
     stored_without_proposals = await db_session.get(Project, project_without_proposals.id)
     assert stored_without_proposals is not None
-    assert stored_without_proposals.proposal_follow_up_state == "waiting_to_send"
+    assert stored_without_proposals.proposal_follow_up_state == "uploaded"
 
     stored = await db_session.get(Project, project.id)
     assert stored is not None
@@ -1799,7 +1893,7 @@ async def test_deleting_last_proposal_clears_stored_follow_up_state_and_recreate
 
     stored_project = await db_session.get(Project, project.id)
     assert stored_project is not None
-    assert stored_project.proposal_follow_up_state is None
+    assert stored_project.proposal_follow_up_state == "waiting_response"
 
     dashboard_after_delete = await client.get("/api/v1/projects/dashboard?bucket=proposal")
     assert dashboard_after_delete.status_code == 200

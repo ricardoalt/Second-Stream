@@ -33,6 +33,7 @@ async def create_discovery_session(
         db,
         organization_id=org.id,
         company_id=payload.company_id,
+        location_id=payload.location_id,
         user_id=current_user.id,
         assigned_owner_user_id=payload.assigned_owner_user_id,
     )
@@ -46,7 +47,10 @@ async def create_discovery_session(
     response = await service.build_response(db, session=refreshed)
     await db.commit()
     logger.info(
-        "discovery_session_created", session_id=str(session.id), company_id=str(payload.company_id)
+        "discovery_session_created",
+        session_id=str(session.id),
+        company_id=str(payload.company_id) if payload.company_id is not None else None,
+        location_id=str(payload.location_id) if payload.location_id is not None else None,
     )
     return response
 

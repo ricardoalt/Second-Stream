@@ -32,18 +32,27 @@ class DiscoverySession(BaseModel):
             "status IN ('draft','uploading','processing','review_ready','partial_failure','failed')",
             name="ck_discovery_sessions_status",
         ),
+        CheckConstraint(
+            "location_id IS NULL OR company_id IS NOT NULL",
+            name="ck_discovery_sessions_location_requires_company",
+        ),
         UniqueConstraint("id", "organization_id", name="uq_discovery_sessions_id_org"),
         Index("ix_discovery_sessions_org_status", "organization_id", "status"),
         Index("ix_discovery_sessions_company_status", "company_id", "status"),
+        Index("ix_discovery_sessions_location_status", "location_id", "status"),
     )
 
     organization_id: Mapped[UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
     )
-    company_id: Mapped[UUID] = mapped_column(
+    company_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("companies.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+    )
+    location_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("locations.id", ondelete="SET NULL"),
+        nullable=True,
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
 

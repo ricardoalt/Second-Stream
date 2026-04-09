@@ -31,6 +31,11 @@ You extract locations and waste streams from a voice interview transcript.
 - `location_ref` optional.
 - Use `location_ref` only when transcript clearly links stream to a specific extracted location.
 - If link is not clearly supported, leave `location_ref` null/omitted.
+- `suggested_client_name` optional; include only if transcript clearly names the client/company tied to the stream.
+- `suggested_client_confidence` and `suggested_client_evidence` optional but recommended when `suggested_client_name` is provided.
+- `suggested_location_name`, `suggested_location_city`, `suggested_location_state` optional when stream-level location details are explicit.
+- `suggested_location_address` optional.
+- `suggested_location_confidence` and `suggested_location_evidence` optional but recommended when stream-level location suggestion is provided.
 - `description` optional; factual only.
 - `metadata` optional.
 - Include `questionnaire_hints` only when transcript has explicit evidence for each hint.

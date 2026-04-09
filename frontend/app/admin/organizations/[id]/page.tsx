@@ -26,6 +26,7 @@ import {
 	ConfirmDialog,
 	HoverLift,
 	KpiCard,
+	PageHeader,
 	PageShell,
 	StatRail,
 } from "@/components/patterns";
@@ -359,87 +360,95 @@ export default function OrganizationDetailPage() {
 
 	return (
 		<PageShell>
-			<div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-				<Link href="/admin/organizations">
-					<Button variant="ghost" size="icon" className="shrink-0">
-						<ArrowLeft className="size-4" />
-					</Button>
-				</Link>
-				<div className="flex items-center gap-4 flex-1 min-w-0">
-					<OrgAvatar
-						name={organization.name}
-						slug={organization.slug}
-						size="lg"
-					/>
-					<div className="flex-1 min-w-0">
-						<div className="flex items-center gap-3 flex-wrap">
-							<h1 className="font-display text-2xl font-semibold tracking-tight truncate">
-								{organization.name}
-							</h1>
-							<Badge
-								variant={organization.isActive ? "success-subtle" : "muted"}
-							>
-								{organization.isActive ? "Active" : "Archived"}
-							</Badge>
-						</div>
-						<p className="text-muted-foreground font-mono text-sm">
-							{organization.slug}
-						</p>
-					</div>
-				</div>
-				<div className="flex items-center gap-2 shrink-0">
-					<Button onClick={handleOpenWorkspace}>
-						<LayoutDashboard data-icon="inline-start" aria-hidden />
-						Workspace
-					</Button>
-					<Button
-						variant="outline"
-						size="icon"
-						onClick={fetchData}
-						disabled={isLoading}
-						aria-label="Refresh organization data"
-					>
-						<RefreshCcw className={cn("size-4", isLoading && "animate-spin")} />
-					</Button>
-					<Button
-						variant="outline"
-						onClick={() => setEditOrgModalOpen(true)}
-						disabled={!organization.isActive}
-					>
-						Edit
-					</Button>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button variant="outline" size="icon" disabled={lifecycleLoading}>
-								<MoreHorizontal className="size-4" />
+			<PageHeader
+				title={organization.name}
+				subtitle={
+					<span className="font-mono text-sm text-muted-foreground">
+						{organization.slug}
+					</span>
+				}
+				leading={
+					<div className="flex items-center gap-3 shrink-0">
+						<Link href="/admin/organizations">
+							<Button variant="ghost" size="icon">
+								<ArrowLeft className="size-4" />
 							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							{organization.isActive ? (
-								<DropdownMenuItem onClick={() => setArchiveDialogOpen(true)}>
-									<Archive className="size-4" aria-hidden />
-									Archive
-								</DropdownMenuItem>
-							) : (
-								<>
-									<DropdownMenuItem onClick={() => setRestoreDialogOpen(true)}>
-										<RotateCcw className="size-4" aria-hidden />
-										Restore
+						</Link>
+						<OrgAvatar
+							name={organization.name}
+							slug={organization.slug}
+							size="lg"
+						/>
+					</div>
+				}
+				badge={
+					<Badge variant={organization.isActive ? "success-subtle" : "muted"}>
+						{organization.isActive ? "Active" : "Archived"}
+					</Badge>
+				}
+				actions={
+					<div className="flex items-center gap-2">
+						<Button onClick={handleOpenWorkspace}>
+							<LayoutDashboard data-icon="inline-start" aria-hidden />
+							Workspace
+						</Button>
+						<Button
+							variant="outline"
+							size="icon"
+							onClick={fetchData}
+							disabled={isLoading}
+							aria-label="Refresh organization data"
+						>
+							<RefreshCcw
+								className={cn("size-4", isLoading && "animate-spin")}
+							/>
+						</Button>
+						<Button
+							variant="outline"
+							onClick={() => setEditOrgModalOpen(true)}
+							disabled={!organization.isActive}
+						>
+							Edit
+						</Button>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="outline"
+									size="icon"
+									disabled={lifecycleLoading}
+								>
+									<MoreHorizontal className="size-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								{organization.isActive ? (
+									<DropdownMenuItem onClick={() => setArchiveDialogOpen(true)}>
+										<Archive className="size-4" aria-hidden />
+										Archive
 									</DropdownMenuItem>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem
-										onClick={() => setPurgeDialogOpen(true)}
-										className="text-destructive focus:text-destructive"
-									>
-										<Trash2 className="size-4" aria-hidden />
-										Permanently Delete...
-									</DropdownMenuItem>
-								</>
-							)}
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
-			</div>
+								) : (
+									<>
+										<DropdownMenuItem
+											onClick={() => setRestoreDialogOpen(true)}
+										>
+											<RotateCcw className="size-4" aria-hidden />
+											Restore
+										</DropdownMenuItem>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem
+											onClick={() => setPurgeDialogOpen(true)}
+											className="text-destructive focus:text-destructive"
+										>
+											<Trash2 className="size-4" aria-hidden />
+											Permanently Delete...
+										</DropdownMenuItem>
+									</>
+								)}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
+				}
+			/>
 
 			{(organization.contactEmail || organization.contactPhone) && (
 				<div className="flex items-center gap-6 text-sm text-muted-foreground px-1">

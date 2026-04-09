@@ -6,6 +6,10 @@ import { bulkImportAPI } from "@/lib/api/bulk-import";
 import { fetchCandidates } from "@/lib/api/dashboard";
 import { discoverySessionsAPI } from "@/lib/api/discovery-sessions";
 import {
+	parseAiCreateCompanySelection,
+	parseAiCreateLocationSelection,
+} from "@/lib/discovery-ai-suggestions";
+import {
 	buildCandidateReviewNotes,
 	type CandidateEditableField,
 	type CandidateValidationErrors,
@@ -28,12 +32,77 @@ const TERMINAL_STATUSES = new Set([
 	"failed",
 ]);
 
+export function resolveDiscoveryDecisionResolutions(params: {
+	candidate: DraftCandidate;
+	defaultLocationId: string;
+}): {
+	companyResolution?:
+		| { mode: "existing"; companyId: string }
+		| { mode: "create_new"; name: string };
+	locationResolution?:
+		| { mode: "existing"; locationId: string }
+		| {
+				mode: "create_new";
+				name: string;
+				city: string;
+				state: string;
+				address?: string;
+		  };
+} {
+	const { candidate, defaultLocationId } = params;
+	const clientId = (candidate.clientId ?? "").trim();
+	const locationId = (candidate.locationId ?? defaultLocationId ?? "").trim();
+	const suggestedClientName = (candidate.suggestedClientName ?? "").trim();
+	const aiClientAccepted = candidate.aiSuggestedClientAccepted === true;
+
+	const companyResolution = clientId
+		? {
+				mode: "existing" as const,
+				companyId: clientId,
+			}
+		: aiClientAccepted && suggestedClientName
+			? {
+					mode: "create_new" as const,
+					name: suggestedClientName,
+				}
+			: undefined;
+
+	const suggestedLocationName = (candidate.suggestedLocationName ?? "").trim();
+	const suggestedLocationCity = (candidate.suggestedLocationCity ?? "").trim();
+	const suggestedLocationState = (candidate.suggestedLocationState ?? "").trim();
+	const suggestedLocationAddress = (candidate.suggestedLocationAddress ?? "").trim();
+ 	const aiLocationAccepted = candidate.aiSuggestedLocationAccepted === true;
+
+	const locationResolution = locationId
+		? {
+				mode: "existing" as const,
+				locationId,
+			}
+		: aiLocationAccepted &&
+		  suggestedLocationName &&
+		  suggestedLocationCity &&
+		  suggestedLocationState
+			? {
+					mode: "create_new" as const,
+					name: suggestedLocationName,
+					city: suggestedLocationCity,
+					state: suggestedLocationState,
+					...(suggestedLocationAddress
+						? { address: suggestedLocationAddress }
+						: {}),
+				}
+			: undefined;
+
+	return {
+		...(companyResolution ? { companyResolution } : {}),
+		...(locationResolution ? { locationResolution } : {}),
+	};
+}
+
 type ResumeStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 interface PersistedDiscoveryResumeState {
 	sessionId: string;
-	companyId: string;
-	locationId: string;
 	assignedOwnerUserId: string | null;
 	savedAt: number;
 }
@@ -42,8 +111,6 @@ export type DiscoveryResumeMode = "processing" | "review" | "terminal";
 
 interface DiscoveryResumeNotice {
 	sessionId: string;
-	companyId: string;
-	locationId: string;
 	assignedOwnerUserId: string | null;
 	status: DiscoverySessionResult["status"];
 	mode: DiscoveryResumeMode;
@@ -63,10 +130,6 @@ function isResumeStorageCandidate(
 	return (
 		typeof candidate.sessionId === "string" &&
 		candidate.sessionId.length > 0 &&
-		typeof candidate.companyId === "string" &&
-		candidate.companyId.length > 0 &&
-		typeof candidate.locationId === "string" &&
-		candidate.locationId.length > 0 &&
 		(candidate.assignedOwnerUserId === null ||
 			typeof candidate.assignedOwnerUserId === "string") &&
 		typeof candidate.savedAt === "number"
@@ -180,8 +243,6 @@ export function resolveDiscoveryResumeNotice(params: {
 	if (mode === "processing") {
 		return {
 			sessionId: persisted.sessionId,
-			companyId: persisted.companyId,
-			locationId: persisted.locationId,
 			assignedOwnerUserId: persisted.assignedOwnerUserId,
 			status: session.status,
 			mode,
@@ -195,8 +256,6 @@ export function resolveDiscoveryResumeNotice(params: {
 	if (mode === "review") {
 		return {
 			sessionId: persisted.sessionId,
-			companyId: persisted.companyId,
-			locationId: persisted.locationId,
 			assignedOwnerUserId: persisted.assignedOwnerUserId,
 			status: session.status,
 			mode,
@@ -209,8 +268,6 @@ export function resolveDiscoveryResumeNotice(params: {
 
 	return {
 		sessionId: persisted.sessionId,
-		companyId: persisted.companyId,
-		locationId: persisted.locationId,
 		assignedOwnerUserId: persisted.assignedOwnerUserId,
 		status: session.status,
 		mode,
@@ -238,12 +295,20 @@ interface ReviewSummary {
 }
 
 interface StartDiscoveryParams {
-	companyId: string;
-	locationId: string;
 	assignedOwnerUserId: string | null;
 	files: File[];
 	audioFile: File | null;
 	text: string;
+}
+
+export function resolveDiscoverySessionCreatePayload(params: {
+	assignedOwnerUserId: string | null;
+}): import("@/lib/api/discovery-sessions").DiscoverySessionCreatePayload {
+	const { assignedOwnerUserId } = params;
+	if (!assignedOwnerUserId) {
+		return {};
+	}
+	return { assignedOwnerUserId };
 }
 
 interface UseDiscoveryOrchestrationOptions {
@@ -282,25 +347,132 @@ export function resolveProcessingTerminalRoute(params: {
 	return { phase: "no-results", openCandidateModal: false };
 }
 
+function normalizeSuggestedName(value?: string | null): string {
+	return (value ?? "").trim().toLocaleLowerCase();
+}
+
+export function resolveCandidatesAfterFieldChange(params: {
+	candidates: DraftCandidate[];
+	itemId: string;
+	field: CandidateEditableField;
+	value: string;
+}): DraftCandidate[] {
+	const { candidates, itemId, field, value } = params;
+	if (field !== "clientId") {
+		return candidates.map((candidate) =>
+			candidate.itemId === itemId
+				? field === "locationId"
+					? (() => {
+							const acceptedSuggestedLocationLabel =
+								parseAiCreateLocationSelection(value);
+							if (acceptedSuggestedLocationLabel !== null) {
+								return {
+									...candidate,
+									locationId: null,
+									suggestedLocationName:
+										candidate.suggestedLocationName ??
+										acceptedSuggestedLocationLabel,
+									aiSuggestedLocationAccepted: true,
+									locationResolutionHint: "suggested" as const,
+								};
+							}
+
+							return {
+								...candidate,
+								locationId: value,
+								aiSuggestedLocationAccepted: false,
+								locationResolutionHint: value ? "none" : "missing",
+							};
+						})()
+					: {
+							...candidate,
+							[field]: value,
+						}
+				: candidate,
+		);
+	}
+
+	const acceptedSuggestedClientName = parseAiCreateCompanySelection(value);
+	if (acceptedSuggestedClientName !== null) {
+		return candidates.map((candidate) => {
+			if (candidate.itemId !== itemId) {
+				return candidate;
+			}
+
+			if (candidate.clientLocked) {
+				return candidate;
+			}
+
+			return {
+				...candidate,
+				clientId: null,
+				suggestedClientName: acceptedSuggestedClientName,
+				aiSuggestedClientAccepted: true,
+				locationId: null,
+				aiSuggestedLocationAccepted: false,
+				locationResolutionHint: "missing",
+				locationSuggestionLabel: null,
+			};
+		});
+	}
+
+	const targetCandidate = candidates.find(
+		(candidate) => candidate.itemId === itemId,
+	);
+	if (!targetCandidate) {
+		return candidates;
+	}
+
+	const normalizedSuggestedClient = normalizeSuggestedName(
+		targetCandidate.suggestedClientName,
+	);
+
+	return candidates.map((candidate) => {
+		const isTarget = candidate.itemId === itemId;
+		const sameSuggestedClient =
+			normalizedSuggestedClient.length > 0 &&
+			normalizeSuggestedName(candidate.suggestedClientName) ===
+				normalizedSuggestedClient;
+		const shouldAutoApply =
+			value.trim().length > 0 &&
+			sameSuggestedClient &&
+			!(candidate.clientId ?? "").trim();
+
+		if (!isTarget && !shouldAutoApply) {
+			return candidate;
+		}
+
+		if (candidate.clientLocked) {
+			return candidate;
+		}
+
+		const currentClientId = candidate.clientId ?? "";
+		const nextClientId = value;
+		const shouldResetLocation = nextClientId !== currentClientId;
+		return {
+			...candidate,
+			clientId: nextClientId,
+			aiSuggestedClientAccepted: false,
+			locationId: shouldResetLocation ? null : candidate.locationId,
+			aiSuggestedLocationAccepted: shouldResetLocation
+				? false
+				: candidate.aiSuggestedLocationAccepted,
+			locationResolutionHint: shouldResetLocation
+				? "missing"
+				: candidate.locationResolutionHint,
+			locationSuggestionLabel: shouldResetLocation
+				? null
+				: candidate.locationSuggestionLabel,
+		};
+	});
+}
+
 function reviewCounts(candidates: DraftCandidate[]): ReviewSummary {
 	const confirmed = candidates.filter(
 		(item) => item.status === "confirmed",
 	).length;
 	const skipped = candidates.filter((item) => item.status === "skipped").length;
 	return { confirmed, skipped, total: candidates.length };
-}
-
-function resolveLocationResolution(params: {
-	candidateLocationId: string | null;
-	defaultLocationId: string;
-}): { mode: "existing"; locationId: string } | undefined {
-	const { candidateLocationId, defaultLocationId } = params;
-	const resolvedLocationId = candidateLocationId ?? defaultLocationId ?? null;
-	if (!resolvedLocationId) {
-		return undefined;
-	}
-
-	return { mode: "existing", locationId: resolvedLocationId };
 }
 
 type DecideDiscoveryDraftFn =
@@ -420,7 +592,7 @@ export function useDiscoveryOrchestration(
 	}, []);
 
 	const startPolling = useCallback(
-		(sessionId: string, companyId: string, locationId: string) => {
+		(sessionId: string) => {
 			if (pollIntervalRef.current) {
 				clearInterval(pollIntervalRef.current);
 				pollIntervalRef.current = null;
@@ -461,7 +633,7 @@ export function useDiscoveryOrchestration(
 						if (finalSession.summary.draftsNeedingConfirmation > 0) {
 							try {
 								const rows = await fetchCandidates(sessionId);
-								const mapped = mapCandidateRows(rows, companyId, locationId);
+								const mapped = mapCandidateRows(rows, null, null);
 								const route = resolveProcessingTerminalRoute({
 									status: finalSession.status,
 									draftsNeedingConfirmation:
@@ -533,14 +705,12 @@ export function useDiscoveryOrchestration(
 	const startDiscovery = useCallback(
 		async (params: StartDiscoveryParams) => {
 			const {
-				companyId,
-				locationId,
 				assignedOwnerUserId: selectedOwnerUserId,
 				files,
 				audioFile,
 				text,
 			} = params;
-			setDefaultLocationId(locationId);
+			setDefaultLocationId("");
 			setAssignedOwnerUserId(selectedOwnerUserId);
 			const trimmedText = text.trim();
 			const hasValidTextSource = trimmedText.length >= 20;
@@ -550,14 +720,13 @@ export function useDiscoveryOrchestration(
 
 			try {
 				const session = await discoverySessionsAPI.create(
-					companyId,
-					selectedOwnerUserId ?? undefined,
+					resolveDiscoverySessionCreatePayload({
+						assignedOwnerUserId: selectedOwnerUserId,
+					}),
 				);
 				const sessionId = session.id;
 				persistDiscoveryResumeState({
 					sessionId,
-					companyId,
-					locationId,
 					assignedOwnerUserId: selectedOwnerUserId,
 				});
 
@@ -574,7 +743,7 @@ export function useDiscoveryOrchestration(
 
 				await Promise.all(uploads);
 				await discoverySessionsAPI.start(sessionId);
-				startPolling(sessionId, companyId, locationId);
+				startPolling(sessionId);
 			} catch (startError) {
 				setError(
 					startError instanceof Error
@@ -648,15 +817,11 @@ export function useDiscoveryOrchestration(
 		}
 
 		setError(null);
-		setDefaultLocationId(resumeNotice.locationId);
+		setDefaultLocationId("");
 		setAssignedOwnerUserId(resumeNotice.assignedOwnerUserId);
 
 		if (resumeNotice.mode === "processing") {
-			startPolling(
-				resumeNotice.sessionId,
-				resumeNotice.companyId,
-				resumeNotice.locationId,
-			);
+			startPolling(resumeNotice.sessionId);
 			return;
 		}
 
@@ -670,11 +835,7 @@ export function useDiscoveryOrchestration(
 			});
 
 			if (mode === "processing") {
-				startPolling(
-					resumeNotice.sessionId,
-					resumeNotice.companyId,
-					resumeNotice.locationId,
-				);
+				startPolling(resumeNotice.sessionId);
 				return;
 			}
 
@@ -684,8 +845,6 @@ export function useDiscoveryOrchestration(
 						session,
 						persisted: {
 							sessionId: resumeNotice.sessionId,
-							companyId: resumeNotice.companyId,
-							locationId: resumeNotice.locationId,
 							assignedOwnerUserId: resumeNotice.assignedOwnerUserId,
 							savedAt: Date.now(),
 						},
@@ -695,11 +854,7 @@ export function useDiscoveryOrchestration(
 			}
 
 			const rows = await fetchCandidates(resumeNotice.sessionId);
-			const mapped = mapCandidateRows(
-				rows,
-				resumeNotice.companyId,
-				resumeNotice.locationId,
-			);
+			const mapped = mapCandidateRows(rows, null, null);
 			const route = resolveProcessingTerminalRoute({
 				status: session.status,
 				draftsNeedingConfirmation: session.summary.draftsNeedingConfirmation,
@@ -740,14 +895,12 @@ export function useDiscoveryOrchestration(
 	const handleCandidateFieldChange = useCallback(
 		(itemId: string, field: CandidateEditableField, value: string) => {
 			setCandidates((prev) =>
-				prev.map((candidate) =>
-					candidate.itemId === itemId
-						? {
-								...candidate,
-								[field]: value,
-							}
-						: candidate,
-				),
+				resolveCandidatesAfterFieldChange({
+					candidates: prev,
+					itemId,
+					field,
+					value,
+				}),
 			);
 			setCandidateErrors((current) => {
 				if (!(itemId in current)) {
@@ -785,15 +938,15 @@ export function useDiscoveryOrchestration(
 
 			setConfirmingId(itemId);
 			try {
-				const locationResolution = resolveLocationResolution({
-					candidateLocationId: candidate.locationId,
+				const resolutions = resolveDiscoveryDecisionResolutions({
+					candidate,
 					defaultLocationId,
 				});
 				await bulkImportAPI.decideDiscoveryDraft(candidate.itemId, {
 					action: "confirm",
 					normalizedData: toDiscoveryNormalizedData(candidate),
 					reviewNotes: buildCandidateReviewNotes(candidate),
-					...(locationResolution ? { locationResolution } : {}),
+					...resolutions,
 					...(assignedOwnerUserId ? { ownerUserId: assignedOwnerUserId } : {}),
 				});
 				setCandidates((prev) =>

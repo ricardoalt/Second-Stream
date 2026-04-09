@@ -28,3 +28,8 @@ class NormalizedProjectDataV1(BaseModel):
     estimated_volume: str | None = Field(default=None, max_length=255)
     volume: str | None = Field(default=None, max_length=255)
     frequency: str | None = Field(default=None, max_length=255)
+    company_name: str | None = Field(default=None, max_length=255)
+    location_name: str | None = Field(default=None, max_length=255)
+    location_city: str | None = Field(default=None, max_length=100)
+    location_state: str | None = Field(default=None, max_length=100)
+    location_address: str | None = Field(default=None, max_length=500)
