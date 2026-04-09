@@ -15,7 +15,7 @@ describe("location combobox labels", () => {
 		).toBe("Baton Rouge - Baton Rouge");
 	});
 
-	it("shows unresolved AI suggestion copy without pretending selection", () => {
+	it("uses placeholder when AI suggestion is unresolved", () => {
 		expect(
 			locationComboboxModule.resolveLocationTriggerLabel({
 				selectedLocationLabel: null,
@@ -24,10 +24,10 @@ describe("location combobox labels", () => {
 				canCreateFromSuggestion: true,
 				placeholder: "Select location",
 			}),
-		).toBe("AI suggested: Baton Rouge - Baton Rouge (not selected)");
+		).toBe("Select location");
 	});
 
-	it("shows create-new intent when AI location suggestion was accepted", () => {
+	it("shows clean suggested value when AI location suggestion was accepted", () => {
 		expect(
 			locationComboboxModule.resolveLocationTriggerLabel({
 				selectedLocationLabel: null,
@@ -36,10 +36,10 @@ describe("location combobox labels", () => {
 				canCreateFromSuggestion: true,
 				placeholder: "Select location",
 			}),
-		).toBe('Create "Baton Rouge - Baton Rouge" from AI suggestion');
+		).toBe("Baton Rouge - Baton Rouge");
 	});
 
-	it("shows incomplete state when AI suggestion cannot be created yet", () => {
+	it("uses placeholder when AI location suggestion is incomplete", () => {
 		expect(
 			locationComboboxModule.resolveLocationTriggerLabel({
 				selectedLocationLabel: null,
@@ -48,9 +48,43 @@ describe("location combobox labels", () => {
 				canCreateFromSuggestion: false,
 				placeholder: "Select location",
 			}),
-		).toBe(
-			"AI suggested: Baton Rouge - Baton Rouge (add city/state to create)",
-		);
+		).toBe("Select location");
+	});
+
+	it("returns AI suggestion row metadata for complete and incomplete suggestions", () => {
+		expect(
+			locationComboboxModule.resolveLocationAiSuggestionState({
+				suggestedValue: "Baton Rouge - Baton Rouge",
+				canCreateFromSuggestion: true,
+			}),
+		).toEqual({
+			hasSuggestion: true,
+			normalizedSuggestedValue: "Baton Rouge - Baton Rouge",
+			secondaryText: "Auto-create on confirm",
+			disabled: false,
+		});
+
+		expect(
+			locationComboboxModule.resolveLocationAiSuggestionState({
+				suggestedValue: "Baton Rouge - Baton Rouge",
+				canCreateFromSuggestion: false,
+			}),
+		).toEqual({
+			hasSuggestion: true,
+			normalizedSuggestedValue: "Baton Rouge - Baton Rouge",
+			secondaryText: "Needs city/state",
+			disabled: true,
+		});
+	});
+
+	it("keeps AI suggestion entry available even after selecting an existing location", () => {
+		expect(
+			locationComboboxModule.hasLocationAiSuggestion(
+				"Baton Rouge - Baton Rouge",
+			),
+		).toBe(true);
+
+		expect(locationComboboxModule.hasLocationAiSuggestion("   ")).toBe(false);
 	});
 
 	it("falls back to placeholder when no selection or suggestion exists", () => {

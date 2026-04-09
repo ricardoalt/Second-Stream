@@ -356,9 +356,91 @@ export function isAiClientSuggestionAccepted(params: {
 	return candidate.aiSuggestedClientAccepted === true;
 }
 
+export function resolveClientAutoCreateBadgeVisibility(params: {
+	candidate: DraftCandidate;
+	draftClientMatches: Record<string, string[]>;
+}): boolean {
+	return isAiClientSuggestionAccepted(params);
+}
+
+export function resolveLocationAutoCreateBadgeVisibility(
+	candidate: DraftCandidate,
+): boolean {
+	if ((candidate.locationId ?? "").trim().length > 0) {
+		return false;
+	}
+
+	return hasAcceptedCreateNewLocation(candidate);
+}
+
 function trimToNull(value?: string | null): string | null {
 	const normalized = (value ?? "").trim();
 	return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeToken(value?: string | null): string {
+	return (value ?? "").trim().toLocaleLowerCase();
+}
+
+function cleanSuggestedLocationName(candidate: DraftCandidate): string | null {
+	const rawName = trimToNull(candidate.suggestedLocationName);
+	if (!rawName) {
+		return null;
+	}
+
+	const tokens = rawName
+		.split(" - ")
+		.map((token) => token.trim())
+		.filter((token) => token.length > 0);
+
+	if (tokens.length === 0) {
+		return rawName;
+	}
+
+	const suggestedClientName = trimToNull(candidate.suggestedClientName);
+	const clientHead = suggestedClientName?.split(" - ")[0]?.trim() ?? null;
+	const normalizedClientName = normalizeToken(suggestedClientName);
+	const normalizedClientHead = normalizeToken(clientHead);
+
+	if (tokens.length > 1) {
+		const firstToken = normalizeToken(tokens[0]);
+		if (
+			firstToken.length > 0 &&
+			(firstToken === normalizedClientName ||
+				firstToken === normalizedClientHead)
+		) {
+			tokens.shift();
+		}
+	}
+
+	const dedupedTokens: string[] = [];
+	for (const token of tokens) {
+		const normalized = normalizeToken(token);
+		if (!normalized) {
+			continue;
+		}
+		if (
+			dedupedTokens.some((existing) => normalizeToken(existing) === normalized)
+		) {
+			continue;
+		}
+		dedupedTokens.push(token);
+	}
+
+	const normalizedCity = normalizeToken(candidate.suggestedLocationCity);
+	if (
+		normalizedCity.length > 0 &&
+		dedupedTokens.length > 1 &&
+		normalizeToken(dedupedTokens[dedupedTokens.length - 1]) === normalizedCity
+	) {
+		dedupedTokens.pop();
+	}
+
+	if (dedupedTokens.length === 0) {
+		return rawName;
+	}
+
+	return dedupedTokens.join(" - ");
 }
 
 export function resolveClientSuggestedPrefillValue(
@@ -387,7 +469,7 @@ export function resolveLocationSuggestedPrefillValue(
 		return null;
 	}
 
-	const name = trimToNull(candidate.suggestedLocationName);
+	const name = cleanSuggestedLocationName(candidate);
 	if (!name) {
 		return trimToNull(candidate.locationSuggestionLabel);
 	}
@@ -397,7 +479,17 @@ export function resolveLocationSuggestedPrefillValue(
 		return name;
 	}
 
+	if (normalizeToken(name) === normalizeToken(city)) {
+		return name;
+	}
+
 	return `${name} - ${city}`;
+}
+
+export function resolveActiveReviewCandidates(
+	candidates: DraftCandidate[],
+): DraftCandidate[] {
+	return candidates.filter((candidate) => candidate.status === "pending");
 }
 
 export function resolveCandidateBatchResolutionState(
@@ -448,12 +540,18 @@ export function DraftConfirmationModal({
 		});
 	}, [hasLoadedCompanies, loadCompanies]);
 
-	const pendingCount = candidates.filter((c) => c.status === "pending").length;
+	const activeReviewCandidates = useMemo(
+		() => resolveActiveReviewCandidates(candidates),
+		[candidates],
+	);
+	const pendingCount = activeReviewCandidates.length;
 	const showRejectAction = canRejectCandidates(onRejectCandidate);
 	const confirmedCount = candidates.filter(
 		(c) => c.status === "confirmed",
 	).length;
-	const resolutionSummary = resolveCandidateBatchResolutionState(candidates);
+	const resolutionSummary = resolveCandidateBatchResolutionState(
+		activeReviewCandidates,
+	);
 	const totalCount = candidates.length;
 	const remainingDraftCount = Math.max(totalCount - confirmedCount, 0);
 	const remainingDraftLabel =
@@ -588,7 +686,7 @@ export function DraftConfirmationModal({
 							)}
 						>
 							<AnimatePresence mode="popLayout">
-								{candidates.map((candidate, index) => {
+								{activeReviewCandidates.map((candidate, index) => {
 									const isConfirmed = candidate.status === "confirmed";
 									const isPending = candidate.status === "pending";
 									const isEditing = editingCandidateId === candidate.itemId;
@@ -607,8 +705,14 @@ export function DraftConfirmationModal({
 											draftClientMatches:
 												suggestedClientMatches.draftClientMatches,
 										});
-									const aiSuggestedLocationAccepted =
-										candidate.aiSuggestedLocationAccepted === true;
+									const aiSuggestedClientBadgeVisible =
+										resolveClientAutoCreateBadgeVisibility({
+											candidate,
+											draftClientMatches:
+												suggestedClientMatches.draftClientMatches,
+										});
+									const aiSuggestedLocationBadgeVisible =
+										resolveLocationAutoCreateBadgeVisibility(candidate);
 									const createNewAvailability =
 										resolveCreateNewAvailability(candidate);
 									const showSpinner = isCandidateBusy({
@@ -697,8 +801,8 @@ export function DraftConfirmationModal({
 															</Tooltip>
 														) : null}
 														{resolutionState.suggestedLocationLabel ? (
-															<span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-																AI suggested:{" "}
+															<span className="inline-flex items-center gap-1 rounded bg-blue-50/70 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+																AI suggests:{" "}
 																{resolutionState.suggestedLocationLabel}
 															</span>
 														) : null}
@@ -899,12 +1003,22 @@ export function DraftConfirmationModal({
 														<div className="border-t border-border/40 bg-muted/20 px-6 py-4">
 															<div className="grid gap-4 sm:grid-cols-3">
 																<div className="space-y-1.5 sm:col-span-3">
-																	<label
-																		htmlFor={`client-${candidate.itemId}`}
-																		className="text-xs font-medium text-muted-foreground"
-																	>
-																		Client
-																	</label>
+																	<div className="flex items-center gap-2">
+																		<label
+																			htmlFor={`client-${candidate.itemId}`}
+																			className="text-xs font-medium text-muted-foreground"
+																		>
+																			Client
+																		</label>
+																		{aiSuggestedClientBadgeVisible ? (
+																			<Badge
+																				variant="secondary"
+																				className="h-5 px-1.5 text-[10px]"
+																			>
+																				Auto-create
+																			</Badge>
+																		) : null}
+																	</div>
 																	<CompanyCombobox
 																		value={candidate.clientId ?? ""}
 																		suggestedValue={suggestedClientPrefill}
@@ -934,31 +1048,17 @@ export function DraftConfirmationModal({
 																			disableActions ||
 																			candidate.clientLocked === true
 																		}
-																		placeholder="Select existing client"
+																		placeholder="Select client..."
 																		className="h-9"
 																	/>
-																	{aiSuggestedClientAccepted ? (
-																		<p className="text-xs text-blue-700">
-																			Will create client from AI suggestion on
-																			confirm.
+																	{suggestedClientPrefill ? (
+																		<p className="text-xs text-muted-foreground">
+																			AI suggests: {suggestedClientPrefill}
 																		</p>
 																	) : null}
 																	{candidate.clientLocked ? (
 																		<p className="text-xs text-muted-foreground">
 																			Client is fixed by wizard scope.
-																		</p>
-																	) : null}
-																	{(candidate.clientId ?? "").trim().length ===
-																		0 &&
-																	candidate.suggestedClientName &&
-																	(suggestedClientMatches.draftClientMatches[
-																		candidate.itemId
-																	]?.length ?? 0) === 0 ? (
-																		<p className="text-xs text-muted-foreground">
-																			AI suggested client:{" "}
-																			{candidate.suggestedClientName}. Use
-																			create-new if this client does not exist
-																			yet.
 																		</p>
 																	) : null}
 																	{errors?.clientId ? (
@@ -973,12 +1073,22 @@ export function DraftConfirmationModal({
 																</div>
 
 																<div className="space-y-1.5 sm:col-span-3">
-																	<label
-																		htmlFor={`location-${candidate.itemId}`}
-																		className="text-xs font-medium text-muted-foreground"
-																	>
-																		Location
-																	</label>
+																	<div className="flex items-center gap-2">
+																		<label
+																			htmlFor={`location-${candidate.itemId}`}
+																			className="text-xs font-medium text-muted-foreground"
+																		>
+																			Location
+																		</label>
+																		{aiSuggestedLocationBadgeVisible ? (
+																			<Badge
+																				variant="secondary"
+																				className="h-5 px-1.5 text-[10px]"
+																			>
+																				Auto-create
+																			</Badge>
+																		) : null}
+																	</div>
 																	<LocationCombobox
 																		companyId={candidate.clientId ?? ""}
 																		value={candidate.locationId ?? ""}
@@ -987,12 +1097,10 @@ export function DraftConfirmationModal({
 																			canCreateSuggestedLocation
 																		}
 																		isSuggestedAccepted={
-																			candidate.aiSuggestedLocationAccepted ===
-																			true
+																			aiSuggestedLocationBadgeVisible
 																		}
 																		allowSuggestionWithoutCompany={
-																			candidate.aiSuggestedClientAccepted ===
-																			true
+																			aiSuggestedClientBadgeVisible
 																		}
 																		onValueChange={(value) =>
 																			onCandidateFieldChange(
@@ -1001,32 +1109,12 @@ export function DraftConfirmationModal({
 																				value,
 																			)
 																		}
-																		placeholder={
-																			candidate.clientId
-																				? "Select or create location"
-																				: "Select client first"
-																		}
+																		placeholder="Select location..."
 																		className="h-9"
 																	/>
-																	{aiSuggestedLocationAccepted &&
-																	canCreateSuggestedLocation ? (
-																		<p className="text-xs text-blue-700">
-																			Will create location from AI suggestion on
-																			confirm.
-																		</p>
-																	) : null}
-																	{!canCreateSuggestedLocation &&
-																	(candidate.suggestedLocationName ?? "").trim()
-																		.length > 0 ? (
+																	{suggestedLocationPrefill ? (
 																		<p className="text-xs text-muted-foreground">
-																			AI suggested location needs city/state
-																			before it can be created.
-																		</p>
-																	) : null}
-																	{!createNewAvailability.canCreateLocation ? (
-																		<p className="text-xs text-muted-foreground">
-																			Select a client first to enable create-new
-																			location.
+																			AI suggests: {suggestedLocationPrefill}
 																		</p>
 																	) : null}
 																	{errors?.locationId ? (
@@ -1041,9 +1129,9 @@ export function DraftConfirmationModal({
 																	{resolutionState.ambiguousLocation &&
 																	resolutionState.suggestedLocationLabel ? (
 																		<p className="text-xs text-muted-foreground">
-																			AI suggested location:{" "}
+																			AI suggests:{" "}
 																			{resolutionState.suggestedLocationLabel}.
-																			Choose the final location explicitly.
+																			Confirm the exact location.
 																		</p>
 																	) : null}
 																</div>
@@ -1208,6 +1296,11 @@ export function DraftConfirmationModal({
 										</motion.div>
 									);
 								})}
+								{activeReviewCandidates.length === 0 ? (
+									<div className="px-2 py-8 text-center text-sm text-muted-foreground">
+										No drafts left in active review.
+									</div>
+								) : null}
 							</AnimatePresence>
 						</div>
 					</div>

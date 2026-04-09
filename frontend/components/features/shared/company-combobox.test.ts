@@ -15,7 +15,7 @@ describe("company combobox labels", () => {
 		).toBe("EXXON");
 	});
 
-	it("shows unresolved AI suggestion copy without pretending selection", () => {
+	it("uses placeholder when AI suggestion is unresolved", () => {
 		expect(
 			companyComboboxModule.resolveCompanyTriggerLabel({
 				selectedCompanyName: null,
@@ -23,10 +23,10 @@ describe("company combobox labels", () => {
 				isSuggestedAccepted: false,
 				placeholder: "Select company",
 			}),
-		).toBe("AI suggested: EXXON (not selected)");
+		).toBe("Select company");
 	});
 
-	it("shows explicit create-new intent after accepting AI suggestion", () => {
+	it("shows clean suggested value after accepting AI suggestion", () => {
 		expect(
 			companyComboboxModule.resolveCompanyTriggerLabel({
 				selectedCompanyName: null,
@@ -34,7 +34,39 @@ describe("company combobox labels", () => {
 				isSuggestedAccepted: true,
 				placeholder: "Select company",
 			}),
-		).toBe('Create "EXXON" from AI suggestion');
+		).toBe("EXXON");
+	});
+
+	it("exposes auto-create badge state only when AI suggestion is accepted", () => {
+		expect(
+			companyComboboxModule.resolveCompanyTriggerState({
+				selectedCompanyName: null,
+				suggestedValue: "EXXON",
+				isSuggestedAccepted: true,
+				placeholder: "Select company",
+			}),
+		).toEqual({
+			label: "EXXON",
+			showAutoCreateBadge: true,
+		});
+
+		expect(
+			companyComboboxModule.resolveCompanyTriggerState({
+				selectedCompanyName: "Existing Co",
+				suggestedValue: "EXXON",
+				isSuggestedAccepted: true,
+				placeholder: "Select company",
+			}),
+		).toEqual({
+			label: "Existing Co",
+			showAutoCreateBadge: false,
+		});
+	});
+
+	it("keeps AI suggestion entry available even after selecting an existing company", () => {
+		expect(companyComboboxModule.hasCompanyAiSuggestion("EXXON")).toBe(true);
+
+		expect(companyComboboxModule.hasCompanyAiSuggestion("   ")).toBe(false);
 	});
 
 	it("falls back to placeholder when no selection or suggestion exists", () => {

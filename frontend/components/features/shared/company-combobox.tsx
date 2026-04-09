@@ -3,6 +3,7 @@
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import * as React from "react";
 import { AddClientDialog } from "@/components/features/clients/add-client-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Command,
@@ -36,31 +37,44 @@ interface CompanyComboboxProps {
 	disabled?: boolean;
 }
 
-export function resolveCompanyTriggerLabel(params: {
+export function hasCompanyAiSuggestion(
+	suggestedValue?: string | null,
+): boolean {
+	return (suggestedValue ?? "").trim().length > 0;
+}
+
+export function resolveCompanyTriggerState(params: {
 	selectedCompanyName: string | null;
 	suggestedValue: string | null;
 	isSuggestedAccepted?: boolean;
 	placeholder: string;
-}): string {
+}): { label: string; showAutoCreateBadge: boolean } {
 	const {
 		selectedCompanyName,
 		suggestedValue,
 		isSuggestedAccepted = false,
 		placeholder,
 	} = params;
+
 	if (selectedCompanyName && selectedCompanyName.trim().length > 0) {
-		return selectedCompanyName;
+		return { label: selectedCompanyName, showAutoCreateBadge: false };
 	}
 
 	const normalizedSuggested = (suggestedValue ?? "").trim();
-	if (normalizedSuggested.length > 0) {
-		if (isSuggestedAccepted) {
-			return `Create "${normalizedSuggested}" from AI suggestion`;
-		}
-		return `AI suggested: ${normalizedSuggested} (not selected)`;
+	if (normalizedSuggested.length > 0 && isSuggestedAccepted) {
+		return { label: normalizedSuggested, showAutoCreateBadge: true };
 	}
 
-	return placeholder;
+	return { label: placeholder, showAutoCreateBadge: false };
+}
+
+export function resolveCompanyTriggerLabel(params: {
+	selectedCompanyName: string | null;
+	suggestedValue: string | null;
+	isSuggestedAccepted?: boolean;
+	placeholder: string;
+}): string {
+	return resolveCompanyTriggerState(params).label;
 }
 
 export function CompanyCombobox({
@@ -83,9 +97,8 @@ export function CompanyCombobox({
 
 	const selectedCompany = companies.find((c) => c.id === value);
 	const normalizedSuggestedValue = (suggestedValue ?? "").trim();
-	const hasSuggestedValue =
-		!selectedCompany && normalizedSuggestedValue.length > 0;
-	const triggerLabel = resolveCompanyTriggerLabel({
+	const hasSuggestedValue = hasCompanyAiSuggestion(normalizedSuggestedValue);
+	const triggerState = resolveCompanyTriggerState({
 		selectedCompanyName: selectedCompany?.name ?? null,
 		suggestedValue: normalizedSuggestedValue,
 		isSuggestedAccepted:
@@ -104,9 +117,16 @@ export function CompanyCombobox({
 					className={cn("h-12 w-full min-w-0 justify-between gap-2", className)}
 					disabled={disabled}
 				>
-					<span className="min-w-0 flex-1 truncate text-left">
-						{triggerLabel}
-					</span>
+					<div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+						<span className="min-w-0 truncate text-left">
+							{triggerState.label}
+						</span>
+						{triggerState.showAutoCreateBadge ? (
+							<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+								Auto-create
+							</Badge>
+						) : null}
+					</div>
 					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
@@ -131,7 +151,14 @@ export function CompanyCombobox({
 										setOpen(false);
 									}}
 								>
-									Create "{normalizedSuggestedValue}" from AI suggestion
+									<div className="flex flex-col">
+										<span className="font-medium">
+											{normalizedSuggestedValue}
+										</span>
+										<span className="text-xs text-muted-foreground">
+											Auto-create on confirm
+										</span>
+									</div>
 								</CommandItem>
 							</CommandGroup>
 						) : null}

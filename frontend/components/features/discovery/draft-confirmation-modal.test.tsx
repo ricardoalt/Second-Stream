@@ -499,7 +499,7 @@ describe("DraftConfirmationModal helpers", () => {
 				suggestedLocationCity: "Beaumont",
 				suggestedLocationState: "TX",
 			}),
-		).toBe("Beaumont - Beaumont");
+		).toBe("Beaumont");
 
 		expect(
 			modalModule.resolveLocationSuggestedPrefillValue({
@@ -510,6 +510,31 @@ describe("DraftConfirmationModal helpers", () => {
 				suggestedLocationState: "TX",
 			}),
 		).toBeNull();
+	});
+
+	it("cleans contaminated location suggestion labels before prefill", () => {
+		expect(
+			modalModule.resolveLocationSuggestedPrefillValue({
+				...pendingCandidate,
+				locationId: null,
+				suggestedClientName: "EXXON",
+				suggestedLocationName: "EXXON - Bradford - Bradford",
+				suggestedLocationCity: "Bradford",
+				suggestedLocationState: "PA",
+			}),
+		).toBe("Bradford");
+	});
+
+	it("keeps only pending drafts in active review list", () => {
+		expect(
+			modalModule.resolveActiveReviewCandidates([
+				{ ...pendingCandidate, itemId: "pending-1", status: "pending" },
+				{ ...pendingCandidate, itemId: "confirmed-1", status: "confirmed" },
+				{ ...pendingCandidate, itemId: "skipped-1", status: "skipped" },
+			]),
+		).toEqual([
+			{ ...pendingCandidate, itemId: "pending-1", status: "pending" },
+		]);
 	});
 
 	it("tracks AI client suggestion acceptance explicitly for create-new flow", () => {
@@ -550,6 +575,60 @@ describe("DraftConfirmationModal helpers", () => {
 				draftClientMatches: {
 					"item-1": ["company-1"],
 				},
+			}),
+		).toBe(false);
+	});
+
+	it("shows auto-create badge only when AI create-new is accepted with no existing selection", () => {
+		expect(
+			modalModule.resolveClientAutoCreateBadgeVisibility({
+				candidate: {
+					...pendingCandidate,
+					clientId: null,
+					suggestedClientName: "EXXON",
+					aiSuggestedClientAccepted: true,
+				},
+				draftClientMatches: {
+					"item-1": [],
+				},
+			}),
+		).toBe(true);
+
+		expect(
+			modalModule.resolveClientAutoCreateBadgeVisibility({
+				candidate: {
+					...pendingCandidate,
+					clientId: "company-1",
+					suggestedClientName: "EXXON",
+					aiSuggestedClientAccepted: true,
+				},
+				draftClientMatches: {
+					"item-1": [],
+				},
+			}),
+		).toBe(false);
+	});
+
+	it("shows location auto-create badge only when accepted suggestion is complete", () => {
+		expect(
+			modalModule.resolveLocationAutoCreateBadgeVisibility({
+				...pendingCandidate,
+				locationId: null,
+				suggestedLocationName: "North Plant",
+				suggestedLocationCity: "Monterrey",
+				suggestedLocationState: "NL",
+				aiSuggestedLocationAccepted: true,
+			}),
+		).toBe(true);
+
+		expect(
+			modalModule.resolveLocationAutoCreateBadgeVisibility({
+				...pendingCandidate,
+				locationId: null,
+				suggestedLocationName: "North Plant",
+				suggestedLocationCity: null,
+				suggestedLocationState: "NL",
+				aiSuggestedLocationAccepted: true,
 			}),
 		).toBe(false);
 	});

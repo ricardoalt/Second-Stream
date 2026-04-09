@@ -3,6 +3,7 @@
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import * as React from "react";
 import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Command,
@@ -37,6 +38,58 @@ interface LocationComboboxProps {
 	className?: string;
 }
 
+export function hasLocationAiSuggestion(
+	suggestedValue?: string | null,
+): boolean {
+	return (suggestedValue ?? "").trim().length > 0;
+}
+
+export function resolveLocationAiSuggestionState(params: {
+	suggestedValue?: string | null;
+	canCreateFromSuggestion: boolean;
+}): {
+	hasSuggestion: boolean;
+	normalizedSuggestedValue: string;
+	secondaryText: string;
+	disabled: boolean;
+} {
+	const normalizedSuggestedValue = (params.suggestedValue ?? "").trim();
+	const hasSuggestion = normalizedSuggestedValue.length > 0;
+	const disabled = !params.canCreateFromSuggestion;
+
+	return {
+		hasSuggestion,
+		normalizedSuggestedValue,
+		secondaryText: disabled ? "Needs city/state" : "Auto-create on confirm",
+		disabled,
+	};
+}
+
+export function resolveLocationTriggerState(params: {
+	selectedLocationLabel: string | null;
+	suggestedValue: string | null;
+	isSuggestedAccepted?: boolean;
+	placeholder: string;
+}): { label: string; showAutoCreateBadge: boolean } {
+	const {
+		selectedLocationLabel,
+		suggestedValue,
+		isSuggestedAccepted = false,
+		placeholder,
+	} = params;
+
+	if (selectedLocationLabel && selectedLocationLabel.trim().length > 0) {
+		return { label: selectedLocationLabel, showAutoCreateBadge: false };
+	}
+
+	const normalizedSuggested = (suggestedValue ?? "").trim();
+	if (normalizedSuggested.length > 0 && isSuggestedAccepted) {
+		return { label: normalizedSuggested, showAutoCreateBadge: true };
+	}
+
+	return { label: placeholder, showAutoCreateBadge: false };
+}
+
 export function resolveLocationTriggerLabel(params: {
 	selectedLocationLabel: string | null;
 	suggestedValue: string | null;
@@ -44,31 +97,7 @@ export function resolveLocationTriggerLabel(params: {
 	canCreateFromSuggestion?: boolean;
 	placeholder: string;
 }): string {
-	const {
-		selectedLocationLabel,
-		suggestedValue,
-		isSuggestedAccepted = false,
-		canCreateFromSuggestion = true,
-		placeholder,
-	} = params;
-	if (selectedLocationLabel && selectedLocationLabel.trim().length > 0) {
-		return selectedLocationLabel;
-	}
-
-	const normalizedSuggested = (suggestedValue ?? "").trim();
-	if (normalizedSuggested.length > 0) {
-		if (!canCreateFromSuggestion) {
-			return `AI suggested: ${normalizedSuggested} (add city/state to create)`;
-		}
-
-		if (isSuggestedAccepted) {
-			return `Create "${normalizedSuggested}" from AI suggestion`;
-		}
-
-		return `AI suggested: ${normalizedSuggested} (not selected)`;
-	}
-
-	return placeholder;
+	return resolveLocationTriggerState(params).label;
 }
 
 export function LocationCombobox({
@@ -98,13 +127,12 @@ export function LocationCombobox({
 		? filteredLocations.find((l) => l.id === value)
 		: undefined;
 	const normalizedSuggestedValue = (suggestedValue ?? "").trim();
-	const hasSuggestedValue =
-		!selectedLocation && normalizedSuggestedValue.length > 0;
+	const hasSuggestedValue = hasLocationAiSuggestion(normalizedSuggestedValue);
 	const canCreateFromSuggestionResolved =
 		canCreateFromSuggestion ??
 		((suggestedValue ?? "").trim().length > 0 &&
 			(suggestedValue ?? "").includes(" - "));
-	const triggerLabel = resolveLocationTriggerLabel({
+	const triggerState = resolveLocationTriggerState({
 		selectedLocationLabel: selectedLocation
 			? `${selectedLocation.name} - ${selectedLocation.city}`
 			: null,
@@ -113,8 +141,11 @@ export function LocationCombobox({
 			isSuggestedAccepted ||
 			(parseAiCreateLocationSelection(value ?? "") !== null &&
 				!selectedLocation),
-		canCreateFromSuggestion: canCreateFromSuggestionResolved,
 		placeholder,
+	});
+	const aiSuggestionState = resolveLocationAiSuggestionState({
+		suggestedValue: normalizedSuggestedValue,
+		canCreateFromSuggestion: canCreateFromSuggestionResolved,
 	});
 	const hasValidCompanyId = companyId.trim().length > 0;
 	const canOpenWithoutCompany =
@@ -139,9 +170,16 @@ export function LocationCombobox({
 						}
 					}}
 				>
-					<span className="min-w-0 flex-1 truncate text-left">
-						{triggerLabel}
-					</span>
+					<div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+						<span className="min-w-0 truncate text-left">
+							{triggerState.label}
+						</span>
+						{triggerState.showAutoCreateBadge ? (
+							<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+								Auto-create
+							</Badge>
+						) : null}
+					</div>
 					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
@@ -155,7 +193,21 @@ export function LocationCombobox({
 						<CommandEmpty>No location found.</CommandEmpty>
 						{hasSuggestedValue ? (
 							<CommandGroup heading="AI suggestion">
-								{canCreateFromSuggestionResolved ? (
+								{aiSuggestionState.disabled ? (
+									<CommandItem
+										disabled
+										value={`AI suggested ${aiSuggestionState.normalizedSuggestedValue}`}
+									>
+										<div className="flex flex-col">
+											<span className="font-medium">
+												{aiSuggestionState.normalizedSuggestedValue}
+											</span>
+											<span className="text-xs text-muted-foreground">
+												{aiSuggestionState.secondaryText}
+											</span>
+										</div>
+									</CommandItem>
+								) : (
 									<CommandItem
 										value={buildAiCreateLocationSelection(
 											normalizedSuggestedValue,
@@ -169,15 +221,14 @@ export function LocationCombobox({
 											setOpen(false);
 										}}
 									>
-										Create "{normalizedSuggestedValue}" from AI suggestion
-									</CommandItem>
-								) : (
-									<CommandItem
-										disabled
-										value={`AI suggested ${normalizedSuggestedValue}`}
-									>
-										AI suggested "{normalizedSuggestedValue}" — add city/state
-										to create
+										<div className="flex flex-col">
+											<span className="font-medium">
+												{aiSuggestionState.normalizedSuggestedValue}
+											</span>
+											<span className="text-xs text-muted-foreground">
+												{aiSuggestionState.secondaryText}
+											</span>
+										</div>
 									</CommandItem>
 								)}
 							</CommandGroup>
