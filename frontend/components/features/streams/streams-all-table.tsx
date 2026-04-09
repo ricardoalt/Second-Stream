@@ -203,6 +203,9 @@ function AlertBadge({
 			size="sm"
 			shape="rounded"
 			icon={config.icon}
+			truncate
+			className="max-w-[220px]"
+			title={label}
 		>
 			{label}
 		</StatusChip>

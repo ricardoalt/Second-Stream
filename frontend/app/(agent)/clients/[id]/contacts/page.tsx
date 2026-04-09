@@ -5,8 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyContactsCard } from "@/components/features/companies/company-contacts-card";
 import { LocationContactsManagerDialog } from "@/components/features/locations/location-contacts-manager-dialog";
-import { PageHeader, PageShell } from "@/components/patterns";
-import { Badge } from "@/components/ui/badge";
+import { MetaBadge, PageHeader, PageShell } from "@/components/patterns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { companiesAPI, locationsAPI } from "@/lib/api/companies";
@@ -171,13 +170,10 @@ export default function ClientContactsPage(props: {
 															<p className="truncate font-semibold text-foreground">
 																{location.name}
 															</p>
-															<Badge
-																variant="secondary"
-																className="rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wider uppercase"
-															>
+															<MetaBadge>
 																{contactsCount} contact
 																{contactsCount === 1 ? "" : "s"}
-															</Badge>
+															</MetaBadge>
 														</div>
 														<p className="truncate text-sm text-muted-foreground">
 															{location.fullAddress || "No address available"}

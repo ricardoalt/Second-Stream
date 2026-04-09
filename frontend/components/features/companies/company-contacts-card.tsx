@@ -3,8 +3,7 @@
 import { Crown, Mail, Pencil, Phone, Plus, Trash2, User } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CompanyContactDialog } from "@/components/features/companies/company-contact-dialog";
-import { ConfirmDialog } from "@/components/patterns";
-import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog, MetaBadge } from "@/components/patterns";
 import { Button } from "@/components/ui/button";
 import { isForbiddenError } from "@/lib/api/client";
 import { companiesAPI } from "@/lib/api/companies";
@@ -197,22 +196,14 @@ export function CompanyContactsCard({
 											{contact.name || "Unnamed"}
 										</p>
 										{contact.isPrimary && (
-											<Badge
-												variant="secondary"
-												className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider gap-1"
+											<MetaBadge
+												icon={Crown}
+												className="bg-primary/10 text-primary uppercase tracking-wider"
 											>
-												<Crown className="h-3 w-3" />
 												Primary
-											</Badge>
+											</MetaBadge>
 										)}
-										{contact.title && (
-											<Badge
-												variant="outline"
-												className="rounded-full px-2 py-0.5 text-[10px] font-normal tracking-wide"
-											>
-												{contact.title}
-											</Badge>
-										)}
+										{contact.title && <MetaBadge>{contact.title}</MetaBadge>}
 									</div>
 									<div className="mt-2.5 flex flex-wrap items-center gap-2">
 										{contact.email && (

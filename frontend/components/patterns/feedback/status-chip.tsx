@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  */
 
 const statusChipVariants = cva(
-	"inline-flex items-center justify-start gap-1.5 font-medium transition-colors",
+	"inline-flex items-center justify-start gap-1.5 font-medium transition-colors whitespace-nowrap",
 	{
 		variants: {
 			// Estados de decisión del dominio
@@ -104,6 +104,13 @@ const statusChipVariants = cva(
 				true: "shadow-lg",
 				false: "",
 			},
+
+			// Truncation: opt-in para labels dinámicos largos.
+			// El consumer controla el ancho con max-w-* via className.
+			truncate: {
+				true: "overflow-hidden",
+				false: "",
+			},
 		},
 		defaultVariants: {
 			status: "pending",
@@ -111,6 +118,7 @@ const statusChipVariants = cva(
 			size: "md",
 			shape: "pill",
 			glow: false,
+			truncate: false,
 		},
 	},
 );
@@ -151,6 +159,13 @@ export interface StatusChipProps
 	icon?: React.ReactNode;
 	/** Appends "(X days)" to the label, e.g. for "Stalled (28 days)" */
 	days?: number;
+	/**
+	 * Truncate long labels with ellipsis.
+	 * Pair with `max-w-*` via className to control the truncation width.
+	 * Use `title={fullText}` to preserve accessibility via native tooltip.
+	 * @example <StatusChip truncate className="max-w-[200px]" title={label}>{label}</StatusChip>
+	 */
+	truncate?: boolean;
 }
 
 const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(
@@ -162,6 +177,7 @@ const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(
 			size,
 			shape,
 			glow,
+			truncate,
 			icon,
 			days,
 			children,
@@ -184,14 +200,18 @@ const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(
 				ref={ref}
 				data-status={status}
 				className={cn(
-					statusChipVariants({ status, variant, size, shape, glow }),
+					statusChipVariants({ status, variant, size, shape, glow, truncate }),
 					glowClass,
 					className,
 				)}
 				{...props}
 			>
 				{icon && <span className="shrink-0">{icon}</span>}
-				<span>{label}</span>
+				<span
+					className={cn(truncate && "min-w-0 overflow-hidden text-ellipsis")}
+				>
+					{label}
+				</span>
 			</span>
 		);
 	},
