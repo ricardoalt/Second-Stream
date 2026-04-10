@@ -2,6 +2,7 @@
 Projects CRUD endpoints.
 """
 
+import contextlib
 from datetime import UTC, datetime
 from functools import cache
 from typing import Annotated, Any, Literal, cast
@@ -835,10 +836,8 @@ async def _build_draft_dashboard_rows(
                 selected_company_id = company_resolution.get("company_id")
                 selected_company_name = company_resolution.get("name")
                 if isinstance(selected_company_id, str):
-                    try:
+                    with contextlib.suppress(ValueError):
                         resolved_company_id = UUID(selected_company_id)
-                    except ValueError:
-                        pass
                 if isinstance(selected_company_name, str) and selected_company_name.strip():
                     resolved_company_label = selected_company_name.strip()
             if resolved_company_label is None:
@@ -938,7 +937,9 @@ async def _build_draft_dashboard_rows(
                 ),
                 suggested_location_evidence=(
                     _sanitize_dashboard_evidence(normalized_data.get("suggested_location_evidence"))
-                    or _sanitize_dashboard_evidence(extracted_data.get("suggested_location_evidence"))
+                    or _sanitize_dashboard_evidence(
+                        extracted_data.get("suggested_location_evidence")
+                    )
                 ),
                 volume=_extract_structured_volume(normalized_data),
                 frequency=_extract_structured_frequency(normalized_data),

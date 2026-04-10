@@ -2227,7 +2227,9 @@ class BulkImportService:
                     item=item,
                     location_resolution=location_resolution,
                     effective_company_id_override=(
-                        resolved_company_for_run.id if resolved_company_for_run is not None else None
+                        resolved_company_for_run.id
+                        if resolved_company_for_run is not None
+                        else None
                     ),
                 )
             if confirm_create_new is not None:
@@ -2586,7 +2588,9 @@ class BulkImportService:
         subsector = resolution.get("subsector")
         return {
             "name": normalized_name,
-            "industry": _sanitize_text(industry if isinstance(industry, str) else None, max_len=100),
+            "industry": _sanitize_text(
+                industry if isinstance(industry, str) else None, max_len=100
+            ),
             "sector": _sanitize_text(sector if isinstance(sector, str) else None, max_len=50),
             "subsector": _sanitize_text(
                 subsector if isinstance(subsector, str) else None,
@@ -2645,9 +2649,13 @@ class BulkImportService:
             await db.flush()
             return company
 
-        company_name = _sanitize_text(str(item.normalized_data.get("company_name") or ""), max_len=255)
+        company_name = _sanitize_text(
+            str(item.normalized_data.get("company_name") or ""), max_len=255
+        )
         if not company_name:
-            company_name = _sanitize_text(str(item.normalized_data.get("client") or ""), max_len=255)
+            company_name = _sanitize_text(
+                str(item.normalized_data.get("client") or ""), max_len=255
+            )
         if not company_name:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -4297,9 +4305,9 @@ class BulkImportService:
         for key, payload in location_defs.items():
             normalized = payload["normalized_data"]
             confidence = int(payload.get("confidence", 80))
-            needs_review = self._needs_review("location", normalized) or self._needs_review_by_confidence(
-                confidence
-            )
+            needs_review = self._needs_review(
+                "location", normalized
+            ) or self._needs_review_by_confidence(confidence)
             item = ImportItem(
                 organization_id=run.organization_id,
                 run_id=run.id,
@@ -4365,9 +4373,9 @@ class BulkImportService:
                 continue
 
             confidence = int(payload.get("confidence", 75))
-            needs_review = self._needs_review("project", normalized) or self._needs_review_by_confidence(
-                confidence
-            )
+            needs_review = self._needs_review(
+                "project", normalized
+            ) or self._needs_review_by_confidence(confidence)
             item = ImportItem(
                 organization_id=run.organization_id,
                 run_id=run.id,

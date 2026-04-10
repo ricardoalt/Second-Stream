@@ -131,7 +131,7 @@ PHOTO {i}: {material} (confidence: {confidence})
 
         sections.append(f"""
 PHOTO ANALYSIS (use CO₂ data for environmental sections, generate your own pricing/buyers):
-{"" .join(photo_sections)}
+{"".join(photo_sections)}
 """)
 
     if documents:
@@ -151,7 +151,7 @@ DOCUMENT {i}:
 
         sections.append(f"""
 DOCUMENT INSIGHTS (use for compliance, handling, and pricing context):
-{"" .join(doc_sections)}
+{"".join(doc_sections)}
 """)
 
     return "".join(sections)

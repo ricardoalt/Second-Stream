@@ -357,10 +357,14 @@ class WorkspaceService:
                 },
             )
             await db.refresh(project)
-            questionnaire_answers = WorkspaceService._load_questionnaire_answers(project.project_data)
+            questionnaire_answers = WorkspaceService._load_questionnaire_answers(
+                project.project_data
+            )
             questionnaire_suggestions = WorkspaceService._build_pending_questionnaire_suggestions(
                 questionnaire_answers=questionnaire_answers,
-                suggestion_map=WorkspaceService._load_questionnaire_suggestions(project.project_data),
+                suggestion_map=WorkspaceService._load_questionnaire_suggestions(
+                    project.project_data
+                ),
             )
             return WorkspaceRefreshInsightsResponse(
                 derived=derived,
@@ -507,7 +511,9 @@ class WorkspaceService:
             suggestion_map=suggestion_map,
             questionnaire_answers=questionnaire_answers,
         )
-        phase_progress = WorkspaceService._calculate_questionnaire_phase_progress(questionnaire_answers)
+        phase_progress = WorkspaceService._calculate_questionnaire_phase_progress(
+            questionnaire_answers
+        )
 
         await WorkspaceService._persist_workspace_patch(
             db=db,
@@ -1376,7 +1382,9 @@ class WorkspaceService:
             if suggestion.status != "pending":
                 continue
             confirmed_answer = questionnaire_answers.get(suggestion.question_id, "").strip()
-            has_conflict = bool(confirmed_answer) and not WorkspaceService._values_effectively_equal(
+            has_conflict = bool(
+                confirmed_answer
+            ) and not WorkspaceService._values_effectively_equal(
                 confirmed_answer,
                 suggestion.suggested_value,
             )

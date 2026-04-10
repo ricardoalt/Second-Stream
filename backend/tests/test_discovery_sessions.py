@@ -19,9 +19,7 @@ from app.services.bulk_import_ai_extractor import ParsedRow
 
 
 def test_discovery_text_processing_includes_structured_logging_events() -> None:
-    source = inspect.getsource(
-        discovery_service_module.DiscoverySessionService.process_text_source
-    )
+    source = inspect.getsource(discovery_service_module.DiscoverySessionService.process_text_source)
     assert "discovery_text_bedrock_call_completed" in source
     assert "_log_text_stage_completed" in source
     assert "discovery_text_source_completed" in source
@@ -213,7 +211,9 @@ async def test_discovery_session_create_rejects_superadmin_cross_org_assigned_ow
         role=UserRole.FIELD_AGENT.value,
         is_superuser=False,
     )
-    company = await create_company(db_session, org_id=org.id, name="Discovery Superadmin Invalid Co")
+    company = await create_company(
+        db_session, org_id=org.id, name="Discovery Superadmin Invalid Co"
+    )
 
     set_current_user(superadmin)
     response = await client.post(
@@ -1388,7 +1388,7 @@ async def test_discovery_file_terminal_get_has_persisted_summary_on_first_read(
                     },
                     raw={"stream_confidence": "90", "location_confidence": "90"},
                 )
-            ]
+            ],
         )
 
     monkeypatch.setattr(bulk_import_module, "download_file_content", _fake_download)
@@ -1492,7 +1492,9 @@ async def test_discovery_audio_terminal_get_has_persisted_summary_on_first_read(
 
     async def _fake_extract_text(*, extracted_text: str, filename: str, source_type: str):
         return SimpleNamespace(
-            diagnostics=SimpleNamespace(route="fake", char_count=len(extracted_text), truncated=False),
+            diagnostics=SimpleNamespace(
+                route="fake", char_count=len(extracted_text), truncated=False
+            ),
             rows=[
                 ParsedRow(
                     location_data={"name": "Plant Audio", "city": "Monterrey", "state": "NL"},
@@ -1506,7 +1508,7 @@ async def test_discovery_audio_terminal_get_has_persisted_summary_on_first_read(
                     },
                     raw={"stream_confidence": "90", "location_confidence": "90"},
                 )
-            ]
+            ],
         )
 
     async def _fake_upload(_stream, _key: str, _content_type: str | None):

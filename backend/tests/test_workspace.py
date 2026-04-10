@@ -1633,9 +1633,7 @@ async def test_workspace_complete_discovery_seeds_offer_insights_and_returns_off
     assert pipeline_payload["items"][0]["projectId"] == str(project.id)
     assert pipeline_payload["items"][0]["proposalFollowUpState"] == "uploaded"
 
-    missing_information = await client.get(
-        "/api/v1/projects/dashboard?bucket=missing_information"
-    )
+    missing_information = await client.get("/api/v1/projects/dashboard?bucket=missing_information")
     assert missing_information.status_code == 200
     assert missing_information.json()["total"] == 0
 
@@ -1745,7 +1743,9 @@ async def test_workspace_complete_discovery_with_multiple_active_proposals_still
         role=UserRole.FIELD_AGENT.value,
         is_superuser=False,
     )
-    company = await create_company(db_session, org_id=org.id, name="Workspace Complete Ambiguous Co")
+    company = await create_company(
+        db_session, org_id=org.id, name="Workspace Complete Ambiguous Co"
+    )
     location = await create_location(
         db_session,
         org_id=org.id,

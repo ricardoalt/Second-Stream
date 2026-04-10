@@ -15,8 +15,7 @@ from sqlalchemy import select
 
 from app.api.v1.projects import _count_dashboard_rows, _count_dashboard_rows_split
 from app.models.bulk_import import ImportItem, ImportRun
-from app.models.discovery_session import DiscoverySource
-from app.models.discovery_session import DiscoverySession
+from app.models.discovery_session import DiscoverySession, DiscoverySource
 from app.models.intake_suggestion import IntakeSuggestion
 from app.models.project import Project
 from app.models.proposal import Proposal
@@ -334,7 +333,9 @@ async def test_create_project_invalid_location(client: AsyncClient, db_session, 
 
 
 @pytest.mark.asyncio
-async def test_create_project_owner_override_for_org_admin(client: AsyncClient, db_session, set_current_user):
+async def test_create_project_owner_override_for_org_admin(
+    client: AsyncClient, db_session, set_current_user
+):
     uid = uuid.uuid4().hex[:8]
     org = await create_org(db_session, "Org Create Owner Override", "org-create-owner-override")
     org_admin = await create_user(
@@ -2024,7 +2025,9 @@ async def test_offers_pipeline_projection_returns_open_states_and_counts(
         is_superuser=False,
     )
     company = await create_company(db_session, org_id=org.id, name="Offer Co")
-    location = await create_location(db_session, org_id=org.id, company_id=company.id, name="Offer Loc")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Offer Loc"
+    )
 
     implicit_uploaded = await create_project(
         db_session,
@@ -2228,7 +2231,9 @@ async def test_offers_pipeline_projection_keeps_uploaded_state_with_only_archive
 
 
 @pytest.mark.asyncio
-async def test_offers_pipeline_projection_supports_search(client: AsyncClient, db_session, set_current_user):
+async def test_offers_pipeline_projection_supports_search(
+    client: AsyncClient, db_session, set_current_user
+):
     uid = uuid.uuid4().hex[:8]
     org = await create_org(db_session, "Org Offers Search", "org-offers-search")
     user = await create_user(
@@ -2239,7 +2244,9 @@ async def test_offers_pipeline_projection_supports_search(client: AsyncClient, d
         is_superuser=False,
     )
     company = await create_company(db_session, org_id=org.id, name="Search Offer Company")
-    location = await create_location(db_session, org_id=org.id, company_id=company.id, name="Search Offer Location")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Search Offer Location"
+    )
     project = await create_project(
         db_session,
         org_id=org.id,

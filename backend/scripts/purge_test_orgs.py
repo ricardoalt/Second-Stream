@@ -108,9 +108,7 @@ async def count_records_by_org(db: AsyncSession, org_id: UUID) -> dict[str, int]
     counts = {}
 
     # Contar users (solo los de la org, no superusers)
-    user_count = await db.execute(
-        select(func.count(User.id)).where(User.organization_id == org_id)
-    )
+    user_count = await db.execute(select(func.count(User.id)).where(User.organization_id == org_id))
     counts["users"] = user_count.scalar_one() or 0
 
     # Contar companies
@@ -183,9 +181,7 @@ async def delete_organization_data(
             # Tablas normales con organization_id
             if not dry_run:
                 count_result = await db.execute(
-                    select(func.count())
-                    .select_from(model)
-                    .where(model.organization_id == org_id)
+                    select(func.count()).select_from(model).where(model.organization_id == org_id)
                 )
                 count = count_result.scalar_one() or 0
                 if count > 0:
@@ -195,9 +191,7 @@ async def delete_organization_data(
                         print(f"    ✓ {table_name}: {count} registros eliminados")
             else:
                 count_result = await db.execute(
-                    select(func.count())
-                    .select_from(model)
-                    .where(model.organization_id == org_id)
+                    select(func.count()).select_from(model).where(model.organization_id == org_id)
                 )
                 count = count_result.scalar_one() or 0
                 deleted_counts[table_name] = count
@@ -221,7 +215,9 @@ async def delete_organization_data(
     return deleted_counts
 
 
-async def run_purge(dry_run: bool = False, verbose: bool = False, auto_confirm: bool = False) -> PurgeStats:
+async def run_purge(
+    dry_run: bool = False, verbose: bool = False, auto_confirm: bool = False
+) -> PurgeStats:
     """Ejecuta la purga completa."""
     stats = PurgeStats()
 
@@ -232,7 +228,9 @@ async def run_purge(dry_run: bool = False, verbose: bool = False, auto_confirm: 
         f"@localhost:5433/{settings.POSTGRES_DB}"
     )
 
-    print(f"Conectando a: postgresql+asyncpg://{settings.POSTGRES_USER}:***@localhost:5433/{settings.POSTGRES_DB}")
+    print(
+        f"Conectando a: postgresql+asyncpg://{settings.POSTGRES_USER}:***@localhost:5433/{settings.POSTGRES_DB}"
+    )
 
     engine = create_async_engine(database_url, echo=False)
     session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -250,7 +248,9 @@ async def run_purge(dry_run: bool = False, verbose: bool = False, auto_confirm: 
             org_result = await db.execute(select(Organization).where(Organization.slug == slug))
             org = org_result.scalar_one_or_none()
             if org:
-                print(f"✓ Organización protegida encontrada: {org.name} (slug: {slug}, id: {org.id})")
+                print(
+                    f"✓ Organización protegida encontrada: {org.name} (slug: {slug}, id: {org.id})"
+                )
             else:
                 print(f"⚠️  Organización protegida NO encontrada: {slug}")
         print()
@@ -272,7 +272,9 @@ async def run_purge(dry_run: bool = False, verbose: bool = False, auto_confirm: 
             counts = await count_records_by_org(db, org.id)
             total_records = sum(counts.values())
             print(f"  {i}. {org.name} (slug: {org.slug})")
-            print(f"     - {counts['users']} usuarios, {counts['companies']} empresas, {counts['locations']} ubicaciones")
+            print(
+                f"     - {counts['users']} usuarios, {counts['companies']} empresas, {counts['locations']} ubicaciones"
+            )
             print(f"     - {counts['projects']} proyectos, {counts['proposals']} propuestas")
             print(f"     - Total estimado: {total_records} registros")
             print()
@@ -298,7 +300,9 @@ async def run_purge(dry_run: bool = False, verbose: bool = False, auto_confirm: 
             print("⚠️  ESTA OPERACIÓN ES IRREVERSIBLE")
             print("=" * 70)
             print()
-            confirm = input(f"¿Eliminar {len(test_orgs)} organizaciones y todos sus datos? [yes/N]: ")
+            confirm = input(
+                f"¿Eliminar {len(test_orgs)} organizaciones y todos sus datos? [yes/N]: "
+            )  # noqa: ASYNC250
             if confirm.lower() != "yes":
                 print("Operación cancelada.")
                 return stats
@@ -376,11 +380,13 @@ Ejemplos:
 
     # Ejecutar
     try:
-        stats = asyncio.run(run_purge(
-            dry_run=args.dry_run,
-            verbose=args.verbose,
-            auto_confirm=args.yes,
-        ))
+        stats = asyncio.run(
+            run_purge(
+                dry_run=args.dry_run,
+                verbose=args.verbose,
+                auto_confirm=args.yes,
+            )
+        )
 
         # Mostrar resumen final
         print()
@@ -414,6 +420,7 @@ Ejemplos:
         print("=" * 70)
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

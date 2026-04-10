@@ -12,6 +12,8 @@ import asyncio
 import sys
 from pathlib import Path
 
+import anyio
+
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -46,7 +48,7 @@ def _resolve_pdf_path(path_str: str) -> Path:
 async def _collect_referenced_paths() -> tuple[set[str], set[Path]]:
     referenced_keys: set[str] = set()
     referenced_paths: set[Path] = set()
-    storage_root = Path(settings.LOCAL_STORAGE_PATH).resolve()
+    storage_root = await anyio.Path(settings.LOCAL_STORAGE_PATH).resolve()
 
     async with AsyncSessionLocal() as db:
         file_rows = await db.execute(select(ProjectFile.file_path))
@@ -78,18 +80,22 @@ async def _collect_referenced_paths() -> tuple[set[str], set[Path]]:
 
 
 async def _cleanup_local(referenced_paths: set[Path]) -> None:
-    storage_root = Path(settings.LOCAL_STORAGE_PATH).resolve()
-    targets = [storage_root / "projects", storage_root / "feedback", LOCAL_UPLOADS_DIR.resolve()]
+    storage_root = await anyio.Path(settings.LOCAL_STORAGE_PATH).resolve()
+    targets = [
+        storage_root / "projects",
+        storage_root / "feedback",
+        await anyio.Path(LOCAL_UPLOADS_DIR).resolve(),
+    ]
 
     deleted = 0
     for target in targets:
-        if not target.exists():
+        if not await target.exists():
             continue
-        for file_path in target.rglob("*"):
-            if not file_path.is_file():
+        async for file_path in target.rglob("*"):
+            if not await file_path.is_file():
                 continue
             if file_path not in referenced_paths:
-                file_path.unlink()
+                await file_path.unlink()
                 deleted += 1
 
     print(f"🧹 Local cleanup complete. Deleted {deleted} orphaned files.")

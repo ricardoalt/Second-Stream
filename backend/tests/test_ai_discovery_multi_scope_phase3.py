@@ -169,7 +169,9 @@ async def test_org_scoped_discovery_audio_start_keeps_nullable_scope_fields(
 async def test_org_scope_confirm_only_keeps_pending_sibling_blocked_from_finalize_subset(
     client: AsyncClient, db_session, set_current_user
 ) -> None:
-    org = await create_org(db_session, "Discovery Phase3 Finalize Org", "discovery-phase3-finalize-org")
+    org = await create_org(
+        db_session, "Discovery Phase3 Finalize Org", "discovery-phase3-finalize-org"
+    )
     user = await create_user(
         db_session,
         email=f"discovery-phase3-finalize-{uuid.uuid4().hex[:6]}@example.com",

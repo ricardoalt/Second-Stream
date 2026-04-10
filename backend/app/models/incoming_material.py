@@ -12,7 +12,7 @@ from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 
 
-class IncomingMaterialCategory(str, enum.Enum):
+class IncomingMaterialCategory(enum.StrEnum):
     """Categories for incoming materials."""
 
     CHEMICALS = "chemicals"

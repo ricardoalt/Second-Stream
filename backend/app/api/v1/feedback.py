@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 import aiofiles
+import anyio
 import structlog
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, select
@@ -123,8 +124,9 @@ async def _stream_upload_to_temp(upload_file: UploadFile) -> tuple[Path, int]:
                 await out.write(chunk)
         return tmp_path, size
     except Exception:
-        if tmp_path.exists():
-            tmp_path.unlink(missing_ok=True)
+        anyio_tmp_path = anyio.Path(tmp_path)
+        if await anyio_tmp_path.exists():
+            await anyio_tmp_path.unlink(missing_ok=True)
         raise
 
 

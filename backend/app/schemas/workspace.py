@@ -210,9 +210,7 @@ class WorkspaceHydrateResponse(BaseSchema):
     evidence_items: list[WorkspaceEvidenceItem]
     context_note: str | None = None
     questionnaire_answers: dict[str, str] = Field(default_factory=dict)
-    questionnaire_suggestions: list[WorkspaceQuestionSuggestionItem] = Field(
-        default_factory=list
-    )
+    questionnaire_suggestions: list[WorkspaceQuestionSuggestionItem] = Field(default_factory=list)
     phase_progress: dict[str, bool] = Field(default_factory=dict)
     first_incomplete_phase: Literal[1, 2, 3, 4] = 1
     derived: WorkspaceDerivedInsights
@@ -234,9 +232,7 @@ class WorkspaceContextNoteUpdateResponse(BaseSchema):
 class WorkspaceRefreshInsightsResponse(BaseSchema):
     derived: WorkspaceDerivedInsights
     proposal_batch: WorkspaceProposalBatch
-    questionnaire_suggestions: list[WorkspaceQuestionSuggestionItem] = Field(
-        default_factory=list
-    )
+    questionnaire_suggestions: list[WorkspaceQuestionSuggestionItem] = Field(default_factory=list)
 
 
 class WorkspaceQuestionSuggestionReviewScope(BaseSchema):

@@ -7,6 +7,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import anyio
 import structlog
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -188,7 +189,7 @@ async def lifespan(app: FastAPI):
 
     # Ensure storage directory exists
     if settings.USE_LOCAL_STORAGE:
-        Path(settings.LOCAL_STORAGE_PATH).mkdir(parents=True, exist_ok=True)
+        await anyio.Path(settings.LOCAL_STORAGE_PATH).mkdir(parents=True, exist_ok=True)
         logger.info(f"Local storage path: {settings.LOCAL_STORAGE_PATH}")
 
     logger.info("✅ Application started successfully")

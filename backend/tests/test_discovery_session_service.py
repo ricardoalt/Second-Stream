@@ -40,7 +40,9 @@ async def test_create_session_ignores_location_without_client_for_ai_discovery(d
 
 
 @pytest.mark.asyncio
-async def test_create_session_ignores_mismatched_preselected_client_location_pair(db_session) -> None:
+async def test_create_session_ignores_mismatched_preselected_client_location_pair(
+    db_session,
+) -> None:
     org = await create_org(db_session, "Discovery Service Pair Org", "discovery-service-pair")
     user = await create_user(
         db_session,
@@ -73,7 +75,9 @@ async def test_create_session_ignores_mismatched_preselected_client_location_pai
 
 
 @pytest.mark.asyncio
-async def test_create_session_with_preselected_client_keeps_org_scope_for_ai_discovery(db_session) -> None:
+async def test_create_session_with_preselected_client_keeps_org_scope_for_ai_discovery(
+    db_session,
+) -> None:
     org = await create_org(db_session, "Discovery Service Client Org", "discovery-service-client")
     user = await create_user(
         db_session,

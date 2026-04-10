@@ -19,7 +19,9 @@ def _project_data_dict(project) -> dict[str, object]:
 
 
 @pytest.mark.asyncio
-async def test_offer_detail_returns_offer_v1_contract(client: AsyncClient, db_session, set_current_user):
+async def test_offer_detail_returns_offer_v1_contract(
+    client: AsyncClient, db_session, set_current_user
+):
     uid = uuid.uuid4().hex[:8]
     org = await create_org(db_session, "Org Offer Detail", f"org-offer-detail-{uid}")
     user = await create_user(
@@ -93,7 +95,9 @@ async def test_offer_detail_returns_workspace_stream_snapshot(
         is_superuser=False,
     )
     company = await create_company(db_session, org_id=org.id, name="Offer Snapshot Co")
-    location = await create_location(db_session, org_id=org.id, company_id=company.id, name="Snapshot Loc")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Snapshot Loc"
+    )
     project = await create_project(
         db_session,
         org_id=org.id,
@@ -142,7 +146,9 @@ async def test_offer_detail_marks_stale_when_workspace_changes(
         is_superuser=False,
     )
     company = await create_company(db_session, org_id=org.id, name="Offer Stale Co")
-    location = await create_location(db_session, org_id=org.id, company_id=company.id, name="Stale Loc")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Stale Loc"
+    )
     project = await create_project(
         db_session,
         org_id=org.id,
@@ -191,7 +197,9 @@ async def test_offer_detail_ignores_offer_document_updates_for_staleness(
         is_superuser=False,
     )
     company = await create_company(db_session, org_id=org.id, name="Offer Doc Co")
-    location = await create_location(db_session, org_id=org.id, company_id=company.id, name="Offer Doc Loc")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Offer Doc Loc"
+    )
     project = await create_project(
         db_session,
         org_id=org.id,
@@ -468,7 +476,10 @@ async def test_offer_refresh_does_not_use_legacy_proposal_agent_path(
     response = await client.post(f"/api/v1/projects/{project.id}/offer/refresh-insights")
 
     assert response.status_code == 200
-    assert response.json()["insights"]["summary"] == "Offer insights generated with dedicated offer agent."
+    assert (
+        response.json()["insights"]["summary"]
+        == "Offer insights generated with dedicated offer agent."
+    )
 
 
 @pytest.mark.asyncio
@@ -485,7 +496,9 @@ async def test_offer_detail_returns_null_insights_when_offer_v1_is_missing(
         is_superuser=False,
     )
     company = await create_company(db_session, org_id=org.id, name="Offer Null Co")
-    location = await create_location(db_session, org_id=org.id, company_id=company.id, name="Offer Null Loc")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Offer Null Loc"
+    )
     project = await create_project(
         db_session,
         org_id=org.id,
@@ -530,7 +543,9 @@ async def test_offer_refresh_returns_502_when_offer_agent_fails(
         is_superuser=False,
     )
     company = await create_company(db_session, org_id=org.id, name="Offer Fail Co")
-    location = await create_location(db_session, org_id=org.id, company_id=company.id, name="Offer Fail Loc")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Offer Fail Loc"
+    )
     project = await create_project(
         db_session,
         org_id=org.id,

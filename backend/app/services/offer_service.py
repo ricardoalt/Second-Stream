@@ -150,7 +150,9 @@ class OfferService:
                 evidence_payload=evidence_payload,
             )
         except offer_insights_agent.OfferInsightsError as exc:
-            logger.error("offer_insights_refresh_failed", project_id=str(project.id), error=str(exc))
+            logger.error(
+                "offer_insights_refresh_failed", project_id=str(project.id), error=str(exc)
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail={

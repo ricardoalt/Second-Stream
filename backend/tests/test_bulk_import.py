@@ -2204,14 +2204,22 @@ async def test_discovery_decision_org_scope_confirm_requires_company_resolution(
     )
 
     initial_company_count = int(
-        await db_session.scalar(select(func.count(Company.id)).where(Company.organization_id == org.id)) or 0
+        await db_session.scalar(
+            select(func.count(Company.id)).where(Company.organization_id == org.id)
+        )
+        or 0
     )
     initial_location_count = int(
-        await db_session.scalar(select(func.count(Location.id)).where(Location.organization_id == org.id))
+        await db_session.scalar(
+            select(func.count(Location.id)).where(Location.organization_id == org.id)
+        )
         or 0
     )
     initial_project_count = int(
-        await db_session.scalar(select(func.count(Project.id)).where(Project.organization_id == org.id)) or 0
+        await db_session.scalar(
+            select(func.count(Project.id)).where(Project.organization_id == org.id)
+        )
+        or 0
     )
 
     set_current_user(user)
@@ -2245,14 +2253,22 @@ async def test_discovery_decision_org_scope_confirm_requires_company_resolution(
     assert run.status == "review_ready"
 
     current_company_count = int(
-        await db_session.scalar(select(func.count(Company.id)).where(Company.organization_id == org.id)) or 0
+        await db_session.scalar(
+            select(func.count(Company.id)).where(Company.organization_id == org.id)
+        )
+        or 0
     )
     current_location_count = int(
-        await db_session.scalar(select(func.count(Location.id)).where(Location.organization_id == org.id))
+        await db_session.scalar(
+            select(func.count(Location.id)).where(Location.organization_id == org.id)
+        )
         or 0
     )
     current_project_count = int(
-        await db_session.scalar(select(func.count(Project.id)).where(Project.organization_id == org.id)) or 0
+        await db_session.scalar(
+            select(func.count(Project.id)).where(Project.organization_id == org.id)
+        )
+        or 0
     )
     assert current_company_count == initial_company_count
     assert current_location_count == initial_location_count
@@ -2521,14 +2537,22 @@ async def test_discovery_decision_org_scope_confirm_is_atomic_when_resolution_fa
     )
 
     initial_company_count = int(
-        await db_session.scalar(select(func.count(Company.id)).where(Company.organization_id == org.id)) or 0
+        await db_session.scalar(
+            select(func.count(Company.id)).where(Company.organization_id == org.id)
+        )
+        or 0
     )
     initial_location_count = int(
-        await db_session.scalar(select(func.count(Location.id)).where(Location.organization_id == org.id))
+        await db_session.scalar(
+            select(func.count(Location.id)).where(Location.organization_id == org.id)
+        )
         or 0
     )
     initial_project_count = int(
-        await db_session.scalar(select(func.count(Project.id)).where(Project.organization_id == org.id)) or 0
+        await db_session.scalar(
+            select(func.count(Project.id)).where(Project.organization_id == org.id)
+        )
+        or 0
     )
 
     set_current_user(user)
@@ -2572,14 +2596,22 @@ async def test_discovery_decision_org_scope_confirm_is_atomic_when_resolution_fa
     assert transient_company.scalar_one_or_none() is None
 
     current_company_count = int(
-        await db_session.scalar(select(func.count(Company.id)).where(Company.organization_id == org.id)) or 0
+        await db_session.scalar(
+            select(func.count(Company.id)).where(Company.organization_id == org.id)
+        )
+        or 0
     )
     current_location_count = int(
-        await db_session.scalar(select(func.count(Location.id)).where(Location.organization_id == org.id))
+        await db_session.scalar(
+            select(func.count(Location.id)).where(Location.organization_id == org.id)
+        )
         or 0
     )
     current_project_count = int(
-        await db_session.scalar(select(func.count(Project.id)).where(Project.organization_id == org.id)) or 0
+        await db_session.scalar(
+            select(func.count(Project.id)).where(Project.organization_id == org.id)
+        )
+        or 0
     )
     assert current_company_count == initial_company_count
     assert current_location_count == initial_location_count
@@ -3201,7 +3233,9 @@ async def test_discovery_decision_owner_override_forbidden_for_field_agent(
         role=UserRole.FIELD_AGENT.value,
         is_superuser=False,
     )
-    company = await create_company(db_session, org_id=org.id, name="Discovery Decision Owner Forbidden Co")
+    company = await create_company(
+        db_session, org_id=org.id, name="Discovery Decision Owner Forbidden Co"
+    )
     target_location = await create_location(
         db_session,
         org_id=org.id,
@@ -3304,7 +3338,9 @@ async def test_discovery_decision_owner_override_rejects_invalid_owner_scope_sta
     )
     await db_session.commit()
 
-    company = await create_company(db_session, org_id=org.id, name="Discovery Decision Owner Invalid Co")
+    company = await create_company(
+        db_session, org_id=org.id, name="Discovery Decision Owner Invalid Co"
+    )
     target_location = await create_location(
         db_session,
         org_id=org.id,

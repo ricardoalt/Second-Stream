@@ -5,7 +5,7 @@ Integrated with FastAPI Users for production-ready authentication.
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -29,7 +29,7 @@ else:
     from fastapi_users.db import SQLAlchemyBaseUserTableUUID
 
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     """User roles for access control."""
 
     ADMIN = "admin"

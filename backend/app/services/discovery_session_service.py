@@ -206,9 +206,7 @@ class DiscoverySessionService:
         if not requester.is_superuser and requester.organization_id != organization_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
-        requester_can_assign = bool(
-            requester.is_superuser or requester.role == "org_admin"
-        )
+        requester_can_assign = bool(requester.is_superuser or requester.role == "org_admin")
         if assigned_owner_user_id is None:
             return None
 

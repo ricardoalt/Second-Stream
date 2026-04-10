@@ -397,8 +397,12 @@ class BulkImportAIExtractor:
 
             merged_evidence = list(dict.fromkeys([*existing.evidence, *stream.evidence]))
             merged_metadata = self._merge_metadata(existing.metadata, stream.metadata)
-            merged_metadata = self._merge_suggested_client(existing=existing, incoming=stream, merged_metadata=merged_metadata)
-            merged_metadata = self._merge_suggested_location(existing=existing, incoming=stream, merged_metadata=merged_metadata)
+            merged_metadata = self._merge_suggested_client(
+                existing=existing, incoming=stream, merged_metadata=merged_metadata
+            )
+            merged_metadata = self._merge_suggested_location(
+                existing=existing, incoming=stream, merged_metadata=merged_metadata
+            )
             category, merged_metadata = self._merge_stream_category(
                 existing=existing,
                 incoming=stream,
@@ -689,7 +693,9 @@ class BulkImportAIExtractor:
         alternates: list[str] = []
         existing_values = next_metadata.get("suggested_client_alternates")
         if isinstance(existing_values, list):
-            alternates.extend([value for value in existing_values if isinstance(value, str) and value.strip()])
+            alternates.extend(
+                [value for value in existing_values if isinstance(value, str) and value.strip()]
+            )
         alternates.append(alternate)
 
         deduped: list[str] = []
@@ -730,7 +736,9 @@ class BulkImportAIExtractor:
         alternates: list[str] = []
         existing_values = next_metadata.get("suggested_location_alternates")
         if isinstance(existing_values, list):
-            alternates.extend([value for value in existing_values if isinstance(value, str) and value.strip()])
+            alternates.extend(
+                [value for value in existing_values if isinstance(value, str) and value.strip()]
+            )
         alternates.append(alternate)
 
         deduped: list[str] = []

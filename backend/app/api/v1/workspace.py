@@ -156,13 +156,15 @@ async def review_workspace_questionnaire_suggestions(
     current_user: CurrentUser,
     db: AsyncDB,
 ) -> WorkspaceQuestionSuggestionReviewResponse:
-    processed_count, ignored_question_ids, workspace = (
-        await WorkspaceService.review_questionnaire_suggestions(
-            db=db,
-            project=project,
-            current_user=current_user,
-            payload=payload,
-        )
+    (
+        processed_count,
+        ignored_question_ids,
+        workspace,
+    ) = await WorkspaceService.review_questionnaire_suggestions(
+        db=db,
+        project=project,
+        current_user=current_user,
+        payload=payload,
     )
     return WorkspaceQuestionSuggestionReviewResponse(
         processed_count=processed_count,
