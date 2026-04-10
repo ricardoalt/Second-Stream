@@ -212,6 +212,9 @@ export function mapCandidateRows(
 ): DraftCandidate[] {
 	return rows.map((row) => {
 		const parsedVolume = parseVolumeSummary(row.volumeSummary);
+		const structuredVolume = row.volume?.trim() || null;
+		const structuredFrequency = row.frequency?.trim() || null;
+		const structuredUnits = row.units?.trim() || null;
 		const suggestedNames = resolveSuggestedClientAndLocation({
 			rawSuggestedClientName:
 				row.suggestedCompanyLabel ?? row.companyLabel ?? null,
@@ -268,9 +271,9 @@ export function mapCandidateRows(
 				? (row.locationLabel ?? null)
 				: null,
 			material: row.streamName,
-			volume: row.volumeSummary,
-			frequency: parsedVolume.frequency,
-			units: parsedVolume.units,
+			volume: structuredVolume ?? row.volumeSummary,
+			frequency: structuredFrequency ?? parsedVolume.frequency,
+			units: structuredUnits ?? parsedVolume.units,
 			locationLabel: row.locationLabel,
 			source: row.sourceFilename ?? sourceTypeLabelFromDraft(row.sourceType),
 			confidence: row.confidence,

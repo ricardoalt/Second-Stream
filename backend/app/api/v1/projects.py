@@ -279,6 +279,39 @@ def _extract_volume_summary(payload: dict[str, Any] | None) -> str | None:
     return None
 
 
+def _extract_structured_volume(payload: dict[str, Any] | None) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get("volume")
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned:
+            return cleaned
+    return None
+
+
+def _extract_structured_frequency(payload: dict[str, Any] | None) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get("frequency")
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned:
+            return cleaned
+    return None
+
+
+def _extract_structured_units(payload: dict[str, Any] | None) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get("units")
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned:
+            return cleaned
+    return None
+
+
 def _is_missing_value(value: Any) -> bool:
     return value is None or value == "" or value == []
 
@@ -907,6 +940,9 @@ async def _build_draft_dashboard_rows(
                     _sanitize_dashboard_evidence(normalized_data.get("suggested_location_evidence"))
                     or _sanitize_dashboard_evidence(extracted_data.get("suggested_location_evidence"))
                 ),
+                volume=_extract_structured_volume(normalized_data),
+                frequency=_extract_structured_frequency(normalized_data),
+                units=_extract_structured_units(normalized_data),
                 volume_summary=_extract_volume_summary(normalized_data),
                 last_activity_at=item.updated_at,
                 source_type=run.source_type,

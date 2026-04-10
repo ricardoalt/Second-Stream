@@ -5695,6 +5695,10 @@ def test_ai_extractor_preserves_structured_suggestions_per_stream() -> None:
                 suggested_location_confidence=81,
                 suggested_location_evidence=["Row 12 location columns"],
                 description="Used solvent from line 4",
+                volume="120",
+                frequency="weekly",
+                units="kg",
+                volume_summary="120 kg/week",
                 metadata=None,
                 confidence=88,
                 evidence=["row 12"],
@@ -5711,10 +5715,45 @@ def test_ai_extractor_preserves_structured_suggestions_per_stream() -> None:
     assert stream_row.project_data["location_city"] == "Monterrey"
     assert stream_row.project_data["location_state"] == "NL"
     assert stream_row.project_data["location_address"] == "Ave 123"
+    assert stream_row.project_data["volume"] == "120"
+    assert stream_row.project_data["frequency"] == "weekly"
+    assert stream_row.project_data["units"] == "kg"
+    assert stream_row.project_data["estimated_volume"] == "120 kg/week"
     assert stream_row.raw["suggested_client_confidence"] == "84"
     assert stream_row.raw["suggested_client_evidence"] == "Header: Customer Acme Recycling"
     assert stream_row.raw["suggested_location_confidence"] == "81"
     assert stream_row.raw["suggested_location_evidence"] == "Row 12 location columns"
+    assert stream_row.raw["stream_volume_summary"] == "120 kg/week"
+
+
+def test_ai_extractor_falls_back_to_structured_volume_when_volume_summary_missing() -> None:
+    extractor = BulkImportAIExtractor()
+    output = BulkImportAIOutput(
+        locations=[],
+        waste_streams=[
+            BulkImportAIWasteStreamOutput(
+                name="Cardboard",
+                category="paper",
+                location_ref=None,
+                description="Baled cardboard",
+                volume="75",
+                units="kg",
+                frequency="monthly",
+                metadata=None,
+                confidence=82,
+                evidence=["row 8"],
+            )
+        ],
+    )
+
+    rows = extractor._to_parsed_rows(output)
+    assert len(rows) == 1
+    stream_row = rows[0]
+    assert stream_row.project_data is not None
+    assert stream_row.project_data["volume"] == "75"
+    assert stream_row.project_data["units"] == "kg"
+    assert stream_row.project_data["frequency"] == "monthly"
+    assert stream_row.project_data["estimated_volume"] == "75 kg / monthly"
 
 
 def test_media_type_mapping_rejects_legacy_doc() -> None:

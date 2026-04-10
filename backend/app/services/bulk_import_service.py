@@ -4005,6 +4005,7 @@ class BulkImportService:
         subsector = self._pick_value(row, ["subsector", "sub_sector"])
         estimated_volume = self._pick_value(row, ["estimated_volume", "volume", "estimated volume"])
         volume = self._pick_value(row, ["volume"])
+        units = self._pick_value(row, ["units", "unit"])
         frequency = self._pick_value(row, ["frequency"])
 
         if not any([name, category, description, estimated_volume]):
@@ -4019,6 +4020,7 @@ class BulkImportService:
             "subsector": subsector,
             "estimated_volume": estimated_volume,
             "volume": volume,
+            "units": units,
             "frequency": frequency,
         }
 
@@ -4504,6 +4506,7 @@ class BulkImportService:
             "subsector": _sanitize_text(payload.get("subsector") or ""),
             "estimated_volume": _sanitize_text(payload.get("estimated_volume") or ""),
             "volume": _sanitize_text(payload.get("volume") or ""),
+            "units": _sanitize_text(payload.get("units") or ""),
             "frequency": _sanitize_text(payload.get("frequency") or ""),
             "company_name": _sanitize_text(payload.get("company_name") or "", max_len=255),
             "location_name": _sanitize_text(payload.get("location_name") or "", max_len=255),
@@ -4512,9 +4515,14 @@ class BulkImportService:
             "location_address": _sanitize_text(payload.get("location_address") or "", max_len=500),
         }
         if not normalized["estimated_volume"] and (normalized["volume"] or normalized["frequency"]):
+            volume_display = " ".join(
+                part
+                for part in [normalized["volume"], normalized["units"]]
+                if isinstance(part, str) and part.strip()
+            )
             estimated_parts = [
                 part
-                for part in [normalized["volume"], normalized["frequency"]]
+                for part in [volume_display, normalized["frequency"]]
                 if isinstance(part, str) and part.strip()
             ]
             normalized["estimated_volume"] = " / ".join(estimated_parts)

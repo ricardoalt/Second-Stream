@@ -38,6 +38,10 @@ _MONTH_PATTERN = re.compile(
 _YEAR_PATTERN = re.compile(r"\b(?:19|20)\d{2}\b")
 
 
+def _clean_optional_text(value: str | None) -> str:
+    return (value or "").strip()
+
+
 @dataclass
 class ParsedRow:
     location_data: dict[str, str] | None
@@ -268,6 +272,20 @@ class BulkImportAIExtractor:
         for stream in collapsed_streams:
             location_data = self._resolve_location_for_stream(stream, location_lookup)
             metadata_text = self._serialize_metadata(stream.metadata)
+            stream_volume = _clean_optional_text(stream.volume)
+            stream_frequency = _clean_optional_text(stream.frequency)
+            stream_units = _clean_optional_text(stream.units)
+            stream_volume_summary = _clean_optional_text(stream.volume_summary)
+
+            estimated_volume = stream_volume_summary
+            if not estimated_volume and (stream_volume or stream_frequency):
+                volume_display = " ".join(
+                    part for part in [stream_volume, stream_units] if part
+                ).strip()
+                estimated_volume = " / ".join(
+                    part for part in [volume_display or stream_volume, stream_frequency] if part
+                ).strip()
+
             raw = {
                 "stream_confidence": str(stream.confidence),
                 "stream_evidence": " | ".join(stream.evidence),
@@ -282,13 +300,19 @@ class BulkImportAIExtractor:
                 "description": stream.description or "",
                 "sector": "",
                 "subsector": "",
-                "estimated_volume": "",
+                "estimated_volume": estimated_volume,
+                "volume": stream_volume,
+                "frequency": stream_frequency,
+                "units": stream_units,
                 "company_name": stream.suggested_client_name or "",
                 "location_name": stream.suggested_location_name or "",
                 "location_city": stream.suggested_location_city or "",
                 "location_state": stream.suggested_location_state or "",
                 "location_address": stream.suggested_location_address or "",
             }
+
+            if stream_volume_summary:
+                raw["stream_volume_summary"] = stream_volume_summary
 
             if stream.suggested_client_confidence is not None:
                 raw["suggested_client_confidence"] = str(stream.suggested_client_confidence)
@@ -443,6 +467,30 @@ class BulkImportAIExtractor:
                     stream.suggested_location_evidence,
                 ),
                 description=description,
+                volume=self._prefer_stream_text(
+                    existing.volume,
+                    stream.volume,
+                    existing_confidence=existing.confidence,
+                    incoming_confidence=stream.confidence,
+                ),
+                frequency=self._prefer_stream_text(
+                    existing.frequency,
+                    stream.frequency,
+                    existing_confidence=existing.confidence,
+                    incoming_confidence=stream.confidence,
+                ),
+                units=self._prefer_stream_text(
+                    existing.units,
+                    stream.units,
+                    existing_confidence=existing.confidence,
+                    incoming_confidence=stream.confidence,
+                ),
+                volume_summary=self._prefer_stream_text(
+                    existing.volume_summary,
+                    stream.volume_summary,
+                    existing_confidence=existing.confidence,
+                    incoming_confidence=stream.confidence,
+                ),
                 metadata=merged_metadata,
                 confidence=max(existing.confidence, stream.confidence),
                 evidence=merged_evidence[:10],
@@ -561,6 +609,28 @@ class BulkImportAIExtractor:
             return existing_text
 
         if (incoming_confidence or 0) > (existing_confidence or 0):
+            return incoming_text
+        return existing_text
+
+    def _prefer_stream_text(
+        self,
+        existing: str | None,
+        incoming: str | None,
+        *,
+        existing_confidence: int,
+        incoming_confidence: int,
+    ) -> str | None:
+        existing_text = (existing or "").strip()
+        incoming_text = (incoming or "").strip()
+        if not existing_text and not incoming_text:
+            return None
+        if not existing_text:
+            return incoming_text
+        if not incoming_text:
+            return existing_text
+        if existing_text.casefold() == incoming_text.casefold():
+            return existing_text
+        if incoming_confidence > existing_confidence:
             return incoming_text
         return existing_text
 

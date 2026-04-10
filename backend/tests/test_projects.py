@@ -1206,6 +1206,10 @@ async def test_dashboard_needs_confirmation_exposes_structured_suggestion_confid
             "location_city": "Monterrey",
             "location_state": "NL",
             "location_address": "Avenida 1",
+            "volume": "120",
+            "frequency": "weekly",
+            "units": "kg",
+            "estimated_volume": "120 kg/week",
         },
     )
     db_session.add(draft)
@@ -1220,6 +1224,10 @@ async def test_dashboard_needs_confirmation_exposes_structured_suggestion_confid
     assert row["suggestedClientEvidence"] == ["Header: Client Signals Co"]
     assert row["suggestedLocationConfidence"] == 83
     assert row["suggestedLocationEvidence"] == ["Row 14 city/state columns"]
+    assert row["volume"] == "120"
+    assert row["frequency"] == "weekly"
+    assert row["units"] == "kg"
+    assert row["volumeSummary"] == "120 kg/week"
 
 
 @pytest.mark.asyncio

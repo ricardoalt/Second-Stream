@@ -105,6 +105,9 @@ class DraftItemDashboardRow(BaseSchema):
     suggested_location_address: str | None = None
     suggested_location_confidence: int | None = None
     suggested_location_evidence: list[str] = Field(default_factory=list)
+    volume: str | None = None
+    frequency: str | None = None
+    units: str | None = None
     volume_summary: str | None = None
     last_activity_at: datetime
     source_type: Literal["bulk_import", "voice_interview"]

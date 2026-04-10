@@ -14,10 +14,6 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyCombobox } from "@/components/features/shared/company-combobox";
 import { LocationCombobox } from "@/components/features/shared/location-combobox";
-import {
-	DRAFT_FREQUENCY_OPTIONS,
-	DRAFT_UNITS_OPTIONS,
-} from "@/components/features/streams/draft-field-options";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,14 +23,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import {
 	Tooltip,
 	TooltipContent,
@@ -507,10 +495,10 @@ export function resolveCandidateBatchResolutionState(
 	};
 }
 
-const MODAL_SHELL_WIDTH_CLASS = "w-[calc(100vw-3rem)] max-w-[1100px]";
+const MODAL_SHELL_WIDTH_CLASS = "w-[calc(100vw-3rem)] max-w-[1240px]";
 const MODAL_CONTENT_WIDTH_CLASS = "mx-auto w-full";
 const DESKTOP_TABLE_COLUMNS_CLASS =
-	"grid-cols-[minmax(0,2.3fr)_minmax(120px,1fr)_minmax(72px,0.7fr)_minmax(72px,0.6fr)_minmax(96px,0.9fr)_minmax(196px,1.45fr)]";
+	"grid-cols-[minmax(0,2fr)_minmax(110px,0.8fr)_minmax(96px,0.8fr)_minmax(112px,0.9fr)_minmax(168px,1.2fr)_minmax(228px,1.35fr)]";
 
 export function DraftConfirmationModal({
 	open,
@@ -838,22 +826,31 @@ export function DraftConfirmationModal({
 												</div>
 
 												{/* Volume */}
-												<div className="text-right">
-													<span className="text-sm tabular-nums text-foreground">
+												<div className="min-w-0 text-right">
+													<span
+														className="block truncate text-sm tabular-nums text-foreground"
+														title={candidate.volume ?? undefined}
+													>
 														{candidate.volume ?? "—"}
 													</span>
 												</div>
 
 												{/* Units */}
-												<div className="text-center">
-													<span className="text-sm text-muted-foreground">
+												<div className="min-w-0 text-center">
+													<span
+														className="block truncate text-sm text-muted-foreground"
+														title={candidate.units ?? undefined}
+													>
 														{candidate.units ?? "—"}
 													</span>
 												</div>
 
 												{/* Frequency */}
-												<div className="text-right">
-													<span className="text-sm text-foreground">
+												<div className="min-w-0 text-right">
+													<span
+														className="block truncate text-sm text-foreground"
+														title={candidate.frequency ?? undefined}
+													>
 														{candidate.frequency ?? "—"}
 													</span>
 												</div>
@@ -873,7 +870,7 @@ export function DraftConfirmationModal({
 																			)
 																		}
 																		disabled={disableActions || showSpinner}
-																		className="h-8 px-2.5 text-xs transition-all duration-200 hover:scale-105 active:scale-95"
+																		className="h-8 px-2 text-xs transition-all duration-200 hover:scale-105 active:scale-95"
 																	>
 																		{isEditing ? (
 																			<>
@@ -910,7 +907,7 @@ export function DraftConfirmationModal({
 																			disableActions ||
 																			showSpinner
 																		}
-																		className="h-8 bg-success text-success-foreground px-3 text-xs hover:bg-success/90 transition-all duration-200 hover:scale-105 active:scale-95"
+																		className="h-8 bg-success px-2.5 text-xs text-success-foreground transition-all duration-200 hover:scale-105 hover:bg-success/90 active:scale-95"
 																	>
 																		{showSpinner ? (
 																			<Loader2 className="size-3.5 animate-spin" />
@@ -937,7 +934,7 @@ export function DraftConfirmationModal({
 																		<Button
 																			variant="ghost"
 																			size="sm"
-																			className="h-8 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all duration-200 hover:scale-105 active:scale-95"
+																			className="h-8 px-2 text-xs text-muted-foreground transition-all duration-200 hover:scale-105 hover:bg-destructive/10 hover:text-destructive active:scale-95"
 																			onClick={() =>
 																				onRejectCandidate(candidate.itemId)
 																			}
@@ -1221,36 +1218,20 @@ export function DraftConfirmationModal({
 																	>
 																		Units
 																	</label>
-																	<Select
+																	<Input
+																		id={`units-${candidate.itemId}`}
 																		value={candidate.units ?? ""}
-																		onValueChange={(value) =>
+																		onChange={(event) =>
 																			onCandidateFieldChange(
 																				candidate.itemId,
 																				"units",
-																				value,
+																				event.target.value,
 																			)
 																		}
 																		disabled={disableActions}
-																	>
-																		<SelectTrigger
-																			id={`units-${candidate.itemId}`}
-																			className="h-9 text-sm"
-																		>
-																			<SelectValue placeholder="Select units" />
-																		</SelectTrigger>
-																		<SelectContent>
-																			<SelectGroup>
-																				{DRAFT_UNITS_OPTIONS.map((option) => (
-																					<SelectItem
-																						key={option}
-																						value={option}
-																					>
-																						{option}
-																					</SelectItem>
-																				))}
-																			</SelectGroup>
-																		</SelectContent>
-																	</Select>
+																		className="h-9 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+																		placeholder="e.g. gallons, lbs, bulk load"
+																	/>
 																</div>
 
 																<div className="space-y-1.5">
@@ -1260,38 +1241,20 @@ export function DraftConfirmationModal({
 																	>
 																		Frequency
 																	</label>
-																	<Select
+																	<Input
+																		id={`frequency-${candidate.itemId}`}
 																		value={candidate.frequency ?? ""}
-																		onValueChange={(value) =>
+																		onChange={(event) =>
 																			onCandidateFieldChange(
 																				candidate.itemId,
 																				"frequency",
-																				value,
+																				event.target.value,
 																			)
 																		}
 																		disabled={disableActions}
-																	>
-																		<SelectTrigger
-																			id={`frequency-${candidate.itemId}`}
-																			className="h-9 text-sm"
-																		>
-																			<SelectValue placeholder="Select frequency" />
-																		</SelectTrigger>
-																		<SelectContent>
-																			<SelectGroup>
-																				{DRAFT_FREQUENCY_OPTIONS.map(
-																					(option) => (
-																						<SelectItem
-																							key={option}
-																							value={option}
-																						>
-																							{option}
-																						</SelectItem>
-																					),
-																				)}
-																			</SelectGroup>
-																		</SelectContent>
-																	</Select>
+																		className="h-9 transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+																		placeholder="e.g. monthly, one time, 5-6 per month"
+																	/>
 																	{errors?.frequency ? (
 																		<motion.p
 																			className="text-xs text-destructive"

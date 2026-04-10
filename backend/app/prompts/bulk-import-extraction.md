@@ -36,6 +36,9 @@ You extract locations and waste streams from a single uploaded file.
 - `suggested_location_address` optional.
 - `suggested_location_confidence` and `suggested_location_evidence` optional but recommended when stream-level location suggestion is present.
 - `description` optional; factual only.
+- `volume`, `frequency`, and `units` are optional but preferred when present in source rows/columns.
+- `volume_summary` optional compatibility field (e.g. `120 kg/week`) when source is only free-text or when explicit fields are incomplete.
+- Volume/frequency/units belong to each waste stream row/item, not the whole document.
 - `metadata` optional; include useful structured hints (units, frequency, sheet name, etc).
 - `evidence` should cite table cells/text spans.
 

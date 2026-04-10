@@ -27,6 +27,7 @@ class NormalizedProjectDataV1(BaseModel):
     subsector: str | None = Field(default=None, max_length=100)
     estimated_volume: str | None = Field(default=None, max_length=255)
     volume: str | None = Field(default=None, max_length=255)
+    units: str | None = Field(default=None, max_length=255)
     frequency: str | None = Field(default=None, max_length=255)
     company_name: str | None = Field(default=None, max_length=255)
     location_name: str | None = Field(default=None, max_length=255)

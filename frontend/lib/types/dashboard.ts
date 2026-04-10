@@ -104,6 +104,9 @@ export interface DraftItemRow {
 	suggestedLocationAddress?: string | null;
 	suggestedLocationConfidence?: number | null;
 	suggestedLocationEvidence?: string[];
+	volume?: string | null;
+	frequency?: string | null;
+	units?: string | null;
 	volumeSummary: string | null;
 	lastActivityAt: string;
 	sourceType: DraftSourceType;

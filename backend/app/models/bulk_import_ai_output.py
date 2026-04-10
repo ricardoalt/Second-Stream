@@ -38,6 +38,10 @@ class BulkImportAIWasteStreamOutput(BaseModel):
     suggested_location_confidence: int | None = Field(default=None, ge=0, le=100)
     suggested_location_evidence: list[str] | None = Field(default=None, min_length=1, max_length=10)
     description: str | None = Field(default=None, max_length=4000)
+    volume: str | None = Field(default=None, max_length=255)
+    frequency: str | None = Field(default=None, max_length=255)
+    units: str | None = Field(default=None, max_length=255)
+    volume_summary: str | None = Field(default=None, max_length=255)
     metadata: dict[str, Any] | None = None
     confidence: int = Field(ge=0, le=100)
     evidence: list[str] = Field(min_length=1, max_length=10)
