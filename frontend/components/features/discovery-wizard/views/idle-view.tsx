@@ -208,12 +208,12 @@ function AssignOwnerCombobox({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
-				className="w-[--radix-popover-trigger-width] p-0"
+				className="w-[--radix-popover-trigger-width] max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0"
 				align="start"
 			>
 				<Command>
 					<CommandInput placeholder="Search owner by name or email..." />
-					<CommandList>
+					<CommandList className="max-h-[calc(var(--radix-popover-content-available-height)-2.5rem)]">
 						<CommandEmpty>No matching owners found.</CommandEmpty>
 						<CommandGroup>
 							{owners.map((owner) => (

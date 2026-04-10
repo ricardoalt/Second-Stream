@@ -1121,6 +1121,7 @@ export function DraftConfirmationModal({
 																		isSuggestedAccepted={
 																			aiSuggestedClientAccepted
 																		}
+																		portalled={false}
 																		onValueChange={(value) => {
 																			onCandidateFieldChange(
 																				candidate.itemId,
@@ -1198,6 +1199,7 @@ export function DraftConfirmationModal({
 																		allowSuggestionWithoutCompany={
 																			aiSuggestedClientBadgeVisible
 																		}
+																		portalled={false}
 																		onValueChange={(value) =>
 																			onCandidateFieldChange(
 																				candidate.itemId,

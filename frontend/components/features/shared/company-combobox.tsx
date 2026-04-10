@@ -35,6 +35,7 @@ interface CompanyComboboxProps {
 	className?: string;
 	showCreate?: boolean;
 	disabled?: boolean;
+	portalled?: boolean;
 }
 
 export function hasCompanyAiSuggestion(
@@ -86,6 +87,7 @@ export function CompanyCombobox({
 	className,
 	showCreate = true,
 	disabled = false,
+	portalled = true,
 }: CompanyComboboxProps) {
 	const [open, setOpen] = React.useState(false);
 	const { companies, loadCompanies } = useCompanyStore();
@@ -131,12 +133,13 @@ export function CompanyCombobox({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
-				className="w-[--radix-popover-trigger-width] max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0"
+				portalled={portalled}
+				className="w-[--radix-popover-trigger-width] max-h-[min(24rem,var(--radix-popover-content-available-height))] overflow-hidden p-0"
 				align="start"
 			>
 				<Command>
 					<CommandInput placeholder="Search company..." />
-					<CommandList className="max-h-[calc(var(--radix-popover-content-available-height)-2.5rem)]">
+					<CommandList className="max-h-[min(20rem,calc(var(--radix-popover-content-available-height)-2.5rem))] overscroll-contain">
 						<CommandEmpty>No company found.</CommandEmpty>
 						{hasSuggestedValue ? (
 							<CommandGroup heading="AI suggestion">
