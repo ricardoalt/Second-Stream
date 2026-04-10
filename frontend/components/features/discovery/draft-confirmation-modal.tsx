@@ -14,7 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyCombobox } from "@/components/features/shared/company-combobox";
 import { LocationCombobox } from "@/components/features/shared/location-combobox";
-import { Badge } from "@/components/ui/badge";
+import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -498,7 +498,7 @@ export function resolveCandidateBatchResolutionState(
 const MODAL_SHELL_WIDTH_CLASS = "w-[calc(100vw-3rem)] max-w-[1240px]";
 const MODAL_CONTENT_WIDTH_CLASS = "mx-auto w-full";
 const DESKTOP_TABLE_COLUMNS_CLASS =
-	"grid-cols-[minmax(0,2fr)_minmax(110px,0.8fr)_minmax(96px,0.8fr)_minmax(112px,0.9fr)_minmax(168px,1.2fr)_minmax(228px,1.35fr)]";
+	"grid-cols-[minmax(0,1.6fr)_minmax(100px,0.8fr)_minmax(96px,0.9fr)_minmax(104px,0.9fr)_minmax(148px,1.1fr)_minmax(180px,1fr)]";
 
 export function DraftConfirmationModal({
 	open,
@@ -655,11 +655,11 @@ export function DraftConfirmationModal({
 								DESKTOP_TABLE_COLUMNS_CLASS,
 							)}
 						>
-							<div>Material Name</div>
+							<div className="pl-3">Material Name</div>
 							<div className="min-w-0">Source</div>
-							<div className="text-right">Volume</div>
-							<div className="text-center">Units</div>
-							<div className="text-right">Frequency</div>
+							<div>Volume</div>
+							<div>Units</div>
+							<div>Frequency</div>
 							<div className="text-right">Actions</div>
 						</div>
 					</div>
@@ -743,12 +743,12 @@ export function DraftConfirmationModal({
 											{/* Main Row */}
 											<div
 												className={cn(
-													"grid items-center gap-4 py-4",
+													"grid items-center gap-4 py-5",
 													DESKTOP_TABLE_COLUMNS_CLASS,
 												)}
 											>
 												{/* Material Name */}
-												<div className="min-w-0 pl-2 pr-2">
+												<div className="min-w-0 pl-3 pr-1">
 													<p
 														className={cn(
 															"text-sm font-medium text-foreground",
@@ -760,16 +760,16 @@ export function DraftConfirmationModal({
 													<div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
 														{resolutionState.requiresResolution ? (
 															<Badge
-																variant="outline"
-																className="h-5 border-amber-300/60 bg-amber-50/60 px-1.5 text-[10px] text-amber-700"
+																variant="warning-subtle"
+																className="h-5 px-1.5 text-[10px]"
 															>
 																Needs client/location resolution
 															</Badge>
 														) : null}
 														{resolutionState.ambiguousLocation ? (
 															<Badge
-																variant="outline"
-																className="h-5 border-blue-300/60 bg-blue-50/60 px-1.5 text-[10px] text-blue-700"
+																variant="info-subtle"
+																className="h-5 px-1.5 text-[10px]"
 															>
 																Ambiguous location suggestion
 															</Badge>
@@ -788,7 +788,12 @@ export function DraftConfirmationModal({
 															</Tooltip>
 														) : null}
 														{resolutionState.suggestedLocationLabel ? (
-															<span className="inline-flex items-center gap-1 rounded bg-blue-50/70 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+															<span
+																className={cn(
+																	badgeVariants({ variant: "info-subtle" }),
+																	"h-5 gap-1 px-1.5 text-[10px] font-medium",
+																)}
+															>
 																<Sparkles className="size-2.5 shrink-0" />
 																AI suggests:{" "}
 																{resolutionState.suggestedLocationLabel}
@@ -799,10 +804,15 @@ export function DraftConfirmationModal({
 														(suggestedClientMatches.draftClientMatches[
 															candidate.itemId
 														]?.length ?? 0) > 0 ? (
-															<span className="inline-flex items-center gap-1 rounded bg-blue-50/70 px-1.5 py-0.5 text-[10px] text-blue-700">
+															<span
+																className={cn(
+																	badgeVariants({ variant: "info-subtle" }),
+																	"h-5 gap-1 px-1.5 text-[10px]",
+																)}
+															>
 																<Sparkles className="size-2.5 shrink-0" />
-																Match candidate found for “
-																{candidate.suggestedClientName}”
+																Match candidate found for &quot;
+																{candidate.suggestedClientName}&quot;
 															</span>
 														) : null}
 													</div>
@@ -826,7 +836,7 @@ export function DraftConfirmationModal({
 												</div>
 
 												{/* Volume */}
-												<div className="min-w-0 text-right">
+												<div className="min-w-0">
 													<span
 														className="block truncate text-sm tabular-nums text-foreground"
 														title={candidate.volume ?? undefined}
@@ -836,7 +846,7 @@ export function DraftConfirmationModal({
 												</div>
 
 												{/* Units */}
-												<div className="min-w-0 text-center">
+												<div className="min-w-0">
 													<span
 														className="block truncate text-sm text-muted-foreground"
 														title={candidate.units ?? undefined}
@@ -846,7 +856,7 @@ export function DraftConfirmationModal({
 												</div>
 
 												{/* Frequency */}
-												<div className="min-w-0 text-right">
+												<div className="min-w-0">
 													<span
 														className="block truncate text-sm text-foreground"
 														title={candidate.frequency ?? undefined}
@@ -933,8 +943,8 @@ export function DraftConfirmationModal({
 																	<TooltipTrigger asChild>
 																		<Button
 																			variant="ghost"
-																			size="sm"
-																			className="h-8 px-2 text-xs text-muted-foreground transition-all duration-200 hover:scale-105 hover:bg-destructive/10 hover:text-destructive active:scale-95"
+																			size="icon-sm"
+																			className="text-muted-foreground transition-all duration-200 hover:scale-105 hover:bg-destructive/10 hover:text-destructive active:scale-95"
 																			onClick={() =>
 																				onRejectCandidate(candidate.itemId)
 																			}
@@ -943,10 +953,7 @@ export function DraftConfirmationModal({
 																			{showSpinner ? (
 																				<Loader2 className="size-3.5 animate-spin" />
 																			) : (
-																				<>
-																					<Trash2 className="mr-1 size-3.5" />
-																					Discard
-																				</>
+																				<Trash2 className="size-3.5" />
 																			)}
 																		</Button>
 																	</TooltipTrigger>
@@ -1274,7 +1281,7 @@ export function DraftConfirmationModal({
 									);
 								})}
 								{activeReviewCandidates.length === 0 ? (
-									<div className="px-2 py-8 text-center text-sm text-muted-foreground">
+									<div className="py-12 text-center text-sm text-muted-foreground">
 										No drafts left in active review.
 									</div>
 								) : null}

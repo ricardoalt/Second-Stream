@@ -6,6 +6,7 @@ import {
 	getAllStreamsPrimaryActionLabel,
 	getFollowUpOpenHref,
 	getSelectedFollowUpItem,
+	mapDraftRowToDraftCandidate,
 	mapEditorStateToDraftCandidate,
 	resolveOpenDraftState,
 	summarizeRejectAllDraftsResults,
@@ -13,13 +14,17 @@ import {
 import {
 	applyDraftFieldUpdate,
 	type DraftEditorState,
+	resolveDraftPrimaryActionMode,
 	validateDraft,
 } from "@/components/features/streams/streams-drafts-table";
 import type { StreamRow } from "@/components/features/streams/types";
+import { adaptDraftItem } from "@/lib/adapters/streams-adapter";
 import { validateCandidateForConfirmation } from "@/lib/discovery-confirmation-utils";
-import type { DashboardCounts } from "@/lib/types/dashboard";
+import type { DashboardCounts, DraftItemRow } from "@/lib/types/dashboard";
 import { computeFollowUpPriority } from "@/lib/utils/compute-follow-up-priority";
 import { computeWasteStreamsKpis } from "@/lib/utils/compute-waste-streams-kpis";
+
+process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 
 const baseStream: StreamRow = {
 	id: "STR-1",
@@ -126,6 +131,20 @@ describe("/streams runtime hardening", () => {
 		expect(validateDraft(draftWithoutLocation)).toEqual({});
 	});
 
+	it("resolves primary draft action mode to review when review callback exists", () => {
+		expect(
+			resolveDraftPrimaryActionMode({
+				onReview: () => {},
+			}),
+		).toBe("review");
+
+		expect(
+			resolveDraftPrimaryActionMode({
+				onConfirm: () => {},
+			}),
+		).toBe("confirm");
+	});
+
 	it("resets location when draft client changes", () => {
 		const currentDraft: DraftEditorState = {
 			wasteType: "Spent Solvent",
@@ -196,7 +215,102 @@ describe("/streams runtime hardening", () => {
 		expect(candidate.units).toBe(editorState.units);
 	});
 
-	it("requires frequency during canonical confirmation when missing", () => {
+	it("maps draft rows into confirmation candidates without dropping AI suggestions", () => {
+		const draftRow: DraftItemRow = {
+			kind: "draft_item",
+			bucket: "needs_confirmation",
+			itemId: "item-7",
+			runId: "run-7",
+			groupId: null,
+			streamName: "Spent Solvent",
+			companyId: null,
+			companyLabel: null,
+			suggestedCompanyLabel: "Exxon",
+			locationLabel: null,
+			suggestedLocationName: "Baton Rouge",
+			suggestedLocationCity: "Baton Rouge",
+			suggestedLocationState: "LA",
+			suggestedLocationAddress: null,
+			volume: "BULK LOAD",
+			frequency: "5-6 PER MONTH",
+			units: "BULK LOAD",
+			volumeSummary: "BULK LOAD / 5-6 PER MONTH",
+			lastActivityAt: "2026-01-01T00:00:00Z",
+			sourceType: "bulk_import",
+			sourceFilename: "drafts.xlsx",
+			draftStatus: "pending_review",
+			confidence: 0.73,
+			draftKind: "orphan_stream",
+			queuePriority: "normal",
+			queuePriorityReason: "normal",
+			confirmable: true,
+			target: null,
+		};
+		const editorState: DraftEditorState = {
+			wasteType: "Spent Solvent",
+			volume: "BULK LOAD",
+			frequency: "5-6 PER MONTH",
+			units: "BULK LOAD",
+			clientId: "",
+			locationId: "",
+		};
+
+		expect(mapDraftRowToDraftCandidate(draftRow, editorState)).toEqual(
+			expect.objectContaining({
+				suggestedClientName: "Exxon",
+				suggestedLocationName: "Baton Rouge",
+				locationResolutionHint: "suggested",
+				volume: "BULK LOAD",
+				frequency: "5-6 PER MONTH",
+				units: "BULK LOAD",
+			}),
+		);
+	});
+
+	it("adapts draft rows using structured values and AI-suggested labels when unresolved", () => {
+		const draftRow: DraftItemRow = {
+			kind: "draft_item",
+			bucket: "needs_confirmation",
+			itemId: "item-9",
+			runId: "run-9",
+			groupId: null,
+			streamName: "Acetonitrile/Toluene",
+			companyId: null,
+			companyLabel: null,
+			suggestedCompanyLabel: "Clean Harbors",
+			locationLabel: null,
+			suggestedLocationName: "Linden",
+			suggestedLocationCity: "Linden",
+			suggestedLocationState: "NJ",
+			suggestedLocationAddress: null,
+			volume: "BULK LOAD",
+			frequency: "3 LOADS/WEEK",
+			units: "BULK LOAD",
+			volumeSummary: "legacy summary",
+			lastActivityAt: "2026-01-01T00:00:00Z",
+			sourceType: "bulk_import",
+			sourceFilename: "drafts.xlsx",
+			draftStatus: "pending_review",
+			confidence: 0.66,
+			draftKind: "orphan_stream",
+			queuePriority: "normal",
+			queuePriorityReason: "normal",
+			confirmable: true,
+			target: null,
+		};
+
+		expect(adaptDraftItem(draftRow)).toEqual(
+			expect.objectContaining({
+				client: "Clean Harbors",
+				location: "Linden",
+				volume: "BULK LOAD",
+				frequency: "3 LOADS/WEEK",
+				units: "BULK LOAD",
+			}),
+		);
+	});
+
+	it("keeps canonical confirmation valid when frequency is missing", () => {
 		const editorState: DraftEditorState = {
 			wasteType: "Coolant",
 			volume: "10",
@@ -211,9 +325,7 @@ describe("/streams runtime hardening", () => {
 			editorState,
 		);
 
-		expect(validateCandidateForConfirmation(candidate)).toEqual({
-			frequency: "Frequency is required",
-		});
+		expect(validateCandidateForConfirmation(candidate)).toEqual({});
 	});
 
 	it("prioritizes follow-up by stale age + missing-information type", () => {
@@ -262,6 +374,19 @@ describe("/streams runtime hardening", () => {
 
 		expect(pageSource.includes("Archive (")).toBe(false);
 		expect(pageSource.includes("handleArchiveSelected")).toBe(false);
+		expect(pageSource.includes("<StreamsDraftConfirmation")).toBe(true);
+		expect(pageSource.includes("onReview={handleReviewDraft}")).toBe(true);
+	});
+
+	it("uses shared draft confirmation modal flow on client detail drafts", () => {
+		const pageSource = readFileSync(
+			join(process.cwd(), "app", "(agent)", "clients", "[id]", "page.tsx"),
+			"utf8",
+		);
+
+		expect(pageSource.includes("<StreamsDraftConfirmation")).toBe(true);
+		expect(pageSource.includes("onReview={handleReviewDraft}")).toBe(true);
+		expect(pageSource.includes("onConfirm={handleConfirmDraft}")).toBe(false);
 	});
 
 	it("summarizes delete-all draft API outcomes explicitly", () => {

@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { toast } from "sonner";
 import { bulkImportAPI } from "@/lib/api/bulk-import";
+import type { DraftItemRow } from "@/lib/types/dashboard";
 import type { DraftCandidate } from "@/lib/types/discovery";
 import type { DraftEditorState } from "./streams-drafts-table";
 import type { StreamRow } from "./types";
@@ -67,6 +68,55 @@ export function mapEditorStateToDraftCandidate(
 		locationLabel: null,
 		source: "Waste Streams Drafts",
 		confidence: null,
+		status: "pending",
+	};
+}
+
+export function mapDraftRowToDraftCandidate(
+	draftItemRow: DraftItemRow,
+	editorState: DraftEditorState,
+): DraftCandidate {
+	const targetLocationId =
+		draftItemRow.target?.entrypointType === "location"
+			? draftItemRow.target.entrypointId
+			: null;
+
+	return {
+		itemId: draftItemRow.itemId,
+		runId: draftItemRow.runId,
+		suggestedClientName: draftItemRow.suggestedCompanyLabel ?? null,
+		suggestedClientConfidence: draftItemRow.suggestedClientConfidence ?? null,
+		suggestedClientEvidence: draftItemRow.suggestedClientEvidence ?? [],
+		aiSuggestedClientAccepted: false,
+		suggestedLocationName: draftItemRow.suggestedLocationName ?? null,
+		aiSuggestedLocationAccepted: false,
+		suggestedLocationCity: draftItemRow.suggestedLocationCity ?? null,
+		suggestedLocationState: draftItemRow.suggestedLocationState ?? null,
+		suggestedLocationAddress: draftItemRow.suggestedLocationAddress ?? null,
+		suggestedLocationConfidence:
+			draftItemRow.suggestedLocationConfidence ?? null,
+		suggestedLocationEvidence: draftItemRow.suggestedLocationEvidence ?? [],
+		clientId: editorState.clientId || draftItemRow.companyId || null,
+		locationId: editorState.locationId || targetLocationId || null,
+		locationResolutionHint:
+			draftItemRow.locationLabel || targetLocationId
+				? "none"
+				: draftItemRow.suggestedLocationName ||
+						draftItemRow.suggestedLocationCity ||
+						draftItemRow.suggestedLocationState ||
+						draftItemRow.suggestedLocationAddress
+					? "suggested"
+					: "missing",
+		locationSuggestionLabel:
+			draftItemRow.suggestedLocationName ?? draftItemRow.locationLabel ?? null,
+		material: editorState.wasteType,
+		volume: editorState.volume || null,
+		frequency: editorState.frequency || null,
+		units: editorState.units || null,
+		locationLabel:
+			draftItemRow.locationLabel ?? draftItemRow.suggestedLocationName ?? null,
+		source: draftItemRow.sourceFilename ?? "Waste Streams Drafts",
+		confidence: draftItemRow.confidence,
 		status: "pending",
 	};
 }

@@ -6,14 +6,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import {
 	Table,
 	TableBody,
 	TableCell,
@@ -22,14 +14,11 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import {
-	DRAFT_FREQUENCY_OPTIONS,
-	DRAFT_UNITS_OPTIONS,
-} from "./draft-field-options";
 import type { StreamRow } from "./types";
 
 type StreamsDraftsTableProps = {
 	rows: StreamRow[];
+	onReview?: (id: string, draft: DraftEditorState) => void;
 	onConfirm?: (id: string, draft: DraftEditorState) => void;
 	onDelete?: (id: string) => void;
 	highlightedId?: string | null;
@@ -82,6 +71,20 @@ export function applyDraftFieldUpdate<
 	return nextDraft;
 }
 
+export function resolveDraftPrimaryActionMode(params: {
+	onReview?: ((id: string, draft: DraftEditorState) => void) | undefined;
+	onConfirm?: ((id: string, draft: DraftEditorState) => void) | undefined;
+}): "review" | "confirm" {
+	if (typeof params.onReview === "function") {
+		return "review";
+	}
+	if (typeof params.onConfirm === "function") {
+		return "confirm";
+	}
+
+	return "confirm";
+}
+
 // Componente para campos de draft con estilo "pill" azul
 function DraftField({
 	children,
@@ -106,6 +109,7 @@ function DraftField({
 
 export function StreamsDraftsTable({
 	rows,
+	onReview,
 	onConfirm,
 	onDelete,
 	highlightedId,
@@ -113,6 +117,10 @@ export function StreamsDraftsTable({
 	deletingIds = new Set(),
 	disableActions = false,
 }: StreamsDraftsTableProps) {
+	const primaryActionMode = resolveDraftPrimaryActionMode({
+		onReview,
+		onConfirm,
+	});
 	const [draft, setDraft] = useState<Record<string, DraftEditorState>>({});
 	const [errorsByRow, setErrorsByRow] = useState<
 		Record<string, DraftValidationErrors>
@@ -179,6 +187,12 @@ export function StreamsDraftsTable({
 			...current,
 			[row.id]: {},
 		}));
+
+		if (primaryActionMode === "review") {
+			onReview?.(row.id, rowDraft);
+			return;
+		}
+
 		onConfirm?.(row.id, rowDraft);
 	}
 
@@ -314,25 +328,19 @@ export function StreamsDraftsTable({
 											"border-destructive/20 bg-destructive/5",
 									)}
 								>
-									<Select
+									<Input
 										value={rowDraft.frequency}
-										onValueChange={(value) =>
-											updateDraft(row.id, rowDraft, "frequency", value)
+										onChange={(event) =>
+											updateDraft(
+												row.id,
+												rowDraft,
+												"frequency",
+												event.target.value,
+											)
 										}
-									>
-										<SelectTrigger className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-foreground shadow-none focus:ring-0 [&>svg]:size-4 [&>svg]:text-primary">
-											<SelectValue placeholder="Select" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectGroup>
-												{DRAFT_FREQUENCY_OPTIONS.map((option) => (
-													<SelectItem key={option} value={option}>
-														{option}
-													</SelectItem>
-												))}
-											</SelectGroup>
-										</SelectContent>
-									</Select>
+										className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-foreground shadow-none focus-visible:ring-0"
+										placeholder="e.g. monthly or 5-6 per month"
+									/>
 								</DraftField>
 								{rowErrors.frequency ? (
 									<p className="mt-1.5 text-xs text-destructive">
@@ -349,25 +357,14 @@ export function StreamsDraftsTable({
 										rowErrors.units && "border-destructive/20 bg-destructive/5",
 									)}
 								>
-									<Select
+									<Input
 										value={rowDraft.units}
-										onValueChange={(value) =>
-											updateDraft(row.id, rowDraft, "units", value)
+										onChange={(event) =>
+											updateDraft(row.id, rowDraft, "units", event.target.value)
 										}
-									>
-										<SelectTrigger className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-foreground shadow-none focus:ring-0 [&>svg]:size-4 [&>svg]:text-primary">
-											<SelectValue placeholder="Units" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectGroup>
-												{DRAFT_UNITS_OPTIONS.map((option) => (
-													<SelectItem key={option} value={option}>
-														{option}
-													</SelectItem>
-												))}
-											</SelectGroup>
-										</SelectContent>
-									</Select>
+										className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-foreground shadow-none focus-visible:ring-0"
+										placeholder="e.g. gallons, lbs, bulk load"
+									/>
 								</DraftField>
 								{rowErrors.units ? (
 									<p className="mt-1.5 text-xs text-destructive">
@@ -387,11 +384,13 @@ export function StreamsDraftsTable({
 										{isConfirming ? (
 											<>
 												<Loader2 className="size-3.5 animate-spin" />
-												Confirming...
+												{primaryActionMode === "review"
+													? "Opening..."
+													: "Confirming..."}
 											</>
 										) : (
 											<>
-												Confirm
+												{primaryActionMode === "review" ? "Review" : "Confirm"}
 												<ChevronRight className="size-3.5" />
 											</>
 										)}

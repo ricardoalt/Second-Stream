@@ -31,6 +31,25 @@ function parseVolumeSummary(volumeSummary: string | null): {
 	};
 }
 
+function trimToNull(value: string | null | undefined): string | null {
+	const trimmed = value?.trim();
+	return trimmed ? trimmed : null;
+}
+
+function buildSuggestedLocationLabel(row: DraftItemRow): string {
+	const explicit = trimToNull(row.suggestedLocationName);
+	if (explicit) {
+		return explicit;
+	}
+
+	const parts = [
+		trimToNull(row.suggestedLocationCity),
+		trimToNull(row.suggestedLocationState),
+	].filter((value): value is string => Boolean(value));
+
+	return parts.join(", ");
+}
+
 function computeDaysSinceLastActivity(lastActivityAt: string): number {
 	const parsed = Date.parse(lastActivityAt);
 	if (Number.isNaN(parsed)) {
@@ -86,18 +105,29 @@ export function adaptPersistedStream(row: PersistedStreamRow): StreamRow {
 
 export function adaptDraftItem(row: DraftItemRow): StreamRow {
 	const volumeData = parseVolumeSummary(row.volumeSummary);
+	const clientLabel =
+		trimToNull(row.companyLabel) ?? trimToNull(row.suggestedCompanyLabel) ?? "";
+	const locationLabel =
+		trimToNull(row.locationLabel) ?? buildSuggestedLocationLabel(row);
+	const structuredVolume = trimToNull(row.volume);
+	const structuredUnits = trimToNull(row.units);
+	const structuredFrequency = trimToNull(row.frequency);
 
 	return {
 		id: row.itemId,
 		name: row.streamName,
 		wasteType: row.streamName,
-		client: row.companyLabel ?? "",
+		client: clientLabel,
 		...(row.companyId ? { clientId: row.companyId } : {}),
-		location: row.locationLabel ?? "",
+		location: locationLabel,
 		agent: "",
-		volume: volumeData.volume,
-		...(volumeData.units ? { units: volumeData.units } : {}),
-		...(volumeData.frequency ? { frequency: volumeData.frequency } : {}),
+		volume: structuredVolume ?? volumeData.volume,
+		...((structuredUnits ?? volumeData.units)
+			? { units: structuredUnits ?? volumeData.units }
+			: {}),
+		...((structuredFrequency ?? volumeData.frequency)
+			? { frequency: structuredFrequency ?? volumeData.frequency }
+			: {}),
 		lastUpdated: row.lastActivityAt,
 		daysSinceLastActivity: computeDaysSinceLastActivity(row.lastActivityAt),
 		status: "draft",

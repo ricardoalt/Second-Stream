@@ -20,12 +20,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ClientCreateBanner } from "@/components/features/clients/client-create-banner";
 import {
-	mapEditorStateToDraftCandidate,
 	rejectSingleDraftWithConfirmation,
 	resolveOpenDraftState,
 	type StreamsTab,
 } from "@/components/features/streams/runtime-helpers";
 import { StreamsAllTable } from "@/components/features/streams/streams-all-table";
+import { StreamsDraftConfirmation } from "@/components/features/streams/streams-draft-confirmation";
 import {
 	type DraftEditorState,
 	StreamsDraftsTable,
@@ -54,10 +54,8 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { bulkImportAPI } from "@/lib/api/bulk-import";
 import { companiesAPI } from "@/lib/api/companies";
 import { deriveOperationalInsights } from "@/lib/clients/operational-insights";
-import { toDiscoveryNormalizedData } from "@/lib/discovery-confirmation-utils";
 import type { ClientProfile } from "@/lib/mappers/company-client";
 import { toClientProfile } from "@/lib/mappers/company-client";
 import {
@@ -94,15 +92,16 @@ export default function ClientDetailPage() {
 	const [highlightedDraftId, setHighlightedDraftId] = useState<string | null>(
 		null,
 	);
-	const [confirmingDraftIds, setConfirmingDraftIds] = useState<Set<string>>(
-		new Set(),
-	);
 	const [deletingDraftIds, setDeletingDraftIds] = useState<Set<string>>(
 		new Set(),
 	);
 	const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(
 		null,
 	);
+	const [draftReviewState, setDraftReviewState] = useState<{
+		id: string;
+		editorState: DraftEditorState;
+	} | null>(null);
 
 	const allStreams = useStreamsAll();
 	const draftStreams = useStreamsDrafts();
@@ -185,52 +184,9 @@ export default function ClientDetailPage() {
 		setHighlightedDraftId(next.highlightedDraftId);
 	}
 
-	async function handleConfirmDraft(id: string, editorState: DraftEditorState) {
-		const draft = draftRowsById[id];
-		if (!draft) {
-			return;
-		}
-
-		setConfirmingDraftIds((prev) => new Set(prev).add(id));
+	function handleReviewDraft(id: string, editorState: DraftEditorState) {
 		setHighlightedDraftId(null);
-
-		try {
-			const candidate = mapEditorStateToDraftCandidate(
-				draft.itemId,
-				draft.runId,
-				editorState,
-			);
-			const payload: Parameters<typeof bulkImportAPI.decideDiscoveryDraft>[1] =
-				{
-					action: "confirm",
-					normalizedData: toDiscoveryNormalizedData(candidate),
-					reviewNotes:
-						"confirmed_via_client_detail; source=Client Detail Waste Streams",
-				};
-
-			if (editorState.locationId) {
-				payload.locationResolution = {
-					mode: "existing",
-					locationId: editorState.locationId,
-				};
-			}
-
-			await bulkImportAPI.decideDiscoveryDraft(draft.itemId, payload);
-			toast.success("Draft confirmed and converted to waste stream");
-			void loadStreams();
-		} catch (confirmError) {
-			toast.error(
-				confirmError instanceof Error
-					? confirmError.message
-					: "Failed to confirm draft",
-			);
-		} finally {
-			setConfirmingDraftIds((prev) => {
-				const next = new Set(prev);
-				next.delete(id);
-				return next;
-			});
-		}
+		setDraftReviewState({ id, editorState });
 	}
 
 	async function handleDeleteDraft(id: string) {
@@ -246,6 +202,10 @@ export default function ClientDetailPage() {
 			},
 		});
 	}
+
+	const selectedDraftItemRow = draftReviewState
+		? (draftRowsById[draftReviewState.id] ?? null)
+		: null;
 
 	if (loading) {
 		return (
@@ -303,6 +263,16 @@ export default function ClientDetailPage() {
 	return (
 		<PageShell>
 			<ClientCreateBanner createState={createState} />
+
+			<StreamsDraftConfirmation
+				draftItemRow={selectedDraftItemRow}
+				editorState={draftReviewState?.editorState ?? null}
+				onClose={() => setDraftReviewState(null)}
+				onConfirmed={() => {
+					toast.success("Draft confirmed and converted to waste stream");
+					void loadStreams();
+				}}
+			/>
 
 			<EditClientModal
 				profile={profile}
@@ -703,10 +673,9 @@ export default function ClientDetailPage() {
 								<div className="overflow-hidden rounded-lg border border-border/40 bg-surface-container-lowest/50">
 									<StreamsDraftsTable
 										rows={companyDraftStreams}
-										onConfirm={handleConfirmDraft}
+										onReview={handleReviewDraft}
 										onDelete={handleDeleteDraft}
 										highlightedId={highlightedDraftId}
-										confirmingIds={confirmingDraftIds}
 										deletingIds={deletingDraftIds}
 									/>
 								</div>
