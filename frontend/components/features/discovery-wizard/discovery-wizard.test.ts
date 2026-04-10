@@ -1,6 +1,10 @@
 import { describe, expect, it, mock } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import {
+	buildAiCreateCompanySelection,
+	buildAiCreateLocationSelection,
+} from "@/lib/discovery-ai-suggestions";
 import type { DraftItemRow } from "@/lib/types/dashboard";
 import type {
 	DiscoverySessionResult,
@@ -1191,6 +1195,126 @@ describe("candidate confirmation flow", () => {
 				name: "AI Suggested New Client",
 			},
 		});
+	});
+
+	it("accepts AI create-new client and location selections through shared field-change path", () => {
+		const candidates: DraftCandidate[] = [
+			{
+				itemId: "item-ai-default",
+				runId: "run-ai-default",
+				clientId: null,
+				locationId: null,
+				material: "Recovered paper",
+				volume: "100 kg/week",
+				frequency: "weekly",
+				units: "kg",
+				locationLabel: null,
+				source: "x.csv",
+				confidence: 0.9,
+				status: "pending",
+				suggestedClientName: "EXXON",
+				suggestedLocationName: "North Plant",
+				suggestedLocationCity: "Monterrey",
+				suggestedLocationState: "NL",
+			},
+		];
+
+		const withClientAccepted =
+			orchestrationModule.resolveCandidatesAfterFieldChange({
+				candidates,
+				itemId: "item-ai-default",
+				field: "clientId",
+				value: buildAiCreateCompanySelection("EXXON"),
+			});
+
+		expect(withClientAccepted).toEqual([
+			expect.objectContaining({
+				itemId: "item-ai-default",
+				clientId: null,
+				aiSuggestedClientAccepted: true,
+				suggestedClientName: "EXXON",
+				locationId: null,
+			}),
+		]);
+
+		const withLocationAccepted =
+			orchestrationModule.resolveCandidatesAfterFieldChange({
+				candidates: withClientAccepted,
+				itemId: "item-ai-default",
+				field: "locationId",
+				value: buildAiCreateLocationSelection("North Plant - Monterrey"),
+			});
+
+		expect(withLocationAccepted).toEqual([
+			expect.objectContaining({
+				itemId: "item-ai-default",
+				locationId: null,
+				aiSuggestedLocationAccepted: true,
+				locationResolutionHint: "suggested",
+				suggestedLocationName: "North Plant",
+				suggestedLocationCity: "Monterrey",
+				suggestedLocationState: "NL",
+			}),
+		]);
+	});
+
+	it("allows users to change away from AI default client/location selections", () => {
+		const aiDefaultCandidate: DraftCandidate = {
+			itemId: "item-changeable",
+			runId: "run-changeable",
+			clientId: null,
+			locationId: null,
+			material: "Recovered paper",
+			volume: "100 kg/week",
+			frequency: "weekly",
+			units: "kg",
+			locationLabel: null,
+			source: "x.csv",
+			confidence: 0.9,
+			status: "pending",
+			suggestedClientName: "EXXON",
+			suggestedLocationName: "North Plant",
+			suggestedLocationCity: "Monterrey",
+			suggestedLocationState: "NL",
+			aiSuggestedClientAccepted: true,
+			aiSuggestedLocationAccepted: true,
+		};
+
+		const afterClientChange =
+			orchestrationModule.resolveCandidatesAfterFieldChange({
+				candidates: [aiDefaultCandidate],
+				itemId: "item-changeable",
+				field: "clientId",
+				value: "company-22",
+			});
+
+		expect(afterClientChange).toEqual([
+			expect.objectContaining({
+				itemId: "item-changeable",
+				clientId: "company-22",
+				locationId: null,
+				aiSuggestedClientAccepted: false,
+				aiSuggestedLocationAccepted: false,
+			}),
+		]);
+
+		const afterLocationChange =
+			orchestrationModule.resolveCandidatesAfterFieldChange({
+				candidates: afterClientChange,
+				itemId: "item-changeable",
+				field: "locationId",
+				value: "location-22",
+			});
+
+		expect(afterLocationChange).toEqual([
+			expect.objectContaining({
+				itemId: "item-changeable",
+				clientId: "company-22",
+				locationId: "location-22",
+				aiSuggestedLocationAccepted: false,
+				locationResolutionHint: "none",
+			}),
+		]);
 	});
 
 	it("shows Assign Owner only for org-admin or superadmin", () => {

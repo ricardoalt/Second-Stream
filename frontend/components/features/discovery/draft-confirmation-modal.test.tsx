@@ -1,4 +1,8 @@
 import { describe, expect, it } from "bun:test";
+import {
+	buildAiCreateCompanySelection,
+	buildAiCreateLocationSelection,
+} from "@/lib/discovery-ai-suggestions";
 import type { DraftCandidate } from "@/lib/types/discovery";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
@@ -459,6 +463,115 @@ describe("DraftConfirmationModal helpers", () => {
 				draftClientMatches: {
 					"draft-1": ["company-77", "company-88"],
 					"draft-2": ["company-99"],
+				},
+			}),
+		).toEqual([]);
+	});
+
+	it("prefills AI create-new client default when unresolved and safe", () => {
+		expect(
+			modalModule.resolveAutoPrefillActions({
+				candidates: [
+					{
+						...pendingCandidate,
+						itemId: "draft-create-new",
+						clientId: null,
+						locationId: null,
+						suggestedClientName: "EXXON",
+						suggestedLocationName: "North Plant",
+						suggestedLocationCity: "Monterrey",
+						suggestedLocationState: "NL",
+					},
+				],
+				draftClientMatches: {
+					"draft-create-new": [],
+				},
+			}),
+		).toEqual([
+			{
+				itemId: "draft-create-new",
+				field: "clientId",
+				value: buildAiCreateCompanySelection("EXXON"),
+			},
+		]);
+	});
+
+	it("prefills AI create-new location default once client resolution exists", () => {
+		expect(
+			modalModule.resolveAutoPrefillActions({
+				candidates: [
+					{
+						...pendingCandidate,
+						itemId: "draft-create-new-location",
+						clientId: null,
+						locationId: null,
+						suggestedClientName: "EXXON",
+						aiSuggestedClientAccepted: true,
+						suggestedLocationName: "North Plant",
+						suggestedLocationCity: "Monterrey",
+						suggestedLocationState: "NL",
+					},
+				],
+				draftClientMatches: {
+					"draft-create-new-location": [],
+				},
+			}),
+		).toEqual([
+			{
+				itemId: "draft-create-new-location",
+				field: "locationId",
+				value: buildAiCreateLocationSelection("North Plant - Monterrey"),
+			},
+		]);
+	});
+
+	it("prefills existing client match and keeps location unresolved if create-new location is unsafe", () => {
+		expect(
+			modalModule.resolveAutoPrefillActions({
+				candidates: [
+					{
+						...pendingCandidate,
+						itemId: "draft-existing-client",
+						clientId: null,
+						locationId: null,
+						suggestedClientName: "INDORAMA",
+						suggestedLocationName: "North Plant",
+						suggestedLocationCity: null,
+						suggestedLocationState: "NL",
+					},
+				],
+				draftClientMatches: {
+					"draft-existing-client": ["company-77"],
+				},
+			}),
+		).toEqual([
+			{
+				itemId: "draft-existing-client",
+				field: "clientId",
+				value: "company-77",
+			},
+		]);
+	});
+
+	it("does not override already accepted AI selections and remains reversible later", () => {
+		expect(
+			modalModule.resolveAutoPrefillActions({
+				candidates: [
+					{
+						...pendingCandidate,
+						itemId: "draft-accepted",
+						clientId: null,
+						locationId: null,
+						suggestedClientName: "EXXON",
+						suggestedLocationName: "North Plant",
+						suggestedLocationCity: "Monterrey",
+						suggestedLocationState: "NL",
+						aiSuggestedClientAccepted: true,
+						aiSuggestedLocationAccepted: true,
+					},
+				],
+				draftClientMatches: {
+					"draft-accepted": [],
 				},
 			}),
 		).toEqual([]);

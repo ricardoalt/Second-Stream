@@ -29,6 +29,14 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+	AI_CREATE_COMPANY_SELECTION_PREFIX,
+	AI_CREATE_LOCATION_SELECTION_PREFIX,
+	buildAiCreateCompanySelection,
+	buildAiCreateLocationSelection,
+	parseAiCreateCompanySelection,
+	parseAiCreateLocationSelection,
+} from "@/lib/discovery-ai-suggestions";
 import type {
 	CandidateEditableField,
 	CandidateValidationErrors,
@@ -302,6 +310,82 @@ export function resolveAutoPrefillClientResolutions(params: {
 	return actions;
 }
 
+export type PrefillCandidateAction = {
+	itemId: string;
+	field: "clientId" | "locationId";
+	value: string;
+};
+
+function hasAiSelectionPrefix(value: string): boolean {
+	return (
+		value.startsWith(AI_CREATE_COMPANY_SELECTION_PREFIX) ||
+		value.startsWith(AI_CREATE_LOCATION_SELECTION_PREFIX)
+	);
+}
+
+export function resolveAutoPrefillActions(params: {
+	candidates: DraftCandidate[];
+	draftClientMatches: Record<string, string[]>;
+}): PrefillCandidateAction[] {
+	const { candidates, draftClientMatches } = params;
+	const actions: PrefillCandidateAction[] = [];
+
+	for (const candidate of candidates) {
+		const currentClientValue = (candidate.clientId ?? "").trim();
+		const currentLocationValue = (candidate.locationId ?? "").trim();
+
+		if (
+			currentClientValue.length === 0 &&
+			candidate.aiSuggestedClientAccepted !== true
+		) {
+			const existingMatches = draftClientMatches[candidate.itemId] ?? [];
+			if (existingMatches.length === 1 && (existingMatches[0] ?? "").trim()) {
+				actions.push({
+					itemId: candidate.itemId,
+					field: "clientId",
+					value: existingMatches[0] ?? "",
+				});
+			} else if (existingMatches.length === 0) {
+				const suggestedClient = resolveClientSuggestedPrefillValue(candidate);
+				if (suggestedClient) {
+					actions.push({
+						itemId: candidate.itemId,
+						field: "clientId",
+						value: buildAiCreateCompanySelection(suggestedClient),
+					});
+				}
+			}
+		}
+
+		if (
+			currentLocationValue.length === 0 &&
+			candidate.aiSuggestedLocationAccepted !== true &&
+			candidate.locationResolutionHint !== "ambiguous" &&
+			canResolveLocationForCandidate(candidate) &&
+			canCreateLocationFromSuggestion(candidate)
+		) {
+			const suggestedLocation = resolveLocationSuggestedPrefillValue(candidate);
+			if (suggestedLocation) {
+				actions.push({
+					itemId: candidate.itemId,
+					field: "locationId",
+					value: buildAiCreateLocationSelection(suggestedLocation),
+				});
+			}
+		}
+	}
+
+	return actions.filter((action) => {
+		if (!hasAiSelectionPrefix(action.value)) {
+			return true;
+		}
+		if (action.field === "clientId") {
+			return parseAiCreateCompanySelection(action.value) !== null;
+		}
+		return parseAiCreateLocationSelection(action.value) !== null;
+	});
+}
+
 export function resolveCreateNewAvailability(candidate: DraftCandidate): {
 	canCreateClient: boolean;
 	canCreateLocation: boolean;
@@ -558,12 +642,12 @@ export function DraftConfirmationModal({
 	);
 
 	useEffect(() => {
-		const prefillActions = resolveAutoPrefillClientResolutions({
+		const prefillActions = resolveAutoPrefillActions({
 			candidates,
 			draftClientMatches: suggestedClientMatches.draftClientMatches,
 		});
 		for (const action of prefillActions) {
-			onCandidateFieldChange(action.itemId, "clientId", action.clientId);
+			onCandidateFieldChange(action.itemId, action.field, action.value);
 		}
 	}, [
 		candidates,
