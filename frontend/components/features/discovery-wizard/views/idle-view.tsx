@@ -136,6 +136,18 @@ export function resolveAssignedOwnerUserId(
 	return selectedOwnerUserId;
 }
 
+export function resolveDiscoveryWizardComboboxPortalMode(): boolean {
+	return false;
+}
+
+export function resolveAssignOwnerPopoverMode(): boolean {
+	return false;
+}
+
+export function resolveAssignOwnerCommandListClassName(): string {
+	return "max-h-[calc(var(--radix-popover-content-available-height)-2.5rem)] overscroll-contain";
+}
+
 function getAssignableOwnerSearchText(owner: User): string {
 	return [owner.firstName, owner.lastName, owner.email]
 		.filter(Boolean)
@@ -208,12 +220,13 @@ function AssignOwnerCombobox({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
+				portalled={resolveAssignOwnerPopoverMode()}
 				className="w-[--radix-popover-trigger-width] max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0"
 				align="start"
 			>
 				<Command>
 					<CommandInput placeholder="Search owner by name or email..." />
-					<CommandList className="max-h-[calc(var(--radix-popover-content-available-height)-2.5rem)]">
+					<CommandList className={resolveAssignOwnerCommandListClassName()}>
 						<CommandEmpty>No matching owners found.</CommandEmpty>
 						<CommandGroup>
 							{owners.map((owner) => (
@@ -748,6 +761,7 @@ export function IdleView({
 													setQe({ ...qe, client: value, locationId: "" });
 												}}
 												placeholder="Select an existing client..."
+												portalled={resolveDiscoveryWizardComboboxPortalMode()}
 												showCreate
 											/>
 										</div>
@@ -791,6 +805,7 @@ export function IdleView({
 												}}
 												placeholder="City, State"
 												className="h-12"
+												portalled={resolveDiscoveryWizardComboboxPortalMode()}
 											/>
 											{qe.client && quickEntryLocations.length === 0 ? (
 												<div className="text-xs text-muted-foreground mt-2">

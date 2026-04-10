@@ -1421,6 +1421,19 @@ describe("candidate confirmation flow", () => {
 			"user-123",
 		);
 	});
+
+	it("forces non-portalled shared comboboxes inside discovery wizard dialogs", () => {
+		expect(idleViewModule.resolveDiscoveryWizardComboboxPortalMode()).toBe(
+			false,
+		);
+	});
+
+	it("keeps assign owner popover scroll constrained within the dialog container", () => {
+		expect(idleViewModule.resolveAssignOwnerPopoverMode()).toBe(false);
+		expect(idleViewModule.resolveAssignOwnerCommandListClassName()).toContain(
+			"overscroll-contain",
+		);
+	});
 });
 
 describe("discovery resume persistence", () => {
