@@ -126,3 +126,17 @@ export function revalidateClientDataCache<T>(args: {
 		forceRefresh: true,
 	});
 }
+
+export function invalidateClientDataCache(key: string): void {
+	const scopedKey = buildClientDataCacheKey(key);
+	cacheStore.delete(scopedKey);
+}
+
+export function invalidateClientDataCacheByPrefix(prefix: string): void {
+	const scopedPrefix = buildClientDataCacheKey(prefix);
+	for (const scopedKey of cacheStore.keys()) {
+		if (scopedKey.startsWith(scopedPrefix)) {
+			cacheStore.delete(scopedKey);
+		}
+	}
+}

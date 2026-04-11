@@ -261,9 +261,9 @@ describe("workspace questionnaire persistence", () => {
 	});
 
 	it("stores canonical projectName from hydrate payload", () => {
-		useWorkspaceStore.getState().applyHydrateData(
-			buildHydrateResponse({ q1: "Spent Solvent A" }),
-		);
+		useWorkspaceStore
+			.getState()
+			.applyHydrateData(buildHydrateResponse({ q1: "Spent Solvent A" }));
 
 		expect(useWorkspaceStore.getState().projectName).toBe(
 			"Canonical Stream Name",

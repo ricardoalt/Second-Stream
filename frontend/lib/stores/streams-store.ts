@@ -89,7 +89,7 @@ interface StreamsState {
 	loading: boolean;
 	isInitialized: boolean;
 	error: string | null;
-	loadStreams: () => Promise<void>;
+	loadStreams: (opts?: { forceRefresh?: boolean }) => Promise<void>;
 	resetStore: () => void;
 }
 
@@ -104,10 +104,11 @@ export const useStreamsStore = create<StreamsState>()(
 		isInitialized: false,
 		error: null,
 
-		loadStreams: async () => {
+		loadStreams: async (opts) => {
 			const totalKey = dashboardCacheKeyFor("total");
 			const draftsKey = dashboardCacheKeyFor("needs_confirmation");
 			const missingInfoKey = dashboardCacheKeyFor("missing_information");
+			const forceRefresh = opts?.forceRefresh === true;
 
 			const cachedTotal = peekClientDataCache<DashboardListResponse>(totalKey);
 			const cachedDrafts =
@@ -115,7 +116,7 @@ export const useStreamsStore = create<StreamsState>()(
 			const cachedMissingInfo =
 				peekClientDataCache<DashboardListResponse>(missingInfoKey);
 
-			if (cachedTotal && cachedDrafts && cachedMissingInfo) {
+			if (!forceRefresh && cachedTotal && cachedDrafts && cachedMissingInfo) {
 				const hydrated = hydrateStateFromResponses({
 					allResponse: cachedTotal.data,
 					draftsResponse: cachedDrafts.data,
@@ -154,14 +155,17 @@ export const useStreamsStore = create<StreamsState>()(
 						dashboardAPI.getDashboard({
 							bucket: "total",
 							size: 100,
+							forceRefresh,
 						}),
 						dashboardAPI.getDashboard({
 							bucket: "needs_confirmation",
 							size: 100,
+							forceRefresh,
 						}),
 						dashboardAPI.getDashboard({
 							bucket: "missing_information",
 							size: 100,
+							forceRefresh,
 						}),
 					]);
 

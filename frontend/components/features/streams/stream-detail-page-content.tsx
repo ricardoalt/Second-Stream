@@ -319,7 +319,8 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 	}, [activePhase, questionnaireAnswers, questionnaireSuggestions]);
 
 	const materialName =
-		baseFields.find((field) => field.fieldId === "material_name")?.value ?? null;
+		baseFields.find((field) => field.fieldId === "material_name")?.value ??
+		null;
 	const streamTitle = resolveStreamDetailTitle({
 		projectName,
 		materialName,

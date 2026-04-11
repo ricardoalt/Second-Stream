@@ -25,6 +25,7 @@ export interface DashboardParams {
 	companyId?: string | undefined;
 	discoverySessionId?: string | undefined;
 	proposalFollowUpState?: ProposalFollowUpState | undefined;
+	forceRefresh?: boolean | undefined;
 	signal?: AbortSignal | undefined;
 }
 
@@ -67,6 +68,7 @@ export const dashboardAPI = {
 		return fetchWithClientDataCache({
 			key: cacheKey,
 			ttlMs: DASHBOARD_CACHE_TTL_MS,
+			forceRefresh: params?.forceRefresh ?? false,
 			fetcher: () =>
 				apiClient.request<DashboardListResponse>(url, {
 					method: "GET",

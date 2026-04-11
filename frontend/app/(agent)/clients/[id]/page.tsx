@@ -198,7 +198,7 @@ export default function ClientDetailPage() {
 			setDeletingDraftIds,
 			clearHighlightedDraft: () => setHighlightedDraftId(null),
 			refreshStreams: () => {
-				void loadStreams();
+				void loadStreams({ forceRefresh: true });
 			},
 		});
 	}
@@ -270,7 +270,7 @@ export default function ClientDetailPage() {
 				onClose={() => setDraftReviewState(null)}
 				onConfirmed={() => {
 					toast.success("Draft confirmed and converted to waste stream");
-					void loadStreams();
+					void loadStreams({ forceRefresh: true });
 				}}
 			/>
 

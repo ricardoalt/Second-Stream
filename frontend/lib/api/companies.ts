@@ -16,7 +16,10 @@ import type {
 	LocationSummary,
 	LocationUpdate,
 } from "@/lib/types/company";
-import { fetchWithClientDataCache } from "@/lib/utils/client-data-cache";
+import {
+	fetchWithClientDataCache,
+	invalidateClientDataCacheByPrefix,
+} from "@/lib/utils/client-data-cache";
 import { apiClient } from "./client";
 
 const COMPANIES_CACHE_TTL_MS = 60_000;
@@ -73,7 +76,9 @@ export const companiesAPI = {
 	 * Create a new company
 	 */
 	async create(data: CompanyCreate): Promise<CompanyDetail> {
-		return apiClient.post<CompanyDetail>("/companies", data);
+		const company = await apiClient.post<CompanyDetail>("/companies", data);
+		invalidateClientDataCacheByPrefix("companies:list:");
+		return company;
 	},
 
 	/**

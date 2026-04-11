@@ -183,7 +183,7 @@ export default function AgentStreamsPage() {
 			setDeletingDraftIds,
 			clearHighlightedDraft: () => setHighlightedDraftId(null),
 			refreshStreams: () => {
-				void loadStreams();
+				void loadStreams({ forceRefresh: true });
 			},
 		});
 	}
@@ -217,7 +217,7 @@ export default function AgentStreamsPage() {
 					`Deleted ${summary.rejected} of ${summary.total} drafts. ${summary.failed} failed.`,
 				);
 			}
-			void loadStreams();
+			void loadStreams({ forceRefresh: true });
 		} finally {
 			setIsDeletingAllDrafts(false);
 			setDeleteAllConfirmation("");
@@ -249,7 +249,7 @@ export default function AgentStreamsPage() {
 				onClose={() => setDraftReviewState(null)}
 				onConfirmed={() => {
 					toast.success("Draft confirmed and converted to waste stream");
-					void loadStreams();
+					void loadStreams({ forceRefresh: true });
 				}}
 			/>
 
