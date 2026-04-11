@@ -24,6 +24,7 @@ import {
 	STREAM_WORKSPACE_QUESTIONS,
 	STREAM_WORKSPACE_QUESTIONS_BY_PHASE,
 } from "@/config/stream-questionnaire";
+import { projectsAPI } from "@/lib/api/projects";
 import { workspaceAPI } from "@/lib/api/workspace";
 import {
 	useWorkspaceActions,
@@ -74,6 +75,26 @@ export function buildOfferDetailHandoffHref({
 	}
 
 	return `${buildOfferDetailHref({ projectId })}?insightsRefreshFailed=1`;
+}
+
+export function resolveStreamDetailTitle({
+	projectName,
+	materialName,
+}: {
+	projectName: string | null;
+	materialName: string | null;
+}) {
+	const canonicalProjectName = projectName?.trim();
+	if (canonicalProjectName) {
+		return canonicalProjectName;
+	}
+
+	const workspaceMaterialName = materialName?.trim();
+	if (workspaceMaterialName) {
+		return workspaceMaterialName;
+	}
+
+	return "Untitled stream";
 }
 
 export function buildPhaseCompletion(
@@ -209,12 +230,36 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 	const [quickCaptureInitialAction, setQuickCaptureInitialAction] = useState<
 		"upload" | "paste" | "voice"
 	>("upload");
+	const [projectName, setProjectName] = useState<string | null>(null);
 
 	useEffect(() => {
 		setPhaseManuallySelected(false);
 		void hydrate(id);
 		return () => reset();
 	}, [id, hydrate, reset]);
+
+	useEffect(() => {
+		let isMounted = true;
+
+		void projectsAPI
+			.getProject(id)
+			.then((project) => {
+				if (!isMounted) {
+					return;
+				}
+				setProjectName(project.name);
+			})
+			.catch(() => {
+				if (!isMounted) {
+					return;
+				}
+				setProjectName(null);
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, [id]);
 
 	useEffect(() => {
 		setActivePhase((currentPhase) =>
@@ -298,8 +343,11 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 	}, [activePhase, questionnaireAnswers, questionnaireSuggestions]);
 
 	const materialName =
-		baseFields.find((field) => field.fieldId === "material_name")?.value ||
-		"Untitled stream";
+		baseFields.find((field) => field.fieldId === "material_name")?.value ?? null;
+	const streamTitle = resolveStreamDetailTitle({
+		projectName,
+		materialName,
+	});
 
 	const handlePhaseSelect = (phase: StreamPhase) => {
 		setPhaseManuallySelected(true);
@@ -399,12 +447,12 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 					<div className="flex flex-col gap-1.5">
 						<p className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 							Waste Streams &rsaquo; Discovery Workspace &rsaquo;{" "}
-							<span className="font-bold text-foreground">{materialName}</span>
+							<span className="font-bold text-foreground">{streamTitle}</span>
 						</p>
 						<div className="flex items-start justify-between gap-4">
 							<div className="flex flex-col gap-0.5">
 								<h1 className="font-display text-[1.65rem] font-bold tracking-tight text-foreground leading-tight">
-									{materialName}
+									{streamTitle}
 								</h1>
 								<div className="flex items-center gap-2.5">
 									<p className="text-sm text-muted-foreground">

@@ -20,4 +20,31 @@ describe("stream detail offer handoff", () => {
 			}),
 		).toBe("/offers/project-123");
 	});
+
+	it("prefers canonical Project.name for stream title", () => {
+		expect(
+			streamDetailModule.resolveStreamDetailTitle({
+				projectName: "Canonical Stream Name",
+				materialName: "Legacy workspace material",
+			}),
+		).toBe("Canonical Stream Name");
+	});
+
+	it("falls back to workspace material_name only when project name missing", () => {
+		expect(
+			streamDetailModule.resolveStreamDetailTitle({
+				projectName: null,
+				materialName: "Workspace material",
+			}),
+		).toBe("Workspace material");
+	});
+
+	it("uses Untitled stream when both title sources are empty", () => {
+		expect(
+			streamDetailModule.resolveStreamDetailTitle({
+				projectName: "   ",
+				materialName: "",
+			}),
+		).toBe("Untitled stream");
+	});
 });

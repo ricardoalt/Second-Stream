@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecondStream Agent Harness Explainer</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121937;
+      --panel-2: #182146;
+      --muted: #8fa0d4;
+      --text: #eff4ff;
+      --line: #2d3b6f;
+      --accent: #74b3ff;
+      --good: #6ee7b7;
+      --warn: #fbbf24;
+      --bad: #fb7185;
+      --chip: #233057;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #09101d 0%, #0b1020 100%);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    .hero {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .hero h1 {
+      font-size: clamp(32px, 4vw, 54px);
+      line-height: 1.02;
+      max-width: 980px;
+    }
+
+    .hero p {
+      color: var(--muted);
+      font-size: 18px;
+      max-width: 920px;
+      line-height: 1.5;
+    }
+
+    .callout {
+      background: rgba(116, 179, 255, 0.08);
+      border: 1px solid rgba(116, 179, 255, 0.25);
+      border-radius: 18px;
+      padding: 18px 20px;
+      margin-bottom: 24px;
+      color: #dce9ff;
+      line-height: 1.5;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(24, 33, 70, 0.92) 0%, rgba(18, 25, 55, 0.95) 100%);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 20px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+    }
+
+    .card h2 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 18px;
+    }
+
+    .flow {
+      display: grid;
+      gap: 12px;
+    }
+
+    .step {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 14px;
+      position: relative;
+    }
+
+    .step strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .step p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .arrow {
+      text-align: center;
+      color: var(--accent);
+      font-size: 20px;
+      opacity: 0.85;
+    }
+
+    .section-title {
+      margin: 32px 0 14px;
+      font-size: 28px;
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .workspace {
+      background: #0d1430;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      overflow: hidden;
+    }
+
+    .workspace-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .workspace-header .meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .chip-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      background: var(--chip);
+      color: #dce7ff;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+
+    .workspace-body {
+      display: grid;
+      grid-template-columns: 1.25fr 0.95fr;
+      gap: 0;
+    }
+
+    .workspace-main,
+    .workspace-side {
+      padding: 18px;
+    }
+
+    .workspace-side {
+      border-left: 1px solid var(--line);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .mini-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .mini-card h3 {
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .mini-card p,
+    .mini-card li {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .mini-card ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+
+    .brief-shell {
+      background: linear-gradient(180deg, rgba(116,179,255,0.09), rgba(116,179,255,0.03));
+      border: 1px solid rgba(116,179,255,0.24);
+      border-radius: 18px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .brief-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .brief-top p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      margin-top: 6px;
+    }
+
+    .status-pill {
+      background: rgba(110, 231, 183, 0.12);
+      color: var(--good);
+      border: 1px solid rgba(110, 231, 183, 0.28);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .point {
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 14px;
+      padding: 12px;
+      margin-top: 10px;
+      background: rgba(9, 16, 32, 0.36);
+    }
+
+    .point-type {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 4px 8px;
+      margin-bottom: 8px;
+    }
+
+    .fact { background: rgba(110, 231, 183, 0.12); color: var(--good); }
+    .assumption { background: rgba(251, 191, 36, 0.12); color: var(--warn); }
+    .conflict { background: rgba(251, 113, 133, 0.14); color: var(--bad); }
+    .recommendation { background: rgba(116, 179, 255, 0.12); color: var(--accent); }
+    .question { background: rgba(255,255,255,0.1); color: #dce7ff; }
+
+    .point p {
+      font-size: 13px;
+      color: #e8eeff;
+      line-height: 1.45;
+      margin-bottom: 8px;
+    }
+
+    .source {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend {
+      display: grid;
+      gap: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .legend-item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .legend-item p {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      background: rgba(116, 179, 255, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(116, 179, 255, 0.25);
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 980px) {
+      .two-col,
+      .compare-grid,
+      .workspace-body {
+        grid-template-columns: 1fr;
+      }
+
+      .workspace-side {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow">SecondStream Explainer</div>
+      <h1>La diferencia entre lo que tenés hoy y lo que buscamos con Agent Harness v1</h1>
+      <p>
+        Hoy SecondStream ayuda a <strong>capturar, extraer, revisar y editar</strong> información del waste stream.
+        Con Agent Harness v1, SecondStream empieza a mantener una <strong>comprensión operativa durable del caso</strong>
+        como artifact del producto, no solo como algo que el broker reconstruye en su cabeza.
+      </p>
+    </section>
+
+    <div class="callout">
+      <strong>La frase clave:</strong> hoy el sistema guarda datos y sugerencias. Con harness v1, el sistema empieza a guardar y gobernar
+      el <strong>entendimiento actual del stream</strong> mediante un <strong>Discovery Brief</strong> versionado, con provenance,
+      conflictos, recomendaciones y memoria reutilizable.
+    </div>
+
+    <section class="two-col">
+      <article class="card">
+        <h2>Flujo actual</h2>
+        <p class="subtitle">Lo que ya existe hoy en el código</p>
+        <div class="flow">
+          <div class="step">
+            <strong>1. Entra información</strong>
+            <p>Discovery wizard, bulk import, archivos, quick capture, texto, audio, voice interview.</p>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <strong>2. AI extrae o sugiere</strong>
+            <p>Drafts, transcript, questionnaire suggestions, file insights, candidate fields.</p>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <strong>3. El humano revisa piezas sueltas</strong>
+            <p>Acepta/rechaza drafts, corrige campos, actualiza workspace, revisa suggestions.</p>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <strong>4. El workspace guarda verdad</strong>
+            <p>Base fields, questionnaire, context note, custom fields, follow-up state.</p>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <strong>5. El broker arma el entendimiento real en su cabeza</strong>
+            <p>El sistema ayuda con extracción y review, pero todavía no sostiene una comprensión operativa unificada del caso.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Flujo con harness v1</h2>
+        <p class="subtitle">Lo nuevo que agrega el primer agente</p>
+        <div class="flow">
+          <div class="step">
+            <strong>1. Entra información</strong>
+            <p>Igual que hoy: documentos, texto, audio, workspace changes, reviewed drafts.</p>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <strong>2. Corre el Discovery Completion Agent</strong>
+            <p>Lee el stream actual, client/location, historial del stream, dossiers similares y org knowledge aprobado.</p>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <strong>3. Genera un Discovery Brief</strong>
+            <p>Un artifact único con: qué sabemos, qué falta, blockers, conflictos, confianza, provenance y next-best actions.</p>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <strong>4. El broker revisa un entendimiento unificado</strong>
+            <p>No revisa solo piezas sueltas. Revisa la comprensión actual del caso como objeto del producto.</p>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="step">
+            <strong>5. El sistema acumula memoria</strong>
+            <p>Session summaries, observations, historical dossiers, promoted org knowledge y review candidates.</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <h2 class="section-title">Cómo se vería el workspace con harness</h2>
+    <section class="compare-grid">
+      <div class="workspace">
+        <div class="workspace-header">
+          <div>
+            <h3>Stream Workspace: Solvent Recovery Stream</h3>
+            <div class="meta">Client: Apex Manufacturing · Location: Dallas Plant · Current phase: Discovery</div>
+          </div>
+          <div class="chip-row">
+            <span class="chip">Current Working Brief</span>
+            <span class="chip">Version 4</span>
+            <span class="chip">Pending 3 suggestions</span>
+          </div>
+        </div>
+        <div class="workspace-body">
+          <div class="workspace-main">
+            <div class="brief-shell">
+              <div class="brief-top">
+                <div>
+                  <h3>Discovery Brief</h3>
+                  <p>
+                    Esto no reemplaza el workspace. Se monta encima y organiza toda la evidencia y los drafts revisados
+                    en una comprensión actual del caso.
+                  </p>
+                </div>
+                <span class="status-pill">Approved as current</span>
+              </div>
+
+              <div class="point">
+                <span class="point-type fact">Fact</span>
+                <p>Primary compound appears to be MEK-dominant solvent waste with recurring monthly volume.</p>
+                <div class="source">Sources: SDS pg.1 · Voice interview 2:15 · Workspace material field</div>
+              </div>
+
+              <div class="point">
+                <span class="point-type assumption">Assumption</span>
+                <p>Density is probably within the expected range for this solvent family, but we still lack measured confirmation.</p>
+                <div class="source">No hard source yet. Marked as assumption.</div>
+              </div>
+
+              <div class="point">
+                <span class="point-type conflict">Conflict</span>
+                <p>Volume estimate from voice interview conflicts with the older account note from the previous pickup log.</p>
+                <div class="source">Sources: Voice 2:15 vs account note dated 2026-03-14</div>
+              </div>
+
+              <div class="point">
+                <span class="point-type recommendation">Recommendation</span>
+                <p>Ask the EHS contact for latest water-content test first. This is the fastest blocker to remove before buyer screening.</p>
+                <div class="source">Reason: highest-value blocker based on current outlet constraints and missing data.</div>
+              </div>
+
+              <div class="point">
+                <span class="point-type question">Question</span>
+                <p>Was a chlorinated solvent used in the cleaning process at any point in the last 90 days?</p>
+                <div class="source">Generated from material context + similar historical dossiers.</div>
+              </div>
+            </div>
+
+            <div class="mini-card">
+              <h3>What changes from today</h3>
+              <ul>
+                <li>Hoy revisás drafts y fields por separado.</li>
+                <li>Con harness ves un artifact unificado del caso.</li>
+                <li>Hoy la síntesis vive mucho en tu cabeza.</li>
+                <li>Con harness la síntesis vive en el producto como brief versionado.</li>
+              </ul>
+            </div>
+          </div>
+
+          <aside class="workspace-side">
+            <div class="mini-card">
+              <h3>Workspace Suggestions</h3>
+              <p>El brief no escribe directo en truth. Produce sugerencias revisables.</p>
+              <ul>
+                <li>Questionnaire answer: pending</li>
+                <li>Base field update: pending</li>
+                <li>Context note synthesis: deferred</li>
+              </ul>
+            </div>
+
+            <div class="mini-card">
+              <h3>Agent Run History</h3>
+              <ul>
+                <li>Run 204: processing complete -> brief refreshed</li>
+                <li>Run 205: broker correction -> conflict updated</li>
+                <li>Run 206: manual refresh -> v4 approved</li>
+              </ul>
+            </div>
+
+            <div class="mini-card">
+              <h3>Memory Layer</h3>
+              <ul>
+                <li>Session summary saved</li>
+                <li>2 observations saved</li>
+                <li>1 historical dossier linked</li>
+                <li>0 org promotions yet</li>
+              </ul>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item">
+          <div class="num">1</div>
+          <div>
+            <strong>Hoy tenés extraction + review</strong>
+            <p>Bulk import, voice, workspace y suggestions ya existen. Eso es la base.</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="num">2</div>
+          <div>
+            <strong>Lo nuevo no es “más AI”</strong>
+            <p>Lo nuevo es que aparece un objeto principal llamado <strong>Discovery Brief</strong> que representa la comprensión actual del stream.</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="num">3</div>
+          <div>
+            <strong>El broker sigue mandando</strong>
+            <p>El agente sugiere, resume y recomienda. El broker corrige, aprueba, difiere y decide qué entra a verdad.</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="num">4</div>
+          <div>
+            <strong>La memoria se vuelve producto</strong>
+            <p>Session summaries, observations, dossiers históricos y org knowledge crean aprendizaje acumulativo, no solo records sueltos.</p>
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="num">5</div>
+          <div>
+            <strong>El salto real</strong>
+            <p>
+              Hoy SecondStream ayuda a capturar y revisar información. Con harness v1,
+              SecondStream empieza a <strong>sostener el entendimiento operativo del caso</strong>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="footer-note">
+      Archivo pensado para abrir en navegador y discutir producto. Si esto te ayuda, el siguiente paso natural es diseñar el wireframe más fiel del
+      <strong>stream workspace con Discovery Brief</strong> y del <strong>agent inbox / run history</strong>.
+    </p>
+  </div>
+</body>
+</html>
