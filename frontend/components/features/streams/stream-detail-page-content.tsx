@@ -24,7 +24,6 @@ import {
 	STREAM_WORKSPACE_QUESTIONS,
 	STREAM_WORKSPACE_QUESTIONS_BY_PHASE,
 } from "@/config/stream-questionnaire";
-import { projectsAPI } from "@/lib/api/projects";
 import { workspaceAPI } from "@/lib/api/workspace";
 import {
 	useWorkspaceActions,
@@ -197,6 +196,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		phaseProgress,
 		firstIncompletePhase,
 		discoveryCompleted,
+		projectName,
 		baseFields,
 		quickCaptureStatus,
 		backgroundHydrateError,
@@ -210,6 +210,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 			phaseProgress: state.phaseProgress,
 			firstIncompletePhase: state.firstIncompletePhase,
 			discoveryCompleted: state.discoveryCompleted,
+			projectName: state.projectName,
 			baseFields: state.baseFields,
 			quickCaptureStatus: state.quickCaptureStatus,
 			backgroundHydrateError: state.backgroundHydrateError,
@@ -230,36 +231,11 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 	const [quickCaptureInitialAction, setQuickCaptureInitialAction] = useState<
 		"upload" | "paste" | "voice"
 	>("upload");
-	const [projectName, setProjectName] = useState<string | null>(null);
-
 	useEffect(() => {
 		setPhaseManuallySelected(false);
 		void hydrate(id);
 		return () => reset();
 	}, [id, hydrate, reset]);
-
-	useEffect(() => {
-		let isMounted = true;
-
-		void projectsAPI
-			.getProject(id)
-			.then((project) => {
-				if (!isMounted) {
-					return;
-				}
-				setProjectName(project.name);
-			})
-			.catch(() => {
-				if (!isMounted) {
-					return;
-				}
-				setProjectName(null);
-			});
-
-		return () => {
-			isMounted = false;
-		};
-	}, [id]);
 
 	useEffect(() => {
 		setActivePhase((currentPhase) =>

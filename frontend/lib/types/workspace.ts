@@ -128,6 +128,7 @@ export interface WorkspaceQuestionSuggestionReviewResponse {
 
 export interface WorkspaceHydrateResponse {
 	projectId: string;
+	projectName: string;
 	discoveryCompleted: boolean;
 	baseFields: WorkspaceBaseField[];
 	customFields: WorkspaceCustomField[];

@@ -11,6 +11,7 @@
 - Core tables: User, Project (metadata), Proposal (versions), ProjectFile, TimelineEvent.
 - Dynamic data: `project.project_data` JSONB for flexible technical sections/fields.
 - Workspace v1 backend hangs off `project.project_data["workspace_v1"]` for fixed base fields, persisted custom fields, derived insights; evidence stays in `ProjectFile`, context note stays in `IntakeNote`.
+- Stream identity is canonical on `Project.name`; `workspace_v1.base_fields.material_name` is workspace-local data only (manual create seeds it once as convenience prefill).
 - Workspace evidence AI path is single-stage: each `ProjectFile.ai_analysis` stores `summary` + `proposals[]` (base/custom target, answer, confidence, evidence refs); workspace refresh reads those proposals directly (no second workspace-insights agent layer).
 - Dashboard triage is a dedicated projection layered on top of `Project` plus staging drafts from `ImportRun`/`ImportItem`; stream-level commercial follow-up lives on `Project.proposal_follow_up_state`, while `Proposal.status` remains version lifecycle only.
 - Workspace completion handoff is now real: `POST /api/v1/projects/{id}/workspace/complete-discovery` persists completion, seeds Offer insights, and returns immediate Offer-detail navigation context rooted in `projectId`.

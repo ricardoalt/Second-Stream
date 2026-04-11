@@ -83,6 +83,7 @@ from app.services.storage_delete_service import (
     validate_storage_keys,
 )
 from app.services.timeline_service import create_timeline_event
+from app.services.workspace_service import WorkspaceService
 from app.utils.purge_utils import collect_project_storage_paths, extract_confirm_name
 
 logger = structlog.get_logger(__name__)
@@ -1944,6 +1945,9 @@ async def create_project(
 
     # Apply standard assessment questionnaire (same for all projects)
     questionnaire = get_assessment_questionnaire()
+    new_project.project_data["workspace_v1"] = WorkspaceService.build_workspace_v1_seed(
+        material_name=project_data.name,
+    )
     new_project.project_data["technical_sections"] = questionnaire
     flag_modified(new_project, "project_data")  # Mark JSONB as modified for SQLAlchemy
 

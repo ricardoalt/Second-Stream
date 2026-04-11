@@ -30,6 +30,7 @@ type AutoAnalysisGuard = "idle" | "waiting" | "ran";
 interface WorkspaceState {
 	// Core data
 	projectId: string | null;
+	projectName: string | null;
 	baseFields: WorkspaceBaseField[];
 	customFields: WorkspaceCustomField[];
 	evidenceItems: WorkspaceEvidenceItem[];
@@ -127,6 +128,7 @@ const INITIAL_DERIVED: WorkspaceDerivedInsights = {
 
 const createInitialState = () => ({
 	projectId: null as string | null,
+	projectName: null as string | null,
 	baseFields: [] as WorkspaceBaseField[],
 	customFields: [] as WorkspaceCustomField[],
 	evidenceItems: [] as WorkspaceEvidenceItem[],
@@ -312,6 +314,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 				).length;
 
 				s.projectId = data.projectId;
+				s.projectName =
+					typeof data.projectName === "string" ? data.projectName : null;
 				s.baseFields = Array.isArray(data.baseFields) ? data.baseFields : [];
 				s.customFields = Array.isArray(data.customFields)
 					? data.customFields

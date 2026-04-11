@@ -204,6 +204,7 @@ class WorkspaceDerivedInsights(BaseSchema):
 
 class WorkspaceHydrateResponse(BaseSchema):
     project_id: UUID
+    project_name: str
     discovery_completed: bool = False
     base_fields: list[WorkspaceBaseFieldItem]
     custom_fields: list[WorkspaceCustomFieldItem]

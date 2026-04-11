@@ -27,6 +27,8 @@ const originalRefreshInsights = workspaceAPI.refreshInsights;
 function buildHydrateResponse(fileId: string) {
 	return {
 		projectId: "project-1",
+		projectName: "Project 1",
+		discoveryCompleted: false,
 		baseFields: [],
 		customFields: [],
 		evidenceItems: [

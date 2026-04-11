@@ -23,6 +23,7 @@ function buildHydrateResponse(
 ): WorkspaceHydrateResponse {
 	return {
 		projectId: "project-1",
+		projectName: "Canonical Stream Name",
 		discoveryCompleted: false,
 		baseFields: [],
 		customFields: [],
@@ -257,6 +258,16 @@ describe("workspace questionnaire persistence", () => {
 		});
 		expect(state.firstIncompletePhase).toBe(2);
 		expect(state.questionnaireAnswersDirty).toBe(false);
+	});
+
+	it("stores canonical projectName from hydrate payload", () => {
+		useWorkspaceStore.getState().applyHydrateData(
+			buildHydrateResponse({ q1: "Spent Solvent A" }),
+		);
+
+		expect(useWorkspaceStore.getState().projectName).toBe(
+			"Canonical Stream Name",
+		);
 	});
 
 	it("hydrates questionnaire suggestions for review state", () => {

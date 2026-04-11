@@ -307,6 +307,15 @@ async def test_create_project_success(client: AsyncClient, db_session, set_curre
     assert data["name"] == "New Project"
     assert "id" in data
 
+    project = await db_session.get(Project, uuid.UUID(data["id"]))
+    assert project is not None
+    project_data = project.project_data if isinstance(project.project_data, dict) else {}
+    workspace_data = project_data.get("workspace_v1")
+    assert isinstance(workspace_data, dict)
+    base_fields = workspace_data.get("base_fields")
+    assert isinstance(base_fields, dict)
+    assert base_fields.get("material_name") == "New Project"
+
 
 @pytest.mark.asyncio
 async def test_create_project_invalid_location(client: AsyncClient, db_session, set_current_user):

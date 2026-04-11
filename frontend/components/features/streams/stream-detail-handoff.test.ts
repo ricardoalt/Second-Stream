@@ -1,8 +1,20 @@
 import { describe, expect, it } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 
 const streamDetailModule = await import("./stream-detail-page-content");
+const streamDetailSource = readFileSync(
+	join(
+		process.cwd(),
+		"components",
+		"features",
+		"streams",
+		"stream-detail-page-content.tsx",
+	),
+	"utf8",
+);
 
 describe("stream detail offer handoff", () => {
 	it("preserves degraded-success handoff in Offer detail href", () => {
@@ -46,5 +58,12 @@ describe("stream detail offer handoff", () => {
 				materialName: "",
 			}),
 		).toBe("Untitled stream");
+	});
+
+	it("uses workspace hydrate/store as canonical title source without extra project fetch", () => {
+		expect(streamDetailSource.includes("projectsAPI.getProject")).toBe(false);
+		expect(streamDetailSource.includes("projectName: state.projectName")).toBe(
+			true,
+		);
 	});
 });

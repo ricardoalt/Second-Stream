@@ -140,6 +140,7 @@ class WorkspaceService:
         )
         return WorkspaceHydrateResponse(
             project_id=project.id,
+            project_name=project.name,
             discovery_completed=bool(project.proposal_follow_up_state),
             base_fields=base_fields,
             custom_fields=custom_fields,

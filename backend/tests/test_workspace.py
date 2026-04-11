@@ -1505,6 +1505,7 @@ async def test_workspace_hydrate_returns_five_base_fields_when_unseeded(
     response = await client.get(f"/api/v1/projects/{project.id}/workspace")
     assert response.status_code == 200
     data = response.json()
+    assert data["projectName"] == "WS Unseeded Project"
     field_ids = [f["fieldId"] for f in data["baseFields"]]
     assert field_ids == ["material_type", "material_name", "composition", "volume", "frequency"]
     assert all(f["value"] == "" for f in data["baseFields"])
