@@ -140,6 +140,24 @@ Do not optimize first for:
 
 ## 6) System model
 
+## 6.0 Architectural constraint: harness ownership and model agnosticism
+
+The harness must be owned by SecondStream and model-agnostic from day one.
+
+Rules:
+- all memory, sessions, briefs, knowledge, and artifacts must be persisted in SecondStream-controlled storage
+- no critical memory or context management behind a third-party proprietary API
+- no provider-managed stateful APIs as the primary memory path
+- the LLM is a replaceable execution engine; the harness owns the state
+- memory formats must be inspectable, exportable, and portable across providers
+- compaction and context assembly must be controlled by SecondStream
+
+Why this is a v1 constraint, not a future nice-to-have:
+- memory is what makes agents valuable over time
+- if memory is locked into a provider, SecondStream loses its moat
+- model providers are actively building lock-in via stateful APIs and encrypted session state
+- SecondStream's competitive advantage is domain-specific operational intelligence owned by the platform
+
 ## 6.1 Existing product truth
 
 Keep authoritative truth in current database-backed product systems:

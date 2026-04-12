@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SecondStream — Workspace Before &amp; After</title>
+<style>
+:root{
+  --bg:#09101d;--surface:#0d1430;--card:#121937;--card2:#182146;
+  --line:#2d3b6f;--muted:#8fa0d4;--text:#eff4ff;
+  --accent:#74b3ff;--good:#6ee7b7;--warn:#fbbf24;--bad:#fb7185;
+  --chip:#233057;
+}
+*{box-sizing:border-box;margin:0}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:1260px;margin:0 auto;padding:28px 20px 60px}
+
+/* ── tabs ── */
+.tab-bar{display:flex;gap:4px;margin-bottom:24px;background:var(--card);border-radius:14px;padding:4px}
+.tab-btn{flex:1;padding:12px 8px;border:none;border-radius:11px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s;color:var(--muted);background:transparent}
+.tab-btn.active{background:var(--accent);color:#0b1020}
+.tab-btn:hover:not(.active){background:rgba(116,179,255,.08)}
+.view{display:none}.view.active{display:block}
+
+/* ── shared ── */
+h1{font-size:clamp(26px,3.4vw,42px);line-height:1.08;margin-bottom:6px}
+.sub{color:var(--muted);font-size:15px;margin-bottom:20px;max-width:860px;line-height:1.5}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.callout{background:rgba(116,179,255,.07);border:1px solid rgba(116,179,255,.22);border-radius:16px;padding:16px 18px;margin-bottom:22px;font-size:14px;line-height:1.55;color:#d5e4ff}
+.callout strong{color:var(--text)}
+
+/* ── workspace chrome ── */
+.ws{background:var(--surface);border:1px solid var(--line);border-radius:22px;overflow:hidden}
+.ws-head{padding:16px 20px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.ws-head h2{font-size:18px}
+.ws-head .meta{color:var(--muted);font-size:12px;margin-top:3px}
+.chip{background:var(--chip);color:#dce7ff;border:1px solid rgba(255,255,255,.08);padding:5px 10px;border-radius:999px;font-size:11px;white-space:nowrap}
+.chip-row{display:flex;gap:6px;flex-wrap:wrap}
+
+/* ── stepper ── */
+.stepper{display:flex;align-items:center;gap:0;padding:14px 20px;border-bottom:1px solid var(--line)}
+.step-node{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;border:2px solid var(--line);color:var(--muted);flex-shrink:0}
+.step-node.done{background:var(--good);border-color:var(--good);color:#0b1020}
+.step-node.active{background:var(--accent);border-color:var(--accent);color:#0b1020}
+.step-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:4px;text-align:center;max-width:80px}
+.step-label.done{color:var(--good)}.step-label.active{color:var(--text)}
+.step-col{display:flex;flex-direction:column;align-items:center}
+.step-line{flex:1;height:2px;background:var(--line);margin:0 6px;min-width:20px}
+.step-line.done{background:rgba(110,231,183,.45)}
+
+/* ── body grid ── */
+.ws-body{display:grid;grid-template-columns:1fr 260px;gap:0}
+.ws-main{padding:18px 20px}.ws-side{padding:18px;border-left:1px solid var(--line);background:rgba(255,255,255,.015)}
+
+/* ── form fields ── */
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px;letter-spacing:.02em}
+.field-input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--text);font-size:13px}
+.field-input::placeholder{color:rgba(143,160,212,.4)}
+.ai-hint{display:flex;align-items:center;gap:6px;margin-top:6px;padding:7px 10px;border-radius:8px;background:rgba(116,179,255,.06);border:1px solid rgba(116,179,255,.18);font-size:12px;color:var(--accent)}
+.ai-hint .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.ai-btns{display:flex;gap:6px;margin-left:auto}
+.ai-btns button{padding:3px 8px;border-radius:6px;border:1px solid rgba(116,179,255,.3);background:transparent;color:var(--accent);font-size:11px;cursor:pointer}
+.ai-btns button.accept{background:rgba(116,179,255,.12)}
+
+/* ── sidebar cards ── */
+.side-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;margin-bottom:12px}
+.side-card h3{font-size:13px;font-weight:700;margin-bottom:6px}
+.side-card p,.side-card li{color:var(--muted);font-size:12px;line-height:1.45}
+.side-card ul{margin:6px 0 0;padding-left:16px}
+
+/* ── brief ── */
+.brief{background:linear-gradient(180deg,rgba(116,179,255,.09),rgba(116,179,255,.03));border:1px solid rgba(116,179,255,.24);border-radius:18px;padding:16px;margin-bottom:16px}
+.brief-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:14px}
+.brief-head p{color:var(--muted);font-size:12px;line-height:1.45;margin-top:4px}
+.status-pill{background:rgba(110,231,183,.12);color:var(--good);border:1px solid rgba(110,231,183,.28);border-radius:999px;padding:5px 10px;font-size:11px;white-space:nowrap}
+.point{border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:11px;margin-top:10px;background:rgba(9,16,32,.36)}
+.point p{font-size:13px;color:#e8eeff;line-height:1.45;margin-bottom:6px}
+.pt{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;border-radius:999px;padding:3px 8px;margin-bottom:6px}
+.pt.fact{background:rgba(110,231,183,.12);color:var(--good)}
+.pt.assumption{background:rgba(251,191,36,.12);color:var(--warn)}
+.pt.conflict{background:rgba(251,113,133,.14);color:var(--bad)}
+.pt.recommendation{background:rgba(116,179,255,.12);color:var(--accent)}
+.pt.question{background:rgba(255,255,255,.08);color:#dce7ff}
+.source{color:var(--muted);font-size:11px}
+.point-actions{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+.point-actions button{padding:4px 9px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:.12s}
+.point-actions button:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── annotation ── */
+.anno{position:relative;margin:22px 0}
+.anno-line{position:absolute;left:18px;top:0;bottom:0;width:2px;background:repeating-linear-gradient(to bottom,var(--accent) 0,var(--accent) 6px,transparent 6px,transparent 12px)}
+.anno-card{margin-left:38px;background:rgba(116,179,255,.06);border:1px solid rgba(116,179,255,.18);border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.5;color:#d5e4ff}
+.anno-card strong{color:var(--text);display:block;margin-bottom:4px;font-size:14px}
+
+/* ── diff section ── */
+.diff{display:grid;grid-template-columns:1fr 40px 1fr;gap:0;align-items:start;margin-top:20px}
+.diff-col{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+.diff-col h3{font-size:15px;margin-bottom:10px}
+.diff-col li{color:var(--muted);font-size:13px;line-height:1.55;margin-bottom:6px}
+.diff-arrow{display:grid;place-items:center;font-size:22px;color:var(--accent);padding-top:30px}
+
+/* ── responsive ── */
+@media(max-width:900px){
+  .ws-body{grid-template-columns:1fr}
+  .ws-side{border-left:0;border-top:1px solid var(--line)}
+  .diff{grid-template-columns:1fr}
+  .diff-arrow{transform:rotate(90deg);padding:10px 0}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- Tab bar -->
+<nav class="tab-bar" id="tabs">
+  <button class="tab-btn active" data-tab="today">Hoy — Flujo actual</button>
+  <button class="tab-btn" data-tab="harness">Con Harness — Flujo propuesto</button>
+  <button class="tab-btn" data-tab="diff">Diferencia lado a lado</button>
+</nav>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!-- TAB 1: TODAY                                            -->
+<!-- ════════════════════════════════════════════════════════ -->
+<section class="view active" id="view-today">
+  <div class="eyebrow">Flujo actual</div>
+  <h1>Así funciona hoy el Stream Workspace</h1>
+  <p class="sub">
+    El broker entra al workspace de un stream, navega por 4 fases de un cuestionario, revisa
+    AI suggestions campo por campo, sube evidencia y manualmente arma el entendimiento del caso en su cabeza.
+  </p>
+
+  <div class="ws">
+    <!-- header -->
+    <div class="ws-head">
+      <div>
+        <h2>Solvent Recovery Stream</h2>
+        <div class="meta">Apex Manufacturing · Dallas Plant · Discovery workspace</div>
+      </div>
+      <div class="chip-row">
+        <span class="chip">12 / 31 fields</span>
+        <span class="chip">3 AI suggestions</span>
+      </div>
+    </div>
+    <!-- stepper -->
+    <div class="stepper">
+      <div class="step-col"><div class="step-node done">&#10003;</div><div class="step-label done">Stream Snapshot</div></div>
+      <div class="step-line done"></div>
+      <div class="step-col"><div class="step-node active">2</div><div class="step-label active">Current Handling</div></div>
+      <div class="step-line"></div>
+      <div class="step-col"><div class="step-node">3</div><div class="step-label">Technical Confidence</div></div>
+      <div class="step-line"></div>
+      <div class="step-col"><div class="step-node">4</div><div class="step-label">Project Driver</div></div>
+    </div>
+    <!-- body -->
+    <div class="ws-body">
+      <div class="ws-main">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+          <div><h3 style="font-size:16px">Phase 2: Current Handling</h3>
+          <p style="color:var(--muted);font-size:12px;margin-top:3px">Specify the current economic baseline and disposal environment.</p></div>
+          <span style="font-size:12px;color:var(--muted)">2 of 5 fields</span>
+        </div>
+
+        <div class="field">
+          <label>Current disposal method</label>
+          <input class="field-input" value="Incineration (permitted, off-site)"/>
+          <div class="ai-hint">
+            <span class="dot"></span>AI suggested: "Fuel blending (pending lab confirmation)"
+            <div class="ai-btns"><button class="accept">Accept</button><button>Reject</button></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Current cost per unit</label>
+          <input class="field-input" value="$0.38/lb" />
+        </div>
+        <div class="field">
+          <label>Contract expiration</label>
+          <input class="field-input" placeholder="No data yet" />
+        </div>
+        <div class="field">
+          <label>Disposal vendor</label>
+          <input class="field-input" placeholder="No data yet" />
+          <div class="ai-hint">
+            <span class="dot"></span>AI suggested: "CleanHarbors (from SDS metadata)"
+            <div class="ai-btns"><button class="accept">Accept</button><button>Reject</button></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Known constraints or deadlines</label>
+          <textarea class="field-input" rows="2" placeholder="No data yet"></textarea>
+        </div>
+
+        <!-- annotation -->
+        <div class="anno">
+          <div class="anno-line"></div>
+          <div class="anno-card">
+            <strong>Esto es lo que existe hoy</strong>
+            Un cuestionario de 31 campos en 4 fases. AI sugiere valores campo por campo.
+            El broker acepta, rechaza o edita cada uno. Todo se guarda en el workspace.<br><br>
+            <strong>Lo que falta:</strong> el sistema NO genera una comprension unificada del caso.
+            El broker tiene que leer todos los campos, recordar los archivos, los transcripts, los drafts
+            y armar mentalmente "que esta pasando con este stream".
+          </div>
+        </div>
+      </div>
+
+      <!-- sidebar -->
+      <div class="ws-side">
+        <div class="side-card">
+          <h3>Quick Capture</h3>
+          <p>Upload Documents, Record Voice, Quick Paste</p>
+          <div style="margin-top:10px;border:2px dashed var(--line);border-radius:10px;padding:18px;text-align:center">
+            <p style="font-size:11px;color:var(--muted)">Drop files here</p>
+          </div>
+        </div>
+        <div class="side-card">
+          <h3>Files</h3>
+          <ul><li>SDS_Solvent.pdf</li><li>Lab_Oct2026.pdf</li><li>Voice_Monday.mp3</li></ul>
+        </div>
+        <div class="side-card">
+          <h3>Contacts</h3>
+          <ul><li>John Smith — EHS Manager</li><li>Maria Lopez — Plant Ops</li></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!-- TAB 2: HARNESS                                          -->
+<!-- ════════════════════════════════════════════════════════ -->
+<section class="view" id="view-harness">
+  <div class="eyebrow">Con Agent Harness v1</div>
+  <h1>Asi funcionaria el Stream Workspace</h1>
+  <p class="sub">
+    Sigue existiendo el mismo workspace, cuestionario, quick capture y sidebar.
+    Pero ahora aparece un <strong>Discovery Brief</strong> como artifact principal:
+    una comprension estructurada del caso que el sistema genera, versiona y el broker gobierna.
+  </p>
+
+  <div class="ws">
+    <div class="ws-head">
+      <div>
+        <h2>Solvent Recovery Stream</h2>
+        <div class="meta">Apex Manufacturing · Dallas Plant · Discovery workspace</div>
+      </div>
+      <div class="chip-row">
+        <span class="chip">12 / 31 fields</span>
+        <span class="chip" style="border-color:rgba(116,179,255,.3);color:var(--accent)">Brief v4 — Current</span>
+        <span class="chip">3 suggestions pending</span>
+      </div>
+    </div>
+    <!-- stepper identical -->
+    <div class="stepper">
+      <div class="step-col"><div class="step-node done">&#10003;</div><div class="step-label done">Stream Snapshot</div></div>
+      <div class="step-line done"></div>
+      <div class="step-col"><div class="step-node active">2</div><div class="step-label active">Current Handling</div></div>
+      <div class="step-line"></div>
+      <div class="step-col"><div class="step-node">3</div><div class="step-label">Technical Confidence</div></div>
+      <div class="step-line"></div>
+      <div class="step-col"><div class="step-node">4</div><div class="step-label">Project Driver</div></div>
+    </div>
+    <!-- body -->
+    <div class="ws-body">
+      <div class="ws-main">
+
+        <!-- ★ DISCOVERY BRIEF — THE NEW THING ★ -->
+        <div class="brief">
+          <div class="brief-head">
+            <div>
+              <h3 style="font-size:16px;margin-bottom:2px">Discovery Brief</h3>
+              <p>Comprension actual del caso, generada por el agente y gobernada por el broker.</p>
+            </div>
+            <span class="status-pill">v4 · Approved</span>
+          </div>
+
+          <!-- What we know -->
+          <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">What we know</div>
+          <div class="point">
+            <span class="pt fact">Fact</span>
+            <p>Primary compound is MEK-dominant solvent waste, ~4 drums/month recurring.</p>
+            <div class="source">Sources: SDS pg.1 · Voice_Monday.mp3 2:15 · Workspace q4</div>
+            <div class="point-actions">
+              <button>Accept</button><button>Mark incorrect</button><button>Add note</button>
+            </div>
+          </div>
+          <div class="point">
+            <span class="pt fact">Fact</span>
+            <p>Water content is 1.8% measured by lab test October 2026.</p>
+            <div class="source">Source: Lab_Oct2026.pdf pg.2</div>
+          </div>
+
+          <!-- What is missing -->
+          <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 6px">What is missing</div>
+          <div class="point">
+            <span class="pt assumption">Assumption</span>
+            <p>Density is probably within typical range for MEK family, but no measured value on file.</p>
+            <div class="source">No hard source. Marked as assumption.</div>
+            <div class="point-actions">
+              <button>Needs verification</button><button>Add note</button>
+            </div>
+          </div>
+
+          <!-- Conflicts -->
+          <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 6px">Conflicts</div>
+          <div class="point">
+            <span class="pt conflict">Conflict</span>
+            <p>Volume from voice interview ("about 4 drums") vs. account note from March ("6 drums last pickup").</p>
+            <div class="source">Sources: Voice 2:15 vs account note 2026-03-14</div>
+            <div class="point-actions">
+              <button>Needs verification</button><button>Mark incorrect</button>
+            </div>
+          </div>
+
+          <!-- Recommended next actions -->
+          <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 6px">Recommended next actions</div>
+          <div class="point">
+            <span class="pt recommendation">Recommendation</span>
+            <p>Ask EHS contact for latest water-content test first. This is the fastest blocker to remove before buyer screening.</p>
+            <div class="source">Reason: highest-value blocker based on current outlet constraints.</div>
+            <div class="point-actions">
+              <button>Accept now</button><button>Accept, defer</button><button>Reject</button>
+            </div>
+          </div>
+          <div class="point">
+            <span class="pt question">Question</span>
+            <p>Was a chlorinated solvent used in any cleaning process at this site in the last 90 days?</p>
+            <div class="source">Generated from material context + similar historical dossier (Solvent Case #412).</div>
+          </div>
+        </div>
+        <!-- END BRIEF -->
+
+        <!-- annotation -->
+        <div class="anno">
+          <div class="anno-line"></div>
+          <div class="anno-card">
+            <strong>Esto es lo nuevo</strong>
+            El Discovery Brief organiza TODO lo que el sistema sabe del caso en un solo artifact.
+            Facts con fuentes, assumptions marcadas, conflictos entre sources, y acciones recomendadas priorizadas.<br><br>
+            El cuestionario de 4 fases sigue existiendo abajo, igual que hoy.
+            Pero ahora el broker NO necesita reconstruir mentalmente el caso:
+            el sistema se lo presenta como objeto revisable y gobernable.
+          </div>
+        </div>
+
+        <!-- Questionnaire still exists below -->
+        <div style="margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.02)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+            <h3 style="font-size:14px">Phase 2: Current Handling</h3>
+            <span style="font-size:12px;color:var(--muted)">2 of 5 fields</span>
+          </div>
+          <div class="field"><label>Current disposal method</label><input class="field-input" value="Incineration (permitted, off-site)"/></div>
+          <div class="field"><label>Current cost per unit</label><input class="field-input" value="$0.38/lb"/></div>
+          <div class="field"><label>Contract expiration</label><input class="field-input" placeholder="No data yet"/></div>
+        </div>
+      </div>
+
+      <!-- sidebar -->
+      <div class="ws-side">
+        <!-- NEW: Workspace Suggestions -->
+        <div class="side-card" style="border-color:rgba(116,179,255,.22);background:rgba(116,179,255,.04)">
+          <h3 style="color:var(--accent)">Workspace Suggestions</h3>
+          <p>The brief produced these reviewable suggestions for workspace truth:</p>
+          <ul>
+            <li>q10 disposal method: "Fuel blending" — <strong style="color:var(--warn)">pending</strong></li>
+            <li>q14 vendor: "CleanHarbors" — <strong style="color:var(--warn)">pending</strong></li>
+            <li>Context note synthesis — <strong style="color:var(--muted)">deferred</strong></li>
+          </ul>
+        </div>
+        <!-- NEW: Agent Run History -->
+        <div class="side-card">
+          <h3>Agent Runs</h3>
+          <ul>
+            <li>Run 206: manual refresh &rarr; v4 approved</li>
+            <li>Run 205: broker correction &rarr; conflict updated</li>
+            <li>Run 204: voice processing complete &rarr; brief refreshed</li>
+          </ul>
+        </div>
+        <!-- NEW: Memory Layer -->
+        <div class="side-card">
+          <h3>Memory</h3>
+          <ul>
+            <li>Session summary saved</li>
+            <li>2 observations stored</li>
+            <li>1 historical dossier linked</li>
+            <li>0 org knowledge promotions</li>
+          </ul>
+        </div>
+        <!-- Existing: Quick Capture unchanged -->
+        <div class="side-card">
+          <h3>Quick Capture</h3>
+          <p style="font-size:11px">Upload, Voice, Paste — same as today</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<!-- TAB 3: DIFF                                             -->
+<!-- ════════════════════════════════════════════════════════ -->
+<section class="view" id="view-diff">
+  <div class="eyebrow">Comparacion directa</div>
+  <h1>Que cambia y que no</h1>
+  <p class="sub">Lado a lado: lo que se queda igual, lo que se agrega y lo que cambia.</p>
+
+  <div class="diff">
+    <div class="diff-col">
+      <h3>Hoy</h3>
+      <ul>
+        <li>Workspace con 31 campos en 4 fases</li>
+        <li>AI sugiere valores campo por campo</li>
+        <li>El broker acepta/rechaza cada suggestion</li>
+        <li>Quick Capture: documentos, voz, texto</li>
+        <li>Files, Contacts, Offers siguen funcionando</li>
+        <li style="color:var(--warn)">El broker arma mentalmente la comprension del caso</li>
+        <li style="color:var(--warn)">No hay memoria durable entre sesiones</li>
+        <li style="color:var(--warn)">No hay brief estructurado del caso</li>
+        <li style="color:var(--warn)">No hay historial de runs del agente</li>
+        <li style="color:var(--warn)">No hay knowledge reusable entre streams</li>
+      </ul>
+    </div>
+    <div class="diff-arrow">&rarr;</div>
+    <div class="diff-col">
+      <h3>Con Harness v1</h3>
+      <ul>
+        <li>Mismo workspace de 31 campos en 4 fases</li>
+        <li>Mismas AI suggestions campo por campo</li>
+        <li>Mismo accept/reject por campo</li>
+        <li>Mismo Quick Capture</li>
+        <li>Mismos Files, Contacts, Offers</li>
+        <li style="color:var(--good)"><strong>+ Discovery Brief:</strong> comprension unificada del caso como artifact</li>
+        <li style="color:var(--good)"><strong>+ Point types:</strong> Fact, Assumption, Conflict, Recommendation, Question</li>
+        <li style="color:var(--good)"><strong>+ Provenance:</strong> cada punto dice de donde salio</li>
+        <li style="color:var(--good)"><strong>+ Workspace Suggestions:</strong> el brief produce sugerencias revisables, no escribe directo</li>
+        <li style="color:var(--good)"><strong>+ Versioned:</strong> cada refresh crea una version, con diff</li>
+        <li style="color:var(--good)"><strong>+ Agent Runs:</strong> historial de ejecuciones visibles</li>
+        <li style="color:var(--good)"><strong>+ Memory:</strong> observations, dossiers historicos, org knowledge</li>
+        <li style="color:var(--good)"><strong>+ Broker control:</strong> correccion punto por punto, approved/deferred/rejected</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:22px">
+    <strong>La frase mas simple posible:</strong><br>
+    Hoy el sistema guarda <strong>datos del caso</strong> (campos, archivos, suggestions).<br>
+    Con harness, el sistema empieza a guardar y gobernar el <strong>entendimiento del caso</strong> como un artifact versionado, con fuentes, conflictos, recomendaciones y memoria durable.
+  </div>
+</section>
+
+</div>
+
+<script>
+document.getElementById('tabs').addEventListener('click',e=>{
+  const btn=e.target.closest('.tab-btn');
+  if(!btn)return;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-'+btn.dataset.tab).classList.add('active');
+});
+</script>
+</body>
+</html>

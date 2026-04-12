@@ -39,6 +39,7 @@ import { organizationsAPI } from "@/lib/api/organizations";
 import { projectsAPI } from "@/lib/api/projects";
 import { useAuth } from "@/lib/contexts";
 import { useLocationStore } from "@/lib/stores/location-store";
+import { useStreamsStore } from "@/lib/stores/streams-store";
 import type { User } from "@/lib/types/user";
 import { cn } from "@/lib/utils";
 
@@ -675,6 +676,7 @@ export function IdleView({
 					? { ownerUserId: resolvedAssignedOwnerUserId }
 					: {}),
 			});
+			await useStreamsStore.getState().loadStreams({ forceRefresh: true });
 			toast.success("Waste stream created");
 			resetQuickEntry();
 			onClose();

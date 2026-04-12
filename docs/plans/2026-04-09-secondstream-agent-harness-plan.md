@@ -56,7 +56,10 @@
 - Recommendation feedback should separate correctness from execution timing
 - Human overrides without hard source support should be accepted but explicitly marked as `human-asserted` until further verification
 - Discovery artifact model v1: one primary unified `Discovery Brief` per stream, with optional supporting sub-artifacts behind it
-- Silence policy v1: no broker interaction means `pending review`, never implicit approval
+ - Silence policy v1: no broker interaction means `pending review`, never implicit approval
+- Harness ownership policy: SecondStream owns its own harness and memory; no critical memory or context management behind a third-party proprietary API
+- Model agnosticism: the harness must be model-agnostic so the agent can swap LLM providers without losing memory, sessions, or knowledge
+- Memory portability: all memory (session, stream, org knowledge) must be owned, inspectable, and exportable by SecondStream, never locked into a single model provider
 
 ## North star
 
@@ -170,6 +173,41 @@ The harness includes:
 Mental model:
 
 **The model is only one component. The harness is the product environment that makes the agent useful, safe, and stateful.**
+
+### Harness ownership and model agnosticism
+
+This is a fundamental architectural stance, not an optional nice-to-have.
+
+The harness that SecondStream builds must be:
+
+1. **Owned by SecondStream**
+   - no critical memory, context management, or session state behind a third-party proprietary API
+   - no dependence on a single model provider's stateful APIs for memory continuity
+   - compaction, summarization, and context assembly must be controlled by SecondStream, not outsourced to a model provider's opaque server-side logic
+
+2. **Model-agnostic**
+   - the agent must be able to swap between LLM providers without losing memory, sessions, briefs, knowledge, or operational continuity
+   - tool schemas, memory formats, and session contracts must not assume a single provider's API shape as the only path
+   - prompts and orchestration may need per-model tuning, but the harness contracts, memory, and state must remain portable
+
+3. **Memory-portable**
+   - all memory (session summaries, stream observations, briefs, knowledge objects, dossiers) must be owned, inspectable, and exportable by SecondStream
+   - memory must never be locked behind encrypted provider-specific formats that cannot be used outside one ecosystem
+   - the filesystem-backed memory layer reinforces this: artifacts on S3 Files or equivalent are inherently portable and inspectable, not trapped in a vendor's opaque store
+
+Why this matters:
+
+- memory is what makes agents sticky and valuable over time
+- if SecondStream yields memory ownership to a model provider, the moat belongs to the provider, not to SecondStream
+- model providers are actively incentivized to create lock-in via memory and stateful APIs
+- SecondStream's competitive advantage is domain-specific operational intelligence; that intelligence must live in SecondStream's own harness, not in someone else's black box
+
+Practical implications for v1:
+
+- do not use provider-managed stateful APIs (like server-side compaction or managed agent sessions) as the primary memory path
+- do not store critical context or long-term memory in formats that only work with one provider
+- treat the LLM as a replaceable execution engine inside the harness, not as the owner of state
+- keep all session/run/brief/knowledge contracts as SecondStream-owned schemas, persisted in SecondStream-controlled storage
 
 ---
 
