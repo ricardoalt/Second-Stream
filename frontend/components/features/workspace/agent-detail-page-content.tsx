@@ -35,12 +35,12 @@ export function resolveAgentDetailErrorMessage(error: unknown): string {
 		error instanceof APIClientError &&
 		error.message.toLowerCase().includes("not found")
 	) {
-		return "Field agent not found.";
+		return "Team member not found.";
 	}
 
 	return error instanceof Error
 		? error.message
-		: "Failed to load field agent detail.";
+		: "Failed to load team member detail.";
 }
 
 export function AgentDetailLoadedState({
@@ -263,7 +263,7 @@ export function AgentDetailPageContent({
 	}, [canViewUsers, page, userId]);
 
 	const displayName = useMemo(() => {
-		if (!detail) return "Field Agent";
+		if (!detail) return "Team member";
 		return (
 			`${detail.user.firstName} ${detail.user.lastName}`.trim() ||
 			detail.user.email

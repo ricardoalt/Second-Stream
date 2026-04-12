@@ -102,7 +102,7 @@ describe("agent detail page content", () => {
 	it("maps not-found and generic errors to user-facing detail messages", () => {
 		const notFoundMessage = resolveAgentDetailErrorMessage(
 			new APIClientError({
-				message: "Field agent not found",
+				message: "User not found in this organization",
 				code: "NOT_FOUND",
 			}),
 		);
@@ -111,7 +111,7 @@ describe("agent detail page content", () => {
 			new Error("network timeout"),
 		);
 
-		expect(notFoundMessage).toBe("Field agent not found.");
+		expect(notFoundMessage).toBe("Team member not found.");
 		expect(genericMessage).toBe("network timeout");
 	});
 });

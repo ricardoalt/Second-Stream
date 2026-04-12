@@ -354,7 +354,7 @@ async def test_get_field_agent_detail_returns_truthful_kpis_and_paginated_owned_
 
 
 @pytest.mark.asyncio
-async def test_get_field_agent_detail_returns_404_for_non_field_agent_targets(
+async def test_get_field_agent_detail_returns_detail_for_org_admin_targets(
     client: AsyncClient, db_session, set_current_user
 ):
     uid = uuid.uuid4().hex[:8]
@@ -366,7 +366,7 @@ async def test_get_field_agent_detail_returns_404_for_non_field_agent_targets(
         role=UserRole.ORG_ADMIN.value,
         is_superuser=False,
     )
-    non_field_agent = await create_user(
+    org_admin_target = await create_user(
         db_session,
         email=f"org-admin-target-{uid}@example.com",
         org_id=org.id,
@@ -376,10 +376,13 @@ async def test_get_field_agent_detail_returns_404_for_non_field_agent_targets(
 
     set_current_user(admin)
     response = await client.get(
-        f"/api/v1/organizations/current/users/{non_field_agent.id}",
+        f"/api/v1/organizations/current/users/{org_admin_target.id}",
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["user"]["id"] == str(org_admin_target.id)
+    assert payload["user"]["role"] == UserRole.ORG_ADMIN.value
 
 
 @pytest.mark.asyncio

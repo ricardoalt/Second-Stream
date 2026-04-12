@@ -220,7 +220,7 @@ def _effective_proposal_follow_up_state(
     return "uploaded"
 
 
-async def _get_field_agent_in_org_or_404(
+async def _get_org_member_in_org_or_404(
     *,
     db: AsyncDB,
     org_id: UUID,
@@ -228,8 +228,6 @@ async def _get_field_agent_in_org_or_404(
 ) -> User:
     user = await db.get(User, user_id)
     if user is None or user.organization_id != org_id:
-        raise HTTPException(status_code=404, detail="User not found in this organization")
-    if user.role != UserRole.FIELD_AGENT.value:
         raise HTTPException(status_code=404, detail="User not found in this organization")
     return user
 
@@ -419,7 +417,7 @@ async def get_my_org_user_detail(
     size: Annotated[int, Query(ge=1, le=100)] = 20,
 ):
     require_permission(current_user, permissions.ORG_USER_READ)
-    target_user = await _get_field_agent_in_org_or_404(db=db, org_id=org.id, user_id=user_id)
+    target_user = await _get_org_member_in_org_or_404(db=db, org_id=org.id, user_id=user_id)
     return await _build_field_agent_detail_response(
         db=db,
         org_id=org.id,
@@ -505,7 +503,7 @@ async def get_org_user_detail(
     if org.id != org_id:
         raise_org_access_denied(org_id=str(org_id))
 
-    target_user = await _get_field_agent_in_org_or_404(db=db, org_id=org.id, user_id=user_id)
+    target_user = await _get_org_member_in_org_or_404(db=db, org_id=org.id, user_id=user_id)
     return await _build_field_agent_detail_response(
         db=db,
         org_id=org.id,
