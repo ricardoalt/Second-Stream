@@ -58,6 +58,7 @@ import { companiesAPI } from "@/lib/api/companies";
 import { deriveOperationalInsights } from "@/lib/clients/operational-insights";
 import type { ClientProfile } from "@/lib/mappers/company-client";
 import { toClientProfile } from "@/lib/mappers/company-client";
+import { resolveCompanyDetailRedirect } from "@/lib/routing/company-detail-redirect";
 import {
 	useStreamsActions,
 	useStreamsAll,
@@ -138,6 +139,15 @@ export default function ClientDetailPage() {
 		}
 	}, [loadStreams, streamsInitialized]);
 
+	useEffect(() => {
+		const redirectTarget = resolveCompanyDetailRedirect({
+			companyId: profile?.id,
+			accountStatus: profile?.accountStatus,
+			origin: "client",
+		});
+		if (redirectTarget) router.replace(redirectTarget);
+	}, [profile, router]);
+
 	const primaryContact = profile?.primaryContact ?? null;
 	const normalizedProfileName = profile?.name.trim().toLowerCase() ?? "";
 
@@ -216,6 +226,16 @@ export default function ClientDetailPage() {
 				</div>
 			</PageShell>
 		);
+	}
+
+	const redirectTarget = resolveCompanyDetailRedirect({
+		companyId: profile?.id,
+		accountStatus: profile?.accountStatus,
+		origin: "client",
+	});
+
+	if (redirectTarget) {
+		return null;
 	}
 
 	if (error || !profile) {

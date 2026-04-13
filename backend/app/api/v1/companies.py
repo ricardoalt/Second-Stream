@@ -555,9 +555,18 @@ async def list_companies(
     org: OrganizationContext,
     _rate_limit: RateLimitUser60,
     archived: ArchivedFilter = "active",
+    account_status: str = "all",
 ):
     """List all companies."""
+    if account_status not in {"all", "lead", "active"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="account_status must be one of: all, lead, active",
+        )
+
     query = select(Company).where(Company.organization_id == org.id)
+    if account_status != "all":
+        query = query.where(Company.account_status == account_status)
     query = apply_archived_filter(query, Company, archived).order_by(Company.name)
     result = await db.execute(query)
     companies = result.scalars().all()
@@ -573,9 +582,12 @@ async def create_company(
     _rate_limit: RateLimitUser30,
 ):
     """Create a new company."""
+    company_payload = company_data.model_dump(by_alias=False)
+    company_payload["account_status"] = "lead"
+
     company = Company(
         # BaseSchema serializes with camelCase by default; ORM expects snake_case field names.
-        **company_data.model_dump(by_alias=False),
+        **company_payload,
         organization_id=org.id,
         created_by_user_id=current_user.id,
     )
@@ -671,6 +683,11 @@ async def update_company(
 
     # Update only provided fields
     update_data = company_data.model_dump(exclude_unset=True, by_alias=False)
+    if "account_status" in update_data:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Account status is lifecycle-managed",
+        )
     for field, value in update_data.items():
         setattr(company, field, value)
 

@@ -101,14 +101,14 @@ export function EditClientModal({
 				fieldName === "name"
 					? "companyName"
 					: fieldName === "account_status"
-						? "accountStatus"
+						? "companyNotes"
 						: fieldName;
 
 			if (
 				resolvedFieldName === "subsector" ||
 				resolvedFieldName === "sector" ||
 				resolvedFieldName === "companyName" ||
-				resolvedFieldName === "accountStatus"
+				resolvedFieldName === "companyNotes"
 			) {
 				form.setFieldMeta(
 					resolvedFieldName as keyof ReturnType<
@@ -359,7 +359,13 @@ export function EditClientModal({
 														value={field.state.value}
 														onValueChange={field.handleChange}
 														className="w-full"
+														disabled
 													/>
+													<p className="text-xs text-muted-foreground">
+														Status is lifecycle-managed and read-only. Leads
+														convert to active automatically when first stream is
+														created.
+													</p>
 												</div>
 											)}
 										</form.Field>

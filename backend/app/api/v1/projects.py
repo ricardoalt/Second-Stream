@@ -1916,6 +1916,10 @@ async def create_project(
         )
     assert location.company is not None
 
+    # Business rule: first successful stream creation converts lead to active client lifecycle
+    if location.company.account_status == "lead":
+        location.company.account_status = "active"
+
     # Inherit all data from company/location
     sector = location.company.sector
     subsector = location.company.subsector

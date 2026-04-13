@@ -30,7 +30,7 @@ async def test_list_companies(client: AsyncClient, db_session, set_current_user)
     assert "Company A" in names
     assert "Company B" in names
     allowed_customer_types = {"buyer", "generator", "both"}
-    allowed_account_statuses = {"active", "prospect"}
+    allowed_account_statuses = {"active", "lead"}
     for company in data:
         assert "customerType" in company
         assert company["customerType"] in allowed_customer_types
@@ -66,12 +66,12 @@ async def test_create_company_success(client: AsyncClient, db_session, set_curre
     assert data["name"] == "New Company"
     assert data["industry"] == "Technology"
     assert data["customerType"] == "buyer"
-    assert data["accountStatus"] == "active"
+    assert data["accountStatus"] == "lead"
     assert "id" in data
 
 
 @pytest.mark.asyncio
-async def test_create_company_with_prospect_account_status(
+async def test_create_company_forces_lead_account_status_even_when_payload_requests_active(
     client: AsyncClient, db_session, set_current_user
 ):
     uid = uuid.uuid4().hex[:8]
@@ -88,19 +88,77 @@ async def test_create_company_with_prospect_account_status(
     response = await client.post(
         "/api/v1/companies/",
         json={
-            "name": "Prospect Company",
+            "name": "Lead Company",
             "industry": "Technology",
             "sector": "industrial",
             "subsector": "other",
             "customerType": "generator",
-            "accountStatus": "prospect",
+            "accountStatus": "active",
         },
     )
 
     assert response.status_code == 201
     data = response.json()
-    assert data["name"] == "Prospect Company"
-    assert data["accountStatus"] == "prospect"
+    assert data["name"] == "Lead Company"
+    assert data["accountStatus"] == "lead"
+
+
+@pytest.mark.asyncio
+async def test_list_companies_filters_by_account_status(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Company Status Filter", "org-company-status-filter")
+    user = await create_user(
+        db_session,
+        email=f"company-status-filter-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    lead_company = await create_company(db_session, org_id=org.id, name="Lead Co")
+    active_company = await create_company(db_session, org_id=org.id, name="Active Co")
+    active_company.account_status = "active"
+    db_session.add(active_company)
+    await db_session.commit()
+
+    set_current_user(user)
+
+    lead_response = await client.get("/api/v1/companies/?account_status=lead")
+    assert lead_response.status_code == 200
+    lead_names = {company["name"] for company in lead_response.json()}
+    assert lead_names == {"Lead Co"}
+
+    active_response = await client.get("/api/v1/companies/?account_status=active")
+    assert active_response.status_code == 200
+    active_names = {company["name"] for company in active_response.json()}
+    assert active_names == {"Active Co"}
+
+    all_response = await client.get("/api/v1/companies/?account_status=all")
+    assert all_response.status_code == 200
+    all_names = {company["name"] for company in all_response.json()}
+    assert all_names == {lead_company.name, active_company.name}
+
+
+@pytest.mark.asyncio
+async def test_list_companies_rejects_invalid_account_status_filter(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Invalid Status Filter", "org-invalid-status-filter")
+    user = await create_user(
+        db_session,
+        email=f"invalid-status-filter-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    set_current_user(user)
+    response = await client.get("/api/v1/companies/?account_status=prospect")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "account_status must be one of: all, lead, active"
 
 
 @pytest.mark.asyncio
@@ -220,6 +278,30 @@ async def test_update_company(client: AsyncClient, db_session, set_current_user)
     data = response.json()
     assert data["name"] == "New Name"
     assert data["customerType"] == "generator"
+
+
+@pytest.mark.asyncio
+async def test_update_company_rejects_manual_account_status_transition(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Update Status Co", "org-update-status-co")
+    user = await create_user(
+        db_session,
+        email=f"update-status-co-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Status Locked Co")
+
+    set_current_user(user)
+    response = await client.put(
+        f"/api/v1/companies/{company.id}",
+        json={"accountStatus": "active"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Account status is lifecycle-managed"
 
 
 @pytest.mark.asyncio

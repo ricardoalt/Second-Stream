@@ -1,7 +1,7 @@
 # Verification Report: clients-add-client-foundation
 
-**Date:** 2026-03-30  
-**Mode:** Standard
+**Date:** 2026-03-30 (refreshed 2026-04-13 for docs drift sync)  
+**Mode:** Standard (docs-only refresh, strict no-build/no-test execution in this pass)
 
 ## Completeness
 
@@ -14,6 +14,8 @@
 All scoped tasks are marked complete in `docs/sdd/clients-add-client-foundation/tasks.md`.
 
 ## Execution Evidence
+
+> Note: This refresh is documentation-only. Per current no-build/no-test constraints for this pass, no commands were re-run; evidence below is retained from the verified implementation run.
 
 ### Frontend
 - ✅ `bun test "lib/add-client-submit.integration.test.tsx" "lib/add-client-flow.test.ts"`
@@ -36,8 +38,8 @@ All scoped tasks are marked complete in `docs/sdd/clients-add-client-foundation/
 | Sequential submit behavior | Scenario 2 — contact step fails | `frontend/lib/add-client-flow.test.ts` → `stops when primary contact creation fails`; `frontend/lib/add-client-submit.integration.test.tsx` → `submits partial-contact handoff and renders follow-up banner` | ✅ Compliant |
 | Sequential submit behavior | Scenario 3 — location step fails | `frontend/lib/add-client-flow.test.ts` → `returns partial-location when location creation fails`; `frontend/lib/add-client-submit.integration.test.tsx` → `submits partial-location handoff and renders location follow-up banner` | ✅ Compliant |
 | Sequential submit behavior | Company step failure keeps modal-owned error path | `frontend/lib/add-client-flow.test.ts` → `throws when company creation fails (caller keeps modal open)` + `frontend/components/features/clients/add-client-dialog.tsx` | ✅ Compliant |
-| Explicit handoff after submit | Success/partial route building and banner handoff | `frontend/lib/add-client-submit.ts`, `frontend/lib/add-client-submit.integration.test.tsx`, `frontend/components/features/clients/client-create-banner.tsx`, `frontend/app/(agent)/clients/[id]/page.tsx` | ✅ Compliant |
-| Backend account_status persistence | Company create/list runtime behavior | `backend/tests/test_crud_companies_locations.py` dockerized run | ✅ Compliant |
+| Explicit handoff after submit | Success/partial route building and banner handoff | `frontend/lib/add-client-submit.ts`, `frontend/lib/add-client-submit.integration.test.tsx`, `frontend/components/features/clients/client-create-banner.tsx`, `frontend/app/(agent)/clients/[id]/page.tsx` (handoff contract: `/leads/{id}?create={success|partial-contact|partial-location}`) | ✅ Compliant |
+| Backend account_status persistence | Company create/list runtime behavior | `backend/tests/test_crud_companies_locations.py` dockerized run (`lead|active` domain; creation persisted as `lead`) | ✅ Compliant |
 | Backend ZIP validation | Location create/update runtime behavior | `backend/tests/test_crud_companies_locations.py` dockerized run | ✅ Compliant |
 
 ## Correctness (Static — Structural Evidence)
@@ -46,7 +48,7 @@ All scoped tasks are marked complete in `docs/sdd/clients-add-client-foundation/
 |---|---|---|
 | Truthful Add Client mapping | ✅ Implemented | Uses real Company, CompanyContact, and Location contracts; payload tests prove unmapped fields are excluded. |
 | Sequential submit behavior | ✅ Implemented | Flow is Company → Contact → Location and stops on failure. |
-| Explicit handoff after submit | ✅ Implemented | Handoff URLs and profile banners exist for `success`, `partial-contact`, and `partial-location`. |
+| Explicit handoff after submit | ✅ Implemented | Handoff URLs use `/leads/{id}?create={state}` and profile banners exist for `success`, `partial-contact`, and `partial-location`. |
 
 ## Coherence (Design)
 

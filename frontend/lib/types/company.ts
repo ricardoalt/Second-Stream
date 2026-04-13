@@ -35,7 +35,7 @@ export interface CompanyContact {
 export const CUSTOMER_TYPES = ["buyer", "generator", "both"] as const;
 export type CustomerType = (typeof CUSTOMER_TYPES)[number];
 
-export const ACCOUNT_STATUSES = ["active", "prospect"] as const;
+export const ACCOUNT_STATUSES = ["active", "lead"] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
 export function isCustomerType(value: string): value is CustomerType {

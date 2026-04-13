@@ -1,6 +1,6 @@
 # Skill Registry
 
-**Delegator use only.** Read once per session to resolve skill paths, then inject pre-resolved paths directly into sub-agent prompts.
+**Delegator use only.** Read once per session to resolve skill paths; inject pre-resolved paths directly into sub-agent prompts.
 
 ## User Skills
 

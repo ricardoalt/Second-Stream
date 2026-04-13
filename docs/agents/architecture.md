@@ -19,6 +19,7 @@
 - Offer detail contract (`GET /api/v1/projects/{id}/offer`) is offer-first and includes `streamSnapshot` (workspace base fields), `insights`, `followUpState`, and single-file `offerDocument` metadata.
 - Offers Archive is a separate read-only projection over archived projects plus terminal follow-up semantics. Public archive labels are `accepted` / `declined`, with legacy backend `rejected` normalized at the contract boundary.
 - Discovery wizard orchestration uses `DiscoverySession` + `DiscoverySource` as lightweight intake fan-out, then hands off to existing `ImportRun`/`ImportItem` draft pipeline for `Needs Confirmation`.
+- Company lifecycle is unified on `companies.account_status` with two states: `lead` (default on creation) and `active` (set automatically by backend after first successful stream/project creation). `lead`/`active` is separate from archived visibility (`archived_at` filter).
 
 ### Discovery wizard semantics
 - Discovery can ingest multi-source in one session (`file` + `audio` + `text`), then stage draft candidates in bulk-import items.

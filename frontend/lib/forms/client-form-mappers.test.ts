@@ -17,7 +17,7 @@ describe("client-form-mappers", () => {
 			sector: "manufacturing_industrial",
 			subsector: "metal_fabrication",
 			notes: "Strategic account",
-			accountStatus: "prospect",
+			accountStatus: "lead",
 			locationCount: 0,
 			locations: [],
 			contacts: [],
@@ -38,7 +38,7 @@ describe("client-form-mappers", () => {
 			companyName: "Northstar",
 			sector: "manufacturing_industrial",
 			subsector: "metal_fabrication",
-			accountStatus: "prospect",
+			accountStatus: "lead",
 			companyNotes: "Strategic account",
 			contactName: "Avery",
 			contactTitle: "Plant Manager",
@@ -68,7 +68,7 @@ describe("client-form-mappers", () => {
 			companyName: "  Northstar  ",
 			sector: "manufacturing_industrial",
 			subsector: "metal_fabrication",
-			accountStatus: "prospect",
+			accountStatus: "lead",
 			companyNotes: "  Priority account  ",
 			contactName: "",
 			contactTitle: "",
@@ -81,7 +81,6 @@ describe("client-form-mappers", () => {
 			industry: "Metal Fabrication",
 			sector: "manufacturing_industrial",
 			subsector: "metal_fabrication",
-			accountStatus: "prospect",
 			notes: "Priority account",
 		});
 	});
@@ -120,9 +119,30 @@ describe("client-form-mappers", () => {
 			industry: "Manufacturing & Industrial",
 			sector: "manufacturing_industrial",
 			subsector: null,
-			accountStatus: "active",
 			notes: "",
 		});
+	});
+
+	it("defaults account status to lead when profile status is absent", () => {
+		const values = buildEditClientInitialValues({
+			id: "company-2",
+			name: "Default Lead Co",
+			industry: "Manufacturing",
+			sector: "manufacturing_industrial",
+			subsector: null,
+			notes: "",
+			accountStatus: null,
+			locationCount: 0,
+			locations: [],
+			contacts: [],
+			archivedAt: null,
+			createdAt: "2026-04-07T00:00:00.000Z",
+			updatedAt: "2026-04-07T00:00:00.000Z",
+			customerType: "generator",
+			primaryContact: null,
+		});
+
+		expect(values.accountStatus).toBe("lead");
 	});
 
 	it("normalizes whitespace-only subsector to null", () => {

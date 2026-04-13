@@ -20,8 +20,6 @@ import {
 	AgentOwnerCombobox,
 	canShowAssignOwnerControl,
 	filterAssignableOwners,
-	resolveAssignOwnerCommandListClassName,
-	resolveAssignOwnerPopoverMode,
 } from "@/components/features/shared/agent-owner-selector";
 import { CompanyCombobox } from "@/components/features/shared/company-combobox";
 import { LocationCombobox } from "@/components/features/shared/location-combobox";
@@ -734,13 +732,13 @@ export function IdleView({
 										<span className="block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
 											Assign Owner
 										</span>
-									<AgentOwnerCombobox
-										owners={assignableOwners}
-										selectedOwnerUserId={selectedOwnerUserId}
-										onOwnerChange={setSelectedOwnerUserId}
-										placeholder="Assign agent"
-										searchPlaceholder="Search agent by name or email..."
-									/>
+										<AgentOwnerCombobox
+											owners={assignableOwners}
+											selectedOwnerUserId={selectedOwnerUserId}
+											onOwnerChange={setSelectedOwnerUserId}
+											placeholder="Assign agent"
+											searchPlaceholder="Search agent by name or email..."
+										/>
 									</div>
 								</section>
 							) : null}
@@ -931,13 +929,13 @@ export function IdleView({
 										<h3 className="text-base font-semibold text-foreground">
 											Assign Owner
 										</h3>
-									<AgentOwnerCombobox
-										owners={assignableOwners}
-										selectedOwnerUserId={selectedOwnerUserId}
-										onOwnerChange={setSelectedOwnerUserId}
-										placeholder="Assign agent"
-										searchPlaceholder="Search agent by name or email..."
-									/>
+										<AgentOwnerCombobox
+											owners={assignableOwners}
+											selectedOwnerUserId={selectedOwnerUserId}
+											onOwnerChange={setSelectedOwnerUserId}
+											placeholder="Assign agent"
+											searchPlaceholder="Search agent by name or email..."
+										/>
 									</div>
 								</section>
 							) : null}

@@ -253,6 +253,11 @@ def _log_diagnostics(diagnostics: ExtractionDiagnostics | None) -> dict[str, obj
 class BulkImportService:
     """Bulk import orchestration across worker and API layers."""
 
+    @staticmethod
+    def _ensure_company_active_after_first_stream(company: Company | None) -> None:
+        if company is not None and company.account_status == "lead":
+            company.account_status = "active"
+
     def _run_log_context(self, run: ImportRun) -> dict[str, str]:
         return {
             "run_id": str(run.id),
@@ -832,6 +837,7 @@ class BulkImportService:
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Target location has no company",
                 )
+            self._ensure_company_active_after_first_stream(company_for_project)
 
             project_data: dict[str, object] = {
                 "technical_sections": copy.deepcopy(get_assessment_questionnaire()),
@@ -849,7 +855,6 @@ class BulkImportService:
                 project_data=project_data,
                 provenance=discovery_provenance,
             )
-
             project = Project(
                 organization_id=run.organization_id,
                 user_id=await self._resolve_run_owner_user_id(
@@ -1095,6 +1100,7 @@ class BulkImportService:
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Target location has no company",
                 )
+            self._ensure_company_active_after_first_stream(company_for_project)
 
             project_data: dict[str, object] = {
                 "technical_sections": copy.deepcopy(get_assessment_questionnaire()),
@@ -1634,6 +1640,7 @@ class BulkImportService:
                 project_data=project_data,
                 provenance=discovery_provenance,
             )
+            self._ensure_company_active_after_first_stream(company_for_project)
 
             project = Project(
                 organization_id=run.organization_id,
@@ -2357,6 +2364,8 @@ class BulkImportService:
                 project_data=project_data,
                 provenance=discovery_provenance,
             )
+
+            self._ensure_company_active_after_first_stream(company)
             project = Project(
                 organization_id=run.organization_id,
                 user_id=resolved_owner_user_id,

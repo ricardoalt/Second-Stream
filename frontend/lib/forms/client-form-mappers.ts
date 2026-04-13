@@ -10,7 +10,7 @@ export type EditClientFormValues = {
 	companyName: string;
 	sector: string;
 	subsector: string;
-	accountStatus: "active" | "prospect";
+	accountStatus: "active" | "lead";
 	companyNotes: string;
 	contactName: string;
 	contactTitle: string;
@@ -35,7 +35,7 @@ export function buildEditClientInitialValues(
 		companyName: profile.name,
 		sector: profile.sector,
 		subsector: profile.subsector ?? "",
-		accountStatus: profile.accountStatus ?? "active",
+		accountStatus: profile.accountStatus ?? "lead",
 		companyNotes: profile.notes,
 		contactName: profile.primaryContact?.name ?? "",
 		contactTitle: profile.primaryContact?.title ?? "",
@@ -70,7 +70,7 @@ function resolveIndustryLabel(sector: string, subsector: string): string {
 
 export function buildEditClientCompanyPayload(values: EditClientFormValues) {
 	const sector = values.sector.trim();
-	const subsector = values.subsector.trim();
+	const subsector = (values.subsector ?? "").trim();
 	if (!isSectorId(sector)) {
 		throw new Error("Please select a valid sector");
 	}
@@ -80,7 +80,6 @@ export function buildEditClientCompanyPayload(values: EditClientFormValues) {
 		industry: resolveIndustryLabel(sector, subsector),
 		sector,
 		subsector: subsector.length > 0 ? subsector : null,
-		accountStatus: values.accountStatus,
 		notes: values.companyNotes.trim(),
 	} satisfies CompanyUpdate;
 }

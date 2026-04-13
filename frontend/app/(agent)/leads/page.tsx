@@ -2,9 +2,9 @@
 
 import {
 	AlertCircle,
-	Building2,
 	ChevronRight,
 	LayoutDashboard,
+	UserRoundSearch,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -37,12 +37,6 @@ import type { PortfolioRow } from "@/lib/mappers/company-client";
 import { toPortfolioRow } from "@/lib/mappers/company-client";
 import type { CompanySummary } from "@/lib/types/company";
 import { cn } from "@/lib/utils";
-import {
-	isClientDataCacheStale,
-	peekClientDataCache,
-} from "@/lib/utils/client-data-cache";
-
-// ── Helpers ──────────────────────────────────────────────
 
 function getInitials(name: string): string {
 	return name
@@ -77,60 +71,22 @@ const SORT_OPTIONS = [
 
 type SortOption = (typeof SORT_OPTIONS)[number]["value"];
 
-const CLIENTS_CACHE_KEY = "companies:list:active:active";
-
-function readCachedCompanies(): PortfolioRow[] {
-	const cached = peekClientDataCache<CompanySummary[]>(CLIENTS_CACHE_KEY);
-	if (!cached) return [];
-	return cached.data.map(toPortfolioRow);
-}
-
-function bySortOption(a: PortfolioRow, b: PortfolioRow, sort: SortOption) {
-	if (sort === "name-asc") return a.name.localeCompare(b.name);
-	if (sort === "name-desc") return b.name.localeCompare(a.name);
-	if (sort === "locations-desc") return b.locationCount - a.locationCount;
-	return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-}
-
-// ── Component ────────────────────────────────────────────
-
-export default function ClientsPage() {
+export default function LeadsPage() {
 	const router = useRouter();
 	const [searchValue, setSearchValue] = useState("");
 	const [sortBy, setSortBy] = useState<SortOption>("name-asc");
-	const [companies, setCompanies] = useState<PortfolioRow[]>(() =>
-		readCachedCompanies(),
-	);
-	const [loading, setLoading] = useState(
-		() => readCachedCompanies().length === 0,
-	);
+	const [companies, setCompanies] = useState<PortfolioRow[]>([]);
+	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
-	const fetchCompanies = useCallback(async (opts?: { force?: boolean }) => {
-		const cachedCompanies = readCachedCompanies();
-		const hasCachedCompanies = cachedCompanies.length > 0;
-
+	const fetchCompanies = useCallback(async () => {
 		try {
-			if (hasCachedCompanies) {
-				setCompanies(cachedCompanies);
-				setLoading(false);
-			}
-
-			const shouldRefresh =
-				opts?.force === true ||
-				!hasCachedCompanies ||
-				isClientDataCacheStale(CLIENTS_CACHE_KEY);
-
-			if (!shouldRefresh) return;
-
-			if (!hasCachedCompanies) setLoading(true);
+			setLoading(true);
 			setError(null);
-			const data = await companiesAPI.list("active", "active");
+			const data: CompanySummary[] = await companiesAPI.list("active", "lead");
 			setCompanies(data.map(toPortfolioRow));
 		} catch (err) {
-			if (!hasCachedCompanies) {
-				setError(err instanceof Error ? err.message : "Failed to load clients");
-			}
+			setError(err instanceof Error ? err.message : "Failed to load leads");
 		} finally {
 			setLoading(false);
 		}
@@ -140,11 +96,19 @@ export default function ClientsPage() {
 		fetchCompanies();
 	}, [fetchCompanies]);
 
-	const filteredClients = useMemo(() => {
+	const filteredLeads = useMemo(() => {
 		const query = searchValue.trim().toLowerCase();
 		return companies
 			.filter((row) => !query || row.name.toLowerCase().includes(query))
-			.toSorted((a, b) => bySortOption(a, b, sortBy));
+			.toSorted((a, b) => {
+				if (sortBy === "name-asc") return a.name.localeCompare(b.name);
+				if (sortBy === "name-desc") return b.name.localeCompare(a.name);
+				if (sortBy === "locations-desc")
+					return b.locationCount - a.locationCount;
+				return (
+					new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+				);
+			});
 	}, [companies, searchValue, sortBy]);
 
 	const activeFilterCount =
@@ -154,16 +118,16 @@ export default function ClientsPage() {
 		<PageShell gap="lg">
 			<FadeIn direction="up">
 				<PageHeader
-					title="Client Portfolio"
-					subtitle="Manage industrial accounts and monitor active locations."
-					icon={Building2}
-					badge="Client portfolio"
+					title="Lead Portfolio"
+					subtitle="Track pre-client companies before their first stream is created."
+					icon={UserRoundSearch}
+					badge="Leads"
 					variant="hero"
-					breadcrumbs={[{ label: "Home", href: "/" }, { label: "Clients" }]}
+					breadcrumbs={[{ label: "Home", href: "/" }, { label: "Leads" }]}
 					actions={
 						<AddClientDialog
 							onSubmitted={() => {
-								void fetchCompanies({ force: true });
+								void fetchCompanies();
 							}}
 						/>
 					}
@@ -173,16 +137,16 @@ export default function ClientsPage() {
 			<StatRail columns={2}>
 				<HoverLift>
 					<KpiCard
-						title="Total Clients"
+						title="Total Leads"
 						value={loading ? "—" : companies.length}
-						icon={Building2}
-						variant="default"
+						icon={UserRoundSearch}
+						variant="warning"
 					/>
 				</HoverLift>
 				<HoverLift>
 					<KpiCard
-						title="Visible Clients"
-						value={loading ? "—" : filteredClients.length}
+						title="Visible Leads"
+						value={loading ? "—" : filteredLeads.length}
 						icon={LayoutDashboard}
 						variant="accent"
 					/>
@@ -219,7 +183,7 @@ export default function ClientsPage() {
 							<Skeleton className="h-10 w-full" />
 							{Array.from({ length: 5 }).map((_, index) => (
 								<Skeleton
-									key={`clients-skeleton-row-${index + 1}`}
+									key={`leads-skeleton-row-${index + 1}`}
 									className="h-14 w-full"
 								/>
 							))}
@@ -236,31 +200,27 @@ export default function ClientsPage() {
 							<Button
 								variant="outline"
 								size="sm"
-								onClick={() => {
-									void fetchCompanies({ force: true });
-								}}
+								onClick={() => void fetchCompanies()}
 							>
 								Retry
 							</Button>
 						</div>
-					) : filteredClients.length === 0 ? (
+					) : filteredLeads.length === 0 ? (
 						<EmptyState
 							title={
 								companies.length === 0
-									? "No clients yet"
-									: "No clients match your search"
+									? "No leads yet"
+									: "No leads match your search"
 							}
 							description={
 								companies.length === 0
-									? "Use the Discovery Wizard to create waste streams for a company."
+									? "Create a company to start lead qualification before first stream creation."
 									: "Try adjusting your search terms."
 							}
-							icon={Building2}
+							icon={UserRoundSearch}
 							action={
 								companies.length === 0 ? (
-									<Button onClick={() => router.push("/streams")}>
-										Go to Streams
-									</Button>
+									<AddClientDialog />
 								) : (
 									<Button variant="outline" onClick={() => setSearchValue("")}>
 										Clear Search
@@ -274,7 +234,7 @@ export default function ClientsPage() {
 							<TableHeader>
 								<TableRow className="bg-surface-container-low">
 									<TableHead className="px-4 py-3 text-xs font-medium uppercase tracking-wide">
-										Client name
+										Lead name
 									</TableHead>
 									<TableHead className="px-4 py-3 text-xs font-medium uppercase tracking-wide">
 										Industry
@@ -289,10 +249,10 @@ export default function ClientsPage() {
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{filteredClients.map((row) => (
+								{filteredLeads.map((row) => (
 									<TableRow
 										key={row.id}
-										onClick={() => router.push(`/clients/${row.id}`)}
+										onClick={() => router.push(`/leads/${row.id}`)}
 										className="cursor-pointer transition-colors duration-150 hover:bg-surface-container-low/80"
 									>
 										<TableCell className="px-4 py-3">

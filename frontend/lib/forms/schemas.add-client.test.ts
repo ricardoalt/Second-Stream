@@ -6,7 +6,7 @@ const validData = {
 	sector: "manufacturing_industrial",
 	subsector: "metal_fabrication",
 	customerType: "generator",
-	accountStatus: "active",
+	accountStatus: "lead",
 	companyNotes: "",
 	contactName: "Avery",
 	contactTitle: "Plant Manager",
@@ -35,7 +35,7 @@ describe("addClientSchema taxonomy validation", () => {
 		expect(parsed.success).toBe(true);
 		if (parsed.success) {
 			expect(parsed.data.subsector).toBe("");
-			expect(parsed.data.accountStatus).toBe("active");
+			expect(parsed.data.accountStatus).toBe("lead");
 			expect(parsed.data.contactEmail).toBe("");
 			expect(parsed.data.contactPhone).toBe("");
 			expect(parsed.data.locationName).toBe("");

@@ -91,7 +91,7 @@ export const useCompanyStore = create<CompanyState>()(
 				});
 
 				try {
-					const companies = await companiesAPI.list(filter);
+					const companies = await companiesAPI.list(filter, "all");
 					if (get()._companiesRequestId !== requestId) return;
 					set((state) => {
 						state.companies = companies;

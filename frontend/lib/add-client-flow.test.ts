@@ -12,7 +12,7 @@ const baseData: AddClientFormData = {
 	sector: "manufacturing_industrial",
 	subsector: "metal_fabrication",
 	customerType: "generator",
-	accountStatus: "prospect",
+	accountStatus: "lead",
 	companyNotes: "",
 	contactName: "Avery",
 	contactTitle: "Plant Manager",
@@ -209,7 +209,7 @@ describe("add-client flow", () => {
 
 	it("returns success handoff URL", () => {
 		expect(buildClientCreateHandoffUrl("abc", "success")).toBe(
-			"/clients/abc?create=success",
+			"/leads/abc?create=success",
 		);
 	});
 
@@ -242,7 +242,7 @@ describe("add-client flow", () => {
 			sector: "manufacturing_industrial",
 			subsector: "metal_fabrication",
 			customerType: "generator",
-			accountStatus: "prospect",
+			accountStatus: "lead",
 			notes: "Important account",
 		});
 		expect(createCompanyContact.mock.calls[0]?.[1]).toEqual({

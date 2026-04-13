@@ -1,7 +1,15 @@
-import { Building2, FileText, Home, Layers, Users } from "lucide-react";
+import {
+	Building2,
+	FileText,
+	Home,
+	Layers,
+	UserRoundSearch,
+	Users,
+} from "lucide-react";
 
 const FIELD_AGENT_NAV_ITEMS = [
 	{ href: "/dashboard", label: "Dashboard", icon: Home },
+	{ href: "/leads", label: "Leads", icon: UserRoundSearch },
 	{ href: "/streams", label: "Streams", icon: Layers },
 	{ href: "/clients", label: "Clients", icon: Building2 },
 	{ href: "/offers", label: "Offers", icon: FileText },

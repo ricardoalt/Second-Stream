@@ -5,7 +5,7 @@
 
 ## Scope
 - Enable the `/clients` Add Client CTA with a real create flow implemented as a dedicated modal surface visually matching the Stitch "Add New Client" modal.
-- Persist one `Company` (including a new `account_status` field defaulting to `active`), one primary `CompanyContact`, and one first `Location` from the Stitch modal.
+- Persist one `Company` (including a new `account_status` lifecycle field constrained to `lead | active`, with new companies created as `lead`), one primary `CompanyContact`, and one first `Location` from the Stitch modal.
 - Keep the flow sequential: create Company, then primary contact, then first Location.
 - Add explicit recovery UX for partial failure; the flow is not atomic today.
 

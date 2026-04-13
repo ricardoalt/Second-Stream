@@ -33,7 +33,7 @@ const baseProfile = (overrides?: Partial<ClientProfile>): ClientProfile => ({
 	name: overrides?.name ?? "Northstar",
 	industry: overrides?.industry ?? "Chemicals",
 	customerType: overrides?.customerType ?? "generator",
-	accountStatus: overrides?.accountStatus ?? "prospect",
+	accountStatus: overrides?.accountStatus ?? "lead",
 	sector: overrides?.sector ?? "chemicals_pharmaceuticals",
 	subsector: overrides?.subsector ?? "chemical_manufacturing",
 	notes: overrides?.notes ?? "",
@@ -181,6 +181,19 @@ describe("deriveOperationalInsights", () => {
 		expect(archivedInsights.accountStatus).toEqual({
 			label: "Archived",
 			variant: "outline",
+		});
+	});
+
+	it("maps lead account status to warning badge", () => {
+		const leadInsights = derive({
+			profile: baseProfile({
+				accountStatus: "lead",
+			}),
+		});
+
+		expect(leadInsights.accountStatus).toEqual({
+			label: "Lead",
+			variant: "warning",
 		});
 	});
 });

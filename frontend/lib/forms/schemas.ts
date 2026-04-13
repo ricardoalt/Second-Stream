@@ -80,7 +80,7 @@ export const addClientSchema = z
 			.enum(ACCOUNT_STATUSES, {
 				required_error: "Please select an account status",
 			})
-			.default("active"),
+			.default("lead"),
 		companyNotes: z.string().optional(),
 		contactName: z.string().default(""),
 		contactTitle: z.string().default(""),

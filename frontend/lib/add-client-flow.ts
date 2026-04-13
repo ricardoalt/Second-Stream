@@ -98,7 +98,7 @@ export function toCompanyPayload(data: AddClientFormData): CompanyCreate {
 		sector,
 		subsector,
 		customerType: data.customerType,
-		accountStatus: data.accountStatus,
+		accountStatus: "lead",
 		notes: data.companyNotes?.trim() ?? "",
 	};
 }
@@ -198,5 +198,5 @@ export function buildClientCreateHandoffUrl(
 	companyId: string,
 	createState: AddClientCreateState,
 ): string {
-	return `/clients/${companyId}?create=${createState}`;
+	return `/leads/${companyId}?create=${createState}`;
 }

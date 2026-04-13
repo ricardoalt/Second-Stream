@@ -9,7 +9,7 @@ const baseData: AddClientFormData = {
 	sector: "manufacturing_industrial",
 	subsector: "metal_fabrication",
 	customerType: "generator",
-	accountStatus: "prospect",
+	accountStatus: "lead",
 	companyNotes: "",
 	contactName: "Avery",
 	contactTitle: "Plant Manager",
@@ -43,7 +43,7 @@ describe("add client submit handoff integration", () => {
 			createLocation: createLocation as never,
 		});
 
-		expect(result.handoffUrl).toBe("/clients/company-1?create=success");
+		expect(result.handoffUrl).toBe("/leads/company-1?create=success");
 
 		const createState = getCreateStateFromHandoffUrl(result.handoffUrl);
 		const markup = renderToStaticMarkup(
@@ -71,7 +71,7 @@ describe("add client submit handoff integration", () => {
 			createLocation: createLocation as never,
 		});
 
-		expect(result.handoffUrl).toBe("/clients/company-1?create=partial-contact");
+		expect(result.handoffUrl).toBe("/leads/company-1?create=partial-contact");
 		expect(createLocation).not.toHaveBeenCalled();
 
 		const createState = getCreateStateFromHandoffUrl(result.handoffUrl);
@@ -100,9 +100,7 @@ describe("add client submit handoff integration", () => {
 			createLocation: createLocation as never,
 		});
 
-		expect(result.handoffUrl).toBe(
-			"/clients/company-1?create=partial-location",
-		);
+		expect(result.handoffUrl).toBe("/leads/company-1?create=partial-location");
 		expect(createCompanyContact).toHaveBeenCalledTimes(1);
 		expect(createLocation).toHaveBeenCalledTimes(1);
 

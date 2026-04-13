@@ -2,7 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { Input, Label, ToggleGroup, ToggleGroupItem } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
-type AccountStatus = "active" | "prospect";
+type AccountStatus = "active" | "lead";
 
 export function ClientFieldLabel({
 	required,
@@ -73,7 +73,7 @@ export function AccountStatusToggle({
 			type="single"
 			value={value}
 			onValueChange={(next) => {
-				if (next === "active" || next === "prospect") {
+				if (next === "active" || next === "lead") {
 					onValueChange(next);
 				}
 			}}
@@ -86,16 +86,16 @@ export function AccountStatusToggle({
 			)}
 		>
 			<ToggleGroupItem
+				value="lead"
+				className="flex-1 rounded-md font-semibold data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+			>
+				Lead
+			</ToggleGroupItem>
+			<ToggleGroupItem
 				value="active"
 				className="flex-1 rounded-md font-semibold data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
 			>
 				Active
-			</ToggleGroupItem>
-			<ToggleGroupItem
-				value="prospect"
-				className="flex-1 rounded-md font-semibold data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-			>
-				Prospect
 			</ToggleGroupItem>
 		</ToggleGroup>
 	);

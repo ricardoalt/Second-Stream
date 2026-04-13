@@ -1,16 +1,16 @@
 import { Badge } from "@/components/ui/badge";
 
-export type ClientStatus = "active" | "prospect" | "inactive";
+export type ClientStatus = "active" | "lead" | "inactive";
 
 const statusLabel: Record<ClientStatus, string> = {
 	active: "Active",
-	prospect: "Prospect",
+	lead: "Lead",
 	inactive: "Inactive",
 };
 
 const statusVariant: Record<ClientStatus, "success" | "warning" | "muted"> = {
 	active: "success",
-	prospect: "warning",
+	lead: "warning",
 	inactive: "muted",
 };
 

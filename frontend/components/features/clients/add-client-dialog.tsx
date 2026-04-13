@@ -54,7 +54,7 @@ const DEFAULT_FORM = {
 	sector: "",
 	subsector: "",
 	customerType: "generator" as "buyer" | "generator" | "both",
-	accountStatus: "active" as "active" | "prospect",
+	accountStatus: "lead" as "active" | "lead",
 	companyNotes: "",
 	contactName: "",
 	contactTitle: "",
@@ -344,7 +344,13 @@ export function AddClientDialog({
 														id="add-client-account-status-toggle"
 														value={field.state.value}
 														onValueChange={field.handleChange}
+														disabled
 													/>
+													<p className="text-xs text-muted-foreground">
+														Status is lifecycle-managed. New companies always
+														start as lead and become active after first stream
+														creation.
+													</p>
 												</div>
 											)}
 										</form.Field>

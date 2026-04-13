@@ -83,13 +83,13 @@ class Company(BaseModel):
     account_status: Mapped[str] = mapped_column(
         Enum(
             "active",
-            "prospect",
+            "lead",
             name="account_status",
             validate_strings=True,
             create_type=False,
         ),
         nullable=False,
-        server_default="active",
+        server_default="lead",
         index=True,
     )
 

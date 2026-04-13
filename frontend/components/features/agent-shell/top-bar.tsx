@@ -28,6 +28,7 @@ import type { User as AuthUser } from "@/lib/types/user";
 const pageTitleMap: Record<string, string> = {
 	"/dashboard": "Dashboard",
 	"/streams": "Waste Streams",
+	"/leads": "Lead Portfolio",
 	"/clients": "Client Portfolio",
 	"/offers": "Offers Pipeline",
 	"/offers/archive": "Historical Archive",
@@ -50,6 +51,7 @@ function getInitials(name?: string): string {
 
 function getTitle(pathname: string): string {
 	if (pathname.startsWith("/streams/")) return "Stream Workspace";
+	if (pathname.startsWith("/leads/")) return "Lead Profile";
 	if (pathname.startsWith("/clients/")) return "Client Profile";
 	if (pathname.startsWith("/offers/")) return "Offer Detail";
 	return pageTitleMap[pathname] ?? "Workspace";

@@ -142,8 +142,8 @@ function mapAccountStatus(profile: ClientProfile): AccountStatusBadge {
 		return { label: "Active", variant: "success" };
 	}
 
-	if (profile.accountStatus === "prospect") {
-		return { label: "Prospect", variant: "warning" };
+	if (profile.accountStatus === "lead") {
+		return { label: "Lead", variant: "warning" };
 	}
 
 	return { label: "Status not set", variant: "muted" };

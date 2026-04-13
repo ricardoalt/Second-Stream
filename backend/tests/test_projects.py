@@ -318,6 +318,38 @@ async def test_create_project_success(client: AsyncClient, db_session, set_curre
 
 
 @pytest.mark.asyncio
+async def test_create_project_converts_lead_company_to_active(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Lead Conversion", "org-lead-conversion")
+    user = await create_user(
+        db_session,
+        email=f"lead-conversion-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Lead Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Lead Plant"
+    )
+
+    set_current_user(user)
+    response = await client.post(
+        "/api/v1/projects",
+        json={
+            "location_id": str(location.id),
+            "name": "First Stream",
+        },
+    )
+
+    assert response.status_code == 201
+    await db_session.refresh(company)
+    assert company.account_status == "active"
+
+
+@pytest.mark.asyncio
 async def test_create_project_invalid_location(client: AsyncClient, db_session, set_current_user):
     uid = uuid.uuid4().hex[:8]
     org = await create_org(db_session, "Org Invalid Loc", "org-invalid-loc")

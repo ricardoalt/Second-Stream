@@ -28,11 +28,11 @@ describe("client-form-primitives", () => {
 			"aria-label": "Account status",
 		});
 
-		element.props.onValueChange("prospect");
+		element.props.onValueChange("lead");
 		element.props.onValueChange("unexpected");
 
 		expect(onValueChange).toHaveBeenCalledTimes(1);
-		expect(onValueChange).toHaveBeenCalledWith("prospect");
+		expect(onValueChange).toHaveBeenCalledWith("lead");
 		expect(element.props.id).toBe("account-status");
 		expect(element.props["aria-label"]).toBe("Account status");
 	});

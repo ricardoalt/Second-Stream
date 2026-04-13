@@ -50,6 +50,10 @@ def _slow_parse_for_timeout(_: str, __: bytes):
     return []
 
 
+def test_ensure_company_active_after_first_stream_ignores_none() -> None:
+    BulkImportService._ensure_company_active_after_first_stream(None)
+
+
 async def _create_run(
     db_session,
     *,

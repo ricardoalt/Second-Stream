@@ -37,6 +37,28 @@ type CompanyContactPayload = {
 	isPrimary?: boolean;
 };
 
+export function buildCompaniesListUrl(
+	archived?: ArchivedFilter,
+	accountStatus?: "all" | "lead" | "active",
+): string {
+	const params = new URLSearchParams();
+	if (archived) {
+		params.set("archived", archived);
+	}
+	if (accountStatus) {
+		params.set("account_status", accountStatus);
+	}
+	const query = params.toString();
+	return query.length > 0 ? `/companies?${query}` : "/companies";
+}
+
+function buildCompaniesCacheKey(
+	archived?: ArchivedFilter,
+	accountStatus?: "all" | "lead" | "active",
+): string {
+	return `companies:list:${archived ?? "default"}:${accountStatus ?? "all"}`;
+}
+
 function compactContactPayload(data: CompanyContactPayload): JsonBody {
 	const body: JsonBody = {};
 	if (data.name !== undefined) body.name = data.name;
@@ -56,12 +78,16 @@ export const companiesAPI = {
 	/**
 	 * List all companies
 	 */
-	async list(archived?: ArchivedFilter): Promise<CompanySummary[]> {
-		const query = archived ? `?archived=${archived}` : "";
+	async list(
+		archived?: ArchivedFilter,
+		accountStatus?: "all" | "lead" | "active",
+	): Promise<CompanySummary[]> {
+		const url = buildCompaniesListUrl(archived, accountStatus);
+		const cacheKey = buildCompaniesCacheKey(archived, accountStatus);
 		return fetchWithClientDataCache({
-			key: `companies:list:${archived ?? "default"}`,
+			key: cacheKey,
 			ttlMs: COMPANIES_CACHE_TTL_MS,
-			fetcher: () => apiClient.get<CompanySummary[]>(`/companies${query}`),
+			fetcher: () => apiClient.get<CompanySummary[]>(url),
 		});
 	},
 

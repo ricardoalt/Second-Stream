@@ -94,7 +94,7 @@ export function CompanyCombobox({
 
 	// Load companies on mount
 	React.useEffect(() => {
-		loadCompanies();
+		loadCompanies("all");
 	}, [loadCompanies]);
 
 	const selectedCompany = companies.find((c) => c.id === value);
