@@ -393,6 +393,9 @@ export default function AgentStreamsPage() {
 							<StreamsAllTable
 								rows={filteredStreams}
 								onOpenDraft={handleOpenDraft}
+								onOwnerReassigned={() => {
+									void loadStreams({ forceRefresh: true });
+								}}
 							/>
 						) : (
 							<div className="p-6">

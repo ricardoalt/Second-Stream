@@ -7,13 +7,31 @@ import {
 	ChevronRight,
 	Clock,
 	FileWarning,
+	Loader2,
 	MoreHorizontal,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { AgentOwnerCombobox, filterAssignableOwners } from "@/components/features/shared/agent-owner-selector";
 import { AutoTeamAvatar } from "@/components/features/shared/team-avatar";
 import { StatusChip } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
 	Table,
 	TableBody,
@@ -23,12 +41,25 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/lib/contexts/auth-context";
+import { organizationsAPI } from "@/lib/api/organizations";
+import { projectsAPI } from "@/lib/api/projects";
 import { cn } from "@/lib/utils";
+import type { User } from "@/lib/types/user";
 import { isDraftStream, type StreamRow, type StreamStatus } from "./types";
 
 type StreamsAllTableProps = {
 	rows: StreamRow[];
 	onOpenDraft: (id: string) => void;
+	onOwnerReassigned?: () => void;
+};
+
+type AgentReassignDialogState = {
+	projectId: string;
+	streamName: string;
+	currentAgentLabel: string;
+	selectedAgentId: string;
+	hasExplicitOwner: boolean;
+	fallbackCreatorName?: string;
 };
 
 /**
@@ -212,12 +243,169 @@ function AlertBadge({
 	);
 }
 
-export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
+export function StreamsAllTable({
+	rows,
+	onOpenDraft,
+	onOwnerReassigned,
+}: StreamsAllTableProps) {
 	const router = useRouter();
-	const { isOrgAdmin } = useAuth();
+	const { isOrgAdmin, isSuperAdmin, user } = useAuth();
+	const canManageAgentAssignment = isOrgAdmin || isSuperAdmin;
+	const [assignableAgents, setAssignableAgents] = useState<User[]>([]);
+	const [ownersLoaded, setOwnersLoaded] = useState(false);
+	const [openActionsMenuRowId, setOpenActionsMenuRowId] = useState<string | null>(
+		null,
+	);
+	const [dialogState, setDialogState] =
+		useState<AgentReassignDialogState | null>(null);
+	const [isSavingOwner, setIsSavingOwner] = useState(false);
+
+	useEffect(() => {
+		if (!canManageAgentAssignment) {
+			setAssignableAgents([]);
+			setOwnersLoaded(false);
+			return;
+		}
+
+		let cancelled = false;
+		setOwnersLoaded(false);
+		void organizationsAPI
+			.listMyOrgUsers()
+			.then((users) => {
+				if (cancelled) return;
+				setAssignableAgents(filterAssignableOwners(users, user?.id));
+				setOwnersLoaded(true);
+			})
+			.catch(() => {
+				if (cancelled) return;
+				setAssignableAgents([]);
+				setOwnersLoaded(true);
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [canManageAgentAssignment, user?.id]);
+
+	async function handleConfirmReassign() {
+		if (!dialogState?.selectedAgentId || isSavingOwner) {
+			return;
+		}
+
+		setIsSavingOwner(true);
+		try {
+			await projectsAPI.updateProject(dialogState.projectId, {
+				ownerUserId: dialogState.selectedAgentId,
+			});
+			toast.success("Agent updated");
+			setDialogState(null);
+			onOwnerReassigned?.();
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to update agent",
+			);
+		} finally {
+			setIsSavingOwner(false);
+		}
+	}
 
 	return (
-		<Table>
+		<>
+			<Dialog
+				open={dialogState !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setDialogState(null);
+					}
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>
+							{dialogState?.hasExplicitOwner
+								? "Reassign agent"
+								: "Assign agent"}
+						</DialogTitle>
+						<DialogDescription>
+							{dialogState
+								? `Select the agent for ${dialogState.streamName}.`
+								: "Select the agent for this stream."}
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-3">
+						<div className="rounded-md border border-border/60 bg-muted/20 p-3">
+							<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+								Current agent
+							</p>
+							<p className="mt-1 text-sm font-medium text-foreground">
+								{dialogState?.currentAgentLabel ?? "—"}
+							</p>
+							{dialogState && !dialogState.hasExplicitOwner ? (
+								<p className="mt-1 text-xs text-muted-foreground">
+									Defaulted to creator because no explicit assignment exists.
+								</p>
+							) : null}
+							{dialogState?.fallbackCreatorName ? (
+								<p className="mt-1 text-xs text-muted-foreground">
+									Creator: {dialogState.fallbackCreatorName}
+								</p>
+							) : null}
+						</div>
+
+						<AgentOwnerCombobox
+							owners={assignableAgents}
+							selectedOwnerUserId={dialogState?.selectedAgentId ?? ""}
+							onOwnerChange={(value) => {
+								setDialogState((current) =>
+									current
+										? {
+											...current,
+											selectedAgentId: value,
+										}
+									: current,
+								);
+							}}
+							allowClear={false}
+							placeholder={ownersLoaded ? "Select agent" : "Loading agents..."}
+							searchPlaceholder="Search agent by name or email..."
+						/>
+					</div>
+
+					<DialogFooter>
+						<Button
+							variant="ghost"
+							onClick={() => setDialogState(null)}
+							disabled={isSavingOwner}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={() => {
+								void handleConfirmReassign();
+							}}
+							disabled={
+								isSavingOwner ||
+								!dialogState?.selectedAgentId ||
+								!ownersLoaded
+							}
+						>
+							{isSavingOwner ? (
+								<>
+									<Loader2 className="mr-2 size-4 animate-spin" />
+									Saving...
+								</>
+							) : dialogState?.hasExplicitOwner ? (
+								"Reassign"
+							) : (
+								"Assign agent"
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Table>
 			<TableHeader>
 				{/* 
 					No-Line Rule: Usamos border-b sutil solo en header
@@ -295,14 +483,17 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 										{row.client}
 									</span>
 									{/* Owner badge - only visible for org admins */}
-									{isOrgAdmin && row.ownerName && (
+									{canManageAgentAssignment && (row.ownerName || row.creatorName) && (
 										<div className="flex items-center gap-2 mt-1">
-											<AutoTeamAvatar name={row.ownerName} size="sm" />
+											<AutoTeamAvatar
+												name={row.ownerName ?? row.creatorName ?? "Unknown"}
+												size="sm"
+											/>
 											<Badge
 												variant="muted"
 												className="text-[10px] font-normal"
 											>
-												{row.ownerName}
+												{row.ownerName ?? row.creatorName}
 											</Badge>
 										</div>
 									)}
@@ -334,7 +525,18 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 							</TableCell>
 
 							{/* Actions */}
-							<TableCell className="px-6 py-5 text-right">
+							<TableCell
+								className="px-6 py-5 text-right"
+								onClick={(e) => {
+									e.stopPropagation();
+								}}
+								onPointerDown={(e) => {
+									e.stopPropagation();
+								}}
+								onKeyDown={(e) => {
+									e.stopPropagation();
+								}}
+							>
 								<div className="flex items-center justify-end gap-2">
 									{isDraft ? (
 										<Button
@@ -352,18 +554,76 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 										</Button>
 									) : (
 										<>
-											<Button
-												variant="ghost"
-												size="icon"
-												// size-* en lugar de w-* h-*
-												className="size-8 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-												onClick={(e) => {
-													e.stopPropagation();
-													// TODO: Open menu
-												}}
-											>
-												<MoreHorizontal className="size-4" />
-											</Button>
+											{canManageAgentAssignment ? (
+												<DropdownMenu
+													modal={false}
+													open={openActionsMenuRowId === row.id}
+													onOpenChange={(open) => {
+														setOpenActionsMenuRowId(open ? row.id : null);
+													}}
+												>
+													<DropdownMenuTrigger asChild>
+														<Button
+															variant="ghost"
+															size="icon"
+															className="size-8 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+															onClick={(e) => {
+																e.stopPropagation();
+															}}
+															aria-label="Open stream actions"
+														>
+															<MoreHorizontal className="size-4" />
+														</Button>
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end">
+														<DropdownMenuItem
+															onSelect={(e) => {
+																e.stopPropagation();
+																setOpenActionsMenuRowId(null);
+
+																const hasExplicitOwner =
+																	row.hasExplicitOwner ?? false;
+																const currentAgentLabel =
+																	row.ownerName ?? row.creatorName ?? "Unknown";
+																const currentAgent = assignableAgents.find(
+																	(agent) => agent.id === row.ownerUserId,
+																);
+																const fallbackByName = assignableAgents.find(
+																	(agent) =>
+																		`${agent.firstName} ${agent.lastName}`.trim() ===
+																		currentAgentLabel,
+																);
+																const selectedAgentId =
+																	hasExplicitOwner
+																		? currentAgent?.id ?? fallbackByName?.id ?? ""
+																		: "";
+
+																if (ownersLoaded && assignableAgents.length === 0) {
+																	toast.error("No assignable agents available");
+																	return;
+																}
+
+																window.setTimeout(() => {
+																	setDialogState({
+																		projectId: row.id,
+																		streamName: row.name,
+																		currentAgentLabel,
+																		selectedAgentId,
+																		hasExplicitOwner,
+																		...(row.creatorName
+																			? { fallbackCreatorName: row.creatorName }
+																			: {}),
+																	});
+																}, 0);
+															}}
+														>
+															{row.hasExplicitOwner
+																? "Reassign"
+																: "Assign agent"}
+														</DropdownMenuItem>
+													</DropdownMenuContent>
+												</DropdownMenu>
+											) : null}
 											<ChevronRight className="size-4 text-muted-foreground/30 transition-all duration-200 group-hover:text-muted-foreground/60 group-hover:translate-x-0.5" />
 										</>
 									)}
@@ -373,6 +633,7 @@ export function StreamsAllTable({ rows, onOpenDraft }: StreamsAllTableProps) {
 					);
 				})}
 			</TableBody>
-		</Table>
+			</Table>
+		</>
 	);
 }

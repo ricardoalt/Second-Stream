@@ -407,6 +407,12 @@ def _owner_display_name(project: Project, *, can_view_owner: bool) -> str | None
     return full_name or owner.email
 
 
+def _has_explicit_owner_assignment(project: Project) -> bool:
+    project_data = project.project_data if isinstance(project.project_data, dict) else {}
+    value = project_data.get("owner_assignment_explicit")
+    return bool(value)
+
+
 def _queue_priority_for_persisted_row(
     *,
     pending_confirmation: bool,
@@ -641,6 +647,12 @@ async def _build_persisted_dashboard_rows(
                     can_view_owner=can_view_owner,
                 ),
                 owner_user_id=project.user_id,
+                creator_display_name=(
+                    _owner_display_name(project, can_view_owner=can_view_owner)
+                    if not _has_explicit_owner_assignment(project)
+                    else None
+                ),
+                has_explicit_owner=_has_explicit_owner_assignment(project),
                 queue_priority=queue_priority,
                 queue_priority_reason=queue_priority_reason,
                 company_id=resolved_company_id,
@@ -1940,6 +1952,16 @@ async def create_project(
         progress=0,
     )
 
+    payload = (
+        new_project.project_data
+        if isinstance(new_project.project_data, dict)
+        else {}
+    )
+    new_project.project_data = {
+        **payload,
+        "owner_assignment_explicit": project_data.owner_user_id is not None,
+    }
+
     db.add(new_project)
     await db.flush()  # Get ID before applying questionnaire
 
@@ -2039,6 +2061,24 @@ async def update_project(
 
     # Update fields
     update_data = project_data.model_dump(exclude_unset=True, by_alias=False)
+
+    if "owner_user_id" in update_data:
+        resolved_owner_id = await _resolve_project_owner_user_id(
+            db=db,
+            org=org,
+            current_user=current_user,
+            owner_user_id=cast(UUID | None, update_data.get("owner_user_id")),
+        )
+        update_data["user_id"] = resolved_owner_id
+        update_data.pop("owner_user_id", None)
+
+        payload = project.project_data if isinstance(project.project_data, dict) else {}
+        project.project_data = {
+            **payload,
+            "owner_assignment_explicit": True,
+        }
+        flag_modified(project, "project_data")
+
     changed_fields = list(update_data.keys())
 
     for field, value in update_data.items():

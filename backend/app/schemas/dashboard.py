@@ -58,6 +58,8 @@ class PersistedStreamDashboardRow(BaseSchema):
     waste_category_label: str | None = None
     owner_display_name: str | None = None
     owner_user_id: UUID | None = None
+    creator_display_name: str | None = None
+    has_explicit_owner: bool = True
     queue_priority: DashboardQueuePriority = "normal"
     queue_priority_reason: str = "normal"
     company_id: UUID | None = None

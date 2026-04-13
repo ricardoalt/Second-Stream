@@ -45,6 +45,19 @@ export type StreamRow = {
 	 * Owner name - used to show owner badge for org admins
 	 */
 	ownerName?: string;
+	/**
+	 * Owner user id from backend persisted stream projection.
+	 */
+	ownerUserId?: string;
+	/**
+	 * Creator display name, used for fallback owner copy when
+	 * an explicit assignment is missing.
+	 */
+	creatorName?: string;
+	/**
+	 * Explicit ownership flag from backend.
+	 */
+	hasExplicitOwner?: boolean;
 	wasteType: string;
 	volume: string;
 	lastUpdated: string;

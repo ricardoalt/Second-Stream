@@ -91,6 +91,26 @@ describe("/streams runtime hardening", () => {
 		).toBe("Open");
 	});
 
+	it("keeps assign/reassign action inside streams table actions menu", () => {
+		const tableSource = readFileSync(
+			join(
+				process.cwd(),
+				"components",
+				"features",
+				"streams",
+				"streams-all-table.tsx",
+			),
+			"utf8",
+		);
+
+		expect(tableSource.includes("<DropdownMenu")).toBe(true);
+		expect(tableSource.includes("modal={false}")).toBe(true);
+		expect(tableSource.includes("Assign agent")).toBe(true);
+		expect(tableSource.includes("Reassign")).toBe(true);
+		expect(tableSource.includes("assignableAgents[0]?.id")).toBe(false);
+		expect(tableSource.includes("onPointerDown={(e) => {")).toBe(true);
+	});
+
 	it("routes Open Draft behavior to Drafts tab with highlighted row", () => {
 		expect(resolveOpenDraftState("DRAFT-02")).toEqual({
 			activeTab: "drafts",

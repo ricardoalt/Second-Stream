@@ -36,6 +36,7 @@ export type UpdateProjectPayload = JsonObject &
 	Partial<CreateProjectPayload> & {
 		status?: ProjectSummary["status"];
 		progress?: number;
+		ownerUserId?: string;
 	};
 
 export type PipelineStageStats = {

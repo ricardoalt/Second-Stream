@@ -16,6 +16,9 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 const discoveryWizardModule = await import("./discovery-wizard");
 const orchestrationModule = await import("./use-discovery-orchestration");
 const idleViewModule = await import("./views/idle-view");
+const ownerSelectorModule = await import(
+	"@/components/features/shared/agent-owner-selector"
+);
 
 function buildSession(
 	overrides?: Partial<DiscoverySessionResult>,
@@ -1319,19 +1322,19 @@ describe("candidate confirmation flow", () => {
 
 	it("shows Assign Owner only for org-admin or superadmin", () => {
 		expect(
-			idleViewModule.canShowAssignOwnerControl({
+			ownerSelectorModule.canShowAssignOwnerControl({
 				isOrgAdmin: true,
 				isSuperAdmin: false,
 			}),
 		).toBe(true);
 		expect(
-			idleViewModule.canShowAssignOwnerControl({
+			ownerSelectorModule.canShowAssignOwnerControl({
 				isOrgAdmin: false,
 				isSuperAdmin: true,
 			}),
 		).toBe(true);
 		expect(
-			idleViewModule.canShowAssignOwnerControl({
+			ownerSelectorModule.canShowAssignOwnerControl({
 				isOrgAdmin: false,
 				isSuperAdmin: false,
 			}),
@@ -1339,7 +1342,7 @@ describe("candidate confirmation flow", () => {
 	});
 
 	it("filters assignable owners to active org-admin and field-agent excluding current user", () => {
-		const filtered = idleViewModule.filterAssignableOwners(
+		const filtered = ownerSelectorModule.filterAssignableOwners(
 			[
 				{
 					id: "u1",
@@ -1406,10 +1409,10 @@ describe("candidate confirmation flow", () => {
 	});
 
 	it("formats assignable owner role labels", () => {
-		expect(idleViewModule.formatAssignableOwnerRoleLabel("org_admin")).toBe(
+		expect(ownerSelectorModule.formatAssignableOwnerRoleLabel("org_admin")).toBe(
 			"Org Admin",
 		);
-		expect(idleViewModule.formatAssignableOwnerRoleLabel("field_agent")).toBe(
+		expect(ownerSelectorModule.formatAssignableOwnerRoleLabel("field_agent")).toBe(
 			"Field Agent",
 		);
 	});
@@ -1429,8 +1432,8 @@ describe("candidate confirmation flow", () => {
 	});
 
 	it("keeps assign owner popover scroll constrained within the dialog container", () => {
-		expect(idleViewModule.resolveAssignOwnerPopoverMode()).toBe(false);
-		expect(idleViewModule.resolveAssignOwnerCommandListClassName()).toContain(
+		expect(ownerSelectorModule.resolveAssignOwnerPopoverMode()).toBe(false);
+		expect(ownerSelectorModule.resolveAssignOwnerCommandListClassName()).toContain(
 			"overscroll-contain",
 		);
 	});

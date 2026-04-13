@@ -69,6 +69,8 @@ export interface PersistedStreamRow {
 	wasteCategoryLabel: string | null;
 	ownerDisplayName: string | null;
 	ownerUserId: string | null;
+	hasExplicitOwner?: boolean;
+	creatorDisplayName?: string | null;
 	queuePriority: QueuePriority;
 	queuePriorityReason: string;
 	companyId: string | null;

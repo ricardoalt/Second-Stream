@@ -65,6 +65,10 @@ class ProjectUpdate(BaseSchema):
     status: str | None = None
     progress: int | None = Field(None, ge=0, le=100)
     tags: list[str] | None = None
+    owner_user_id: UUID | None = Field(
+        default=None,
+        description="Optional owner override (org admin/superadmin only)",
+    )
 
     class Config:
         json_schema_extra: ClassVar[dict[str, object]] = {

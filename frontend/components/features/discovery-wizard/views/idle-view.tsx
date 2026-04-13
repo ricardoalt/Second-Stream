@@ -2,9 +2,7 @@
 
 import {
 	Building2,
-	Check,
 	CheckCircle2,
-	ChevronsUpDown,
 	FileSpreadsheet,
 	FileText,
 	Image,
@@ -18,23 +16,16 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CreateLocationDialog } from "@/components/features/locations/create-location-dialog";
+import {
+	AgentOwnerCombobox,
+	canShowAssignOwnerControl,
+	filterAssignableOwners,
+	resolveAssignOwnerCommandListClassName,
+	resolveAssignOwnerPopoverMode,
+} from "@/components/features/shared/agent-owner-selector";
 import { CompanyCombobox } from "@/components/features/shared/company-combobox";
 import { LocationCombobox } from "@/components/features/shared/location-combobox";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
 import { organizationsAPI } from "@/lib/api/organizations";
 import { projectsAPI } from "@/lib/api/projects";
 import { useAuth } from "@/lib/contexts";
@@ -42,6 +33,14 @@ import { useLocationStore } from "@/lib/stores/location-store";
 import { useStreamsStore } from "@/lib/stores/streams-store";
 import type { User } from "@/lib/types/user";
 import { cn } from "@/lib/utils";
+
+export {
+	canShowAssignOwnerControl,
+	filterAssignableOwners,
+	formatAssignableOwnerRoleLabel,
+	resolveAssignOwnerCommandListClassName,
+	resolveAssignOwnerPopoverMode,
+} from "@/components/features/shared/agent-owner-selector";
 
 const MAX_FILES = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -96,38 +95,6 @@ const VOICE_WAVE_BARS = [
 	{ id: "bar-7", height: 5 },
 ] as const;
 
-export function canShowAssignOwnerControl(params: {
-	isOrgAdmin: boolean;
-	isSuperAdmin: boolean;
-}): boolean {
-	return params.isOrgAdmin || params.isSuperAdmin;
-}
-
-export function filterAssignableOwners(
-	users: User[],
-	currentUserId?: string,
-): User[] {
-	return users.filter(
-		(candidate) =>
-			candidate.isActive &&
-			(candidate.role === "org_admin" || candidate.role === "field_agent") &&
-			candidate.id !== currentUserId,
-	);
-}
-
-export function formatAssignableOwnerRoleLabel(role: User["role"]): string {
-	if (role === "org_admin") {
-		return "Org Admin";
-	}
-	if (role === "field_agent") {
-		return "Field Agent";
-	}
-	return role
-		.split("_")
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join(" ");
-}
-
 export function resolveAssignedOwnerUserId(
 	selectedOwnerUserId?: string,
 ): string | undefined {
@@ -139,125 +106,6 @@ export function resolveAssignedOwnerUserId(
 
 export function resolveDiscoveryWizardComboboxPortalMode(): boolean {
 	return false;
-}
-
-export function resolveAssignOwnerPopoverMode(): boolean {
-	return false;
-}
-
-export function resolveAssignOwnerCommandListClassName(): string {
-	return "max-h-[calc(var(--radix-popover-content-available-height)-2.5rem)] overscroll-contain";
-}
-
-function getAssignableOwnerSearchText(owner: User): string {
-	return [owner.firstName, owner.lastName, owner.email]
-		.filter(Boolean)
-		.join(" ")
-		.toLowerCase();
-}
-
-function OwnerOptionContent({
-	owner,
-	showEmail = false,
-}: {
-	owner: User;
-	showEmail?: boolean;
-}) {
-	return (
-		<div className="flex min-w-0 items-center gap-2">
-			<div className="min-w-0">
-				<div className="truncate">
-					{owner.firstName} {owner.lastName}
-				</div>
-				{showEmail ? (
-					<div className="truncate text-xs text-muted-foreground">
-						{owner.email}
-					</div>
-				) : null}
-			</div>
-			<Badge
-				variant="outline"
-				className="ml-auto shrink-0 px-1.5 py-0 text-[10px]"
-			>
-				{formatAssignableOwnerRoleLabel(owner.role)}
-			</Badge>
-		</div>
-	);
-}
-
-function AssignOwnerCombobox({
-	owners,
-	selectedOwnerUserId,
-	onOwnerChange,
-}: {
-	owners: User[];
-	selectedOwnerUserId: string;
-	onOwnerChange: (value: string) => void;
-}) {
-	const [open, setOpen] = useState(false);
-	const selectedOwner = owners.find(
-		(owner) => owner.id === selectedOwnerUserId,
-	);
-
-	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<Button
-					type="button"
-					variant="outline"
-					role="combobox"
-					aria-expanded={open}
-					className={cn(
-						"h-10 w-full justify-between bg-surface-container-low/60 px-3 font-normal",
-						!selectedOwner && "text-muted-foreground",
-					)}
-				>
-					{selectedOwner ? (
-						<OwnerOptionContent owner={selectedOwner} />
-					) : (
-						<span className="truncate">Assign Owner</span>
-					)}
-					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent
-				portalled={resolveAssignOwnerPopoverMode()}
-				className="w-[--radix-popover-trigger-width] max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0"
-				align="start"
-			>
-				<Command>
-					<CommandInput placeholder="Search owner by name or email..." />
-					<CommandList className={resolveAssignOwnerCommandListClassName()}>
-						<CommandEmpty>No matching owners found.</CommandEmpty>
-						<CommandGroup>
-							{owners.map((owner) => (
-								<CommandItem
-									key={owner.id}
-									value={getAssignableOwnerSearchText(owner)}
-									onSelect={() => {
-										onOwnerChange(
-											owner.id === selectedOwnerUserId ? "" : owner.id,
-										);
-										setOpen(false);
-									}}
-								>
-									<Check
-										className={cn(
-											"mr-2 h-4 w-4 shrink-0",
-											selectedOwnerUserId === owner.id
-												? "opacity-100"
-												: "opacity-0",
-										)}
-									/>
-									<OwnerOptionContent owner={owner} showEmail />
-								</CommandItem>
-							))}
-						</CommandGroup>
-					</CommandList>
-				</Command>
-			</PopoverContent>
-		</Popover>
-	);
 }
 
 function fileIcon(name: string) {
@@ -886,11 +734,13 @@ export function IdleView({
 										<span className="block text-xs font-semibold uppercase tracking-[0.08em] text-primary">
 											Assign Owner
 										</span>
-										<AssignOwnerCombobox
-											owners={assignableOwners}
-											selectedOwnerUserId={selectedOwnerUserId}
-											onOwnerChange={setSelectedOwnerUserId}
-										/>
+									<AgentOwnerCombobox
+										owners={assignableOwners}
+										selectedOwnerUserId={selectedOwnerUserId}
+										onOwnerChange={setSelectedOwnerUserId}
+										placeholder="Assign agent"
+										searchPlaceholder="Search agent by name or email..."
+									/>
 									</div>
 								</section>
 							) : null}
@@ -1081,11 +931,13 @@ export function IdleView({
 										<h3 className="text-base font-semibold text-foreground">
 											Assign Owner
 										</h3>
-										<AssignOwnerCombobox
-											owners={assignableOwners}
-											selectedOwnerUserId={selectedOwnerUserId}
-											onOwnerChange={setSelectedOwnerUserId}
-										/>
+									<AgentOwnerCombobox
+										owners={assignableOwners}
+										selectedOwnerUserId={selectedOwnerUserId}
+										onOwnerChange={setSelectedOwnerUserId}
+										placeholder="Assign agent"
+										searchPlaceholder="Search agent by name or email..."
+									/>
 									</div>
 								</section>
 							) : null}

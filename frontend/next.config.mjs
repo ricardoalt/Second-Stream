@@ -6,6 +6,9 @@ const nextConfig = {
 	// Production optimizations
 	compress: true,
 
+	// Transpile packages that need bundling (e.g., legacy CJS modules)
+	transpilePackages: ["zxcvbn"],
+
 	// Optimize barrel imports for faster builds and cold starts
 	// These libraries have many exports - this transforms barrel imports to direct imports
 	experimental: {

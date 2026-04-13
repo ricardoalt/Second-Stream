@@ -657,6 +657,9 @@ export default function ClientDetailPage() {
 									<StreamsAllTable
 										rows={companyAllStreams}
 										onOpenDraft={handleOpenDraft}
+										onOwnerReassigned={() => {
+											void loadStreams({ forceRefresh: true });
+										}}
 									/>
 								</div>
 							)}

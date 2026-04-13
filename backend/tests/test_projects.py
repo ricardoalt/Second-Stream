@@ -616,6 +616,145 @@ async def test_update_project(client: AsyncClient, db_session, set_current_user)
 
 
 @pytest.mark.asyncio
+async def test_update_project_owner_override_for_org_admin_sets_explicit_assignment(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Update Owner Override", "org-update-owner-override")
+    org_admin = await create_user(
+        db_session,
+        email=f"update-owner-admin-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    field_agent = await create_user(
+        db_session,
+        email=f"update-owner-agent-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Update Owner Co")
+    location = await create_location(
+        db_session, org_id=org.id, company_id=company.id, name="Update Owner Loc"
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=org_admin.id,
+        location_id=location.id,
+        name="Owner Reassign Target",
+        project_data={"owner_assignment_explicit": False},
+    )
+
+    set_current_user(org_admin)
+    response = await client.patch(
+        f"/api/v1/projects/{project.id}",
+        json={"owner_user_id": str(field_agent.id)},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["userId"] == str(field_agent.id)
+
+    refreshed = await db_session.get(Project, project.id)
+    assert refreshed is not None
+    payload = refreshed.project_data if isinstance(refreshed.project_data, dict) else {}
+    assert payload.get("owner_assignment_explicit") is True
+
+
+@pytest.mark.asyncio
+async def test_update_project_owner_override_forbidden_for_field_agent(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(db_session, "Org Update Owner Forbidden", "org-update-owner-forbidden")
+    owner = await create_user(
+        db_session,
+        email=f"update-owner-owner-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    candidate = await create_user(
+        db_session,
+        email=f"update-owner-candidate-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Update Owner Forbidden Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Update Owner Forbidden Loc",
+    )
+    project = await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=owner.id,
+        location_id=location.id,
+        name="Owner Forbidden Target",
+        project_data={"owner_assignment_explicit": False},
+    )
+
+    set_current_user(owner)
+    response = await client.patch(
+        f"/api/v1/projects/{project.id}",
+        json={"owner_user_id": str(candidate.id)},
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_dashboard_persisted_row_marks_default_owner_as_not_explicit(
+    client: AsyncClient, db_session, set_current_user
+):
+    uid = uuid.uuid4().hex[:8]
+    org = await create_org(
+        db_session,
+        "Org Dashboard Owner Explicit",
+        "org-dashboard-owner-explicit",
+    )
+    user = await create_user(
+        db_session,
+        email=f"dashboard-owner-explicit-{uid}@example.com",
+        org_id=org.id,
+        role=UserRole.ORG_ADMIN.value,
+        is_superuser=False,
+    )
+    company = await create_company(db_session, org_id=org.id, name="Owner Explicit Co")
+    location = await create_location(
+        db_session,
+        org_id=org.id,
+        company_id=company.id,
+        name="Owner Explicit Loc",
+    )
+    await create_project(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        location_id=location.id,
+        name="Owner Explicit Stream",
+        project_data={"owner_assignment_explicit": False},
+    )
+
+    set_current_user(user)
+    response = await client.get("/api/v1/projects/dashboard?bucket=total&size=20")
+
+    assert response.status_code == 200
+    items = response.json().get("items", [])
+    persisted = [item for item in items if item.get("kind") == "persisted_stream"]
+    assert len(persisted) == 1
+    row = persisted[0]
+    assert row["hasExplicitOwner"] is False
+    assert isinstance(row.get("creatorDisplayName"), str)
+
+
+@pytest.mark.asyncio
 async def test_dashboard_counts_and_rows_are_consistent(
     client: AsyncClient, db_session, set_current_user
 ):
