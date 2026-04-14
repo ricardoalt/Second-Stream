@@ -2,8 +2,6 @@
 
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useState } from "react";
-import type { User } from "@/lib/types/user";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +12,13 @@ import {
 	CommandItem,
 	CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
+import type { User } from "@/lib/types/user";
+import { cn } from "@/lib/utils";
 
 export function canShowAssignOwnerControl(params: {
 	isOrgAdmin: boolean;
@@ -108,7 +112,9 @@ export function AgentOwnerCombobox({
 	allowClear?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
-	const selectedOwner = owners.find((owner) => owner.id === selectedOwnerUserId);
+	const selectedOwner = owners.find(
+		(owner) => owner.id === selectedOwnerUserId,
+	);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>

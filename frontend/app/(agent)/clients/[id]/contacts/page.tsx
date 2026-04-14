@@ -16,7 +16,9 @@ export default function ClientContactsPage(props: {
 			lifecycle="client"
 			loadCompany={(id) => companiesAPI.get(id)}
 			loadLocationSummaries={(id) => locationsAPI.listByCompany(id, "active")}
-			loadLocationDetail={(locationId) => locationsAPI.get(locationId, "active")}
+			loadLocationDetail={(locationId) =>
+				locationsAPI.get(locationId, "active")
+			}
 		/>
 	);
 }

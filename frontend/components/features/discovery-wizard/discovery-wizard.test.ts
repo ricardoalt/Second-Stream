@@ -1409,12 +1409,12 @@ describe("candidate confirmation flow", () => {
 	});
 
 	it("formats assignable owner role labels", () => {
-		expect(ownerSelectorModule.formatAssignableOwnerRoleLabel("org_admin")).toBe(
-			"Org Admin",
-		);
-		expect(ownerSelectorModule.formatAssignableOwnerRoleLabel("field_agent")).toBe(
-			"Field Agent",
-		);
+		expect(
+			ownerSelectorModule.formatAssignableOwnerRoleLabel("org_admin"),
+		).toBe("Org Admin");
+		expect(
+			ownerSelectorModule.formatAssignableOwnerRoleLabel("field_agent"),
+		).toBe("Field Agent");
 	});
 
 	it("resolves owner payload for quick entry fallback", () => {
@@ -1433,9 +1433,9 @@ describe("candidate confirmation flow", () => {
 
 	it("keeps assign owner popover scroll constrained within the dialog container", () => {
 		expect(ownerSelectorModule.resolveAssignOwnerPopoverMode()).toBe(false);
-		expect(ownerSelectorModule.resolveAssignOwnerCommandListClassName()).toContain(
-			"overscroll-contain",
-		);
+		expect(
+			ownerSelectorModule.resolveAssignOwnerCommandListClassName(),
+		).toContain("overscroll-contain");
 	});
 });
 

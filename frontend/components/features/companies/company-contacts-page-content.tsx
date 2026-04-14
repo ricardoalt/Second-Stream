@@ -8,12 +8,12 @@ import { LocationContactsManagerDialog } from "@/components/features/locations/l
 import { MetaBadge, PageHeader, PageShell } from "@/components/patterns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-	getCompanySubpageBreadcrumbs,
-	type CompanyLifecycle,
-} from "@/lib/routing/company-subpage-context";
 import { PERMISSIONS } from "@/lib/authz/permissions";
 import { useAuth } from "@/lib/contexts/auth-context";
+import {
+	type CompanyLifecycle,
+	getCompanySubpageBreadcrumbs,
+} from "@/lib/routing/company-subpage-context";
 import type { CompanyDetail, LocationDetail } from "@/lib/types/company";
 
 type CompanyContactsPageContentProps = {
@@ -101,7 +101,7 @@ export function CompanyContactsPageContent({
 	const breadcrumbs = getCompanySubpageBreadcrumbs({
 		lifecycle,
 		companyId,
-		companyName: company?.name,
+		companyName: company?.name ?? null,
 		section: "contacts",
 	});
 

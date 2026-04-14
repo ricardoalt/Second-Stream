@@ -10,8 +10,8 @@ import { PageHeader } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-	getCompanySubpageBreadcrumbs,
 	type CompanyLifecycle,
+	getCompanySubpageBreadcrumbs,
 } from "@/lib/routing/company-subpage-context";
 import { ADDRESS_TYPE_LABELS, type LocationSummary } from "@/lib/types/company";
 
@@ -115,7 +115,7 @@ export function CompanyLocationsPageContent({
 	const breadcrumbs = getCompanySubpageBreadcrumbs({
 		lifecycle,
 		companyId,
-		companyName,
+		companyName: companyName ?? null,
 		section: "locations",
 	});
 
@@ -174,8 +174,8 @@ export function CompanyLocationsPageContent({
 									No locations recorded
 								</h2>
 								<p className="text-sm text-muted-foreground">
-									Add the first physical site for this company to start
-									tracking projects and assigning local contacts.
+									Add the first physical site for this company to start tracking
+									projects and assigning local contacts.
 								</p>
 							</div>
 							<CreateLocationDialog

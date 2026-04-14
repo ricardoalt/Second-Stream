@@ -4,9 +4,7 @@ import { getTopBarTitle } from "@/lib/routing/page-title";
 describe("getTopBarTitle", () => {
 	it("returns lead-scoped titles for lead subpages", () => {
 		expect(getTopBarTitle("/leads/company-7/contacts")).toBe("Lead Contacts");
-		expect(getTopBarTitle("/leads/company-7/locations")).toBe(
-			"Lead Locations",
-		);
+		expect(getTopBarTitle("/leads/company-7/locations")).toBe("Lead Locations");
 	});
 
 	it("returns client-scoped titles for client subpages", () => {
