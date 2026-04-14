@@ -5,7 +5,7 @@ import { CompanyLocationsPageContent } from "@/components/features/companies/com
 import { companiesAPI } from "@/lib/api/companies";
 import { useLocationStore } from "@/lib/stores/location-store";
 
-export default function ClientLocationsPage(props: {
+export default function LeadLocationsPage(props: {
 	params: Promise<{ id: string }>;
 }) {
 	const params = use(props.params);
@@ -44,7 +44,7 @@ export default function ClientLocationsPage(props: {
 		<CompanyLocationsPageContent
 			companyId={companyId}
 			companyName={companyName}
-			lifecycle="client"
+			lifecycle="lead"
 			locations={locations}
 			loading={loading}
 			error={error}

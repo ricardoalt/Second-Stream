@@ -9,8 +9,8 @@ import {
 
 const FIELD_AGENT_NAV_ITEMS = [
 	{ href: "/dashboard", label: "Dashboard", icon: Home },
-	{ href: "/leads", label: "Leads", icon: UserRoundSearch },
 	{ href: "/streams", label: "Streams", icon: Layers },
+	{ href: "/leads", label: "Leads", icon: UserRoundSearch },
 	{ href: "/clients", label: "Clients", icon: Building2 },
 	{ href: "/offers", label: "Offers", icon: FileText },
 ];

@@ -23,21 +23,8 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { getTopBarTitle } from "@/lib/routing/page-title";
 import type { User as AuthUser } from "@/lib/types/user";
-
-const pageTitleMap: Record<string, string> = {
-	"/dashboard": "Dashboard",
-	"/streams": "Waste Streams",
-	"/leads": "Lead Portfolio",
-	"/clients": "Client Portfolio",
-	"/offers": "Offers Pipeline",
-	"/offers/archive": "Historical Archive",
-	"/settings/team": "Team Management",
-	"/admin/organizations": "Organizations",
-	"/admin/users": "Platform Admins",
-	"/admin/feedback": "User Feedback",
-	"/admin/proposal-ratings": "Proposal Ratings",
-};
 
 function getInitials(name?: string): string {
 	if (!name) return "";
@@ -49,14 +36,6 @@ function getInitials(name?: string): string {
 	return `${first[0]}${second[0] ?? ""}`.toUpperCase();
 }
 
-function getTitle(pathname: string): string {
-	if (pathname.startsWith("/streams/")) return "Stream Workspace";
-	if (pathname.startsWith("/leads/")) return "Lead Profile";
-	if (pathname.startsWith("/clients/")) return "Client Profile";
-	if (pathname.startsWith("/offers/")) return "Offer Detail";
-	return pageTitleMap[pathname] ?? "Workspace";
-}
-
 type TopBarProps = {
 	user: AuthUser | null;
 	onLogout: () => void;
@@ -65,7 +44,7 @@ type TopBarProps = {
 export function TopBar({ user, onLogout }: TopBarProps) {
 	const pathname = usePathname();
 	const discoveryWizard = useDiscoveryWizard();
-	const title = getTitle(pathname);
+	const title = getTopBarTitle(pathname);
 	const fullName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim();
 	const email = user?.email ?? "";
 

@@ -4,7 +4,7 @@ import { use } from "react";
 import { CompanyContactsPageContent } from "@/components/features/companies/company-contacts-page-content";
 import { companiesAPI, locationsAPI } from "@/lib/api/companies";
 
-export default function ClientContactsPage(props: {
+export default function LeadContactsPage(props: {
 	params: Promise<{ id: string }>;
 }) {
 	const params = use(props.params);
@@ -13,7 +13,7 @@ export default function ClientContactsPage(props: {
 	return (
 		<CompanyContactsPageContent
 			companyId={companyId}
-			lifecycle="client"
+			lifecycle="lead"
 			loadCompany={(id) => companiesAPI.get(id)}
 			loadLocationSummaries={(id) => locationsAPI.listByCompany(id, "active")}
 			loadLocationDetail={(locationId) => locationsAPI.get(locationId, "active")}

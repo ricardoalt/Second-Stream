@@ -183,7 +183,7 @@ export default function LeadDetailPage() {
 						</Pressable>
 						<Pressable>
 							<Button variant="outline" size="sm" asChild>
-								<Link href={`/clients/${companyId}/locations`}>
+								<Link href={`/leads/${companyId}/locations`}>
 									<MapPin className="mr-1.5 h-4 w-4" />
 									Locations
 								</Link>
@@ -191,7 +191,7 @@ export default function LeadDetailPage() {
 						</Pressable>
 						<Pressable>
 							<Button variant="outline" size="sm" asChild>
-								<Link href={`/clients/${companyId}/contacts`}>
+								<Link href={`/leads/${companyId}/contacts`}>
 									<Users className="mr-1.5 h-4 w-4" />
 									Contacts
 								</Link>
