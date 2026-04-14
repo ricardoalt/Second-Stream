@@ -91,7 +91,7 @@ describe("/streams runtime hardening", () => {
 		).toBe("Open");
 	});
 
-	it("keeps assign/reassign action inside streams table actions menu", () => {
+	it("renders assign/reassign inline in Agent column instead of Actions menu", () => {
 		const tableSource = readFileSync(
 			join(
 				process.cwd(),
@@ -103,12 +103,16 @@ describe("/streams runtime hardening", () => {
 			"utf8",
 		);
 
-		expect(tableSource.includes("<DropdownMenu")).toBe(true);
-		expect(tableSource.includes("modal={false}")).toBe(true);
+		expect(tableSource.includes("<DropdownMenu")).toBe(false);
+		expect(
+			tableSource.includes("Owner badge - only visible for org admins"),
+		).toBe(false);
+		expect(tableSource.includes("Agent")).toBe(true);
+		expect(tableSource.includes("Creator default")).toBe(true);
 		expect(tableSource.includes("Assign agent")).toBe(true);
 		expect(tableSource.includes("Reassign")).toBe(true);
-		expect(tableSource.includes("assignableAgents[0]?.id")).toBe(false);
-		expect(tableSource.includes("onPointerDown={(e) => {")).toBe(true);
+		expect(tableSource.includes("openAgentAssignmentDialog(row)")).toBe(true);
+		expect(tableSource.includes("event.stopPropagation()")).toBe(true);
 	});
 
 	it("routes Open Draft behavior to Drafts tab with highlighted row", () => {

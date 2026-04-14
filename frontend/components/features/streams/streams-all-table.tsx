@@ -3,20 +3,23 @@
 import { motion } from "framer-motion";
 import {
 	AlertTriangle,
+	ArrowRightLeft,
 	CheckCircle2,
 	ChevronRight,
 	Clock,
 	FileWarning,
 	Loader2,
-	MoreHorizontal,
+	UserPlus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { AgentOwnerCombobox, filterAssignableOwners } from "@/components/features/shared/agent-owner-selector";
+import {
+	AgentOwnerCombobox,
+	filterAssignableOwners,
+} from "@/components/features/shared/agent-owner-selector";
 import { AutoTeamAvatar } from "@/components/features/shared/team-avatar";
 import { StatusChip } from "@/components/patterns";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -27,12 +30,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
 	Table,
 	TableBody,
 	TableCell,
@@ -40,11 +37,16 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { useAuth } from "@/lib/contexts/auth-context";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { organizationsAPI } from "@/lib/api/organizations";
 import { projectsAPI } from "@/lib/api/projects";
-import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/contexts/auth-context";
 import type { User } from "@/lib/types/user";
+import { cn } from "@/lib/utils";
 import { isDraftStream, type StreamRow, type StreamStatus } from "./types";
 
 type StreamsAllTableProps = {
@@ -253,9 +255,6 @@ export function StreamsAllTable({
 	const canManageAgentAssignment = isOrgAdmin || isSuperAdmin;
 	const [assignableAgents, setAssignableAgents] = useState<User[]>([]);
 	const [ownersLoaded, setOwnersLoaded] = useState(false);
-	const [openActionsMenuRowId, setOpenActionsMenuRowId] = useState<string | null>(
-		null,
-	);
 	const [dialogState, setDialogState] =
 		useState<AgentReassignDialogState | null>(null);
 	const [isSavingOwner, setIsSavingOwner] = useState(false);
@@ -309,6 +308,37 @@ export function StreamsAllTable({
 		}
 	}
 
+	function openAgentAssignmentDialog(row: StreamRow) {
+		const hasExplicitOwner = row.hasExplicitOwner ?? false;
+		const currentAgentLabel = row.ownerName ?? row.creatorName ?? "Unknown";
+		const currentAgent = assignableAgents.find(
+			(agent) => agent.id === row.ownerUserId,
+		);
+		const fallbackByName = assignableAgents.find(
+			(agent) =>
+				`${agent.firstName} ${agent.lastName}`.trim() === currentAgentLabel,
+		);
+		const selectedAgentId = hasExplicitOwner
+			? (currentAgent?.id ?? fallbackByName?.id ?? "")
+			: "";
+
+		if (ownersLoaded && assignableAgents.length === 0) {
+			toast.error("No assignable agents available");
+			return;
+		}
+
+		window.setTimeout(() => {
+			setDialogState({
+				projectId: row.id,
+				streamName: row.name,
+				currentAgentLabel,
+				selectedAgentId,
+				hasExplicitOwner,
+				...(row.creatorName ? { fallbackCreatorName: row.creatorName } : {}),
+			});
+		}, 0);
+	}
+
 	return (
 		<>
 			<Dialog
@@ -360,10 +390,10 @@ export function StreamsAllTable({
 								setDialogState((current) =>
 									current
 										? {
-											...current,
-											selectedAgentId: value,
-										}
-									: current,
+												...current,
+												selectedAgentId: value,
+											}
+										: current,
 								);
 							}}
 							allowClear={false}
@@ -385,9 +415,7 @@ export function StreamsAllTable({
 								void handleConfirmReassign();
 							}}
 							disabled={
-								isSavingOwner ||
-								!dialogState?.selectedAgentId ||
-								!ownersLoaded
+								isSavingOwner || !dialogState?.selectedAgentId || !ownersLoaded
 							}
 						>
 							{isSavingOwner ? (
@@ -406,233 +434,211 @@ export function StreamsAllTable({
 			</Dialog>
 
 			<Table>
-			<TableHeader>
-				{/* 
+				<TableHeader>
+					{/* 
 					No-Line Rule: Usamos border-b sutil solo en header
 					En filas usamos hover:bg para separación visual
 				*/}
-				<TableRow className="border-b border-border/40 hover:bg-transparent">
-					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-						Material &amp; Client
-					</TableHead>
-					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-						Status
-					</TableHead>
-					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-						Volume
-					</TableHead>
-					<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-						Alerts
-					</TableHead>
-					<TableHead className="w-16 px-6 py-4 text-right" />
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				{rows.map((row, index) => {
-					const isDraft = isDraftStream(row);
-					const alertText =
-						row.status === "missing_info"
-							? row.missingFields?.[0]
-								? `CRITICAL: ${row.missingFields[0]} required`
-								: "CRITICAL: SDS required"
-							: undefined;
+					<TableRow className="border-b border-border/40 hover:bg-transparent">
+						<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+							Material &amp; Client
+						</TableHead>
+						<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+							Agent
+						</TableHead>
+						<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+							Status
+						</TableHead>
+						<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+							Volume
+						</TableHead>
+						<TableHead className="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+							Alerts
+						</TableHead>
+						<TableHead className="w-16 px-6 py-4 text-right" />
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{rows.map((row, index) => {
+						const isDraft = isDraftStream(row);
+						const alertText =
+							row.status === "missing_info"
+								? row.missingFields?.[0]
+									? `CRITICAL: ${row.missingFields[0]} required`
+									: "CRITICAL: SDS required"
+								: undefined;
 
-					function handleRowClick() {
-						if (isDraft) {
-							onOpenDraft(row.id);
-						} else {
-							router.push(`/streams/${row.id}`);
+						function handleRowClick() {
+							if (isDraft) {
+								onOpenDraft(row.id);
+							} else {
+								router.push(`/streams/${row.id}`);
+							}
 						}
-					}
 
-					return (
-						<motion.tr
-							key={row.id}
-							initial={{ opacity: 0, y: 4 }}
-							animate={{ opacity: 1, y: 0 }}
-							transition={{
-								duration: 0.2,
-								delay: index * 0.03,
-								ease: [0.25, 0.1, 0.25, 1],
-							}}
-							whileTap={{ scale: 0.998 }}
-							onClick={handleRowClick}
-							className={cn(
-								// No-Line Rule: Sin bordes entre filas
-								// Usamos hover:bg para separación visual
-								"group cursor-pointer transition-all duration-200 ease-out",
-								"hover:bg-muted/30",
-								"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-							)}
-							tabIndex={0}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									handleRowClick();
-								}
-							}}
-						>
-							{/* Material & Client */}
-							<TableCell className="px-6 py-5">
-								{/* gap en lugar de space-y */}
-								<div className="flex flex-col gap-1.5">
-									<span className="text-sm font-semibold text-foreground transition-colors duration-200 group-hover:text-primary">
-										{row.name}
-									</span>
-									<span className="text-xs text-muted-foreground">
-										{row.client}
-									</span>
-									{/* Owner badge - only visible for org admins */}
-									{canManageAgentAssignment && (row.ownerName || row.creatorName) && (
-										<div className="flex items-center gap-2 mt-1">
+						return (
+							<motion.tr
+								key={row.id}
+								initial={{ opacity: 0, y: 4 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{
+									duration: 0.2,
+									delay: index * 0.03,
+									ease: [0.25, 0.1, 0.25, 1],
+								}}
+								whileTap={{ scale: 0.998 }}
+								onClick={handleRowClick}
+								className={cn(
+									// No-Line Rule: Sin bordes entre filas
+									// Usamos hover:bg para separación visual
+									"group cursor-pointer transition-all duration-200 ease-out",
+									"hover:bg-muted/30",
+									"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+								)}
+								tabIndex={0}
+								onKeyDown={(e) => {
+									if (e.key === "Enter" || e.key === " ") {
+										e.preventDefault();
+										handleRowClick();
+									}
+								}}
+							>
+								{/* Material & Client */}
+								<TableCell className="px-6 py-5">
+									{/* gap en lugar de space-y */}
+									<div className="flex flex-col gap-1.5">
+										<span className="text-sm font-semibold text-foreground transition-colors duration-200 group-hover:text-primary">
+											{row.name}
+										</span>
+										<span className="text-xs text-muted-foreground">
+											{row.client}
+										</span>
+									</div>
+								</TableCell>
+
+								{/* Agent — Alt C: Compact State + Explicit Minimal Action */}
+								<TableCell className="px-6 py-5">
+									{isDraft ? (
+										<span className="text-sm text-muted-foreground">—</span>
+									) : !row.hasExplicitOwner && canManageAgentAssignment ? (
+										/* Unassigned (admin): ghost assign button */
+										<button
+											type="button"
+											className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-muted-foreground/30 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+											onClick={(e) => {
+												e.stopPropagation();
+												openAgentAssignmentDialog(row);
+											}}
+											onPointerDown={(e) => e.stopPropagation()}
+											onKeyDown={(e) => e.stopPropagation()}
+										>
+											<UserPlus className="size-3.5" />
+											Assign agent
+										</button>
+									) : (
+										/* Assigned (or read-only creator fallback) */
+										<div className="flex items-center gap-2">
 											<AutoTeamAvatar
 												name={row.ownerName ?? row.creatorName ?? "Unknown"}
 												size="sm"
 											/>
-											<Badge
-												variant="muted"
-												className="text-[10px] font-normal"
-											>
-												{row.ownerName ?? row.creatorName}
-											</Badge>
-										</div>
-									)}
-								</div>
-							</TableCell>
-
-							{/* Status */}
-							<TableCell className="px-6 py-5">
-								<StatusPill status={row.status} />
-							</TableCell>
-
-							{/* Volume */}
-							<TableCell className="px-6 py-5">
-								<div className="flex flex-col gap-0.5">
-									<span className="text-sm tabular-nums font-medium text-foreground">
-										{row.volume || "—"}
-									</span>
-									{row.frequency ? (
-										<span className="text-xs text-muted-foreground">
-											/{row.frequency}
-										</span>
-									) : null}
-								</div>
-							</TableCell>
-
-							{/* Alerts */}
-							<TableCell className="px-6 py-5">
-								<AlertBadge status={row.status} alertText={alertText} />
-							</TableCell>
-
-							{/* Actions */}
-							<TableCell
-								className="px-6 py-5 text-right"
-								onClick={(e) => {
-									e.stopPropagation();
-								}}
-								onPointerDown={(e) => {
-									e.stopPropagation();
-								}}
-								onKeyDown={(e) => {
-									e.stopPropagation();
-								}}
-							>
-								<div className="flex items-center justify-end gap-2">
-									{isDraft ? (
-										<Button
-											variant="ghost"
-											size="sm"
-											// Usamos tokens semánticos en lugar de colores hardcodeados
-											className="h-8 gap-1 px-3 text-xs font-medium text-success hover:bg-success/10 hover:text-success"
-											onClick={(e) => {
-												e.stopPropagation();
-												onOpenDraft(row.id);
-											}}
-										>
-											Go Confirm
-											<ChevronRight className="size-4" />
-										</Button>
-									) : (
-										<>
+											<span className="truncate text-sm font-medium text-foreground">
+												{row.ownerName ?? row.creatorName ?? "Unknown"}
+											</span>
+											{!row.hasExplicitOwner ? (
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span className="shrink-0 text-[10px] font-medium leading-none text-muted-foreground/60">
+															c
+														</span>
+													</TooltipTrigger>
+													<TooltipContent side="top">
+														Creator default — no agent explicitly assigned
+													</TooltipContent>
+												</Tooltip>
+											) : null}
 											{canManageAgentAssignment ? (
-												<DropdownMenu
-													modal={false}
-													open={openActionsMenuRowId === row.id}
-													onOpenChange={(open) => {
-														setOpenActionsMenuRowId(open ? row.id : null);
-													}}
-												>
-													<DropdownMenuTrigger asChild>
-														<Button
-															variant="ghost"
-															size="icon"
-															className="size-8 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<button
+															type="button"
+															aria-label={
+																row.hasExplicitOwner
+																	? "Reassign agent"
+																	: "Assign agent"
+															}
+															className="ml-auto shrink-0 rounded-md p-1 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-foreground"
 															onClick={(e) => {
 																e.stopPropagation();
+																openAgentAssignmentDialog(row);
 															}}
-															aria-label="Open stream actions"
+															onPointerDown={(e) => e.stopPropagation()}
+															onKeyDown={(e) => e.stopPropagation()}
 														>
-															<MoreHorizontal className="size-4" />
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem
-															onSelect={(e) => {
-																e.stopPropagation();
-																setOpenActionsMenuRowId(null);
-
-																const hasExplicitOwner =
-																	row.hasExplicitOwner ?? false;
-																const currentAgentLabel =
-																	row.ownerName ?? row.creatorName ?? "Unknown";
-																const currentAgent = assignableAgents.find(
-																	(agent) => agent.id === row.ownerUserId,
-																);
-																const fallbackByName = assignableAgents.find(
-																	(agent) =>
-																		`${agent.firstName} ${agent.lastName}`.trim() ===
-																		currentAgentLabel,
-																);
-																const selectedAgentId =
-																	hasExplicitOwner
-																		? currentAgent?.id ?? fallbackByName?.id ?? ""
-																		: "";
-
-																if (ownersLoaded && assignableAgents.length === 0) {
-																	toast.error("No assignable agents available");
-																	return;
-																}
-
-																window.setTimeout(() => {
-																	setDialogState({
-																		projectId: row.id,
-																		streamName: row.name,
-																		currentAgentLabel,
-																		selectedAgentId,
-																		hasExplicitOwner,
-																		...(row.creatorName
-																			? { fallbackCreatorName: row.creatorName }
-																			: {}),
-																	});
-																}, 0);
-															}}
-														>
-															{row.hasExplicitOwner
-																? "Reassign"
-																: "Assign agent"}
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
+															<ArrowRightLeft className="size-3.5" />
+														</button>
+													</TooltipTrigger>
+													<TooltipContent side="top">
+														{row.hasExplicitOwner
+															? "Reassign agent"
+															: "Assign agent"}
+													</TooltipContent>
+												</Tooltip>
 											) : null}
-											<ChevronRight className="size-4 text-muted-foreground/30 transition-all duration-200 group-hover:text-muted-foreground/60 group-hover:translate-x-0.5" />
-										</>
+										</div>
 									)}
-								</div>
-							</TableCell>
-						</motion.tr>
-					);
-				})}
-			</TableBody>
+								</TableCell>
+
+								{/* Status */}
+								<TableCell className="px-6 py-5">
+									<StatusPill status={row.status} />
+								</TableCell>
+
+								{/* Volume */}
+								<TableCell className="px-6 py-5">
+									<div className="flex flex-col gap-0.5">
+										<span className="text-sm tabular-nums font-medium text-foreground">
+											{row.volume || "—"}
+										</span>
+										{row.frequency ? (
+											<span className="text-xs text-muted-foreground">
+												/{row.frequency}
+											</span>
+										) : null}
+									</div>
+								</TableCell>
+
+								{/* Alerts */}
+								<TableCell className="px-6 py-5">
+									<AlertBadge status={row.status} alertText={alertText} />
+								</TableCell>
+
+								{/* Actions */}
+								<TableCell className="px-6 py-5 text-right">
+									<div className="flex items-center justify-end gap-2">
+										{isDraft ? (
+											<Button
+												variant="ghost"
+												size="sm"
+												// Usamos tokens semánticos en lugar de colores hardcodeados
+												className="h-8 gap-1 px-3 text-xs font-medium text-success hover:bg-success/10 hover:text-success"
+												onClick={(e) => {
+													e.stopPropagation();
+													onOpenDraft(row.id);
+												}}
+											>
+												Go Confirm
+												<ChevronRight className="size-4" />
+											</Button>
+										) : (
+											<ChevronRight className="size-4 text-muted-foreground/30 transition-all duration-200 group-hover:text-muted-foreground/60 group-hover:translate-x-0.5" />
+										)}
+									</div>
+								</TableCell>
+							</motion.tr>
+						);
+					})}
+				</TableBody>
 			</Table>
 		</>
 	);
