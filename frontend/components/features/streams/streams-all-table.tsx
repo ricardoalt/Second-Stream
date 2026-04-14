@@ -3,13 +3,11 @@
 import { motion } from "framer-motion";
 import {
 	AlertTriangle,
-	ArrowRightLeft,
 	CheckCircle2,
 	ChevronRight,
 	Clock,
 	FileWarning,
 	Loader2,
-	UserPlus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -37,11 +35,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { organizationsAPI } from "@/lib/api/organizations";
 import { projectsAPI } from "@/lib/api/projects";
 import { useAuth } from "@/lib/contexts/auth-context";
@@ -516,28 +509,13 @@ export function StreamsAllTable({
 									</div>
 								</TableCell>
 
-								{/* Agent — Alt C: Compact State + Explicit Minimal Action */}
+								{/* Agent */}
 								<TableCell className="px-6 py-5">
 									{isDraft ? (
 										<span className="text-sm text-muted-foreground">—</span>
-									) : !row.hasExplicitOwner && canManageAgentAssignment ? (
-										/* Unassigned (admin): ghost assign button */
-										<button
-											type="button"
-											className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-muted-foreground/30 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
-											onClick={(e) => {
-												e.stopPropagation();
-												openAgentAssignmentDialog(row);
-											}}
-											onPointerDown={(e) => e.stopPropagation()}
-											onKeyDown={(e) => e.stopPropagation()}
-										>
-											<UserPlus className="size-3.5" />
-											Assign agent
-										</button>
 									) : (
-										/* Assigned (or read-only creator fallback) */
 										<div className="flex items-center gap-2">
+											{/* LEFT: always avatar + name + optional creator label */}
 											<AutoTeamAvatar
 												name={row.ownerName ?? row.creatorName ?? "Unknown"}
 												size="sm"
@@ -546,44 +524,24 @@ export function StreamsAllTable({
 												{row.ownerName ?? row.creatorName ?? "Unknown"}
 											</span>
 											{!row.hasExplicitOwner ? (
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<span className="shrink-0 text-[10px] font-medium leading-none text-muted-foreground/60">
-															c
-														</span>
-													</TooltipTrigger>
-													<TooltipContent side="top">
-														Creator default — no agent explicitly assigned
-													</TooltipContent>
-												</Tooltip>
+												<span className="shrink-0 text-xs text-muted-foreground">
+													· Creator
+												</span>
 											) : null}
+											{/* RIGHT: admin-only text action, pushed to the right */}
 											{canManageAgentAssignment ? (
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<button
-															type="button"
-															aria-label={
-																row.hasExplicitOwner
-																	? "Reassign agent"
-																	: "Assign agent"
-															}
-															className="ml-auto shrink-0 rounded-md p-1 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-foreground"
-															onClick={(e) => {
-																e.stopPropagation();
-																openAgentAssignmentDialog(row);
-															}}
-															onPointerDown={(e) => e.stopPropagation()}
-															onKeyDown={(e) => e.stopPropagation()}
-														>
-															<ArrowRightLeft className="size-3.5" />
-														</button>
-													</TooltipTrigger>
-													<TooltipContent side="top">
-														{row.hasExplicitOwner
-															? "Reassign agent"
-															: "Assign agent"}
-													</TooltipContent>
-												</Tooltip>
+												<button
+													type="button"
+													className="ml-4 shrink-0 text-xs text-muted-foreground transition-colors hover:text-primary hover:underline decoration-primary/50 underline-offset-2"
+													onClick={(e) => {
+														e.stopPropagation();
+														openAgentAssignmentDialog(row);
+													}}
+													onPointerDown={(e) => e.stopPropagation()}
+													onKeyDown={(e) => e.stopPropagation()}
+												>
+													{row.hasExplicitOwner ? "Reassign" : "Assign"}
+												</button>
 											) : null}
 										</div>
 									)}
