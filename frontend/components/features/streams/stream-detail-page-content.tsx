@@ -1,10 +1,20 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, FolderOpen, Users } from "lucide-react";
+import {
+	ArrowLeft,
+	ArrowRight,
+	Check,
+	ChevronsUpDown,
+	FolderOpen,
+	Pencil,
+	Users,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
+import { AutoTeamAvatar } from "@/components/features/shared/team-avatar";
 import { StreamPhaseStepper } from "@/components/features/streams/stream-phase-stepper";
 import { StreamQuickCaptureCard } from "@/components/features/streams/stream-quick-capture-card";
 import { StreamQuickCaptureModal } from "@/components/features/streams/stream-quick-capture-modal";
@@ -13,24 +23,41 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import {
 	STREAM_WORKSPACE_PHASES,
 	STREAM_WORKSPACE_QUESTIONS,
 	STREAM_WORKSPACE_QUESTIONS_BY_PHASE,
 } from "@/config/stream-questionnaire";
+import { organizationsAPI } from "@/lib/api/organizations";
+import { projectsAPI } from "@/lib/api/projects";
 import { workspaceAPI } from "@/lib/api/workspace";
+import { useAuth } from "@/lib/contexts/auth-context";
 import {
 	useWorkspaceActions,
 	useWorkspaceError,
 	useWorkspaceLoading,
 	useWorkspaceStore,
 } from "@/lib/stores/workspace-store";
+import type { User } from "@/lib/types/user";
 import type {
 	WorkspaceQuestionId,
 	WorkspaceQuickCaptureStatus,
@@ -38,6 +65,125 @@ import type {
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/utils/logger";
 import type { StreamPhase } from "./types";
+
+// Helper functions for owner assignment (from agent-owner-selector)
+function canShowAssignOwnerControl(params: {
+	isOrgAdmin: boolean;
+	isSuperAdmin: boolean;
+}): boolean {
+	return params.isOrgAdmin || params.isSuperAdmin;
+}
+
+function filterAssignableOwners(users: User[], currentUserId?: string): User[] {
+	return users.filter(
+		(candidate) =>
+			candidate.isActive &&
+			(candidate.role === "org_admin" || candidate.role === "field_agent") &&
+			candidate.id !== currentUserId,
+	);
+}
+
+function formatAssignableOwnerRoleLabel(role: User["role"]): string {
+	if (role === "org_admin") {
+		return "Org Admin";
+	}
+	if (role === "field_agent") {
+		return "Field Agent";
+	}
+	return role
+		.split("_")
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ");
+}
+
+// Inline owner selector component with custom trigger
+function InlineOwnerSelector({
+	owners,
+	selectedOwnerId,
+	onOwnerChange,
+	disabled,
+	triggerButton,
+}: {
+	owners: User[];
+	selectedOwnerId: string | null;
+	onOwnerChange: (value: string) => void;
+	disabled?: boolean;
+	triggerButton: React.ReactNode;
+}) {
+	const [open, setOpen] = useState(false);
+	const selectedOwner = selectedOwnerId
+		? owners.find((owner) => owner.id === selectedOwnerId)
+		: null;
+
+	const handleSelect = (ownerId: string) => {
+		onOwnerChange(ownerId);
+		setOpen(false);
+	};
+
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild disabled={disabled}>
+				{triggerButton}
+			</PopoverTrigger>
+			<PopoverContent
+				className="w-[--radix-popover-trigger-width] max-h-[var(--radix-popover-content-available-height)] overflow-hidden p-0"
+				align="start"
+			>
+				<Command>
+					<CommandInput placeholder="Search by name or email..." />
+					<CommandList className="max-h-[calc(var(--radix-popover-content-available-height)-2.5rem)] overscroll-contain">
+						<CommandEmpty>No matching agents found.</CommandEmpty>
+						<CommandGroup>
+							{owners.map((owner) => (
+								<CommandItem
+									key={owner.id}
+									value={`${owner.firstName} ${owner.lastName} ${owner.email}`}
+									onSelect={() => handleSelect(owner.id)}
+									className="flex items-center justify-between"
+								>
+									<div className="flex min-w-0 items-center gap-2">
+										<div className="min-w-0">
+											<div className="truncate">
+												{owner.firstName} {owner.lastName}
+											</div>
+										</div>
+										<Badge
+											variant="outline"
+											className="ml-auto shrink-0 px-1.5 py-0 text-[10px]"
+										>
+											{formatAssignableOwnerRoleLabel(owner.role)}
+										</Badge>
+									</div>
+									<Check
+										className={cn(
+											"ml-2 h-4 w-4",
+											selectedOwner?.id === owner.id
+												? "opacity-100"
+												: "opacity-0",
+										)}
+									/>
+								</CommandItem>
+							))}
+							<CommandItem
+								value="__clear__"
+								onSelect={() => handleSelect("")}
+								className="flex items-center justify-between text-muted-foreground"
+							>
+								<span>Clear assignment</span>
+								<Check
+									className={cn(
+										"ml-2 h-4 w-4",
+										!selectedOwner ? "opacity-100" : "opacity-0",
+									)}
+								/>
+							</CommandItem>
+						</CommandGroup>
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
+	);
+}
 
 const QUESTIONNAIRE_AUTOSAVE_DELAY_MS = 500;
 type CompleteDiscoveryStatus = "idle" | "submitting" | "error";
@@ -231,11 +377,81 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 	const [quickCaptureInitialAction, setQuickCaptureInitialAction] = useState<
 		"upload" | "paste" | "voice"
 	>("upload");
+
+	// Owner assignment state
+	const { user, isLoading: authLoading } = useAuth();
+	const [currentOwner, setCurrentOwner] = useState<User | null>(null);
+	const [assignableOwners, setAssignableOwners] = useState<User[]>([]);
+	const [isLoadingOwner, setIsLoadingOwner] = useState(true);
+	const [isUpdatingOwner, setIsUpdatingOwner] = useState(false);
+
+	const canManageOwner = useMemo(() => {
+		if (!user) return false;
+		return canShowAssignOwnerControl({
+			isOrgAdmin: user.role === "org_admin",
+			isSuperAdmin: user.isSuperuser,
+		});
+	}, [user]);
+
 	useEffect(() => {
 		setPhaseManuallySelected(false);
 		void hydrate(id);
 		return () => reset();
 	}, [id, hydrate, reset]);
+
+	// Load owner and assignable users
+	useEffect(() => {
+		if (authLoading || !user?.organizationId) return;
+
+		const orgId = user.organizationId;
+		const loadOwnerData = async () => {
+			setIsLoadingOwner(true);
+			try {
+				// Load project details to get current owner
+				const project = await projectsAPI.getProject(id);
+				// Load organization users for assignment options
+				const users = await organizationsAPI.listOrgUsers(orgId);
+
+				if (project.userId) {
+					const owner = users.find((u) => u.id === project.userId);
+					if (owner) {
+						setCurrentOwner(owner);
+					}
+				}
+
+				setAssignableOwners(filterAssignableOwners(users, user?.id));
+			} catch (error) {
+				console.error("Failed to load owner data:", error);
+			} finally {
+				setIsLoadingOwner(false);
+			}
+		};
+
+		void loadOwnerData();
+	}, [id, user, authLoading]);
+
+	const handleOwnerChange = async (newOwnerId: string) => {
+		if (!newOwnerId || newOwnerId === currentOwner?.id) {
+			return;
+		}
+
+		setIsUpdatingOwner(true);
+		try {
+			await projectsAPI.updateProject(id, { ownerUserId: newOwnerId });
+
+			// Update local state with new owner
+			const newOwner = assignableOwners.find((u) => u.id === newOwnerId);
+			if (newOwner) {
+				setCurrentOwner(newOwner);
+				toast.success(`Assigned to ${newOwner.firstName} ${newOwner.lastName}`);
+			}
+		} catch (error) {
+			console.error("Failed to update owner:", error);
+			toast.error(getErrorMessage(error, "Failed to update assignment"));
+		} finally {
+			setIsUpdatingOwner(false);
+		}
+	};
 
 	useEffect(() => {
 		setActivePhase((currentPhase) =>
@@ -431,7 +647,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 								<h1 className="font-display text-[1.65rem] font-bold tracking-tight text-foreground leading-tight">
 									{streamTitle}
 								</h1>
-								<div className="flex items-center gap-2.5">
+								<div className="flex items-center gap-2.5 flex-wrap">
 									<p className="text-sm text-muted-foreground">
 										Discovery workspace
 									</p>
@@ -441,6 +657,60 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 									>
 										{totalCompleted}/{STREAM_WORKSPACE_QUESTIONS.length} fields
 									</Badge>
+									{/* Owner assignment */}
+									{isLoadingOwner ? (
+										<div className="flex items-center gap-2 text-xs text-muted-foreground">
+											<div className="h-4 w-4 rounded-full bg-muted animate-pulse" />
+											<span>Loading...</span>
+										</div>
+									) : currentOwner ? (
+										<div className="flex items-center gap-2">
+											<AutoTeamAvatar
+												name={`${currentOwner.firstName} ${currentOwner.lastName}`}
+												size="sm"
+											/>
+											<span className="text-xs text-muted-foreground">
+												{currentOwner.firstName} {currentOwner.lastName}
+											</span>
+											{canManageOwner && (
+												<InlineOwnerSelector
+													owners={assignableOwners}
+													selectedOwnerId={currentOwner.id}
+													onOwnerChange={handleOwnerChange}
+													disabled={isUpdatingOwner}
+													triggerButton={
+														<button
+															type="button"
+															className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground transition-all hover:bg-muted-foreground/15 hover:text-foreground"
+															disabled={isUpdatingOwner}
+														>
+															<Pencil className="h-3 w-3" />
+															Change
+														</button>
+													}
+												/>
+											)}
+										</div>
+									) : (
+										canManageOwner && (
+											<InlineOwnerSelector
+												owners={assignableOwners}
+												selectedOwnerId={null}
+												onOwnerChange={handleOwnerChange}
+												disabled={isUpdatingOwner}
+												triggerButton={
+													<button
+														type="button"
+														className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground transition-all hover:bg-muted-foreground/15 hover:text-foreground"
+														disabled={isUpdatingOwner}
+													>
+														<Pencil className="h-3 w-3" />
+														Assign
+													</button>
+												}
+											/>
+										)
+									)}
 								</div>
 							</div>
 							<div className="flex shrink-0 items-center gap-2">

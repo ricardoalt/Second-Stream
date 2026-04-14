@@ -17,6 +17,11 @@ This spec answers a narrower question:
 This spec is intentionally grounded in current reality.
 It does not assume that future Evidence Graph, Outcome Ledger, multi-party network, or a final `Stream/Deal` domain model already exist.
 
+It should also not be read as a workspace-only spec.
+
+Harness v1 is a **platform-wide architectural layer** whose first major visible surface is the stream workspace.
+The purpose of this spec is to define the first explicit contracts that let agents operate across SecondStream as governed product actors, while keeping the first implementation focus tight.
+
 ---
 
 ## 2) Current system vs harness v1
@@ -77,13 +82,22 @@ In practical terms, v1 adds:
 - one first-class promotion model: `stream memory -> org knowledge`
 - one first-class review surface: broker correction + approval of brief/suggestions
 
+The stream workspace is the first strong visible entrypoint for this layer, but not its only scope.
+Even in v1, the harness should be understood as spanning:
+- capture / intake
+- discovery / workspace
+- files / evidence
+- memory / knowledge
+- supervision / run history
+- future team-output surfaces
+
 ---
 
 ## 3) v1 scope
 
 ## 3.1 In scope
 
-- one specialist copilot embedded in the stream workspace
+- one specialist copilot embedded in the stream workspace as the first major visible surface of a broader harness layer
 - multimodal discovery understanding across files, text, voice, workspace context
 - broker-facing `Discovery Brief`
 - reviewable `workspace suggestions`
@@ -92,6 +106,8 @@ In practical terms, v1 adds:
 - first historical knowledge collection: `historical waste-stream dossiers`
 - cross-stream `agent inbox / run history` for supervision
 - bounded organization-level customization
+- harness contracts designed so agents can be treated as first-class governed users of the platform
+- explicit observability, guardrails, and traceability for agent work
 
 ## 3.2 Out of scope
 
@@ -114,6 +130,8 @@ The job of v1 is not “add AI chat”.
 The job of v1 is:
 
 **reduce the time and cognitive effort required for a broker to turn messy multimodal discovery input into a trusted current working understanding of the stream.**
+
+At the platform level, v1 should also establish the harness primitives that allow SecondStream to treat agents as first-class product actors across the system, rather than as isolated AI helpers attached to one screen.
 
 Primary KPI:
 - `time-to-working-brief`
@@ -140,7 +158,20 @@ Do not optimize first for:
 
 ## 6) System model
 
-## 6.0 Architectural constraint: harness ownership and model agnosticism
+## 6.0 Agents as first-class product users
+
+SecondStream should treat agents as governed operational users of the platform, not as bolt-on feature helpers.
+
+That means the system model for v1 should support agents that:
+- have explicit identities, permissions, scopes, and policy constraints
+- can read and act through SecondStream-owned product capabilities
+- produce artifacts, memory, and draft actions inside the platform
+- are supervised, audited, corrected, and evaluated like any other important operator
+
+This does **not** imply unrestricted autonomy.
+It implies deliberate capability parity with human operators wherever that is useful and safe.
+
+## 6.1 Architectural constraint: harness ownership and model agnosticism
 
 The harness must be owned by SecondStream and model-agnostic from day one.
 
@@ -158,7 +189,7 @@ Why this is a v1 constraint, not a future nice-to-have:
 - model providers are actively building lock-in via stateful APIs and encrypted session state
 - SecondStream's competitive advantage is domain-specific operational intelligence owned by the platform
 
-## 6.1 Existing product truth
+## 6.2 Existing product truth
 
 Keep authoritative truth in current database-backed product systems:
 
@@ -172,7 +203,7 @@ Keep authoritative truth in current database-backed product systems:
 
 This remains canonical in v1.
 
-## 6.2 New agent layer
+## 6.3 New agent layer
 
 Add a harness layer with these concepts:
 
@@ -188,6 +219,65 @@ Add a harness layer with these concepts:
 These may initially be implemented via a mix of DB metadata + filesystem artifacts.
 The exact persistence split can evolve, but the product contracts should be explicit now.
 
+These contracts should be understood as platform primitives, not workspace-only objects, even if the first implementation emphasis is discovery.
+
+## 6.4 Platform surface coverage in v1
+
+Harness v1 should cover the following product surfaces at different levels of depth:
+
+### Primary v1 surfaces
+- stream workspace
+- discovery review flows
+- Discovery Brief
+- Workspace Suggestions
+- Agent Inbox / run history
+
+### Secondary but in-scope surfaces
+- quick capture
+- file/evidence workflows
+- voice interview / transcript flows
+- account/location context retrieval
+- org knowledge review and promotion
+
+### Designed now, implemented later
+- manager natural-language query surfaces
+- broader team outputs and coaching signals
+- wider multi-agent specialization across the platform
+
+This keeps the implementation focused without shrinking the architecture back to a workspace-only frame.
+
+## 6.5 Context assembly responsibility
+
+The context window is a computation box, not the memory system.
+
+For each run, the harness — not the provider model — should be responsible for:
+- retrieving the right context
+- shaping it into useful fragments
+- injecting it into the run
+- limiting stale, conflicting, or noisy context by default
+
+Typical context sources in v1 include:
+- stream-local observations
+- session summaries
+- evidence derivatives
+- historical dossiers
+- approved organization knowledge
+- human overrides and corrections
+- policy/rule fragments
+
+## 6.6 Observability and guardrails
+
+Harness v1 should assume agents will fail unless failures are made inspectable.
+
+Therefore, the spec should support:
+- traceable run history
+- request/run metadata
+- tool usage logs
+- deterministic validation guardrails where possible
+- failure review workflows
+- structured human feedback capture
+- evaluation cases derived from real failures and strong positive examples
+
 ---
 
 ## 7) Discovery Completion Agent
@@ -195,6 +285,8 @@ The exact persistence split can evolve, but the product contracts should be expl
 ## 7.1 Role
 
 The first canonical agent is a **specialist copilot** embedded in the stream workspace.
+
+It is the first major visible expression of the harness, not the totality of the harness.
 
 It is not:
 - a system-wide autonomous employee
@@ -466,6 +558,8 @@ type WorkspaceSuggestion = {
 - `session` = live context for the stream while the operational problem remains materially the same
 - `run` = one concrete execution of the agent inside that session
 
+`AgentSession` and `AgentRun` are discovery-first in v1, but the contract should be reusable for other future agent workflows across the platform.
+
 ## 11.2 Session creation
 
 A session is created when:
@@ -693,6 +787,9 @@ type KnowledgeObject = {
 This is **not** a universal human work inbox.
 
 It is a supervision surface for the agent system.
+
+In v1, it is the first cross-stream control-plane surface for the harness.
+Over time, this family of surfaces may expand into broader team-output and management views, but the v1 scope remains supervision of agent work.
 
 ## 16.2 Contents
 

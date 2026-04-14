@@ -153,6 +153,33 @@ That means:
 - AI helps with discovery, synthesis, memory, and execution
 - high-risk actions remain policy- and approval-aware
 
+This should not be interpreted as a workspace-only upgrade.
+
+SecondStream is moving toward a platform where **humans and agents operate on the same system of truth, memory, artifacts, and supervision**.
+The stream workspace is the first major visible surface of that shift, but it is not the full scope of the harness.
+
+The harness should progressively shape how the full platform works across:
+- capture / intake
+- discovery / workspace
+- files / evidence
+- account and location context
+- memory and knowledge
+- supervision / approvals / audit
+- downstream team outputs and operational queries
+
+### Agents as first-class users of the platform
+
+SecondStream should not treat agents as bolt-on helpers attached to isolated screens.
+
+Agents should be treated as **first-class operational users of the platform**:
+- they have identities, permissions, scopes, and policy constraints
+- they can read and act through SecondStream-owned product capabilities
+- they produce artifacts, memory, and draft actions inside the platform
+- they are supervised, audited, corrected, and evaluated like any other important operator in the system
+
+This does **not** mean agents replace humans.
+It means the platform must be designed so agents can participate in real workflows as governed actors, rather than as disconnected AI widgets.
+
 ---
 
 ## 4) Harness definition
@@ -173,6 +200,9 @@ The harness includes:
 Mental model:
 
 **The model is only one component. The harness is the product environment that makes the agent useful, safe, and stateful.**
+
+The harness is not only an orchestration layer around the model.
+It is also the **platform contract** that determines how agents access, use, and contribute to workflows across SecondStream.
 
 ### Harness ownership and model agnosticism
 
@@ -209,9 +239,117 @@ Practical implications for v1:
 - treat the LLM as a replaceable execution engine inside the harness, not as the owner of state
 - keep all session/run/brief/knowledge contracts as SecondStream-owned schemas, persisted in SecondStream-controlled storage
 
+### Harness coverage across the full platform
+
+Agent Harness v1 is not a workspace-only concept.
+It is a platform-wide architectural layer that should progressively cover the major surfaces of SecondStream.
+
+The workspace is the primary visible surface in v1, but the harness should span:
+
+1. **Capture / intake**
+   - voice, files, notes, quick capture, evidence ingestion
+
+2. **Discovery / stream workspace**
+   - Discovery Brief, Workspace Suggestions, broker review, corrections
+
+3. **Files / evidence**
+   - evidence extraction, provenance linking, derived artifacts, evidence snapshots
+
+4. **Account / location / stream context**
+   - bounded retrieval of relevant local and historical context
+
+5. **Readiness / progression**
+   - blockers, missing information, stale context, next-best actions
+
+6. **Memory / knowledge**
+   - session summaries, observations, dossiers, promoted org knowledge
+
+7. **Supervision / control plane**
+   - Agent Inbox, run history, failed runs, pending approvals, pending reviews
+
+8. **Manager / team outputs**
+   - cross-stream visibility, grounded summaries, review queues, future natural-language operational querying
+
+Not every surface needs the same depth in v1.
+But the harness contracts should be designed as platform-wide primitives from the start.
+
+### Platform surfaces and v1 priority
+
+Harness v1 should distinguish between:
+
+#### Primary v1 surfaces
+- stream workspace
+- discovery review flows
+- Discovery Brief
+- Workspace Suggestions
+- Agent Inbox / run history
+
+#### Secondary but in-scope harness surfaces
+- quick capture
+- file/evidence workflows
+- voice interview / transcript flows
+- account/location context retrieval
+- org knowledge review and promotion
+
+#### Designed now, implemented later
+- manager natural-language query surface
+- broader team outputs and coaching signals
+- wider multi-agent specialization across the platform
+
+This keeps v1 execution focused while ensuring the architecture is product-wide, not workspace-local.
+
+### Agent capability parity principle
+
+As a default rule, if a human operator can perform a meaningful action inside SecondStream, the harness should consider whether an agent should also be able to perform that action through governed product capabilities.
+
+This does not imply unrestricted autonomy.
+It implies deliberate capability parity:
+- read access where needed for understanding and synthesis
+- draft/write access for memory, notes, artifacts, and suggestions
+- approval-gated access for sensitive truth changes and external actions
+
+Capability gaps should be intentional policy decisions, not accidental omissions in the platform's agent surface area.
+
+### Context assembly as a harness responsibility
+
+The context window is a computation box, not the memory system.
+
+The harness is responsible for:
+- retrieving the right context
+- shaping it into useful fragments
+- injecting it into each run
+- avoiding stale, conflicting, or noisy context by default
+
+Context should be assembled from SecondStream-owned sources such as:
+- stream-local observations
+- session summaries
+- evidence derivatives
+- historical dossiers
+- approved organization knowledge
+- human overrides and corrections
+- policy/rule fragments
+
+The provider model should never be the owner of memory continuity or context management logic.
+
+### Observability, guardrails, and evaluation
+
+Agents fail silently unless the harness makes failures inspectable.
+
+Harness v1 should therefore include:
+- traceable run history
+- request/run metadata
+- tool usage logs
+- input/output validation guardrails where deterministic checks are possible
+- failure review workflows
+- structured human feedback capture
+- evaluation cases built from real failures and strong positive examples
+
+The goal is not just to run agents.
+The goal is to improve them safely over time using SecondStream-owned traces, artifacts, and feedback loops.
+
 ---
 
-## 5) Why filesystem-first matters
+## 5) Why a portable filesystem/object-storage memory layer matters
 
 Classic RAG should not be the center of the architecture.
 
@@ -226,7 +364,10 @@ For SecondStream, the stronger default is:
 - explicit folders/files per org/account/stream/run/topic
 - retrieval/indexing only where it adds real value
 
-Filesystem-first is attractive because it gives agents:
+This should not be read as "filesystem for everything."
+
+Transactional truth and structured operational state should still live in the right database-backed systems.
+But the harness benefits from a portable filesystem/object-storage layer because it gives agents:
 - human-readable structure
 - stable artifacts
 - append-friendly memory
@@ -358,6 +499,9 @@ Specialists operating inside the harness:
 - inspect why it recommended something
 - approve or reject sensitive actions
 - correct and feed back into the system
+- supervise agent work across streams
+- govern knowledge promotion and staleness
+- support future manager/team output surfaces
 
 UI model v1:
 - primary surface lives inside the stream workspace where the broker already operates

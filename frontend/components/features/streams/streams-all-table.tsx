@@ -8,6 +8,7 @@ import {
 	Clock,
 	FileWarning,
 	Loader2,
+	Pencil,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -514,25 +515,25 @@ export function StreamsAllTable({
 									{isDraft ? (
 										<span className="text-sm text-muted-foreground">—</span>
 									) : (
-										<div className="flex items-center gap-2">
-											{/* LEFT: always avatar + name + optional creator label */}
+										<div className="flex items-center gap-2 min-w-0">
 											<AutoTeamAvatar
-												name={row.ownerName ?? row.creatorName ?? "Unknown"}
+												name={row.ownerName ?? row.creatorName ?? "Unassigned"}
 												size="sm"
 											/>
-											<span className="truncate text-sm font-medium text-foreground">
-												{row.ownerName ?? row.creatorName ?? "Unknown"}
+											<span
+												className={cn(
+													"truncate text-sm",
+													row.hasExplicitOwner
+														? "font-medium text-foreground"
+														: "text-muted-foreground",
+												)}
+											>
+												{row.ownerName ?? row.creatorName ?? "Unassigned"}
 											</span>
-											{!row.hasExplicitOwner ? (
-												<span className="shrink-0 text-xs text-muted-foreground">
-													· Creator
-												</span>
-											) : null}
-											{/* RIGHT: admin-only text action, pushed to the right */}
 											{canManageAgentAssignment ? (
 												<button
 													type="button"
-													className="ml-4 shrink-0 text-xs text-muted-foreground transition-colors hover:text-primary hover:underline decoration-primary/50 underline-offset-2"
+													className="ml-auto inline-flex items-center gap-1.5 shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground transition-all hover:bg-muted-foreground/15 hover:text-foreground"
 													onClick={(e) => {
 														e.stopPropagation();
 														openAgentAssignmentDialog(row);
@@ -540,7 +541,8 @@ export function StreamsAllTable({
 													onPointerDown={(e) => e.stopPropagation()}
 													onKeyDown={(e) => e.stopPropagation()}
 												>
-													{row.hasExplicitOwner ? "Reassign" : "Assign"}
+													<Pencil className="h-3 w-3" />
+													Change
 												</button>
 											) : null}
 										</div>

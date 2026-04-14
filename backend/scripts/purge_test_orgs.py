@@ -302,7 +302,7 @@ async def run_purge(
             print()
             confirm = input(
                 f"¿Eliminar {len(test_orgs)} organizaciones y todos sus datos? [yes/N]: "
-            )  # noqa: ASYNC250
+            )
             if confirm.lower() != "yes":
                 print("Operación cancelada.")
                 return stats

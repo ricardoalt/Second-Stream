@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecondStream — Platform Before/After Agent Harness v1</title>
+  <style>
+    :root {
+      --bg: #070d1a;
+      --surface: #0d1630;
+      --card: #121d3e;
+      --line: #2a3b73;
+      --text: #eef3ff;
+      --muted: #9cb0e3;
+      --accent: #7bc1ff;
+      --good: #6de9bb;
+      --warn: #f8c35f;
+      --bad: #ff7e98;
+      --purple: #b38bff;
+    }
+
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(1200px 700px at 10% -10%, #1a2554 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 20px 56px; }
+    .eyebrow {
+      color: var(--accent);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    h1 { font-size: clamp(28px, 4vw, 46px); line-height: 1.08; margin-bottom: 10px; }
+    .lead {
+      max-width: 980px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+      margin-bottom: 20px;
+    }
+
+    .hero-callout {
+      border: 1px solid rgba(123,193,255,.32);
+      background: rgba(123,193,255,.08);
+      border-radius: 16px;
+      padding: 14px 16px;
+      font-size: 14px;
+      line-height: 1.55;
+      color: #d7e7ff;
+      margin-bottom: 22px;
+    }
+    .hero-callout strong { color: var(--text); }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 4px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 4px;
+      margin-bottom: 22px;
+    }
+    .tab {
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--muted);
+      padding: 10px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .tab.active { background: var(--accent); color: #0d152f; }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+    .section-title { font-size: 16px; margin-bottom: 10px; }
+    .muted { color: var(--muted); }
+    ul { padding-left: 18px; }
+    li { color: var(--muted); font-size: 13px; line-height: 1.45; margin-bottom: 6px; }
+
+    .pill {
+      display: inline-block;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 11px;
+      margin-right: 6px;
+      margin-bottom: 8px;
+    }
+    .good { color: var(--good); border-color: rgba(109,233,187,.35); background: rgba(109,233,187,.08); }
+    .warn { color: var(--warn); border-color: rgba(248,195,95,.35); background: rgba(248,195,95,.08); }
+    .bad  { color: var(--bad); border-color: rgba(255,126,152,.35); background: rgba(255,126,152,.08); }
+    .accent { color: var(--accent); border-color: rgba(123,193,255,.35); background: rgba(123,193,255,.08); }
+    .purple { color: var(--purple); border-color: rgba(179,139,255,.35); background: rgba(179,139,255,.08); }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .node {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(255,255,255,.02);
+      min-height: 86px;
+    }
+    .node h4 { font-size: 12px; margin-bottom: 4px; }
+    .node p { color: var(--muted); font-size: 12px; line-height: 1.35; }
+
+    .diff-wrap {
+      display: grid;
+      grid-template-columns: 1fr 36px 1fr;
+      gap: 0;
+      margin-top: 12px;
+    }
+    .arrow { display: grid; place-items: center; color: var(--accent); font-size: 22px; }
+
+    .lane {
+      border: 1px dashed rgba(255,255,255,.2);
+      border-radius: 12px;
+      padding: 10px;
+      margin-top: 8px;
+      background: rgba(255,255,255,.015);
+    }
+    .lane h5 { font-size: 12px; margin-bottom: 6px; }
+    .lane p { color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+    .matrix th,
+    .matrix td {
+      border: 1px solid var(--line);
+      padding: 8px;
+      vertical-align: top;
+    }
+    .matrix th { color: #dbe6ff; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+    .matrix td { color: var(--muted); }
+
+    .foot {
+      margin-top: 22px;
+      color: #89a0d8;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 1080px) {
+      .tabs { grid-template-columns: 1fr 1fr 1fr; }
+      .grid-4 { grid-template-columns: 1fr 1fr; }
+      .pipeline { grid-template-columns: 1fr 1fr 1fr; }
+    }
+
+    @media (max-width: 800px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+      .diff-wrap { grid-template-columns: 1fr; gap: 8px; }
+      .arrow { transform: rotate(90deg); }
+      .pipeline { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="eyebrow">SecondStream · Artifact de producto/arquitectura</div>
+    <h1>Agent Harness v1 — Vista de plataforma completa (no solo workspace)</h1>
+    <p class="lead">
+      Este artefacto explica el salto entre la plataforma actual y la plataforma con Agent Harness v1.
+      El workspace es la primera superficie visible, pero el harness es <strong>platform-wide</strong>: captura, evidencia,
+      contexto, memoria, sesiones/runs, supervisión e inbox cross-stream.
+    </p>
+    <div class="hero-callout">
+      <strong>Tesis visual:</strong> con Harness v1, SecondStream no solo guarda campos o sugerencias; empieza a operar
+      un sistema donde <strong>agentes y humanos son usuarios operativos</strong> sobre la misma plataforma, con
+      <strong>truth estructurada + memoria portable + artifacts auditables + supervisión explícita</strong>, sin depender de memoria stateful propietaria del provider.
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="today">1) Hoy</button>
+      <button class="tab" data-tab="future">2) Con Harness</button>
+      <button class="tab" data-tab="diff">3) Lado a lado</button>
+      <button class="tab" data-tab="architecture">4) Arquitectura</button>
+      <button class="tab" data-tab="memory">5) Memoria/Contexto</button>
+      <button class="tab" data-tab="agent-user">6) Agente = Usuario</button>
+      <button class="tab" data-tab="truth-memory">7) Truth vs Memory</button>
+    </nav>
+
+    <!-- 1) HOY -->
+    <section class="view active" id="view-today">
+      <div class="grid-2">
+        <article class="card">
+          <h2 class="section-title">Plataforma hoy (frame dominante)</h2>
+          <span class="pill warn">Workspace-first</span>
+          <span class="pill warn">AI como helper parcial</span>
+          <ul>
+            <li>Las capacidades existen (intake, voice, files, workspace, review), pero están conectadas como features, no como harness explícito.</li>
+            <li>El broker consolida entendimiento del caso principalmente en su cabeza.</li>
+            <li>No hay objeto central de comprensión versionada del stream como artefacto operativo persistente.</li>
+            <li>No hay modelo de session/run como contrato visible de ejecución agente.</li>
+            <li>No hay inbox cross-stream para supervisión sistemática del trabajo de agentes.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h2 class="section-title">Dónde se siente la fricción</h2>
+          <span class="pill bad">Contexto fragmentado</span>
+          <span class="pill bad">Memoria no compuesta</span>
+          <ul>
+            <li>Las sugerencias AI viven por campo/flujo, pero no hay “current working understanding” duradera.</li>
+            <li>El estado de razonamiento no se inspecciona como run history + artifacts + feedback loop.</li>
+            <li>El sistema no trata todavía al agente como usuario operativo de primer nivel.</li>
+            <li>La mejora incremental de agent behavior carece de control-plane explícito.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- 2) FUTURO -->
+    <section class="view" id="view-future">
+      <div class="card">
+        <h2 class="section-title">Plataforma con Agent Harness v1 (frame objetivo)</h2>
+        <span class="pill good">Platform-wide harness</span>
+        <span class="pill accent">Workspace = primera superficie visible</span>
+        <span class="pill purple">Model-agnostic</span>
+        <span class="pill good">SecondStream owns memory/context/artifacts</span>
+
+        <div class="pipeline">
+          <div class="node">
+            <h4>Capture / Intake</h4>
+            <p>Voice, files, notes, quick capture como entradas gobernadas.</p>
+          </div>
+          <div class="node">
+            <h4>Discovery / Workspace</h4>
+            <p>Discovery Brief + Workspace Suggestions + revisión broker.</p>
+          </div>
+          <div class="node">
+            <h4>Session / Run</h4>
+            <p>Ejecuciones materiales trazables, con triggers y estados.</p>
+          </div>
+          <div class="node">
+            <h4>Memory / Knowledge</h4>
+            <p>Observations, dossiers históricos, promoción controlada a org knowledge.</p>
+          </div>
+          <div class="node">
+            <h4>Supervisión</h4>
+            <p>Agent inbox, run history, pending reviews, fallos, aprobaciones.</p>
+          </div>
+          <div class="node">
+            <h4>Team Outputs</h4>
+            <p>Superficies futuras de management y query operacional grounded.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3) DIFF -->
+    <section class="view" id="view-diff">
+      <h2 class="section-title">Diff de plataforma: de app con AI a harness productivo</h2>
+      <div class="diff-wrap">
+        <article class="card">
+          <h3 class="section-title">Antes</h3>
+          <ul>
+            <li>Centro operativo: formulario/workspace + suggestions.</li>
+            <li>AI ayuda en extracción, no opera como actor gobernado integral.</li>
+            <li>Contexto ensamblado de manera implícita por flujo.</li>
+            <li>Sin session/run como contrato operativo principal.</li>
+            <li>Memoria útil dispersa y poco portátil como activo estratégico.</li>
+          </ul>
+        </article>
+        <div class="arrow">→</div>
+        <article class="card">
+          <h3 class="section-title">Después (Harness v1)</h3>
+          <ul>
+            <li>Centro operativo: harness de plataforma + workspace como superficie inicial.</li>
+            <li>Agente como usuario operativo con identidad, permisos, scope y policy.</li>
+            <li>Context assembly es responsabilidad explícita de SecondStream.</li>
+            <li>Session/run + artifacts + feedback construyen mejora acumulativa.</li>
+            <li>Memoria y artifacts son activos portables, inspectables y exportables.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- 4) ARQUITECTURA -->
+    <section class="view" id="view-architecture">
+      <div class="card">
+        <h2 class="section-title">Arquitectura de plataforma por capas/superficies</h2>
+        <div class="grid-3">
+          <div class="lane">
+            <h5>Layer 1 — System of Record (Truth)</h5>
+            <p>Postgres + APIs canónicas + RBAC + estados transaccionales oficiales.</p>
+          </div>
+          <div class="lane">
+            <h5>Layer 2 — Agent Control Plane</h5>
+            <p>Identidad de agente, tool registry, policy/approval, lifecycle session/run, observabilidad.</p>
+          </div>
+          <div class="lane">
+            <h5>Layer 3 — Memory/Artifact Fabric</h5>
+            <p>Filesystem/Object storage para memoria durable y artifacts; portable, inspeccionable.</p>
+          </div>
+          <div class="lane">
+            <h5>Layer 4 — Agent Workforce</h5>
+            <p>Discovery agent primero; luego especialistas (pricing, compliance, follow-up, etc.).</p>
+          </div>
+          <div class="lane">
+            <h5>Layer 5 — Human Surfaces</h5>
+            <p>Workspace, review points, inbox/historial, aprobaciones y gobernanza de conocimiento.</p>
+          </div>
+          <div class="lane">
+            <h5>Principio transversal</h5>
+            <p>LLM = motor reemplazable. Harness/state/memory = propiedad de SecondStream.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5) MEMORIA -->
+    <section class="view" id="view-memory">
+      <div class="grid-2">
+        <article class="card">
+          <h2 class="section-title">Memoria, contexto, session/run, knowledge, inbox</h2>
+          <ul>
+            <li><strong>Session</strong>: contexto vivo mientras el problema material del stream no cambie.</li>
+            <li><strong>Run</strong>: ejecución concreta por trigger (new source, refresh, correction, etc.).</li>
+            <li><strong>Context assembly</strong>: retrieval curado de observations, dossiers, knowledge aprobada, evidencias.</li>
+            <li><strong>Knowledge promotion</strong>: stream learnings → org knowledge por confirmación múltiple o aprobación humana.</li>
+            <li><strong>Inbox</strong>: supervisión cross-stream (briefs pendientes, run failures, promotions pendientes).</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h2 class="section-title">Flujo de persistencia (v1)</h2>
+          <div class="pipeline" style="grid-template-columns:1fr;gap:7px;">
+            <div class="node"><h4>1) Ingreso de evidencia</h4><p>Documento/voz/texto ingresa por superficies de captura.</p></div>
+            <div class="node"><h4>2) Run ejecuta</h4><p>Agente consume contexto y genera brief/suggestions/artifacts.</p></div>
+            <div class="node"><h4>3) Broker supervisa</h4><p>Corrige puntos, aprueba/defer/reject recomendaciones.</p></div>
+            <div class="node"><h4>4) Memoria durable</h4><p>Observations + session summaries + artifacts quedan persistidos.</p></div>
+            <div class="node"><h4>5) Reuso inteligente</h4><p>Contexto futuro se enriquece sin depender de memoria stateful del proveedor.</p></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- 6) AGENTE COMO USUARIO -->
+    <section class="view" id="view-agent-user">
+      <div class="card">
+        <h2 class="section-title">Agente como usuario operativo de la plataforma</h2>
+        <p class="muted" style="font-size:13px;margin-bottom:8px;">
+          No es un widget adjunto: es un actor con identidad, permisos, alcance, auditoría y límites de policy.
+        </p>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Capacidad</th>
+              <th>Humano</th>
+              <th>Agente</th>
+              <th>Regla v1</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Leer contexto operativo</td>
+              <td>Sí</td>
+              <td>Sí</td>
+              <td>Paridad deliberada de lectura, con scopes y RBAC.</td>
+            </tr>
+            <tr>
+              <td>Escribir memoria/artifacts/drafts</td>
+              <td>Sí</td>
+              <td>Sí</td>
+              <td>Permitido sin approval para trabajo derivado no-transaccional.</td>
+            </tr>
+            <tr>
+              <td>Cambiar truth canónica</td>
+              <td>Sí</td>
+              <td>No directo</td>
+              <td>Agente propone; humano revisa/acepta.</td>
+            </tr>
+            <tr>
+              <td>Acción externa sensible</td>
+              <td>Sí</td>
+              <td>Preparar borrador</td>
+              <td>Ejecución automática fuera de scope v1.</td>
+            </tr>
+            <tr>
+              <td>Supervisión y auditoría</td>
+              <td>Recibe</td>
+              <td>Es supervisado</td>
+              <td>Run history + inbox + feedback estructurado.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 7) TRUTH VS MEMORY -->
+    <section class="view" id="view-truth-memory">
+      <div class="card">
+        <h2 class="section-title">Truth vs Memory vs Artifacts vs Supervision</h2>
+        <div class="grid-4">
+          <div class="lane">
+            <h5>Truth (estructurada, transaccional)</h5>
+            <p>Estados canónicos del producto: entidades, lifecycle, aprobaciones oficiales, sync states.</p>
+            <span class="pill accent">System of record</span>
+          </div>
+          <div class="lane">
+            <h5>Memory (durable, portable)</h5>
+            <p>Summaries, observations, dossier links, aprendizaje contextual curado por sesión/stream/org.</p>
+            <span class="pill purple">Owned by SecondStream</span>
+          </div>
+          <div class="lane">
+            <h5>Artifacts (trabajo operativo)</h5>
+            <p>Discovery Briefs, context packs, research outputs, drafts, evidence derivatives, diff/version history.</p>
+            <span class="pill good">Inspectable / exportable</span>
+          </div>
+          <div class="lane">
+            <h5>Supervision (gobernanza)</h5>
+            <p>Inbox, run history, approvals, fallas, correcciones repetidas, evaluación y mejora continua.</p>
+            <span class="pill warn">Human-in-the-loop</span>
+          </div>
+        </div>
+
+        <div class="hero-callout" style="margin-top:14px;">
+          <strong>Regla clave de arquitectura:</strong> filesystem/object storage funciona como capa portable de memory/artifacts.
+          <strong>No reemplaza</strong> toda la verdad estructurada del negocio. Truth y memory son capas distintas y complementarias.
+        </div>
+      </div>
+    </section>
+
+    <p class="foot">
+      Fuente conceptual usada: plan/spec de Agent Harness v1, artifact workspace before/after, AI-native concept doc,
+      golden rules agent-first y notas de harness/memory/context fragments.
+    </p>
+  </div>
+
+  <script>
+    document.getElementById('tabs').addEventListener('click', function (e) {
+      const btn = e.target.closest('.tab');
+      if (!btn) return;
+      document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('view-' + btn.dataset.tab).classList.add('active');
+    });
+  </script>
+</body>
+</html>
