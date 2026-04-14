@@ -4,7 +4,6 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	Check,
-	ChevronsUpDown,
 	FolderOpen,
 	Pencil,
 	Users,
@@ -51,6 +50,7 @@ import { organizationsAPI } from "@/lib/api/organizations";
 import { projectsAPI } from "@/lib/api/projects";
 import { workspaceAPI } from "@/lib/api/workspace";
 import { useAuth } from "@/lib/contexts/auth-context";
+import { useStreamsActions } from "@/lib/stores/streams-store";
 import {
 	useWorkspaceActions,
 	useWorkspaceError,
@@ -324,6 +324,7 @@ export function resolveWorkspaceQuickCaptureFeedback({
 
 export function StreamDetailPageContent({ id }: { id: string }) {
 	const router = useRouter();
+	const { loadStreams: refreshStreamsList } = useStreamsActions();
 	const {
 		hydrate,
 		reset,
@@ -444,6 +445,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 			if (newOwner) {
 				setCurrentOwner(newOwner);
 				toast.success(`Assigned to ${newOwner.firstName} ${newOwner.lastName}`);
+				void refreshStreamsList({ forceRefresh: true });
 			}
 		} catch (error) {
 			console.error("Failed to update owner:", error);
