@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecondStream — Brief Spine Workspace Wireframe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f5f6f7;
+      --panel: #ffffff;
+      --line: #e5e7eb;
+      --text: #121417;
+      --muted: #6b7280;
+      --soft: #f9fafb;
+      --accent: #111827;
+
+      --confirmed-bg: #e8f7ee;
+      --confirmed-fg: #13663a;
+      --inferred-bg: #eaf2ff;
+      --inferred-fg: #1f4da3;
+      --missing-bg: #fff6e8;
+      --missing-fg: #9a6117;
+      --stale-bg: #f0f1f3;
+      --stale-fg: #5f6470;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 18px 20px 96px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 1px 0 rgba(16, 24, 40, 0.02);
+    }
+
+    .shift {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+    }
+
+    .shift-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .shift-title {
+      font-size: 13px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .toggle {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .toggle button {
+      border: 0;
+      background: transparent;
+      padding: 7px 12px;
+      font-size: 12px;
+      color: #4b5563;
+      cursor: pointer;
+    }
+
+    .toggle button.active {
+      background: #111827;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .shift-note {
+      font-size: 12px;
+      color: #4b5563;
+      text-align: right;
+      max-width: 520px;
+    }
+
+    .topbar {
+      padding: 14px 16px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: sticky;
+      top: 12px;
+      z-index: 20;
+    }
+
+    .stream-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .stream-name {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: #4b5563;
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 10px;
+      background: #fff;
+      font-weight: 500;
+      color: #374151;
+      font-size: 12px;
+    }
+
+    .badge.status { border-color: #d1d5db; }
+
+    .confidence {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .confidence-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 4px #ecfdf3;
+      display: inline-block;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: #374151;
+      padding: 8px 12px;
+      font-size: 12px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      background: #111827;
+      color: #fff;
+      border-color: #111827;
+      font-weight: 600;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(680px, 1fr) 340px;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .brief {
+      padding: 14px;
+    }
+
+    .brief-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+
+    .brief-title {
+      font-size: 14px;
+      color: #4b5563;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+    }
+
+    .block {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin-bottom: 10px;
+      background: #fff;
+      overflow: clip;
+    }
+
+    details > summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 12px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      background: #fcfcfd;
+      border-bottom: 1px solid transparent;
+    }
+
+    details[open] > summary { border-bottom-color: var(--line); }
+    details > summary::-webkit-details-marker { display: none; }
+
+    .summary-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .summary-right {
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .chev {
+      width: 8px;
+      height: 8px;
+      border-right: 1.5px solid #6b7280;
+      border-bottom: 1.5px solid #6b7280;
+      transform: rotate(45deg);
+      transition: transform .16s ease;
+      margin-left: 2px;
+    }
+
+    details[open] .chev { transform: rotate(225deg); }
+
+    .block-content { padding: 10px 14px 14px; }
+
+    .fact {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px dashed #eceff2;
+    }
+
+    .fact:last-child { border-bottom: 0; }
+
+    .label {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+    }
+
+    .value {
+      font-size: 14px;
+      color: #111827;
+      border-radius: 8px;
+      padding: 3px 6px;
+      display: inline-block;
+      min-height: 28px;
+      line-height: 22px;
+      cursor: text;
+    }
+
+    .value:hover {
+      background: #f3f4f6;
+      outline: 1px dashed #d1d5db;
+    }
+
+    .value.editing {
+      background: #fff;
+      outline: 1px solid #9ca3af;
+    }
+
+    .prov {
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .prov-confirmed { background: var(--confirmed-bg); color: var(--confirmed-fg); border-color: #cbead8; }
+    .prov-inferred { background: var(--inferred-bg); color: var(--inferred-fg); border-color: #cdddf8; }
+    .prov-missing { background: var(--missing-bg); color: var(--missing-fg); border-color: #f7ddbb; }
+    .prov-stale { background: var(--stale-bg); color: var(--stale-fg); border-color: #d8dce2; }
+
+    .sidebar {
+      position: sticky;
+      top: 86px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .side-card { padding: 12px; }
+
+    .side-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #4b5563;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      margin-bottom: 8px;
+    }
+
+    .item {
+      border: 1px solid #edf0f2;
+      border-radius: 10px;
+      background: #fcfcfd;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: #374151;
+    }
+
+    .item strong { font-size: 12px; }
+    .item small { color: #6b7280; display: block; margin-top: 4px; }
+
+    .quick-actions {
+      display: grid;
+      gap: 6px;
+    }
+
+    .quick-actions .btn { width: 100%; text-align: left; }
+
+    .capture {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 14px;
+      width: min(980px, calc(100vw - 24px));
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      display: flex;
+      gap: 8px;
+      padding: 10px;
+      z-index: 30;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .capture input {
+      flex: 1;
+      border: 1px solid #dde2e8;
+      border-radius: 9px;
+      font-size: 13px;
+      padding: 10px;
+      color: #111827;
+      min-width: 0;
+    }
+
+    .capture input:focus,
+    .btn:focus,
+    .toggle button:focus { outline: 2px solid #c7d2fe; outline-offset: 1px; }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 86px;
+      width: min(340px, calc(100vw - 24px));
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(0,0,0,.08);
+      padding: 12px;
+      display: none;
+      z-index: 40;
+    }
+
+    .toast.show { display: block; }
+    .toast h4 { margin: 0 0 6px; font-size: 13px; }
+    .toast p { margin: 0; font-size: 12px; color: #4b5563; }
+
+    @media (max-width: 1200px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        position: static;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .fact {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+      .shift { flex-direction: column; align-items: flex-start; }
+      .shift-note { text-align: left; }
+    }
+
+    @media (max-width: 900px) {
+      .sidebar { grid-template-columns: 1fr; }
+      .topbar { position: static; }
+      .actions { flex-wrap: wrap; justify-content: flex-end; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="panel shift">
+      <div class="shift-left">
+        <div class="shift-title">Workspace paradigm shift</div>
+        <div class="toggle" role="tablist" aria-label="Current vs New workspace">
+          <button id="modeCurrent" aria-selected="false">Current (Form-heavy)</button>
+          <button id="modeNew" class="active" aria-selected="true">New (Brief Spine)</button>
+        </div>
+      </div>
+      <div id="modeNote" class="shift-note">
+        New mode centers one living brief artifact. 31 answers become synthesized facts with confidence and provenance.
+      </div>
+    </section>
+
+    <header class="panel topbar">
+      <div class="stream-meta">
+        <div class="stream-name">Mixed Film Plastic at Acme Birmingham</div>
+        <div class="meta-row">
+          <span class="badge status">Brief: In Review</span>
+          <span class="confidence"><span class="confidence-dot"></span>Confidence: Moderate (72%)</span>
+          <span class="badge">Last updated: 2m ago</span>
+        </div>
+      </div>
+      <div class="actions">
+        <span class="badge">Auto-saved</span>
+        <button class="btn">Share</button>
+        <button class="btn primary">Send for Approval</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel brief">
+        <div class="brief-head">
+          <div class="brief-title">Discovery Brief</div>
+          <div>
+            <button class="btn" id="expandAll">Expand all</button>
+            <button class="btn" id="collapseAll">Collapse all</button>
+          </div>
+        </div>
+
+        <article class="block">
+          <details open>
+            <summary>
+              <div class="summary-left"><span class="chev"></span>Identity &amp; Snapshot</div>
+              <div class="summary-right">6 facts • 1 gap</div>
+            </summary>
+            <div class="block-content">
+              <div class="fact">
+                <div class="label">Material stream</div>
+                <div class="value" data-editable="true">Mixed film plastic from pallet wrap and stretch hood</div>
+                <button class="prov prov-confirmed" data-source="Confirmed during onsite visit on Apr 10 with Operations Lead.">confirmed</button>
+              </div>
+              <div class="fact">
+                <div class="label">Generation process</div>
+                <div class="value" data-editable="true">End-of-line packaging and inbound unpacking stations</div>
+                <button class="prov prov-inferred" data-source="Inferred from floor process map + vendor invoice line items.">inferred</button>
+              </div>
+              <div class="fact">
+                <div class="label">Volume</div>
+                <div class="value" data-editable="true">~18 tonnes/month (seasonal ±12%)</div>
+                <button class="prov prov-confirmed" data-source="Confirmed via March waste transfer notes and April weighbridge report.">confirmed</button>
+              </div>
+              <div class="fact">
+                <div class="label">Frequency</div>
+                <div class="value" data-editable="true">Collected weekly; overflow every 10–12 days in peak periods</div>
+                <button class="prov prov-inferred" data-source="Derived from service cadence and overflow incident logs.">inferred</button>
+              </div>
+              <div class="fact">
+                <div class="label">Location</div>
+                <div class="value" data-editable="true">Acme Birmingham Plant, Yard 3 Compactor Bay</div>
+                <button class="prov prov-confirmed" data-source="CRM facility record + geotagged capture from Apr 09.">confirmed</button>
+              </div>
+              <div class="fact">
+                <div class="label">Packaging / storage</div>
+                <div class="value" data-editable="true">Loose in 40yd compactor + occasional baled overflow</div>
+                <button class="prov prov-stale" data-source="Last directly confirmed 63 days ago. Needs reconfirmation this month.">stale</button>
+              </div>
+              <div class="fact">
+                <div class="label">Desired first solution date</div>
+                <div class="value" data-editable="true">Target pilot start by July 2026</div>
+                <button class="prov prov-missing" data-source="Customer gave quarter target only (Q3). Exact date not confirmed.">missing</button>
+              </div>
+            </div>
+          </details>
+        </article>
+
+        <article class="block">
+          <details open>
+            <summary>
+              <div class="summary-left"><span class="chev"></span>Current Situation</div>
+              <div class="summary-right">5 facts • economics view</div>
+            </summary>
+            <div class="block-content">
+              <div class="fact">
+                <div class="label">Current handling</div>
+                <div class="value" data-editable="true">Mostly disposal as mixed dry recyclable with contamination penalties</div>
+                <button class="prov prov-confirmed" data-source="Confirmed from active contract schedule and April invoice summary.">confirmed</button>
+              </div>
+              <div class="fact">
+                <div class="label">Service provider</div>
+                <div class="value" data-editable="true">Midlands Resource Services Ltd.</div>
+                <button class="prov prov-confirmed" data-source="Directly captured from contract header (exp. 2026-11-30).">confirmed</button>
+              </div>
+              <div class="fact">
+                <div class="label">Current cost baseline</div>
+                <div class="value" data-editable="true">£172 / tonne all-in (haulage + gate fee + contamination surcharges)</div>
+                <button class="prov prov-inferred" data-source="Calculated from 3 recent invoices; surcharge line items vary monthly.">inferred</button>
+              </div>
+              <div class="fact">
+                <div class="label">Low-value reuse today</div>
+                <div class="value" data-editable="true">Occasional local broker offload when bale quality improves</div>
+                <button class="prov prov-inferred" data-source="Mentioned by site manager; no continuous off-take evidence yet.">inferred</button>
+              </div>
+              <div class="fact">
+                <div class="label">Economic signal</div>
+                <div class="value" data-editable="true">Potential swing of £38–£61/tonne if contamination reduced below 8%</div>
+                <button class="prov prov-inferred" data-source="Agent model projection from internal pricing benchmarks.">inferred</button>
+              </div>
+            </div>
+          </details>
+        </article>
+
+        <article class="block">
+          <details>
+            <summary>
+              <div class="summary-left"><span class="chev"></span>Technical Profile</div>
+              <div class="summary-right">6 facts • confidence mixed</div>
+            </summary>
+            <div class="block-content">
+              <div class="fact">
+                <div class="label">Regulatory status</div>
+                <div class="value" data-editable="true">Non-hazardous packaging polymer stream (pending compliance reconfirmation)</div>
+                <button class="prov prov-stale" data-source="Compliance statement is 11 months old; threshold updates may apply.">stale</button>
+              </div>
+              <div class="fact">
+                <div class="label">Composition consistency</div>
+                <div class="value" data-editable="true">Generally consistent by shift, with inbound variability from supplier pallets</div>
+                <button class="prov prov-inferred" data-source="Pattern inferred from sorter notes and quality photos over 5 weeks.">inferred</button>
+              </div>
+              <div class="fact">
+                <div class="label">Top components</div>
+                <div class="value" data-editable="true">LDPE film, LLDPE stretch wrap, minor PP strapping fragments</div>
+                <button class="prov prov-confirmed" data-source="Confirmed by lab snapshot #PL-2281 and floor audit tags.">confirmed</button>
+              </div>
+              <div class="fact">
+                <div class="label">Known contaminants</div>
+                <div class="value" data-editable="true">Cardboard labels, moisture, adhesive tape, occasional food residue</div>
+                <button class="prov prov-confirmed" data-source="Observed in rejection photos and sorter contamination logs.">confirmed</button>
+              </div>
+              <div class="fact">
+                <div class="label">Rejection history</div>
+                <div class="value" data-editable="true">Two rejections in last 9 months due to moisture and mixed polymer ratio</div>
+                <button class="prov prov-confirmed" data-source="Confirmed in partner MRF rejection notices (Aug, Jan).">confirmed</button>
+              </div>
+            </div>
+          </details>
+        </article>
+
+        <article class="block">
+          <details>
+            <summary>
+              <div class="summary-left"><span class="chev"></span>Strategic Context</div>
+              <div class="summary-right">5 facts • driver clarity high</div>
+            </summary>
+            <div class="block-content">
+              <div class="fact">
+                <div class="label">Primary pain point</div>
+                <div class="value" data-editable="true">Escalating disposal cost and storage congestion near dock doors</div>
+                <button class="prov prov-confirmed" data-source="Direct quote from Plant Manager during discovery call.">confirmed</button>
+              </div>
+              <div class="fact">
+                <div class="label">Project goal</div>
+                <div class="value" data-editable="true">Shift from disposal spend to qualified circular recovery route</div>
+                <button class="prov prov-confirmed" data-source="Captured in kickoff notes and approved by sustainability lead.">confirmed</button>
+              </div>
+              <div class="fact">
+                <div class="label">Why now</div>
+                <div class="value" data-editable="true">FY27 cost target + corporate waste-diversion KPI reset in Q4</div>
+                <button class="prov prov-confirmed" data-source="Internal initiative document shared by finance controller.">confirmed</button>
+              </div>
+              <div class="fact">
+                <div class="label">Openness to alternatives</div>
+                <div class="value" data-editable="true">Open to offtake + preprocessing if service continuity is maintained</div>
+                <button class="prov prov-inferred" data-source="Interpreted from procurement constraints discussed in workshop.">inferred</button>
+              </div>
+              <div class="fact">
+                <div class="label">Decision-maker (commercial)</div>
+                <div class="value" data-editable="true">Likely: Regional Procurement Director (name pending confirmation)</div>
+                <button class="prov prov-missing" data-source="Role identified, individual contact not yet validated.">missing</button>
+              </div>
+            </div>
+          </details>
+        </article>
+
+        <article class="block">
+          <details>
+            <summary>
+              <div class="summary-left"><span class="chev"></span>Gaps &amp; Uncertainties</div>
+              <div class="summary-right">4 open items</div>
+            </summary>
+            <div class="block-content">
+              <div class="fact">
+                <div class="label">Data gap</div>
+                <div class="value" data-editable="true">Need two consecutive contamination audits with photo-backed grading</div>
+                <button class="prov prov-missing" data-source="Required for confidence lift from 72% to >80%.">missing</button>
+              </div>
+              <div class="fact">
+                <div class="label">Commercial gap</div>
+                <div class="value" data-editable="true">Contract exit terms and notice period for current vendor unresolved</div>
+                <button class="prov prov-missing" data-source="Contract addendum not uploaded yet.">missing</button>
+              </div>
+              <div class="fact">
+                <div class="label">Stakeholder gap</div>
+                <div class="value" data-editable="true">Decision committee composition unclear beyond procurement + operations</div>
+                <button class="prov prov-inferred" data-source="Assumed from previous Acme projects; needs explicit validation.">inferred</button>
+              </div>
+              <div class="fact">
+                <div class="label">Freshness risk</div>
+                <div class="value" data-editable="true">Regulatory classification document aging out this quarter</div>
+                <button class="prov prov-stale" data-source="Document issue date Jun 2025.">stale</button>
+              </div>
+            </div>
+          </details>
+        </article>
+
+        <article class="block">
+          <details open>
+            <summary>
+              <div class="summary-left"><span class="chev"></span>Agent Recommendations</div>
+              <div class="summary-right">Next best actions</div>
+            </summary>
+            <div class="block-content">
+              <div class="fact">
+                <div class="label">Action 1</div>
+                <div class="value" data-editable="true">Schedule 45-min onsite verification focused on contamination and moisture controls</div>
+                <button class="prov prov-inferred" data-source="Recommended by confidence engine due to contamination uncertainty.">inferred</button>
+              </div>
+              <div class="fact">
+                <div class="label">Action 2</div>
+                <div class="value" data-editable="true">Request contract annex: termination clauses, renewal windows, service penalties</div>
+                <button class="prov prov-inferred" data-source="Commercial readiness requirement before proposal lock.">inferred</button>
+              </div>
+              <div class="fact">
+                <div class="label">Ask on next visit</div>
+                <div class="value" data-editable="true">"Which KPI matters most: cost reduction, diversion rate, or operational reliability?"</div>
+                <button class="prov prov-inferred" data-source="Question generated from strategic ambiguity in stated project goal.">inferred</button>
+              </div>
+              <div class="fact">
+                <div class="label">Readiness estimate</div>
+                <div class="value" data-editable="true">Estimated 8 days to proposal-grade brief if gaps 1–2 are resolved</div>
+                <button class="prov prov-inferred" data-source="Based on completion patterns for similar polymer streams.">inferred</button>
+              </div>
+            </div>
+          </details>
+        </article>
+      </section>
+
+      <aside class="sidebar">
+        <section class="panel side-card">
+          <div class="side-title">Evidence</div>
+          <div class="item">
+            <strong>Plant Floor Photos (12)</strong>
+            <small>Uploaded today • linked to Snapshot + Technical</small>
+          </div>
+          <div class="item">
+            <strong>Voice Note: Ops Lead</strong>
+            <small>2m 14s • transcribed • confidence 0.84</small>
+          </div>
+          <div class="item">
+            <strong>Vendor Invoice Pack (Mar-Apr)</strong>
+            <small>Used in cost baseline inference</small>
+          </div>
+        </section>
+
+        <section class="panel side-card">
+          <div class="side-title">Activity</div>
+          <div class="item">
+            <strong>Agent</strong>: Updated economic signal after invoice ingest
+            <small>3 min ago</small>
+          </div>
+          <div class="item">
+            <strong>You</strong>: Corrected volume from 16 to 18 tonnes/month
+            <small>8 min ago</small>
+          </div>
+          <div class="item">
+            <strong>Agent</strong>: Marked regulatory status as stale
+            <small>15 min ago</small>
+          </div>
+        </section>
+
+        <section class="panel side-card">
+          <div class="side-title">Quick actions</div>
+          <div class="quick-actions">
+            <button class="btn">+ Add evidence</button>
+            <button class="btn">🎙 Add voice note</button>
+            <button class="btn">✦ Ask agent to fill gaps</button>
+          </div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div class="capture" aria-label="Quick capture">
+    <input type="text" placeholder="Drop a note, paste an observation, or link evidence…" />
+    <button class="btn">Attach</button>
+    <button class="btn">Voice</button>
+    <button class="btn primary">Capture</button>
+  </div>
+
+  <div id="provToast" class="toast" role="status" aria-live="polite">
+    <h4>Provenance</h4>
+    <p id="provText"></p>
+  </div>
+
+  <script>
+    const currentBtn = document.getElementById('modeCurrent');
+    const newBtn = document.getElementById('modeNew');
+    const modeNote = document.getElementById('modeNote');
+
+    const notes = {
+      current: 'Current mode: 31 questions across 4 phases, progress bars, and step navigation emphasize form completion over understanding.',
+      next: 'New mode centers one living brief artifact. 31 answers become synthesized facts with confidence and provenance.'
+    };
+
+    function setMode(mode) {
+      const isCurrent = mode === 'current';
+      currentBtn.classList.toggle('active', isCurrent);
+      newBtn.classList.toggle('active', !isCurrent);
+      currentBtn.setAttribute('aria-selected', isCurrent ? 'true' : 'false');
+      newBtn.setAttribute('aria-selected', isCurrent ? 'false' : 'true');
+      modeNote.textContent = isCurrent ? notes.current : notes.next;
+    }
+
+    currentBtn.addEventListener('click', () => setMode('current'));
+    newBtn.addEventListener('click', () => setMode('next'));
+
+    document.getElementById('expandAll').addEventListener('click', () => {
+      document.querySelectorAll('.block details').forEach(d => d.open = true);
+    });
+
+    document.getElementById('collapseAll').addEventListener('click', () => {
+      document.querySelectorAll('.block details').forEach(d => d.open = false);
+    });
+
+    function bindEditable(node) {
+      node.addEventListener('click', () => {
+        if (node.classList.contains('editing')) return;
+        const previous = node.textContent.trim();
+        const input = document.createElement('input');
+        input.value = previous;
+        input.className = 'value editing';
+        input.style.width = '100%';
+        node.replaceWith(input);
+        input.focus();
+
+        const commit = () => {
+          const span = document.createElement('div');
+          span.className = 'value';
+          span.dataset.editable = 'true';
+          span.textContent = input.value.trim() || previous;
+          input.replaceWith(span);
+          bindEditable(span);
+        };
+
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') input.blur();
+          if (e.key === 'Escape') {
+            input.value = previous;
+            input.blur();
+          }
+        });
+      }, { once: true });
+    }
+
+    document.querySelectorAll('[data-editable="true"]').forEach(bindEditable);
+
+    const toast = document.getElementById('provToast');
+    const provText = document.getElementById('provText');
+    let hideTimer;
+
+    document.querySelectorAll('.prov').forEach((badge) => {
+      badge.addEventListener('click', () => {
+        provText.textContent = badge.dataset.source || 'No source available.';
+        toast.classList.add('show');
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => toast.classList.remove('show'), 3600);
+      });
+      badge.title = badge.dataset.source || '';
+    });
+  </script>
+</body>
+</html>
