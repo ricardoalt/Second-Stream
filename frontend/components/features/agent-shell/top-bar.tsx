@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDiscoveryWizard } from "@/components/features/discovery/discovery-wizard-provider";
+import { FeedbackButton } from "@/components/features/feedback/feedback-button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,12 +42,26 @@ type TopBarProps = {
 	onLogout: () => void;
 };
 
+const FEEDBACK_CREATE_PERMISSION = "feedback:create";
+const BULK_IMPORT_MANAGE_PERMISSION = "bulk_import:manage";
+
+function hasPermission(user: AuthUser | null, permission: string): boolean {
+	if (!user) return false;
+	if (user.isSuperuser) return true;
+	return user.permissions.includes(permission);
+}
+
 export function TopBar({ user, onLogout }: TopBarProps) {
 	const pathname = usePathname();
 	const discoveryWizard = useDiscoveryWizard();
 	const title = getTopBarTitle(pathname);
 	const fullName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim();
 	const email = user?.email ?? "";
+	const hasOrganizationScope = user?.organizationId !== null;
+	const canSendFeedback =
+		hasOrganizationScope && hasPermission(user, FEEDBACK_CREATE_PERMISSION);
+	const canOpenDiscoveryWizard =
+		hasOrganizationScope && hasPermission(user, BULK_IMPORT_MANAGE_PERMISSION);
 
 	return (
 		<header className="sticky top-0 z-30 h-14 bg-surface-container-lowest px-6 shadow-xs">
@@ -67,13 +82,17 @@ export function TopBar({ user, onLogout }: TopBarProps) {
 				</div>
 
 				<div className="flex items-center gap-2">
-					<Button
-						onClick={discoveryWizard.open}
-						className="bg-[var(--gradient-discovery)] text-white hover:opacity-90"
-					>
-						<Sparkles data-icon="inline-start" aria-hidden="true" />
-						Discovery Wizard
-					</Button>
+					{canSendFeedback ? <FeedbackButton /> : null}
+
+					{canOpenDiscoveryWizard ? (
+						<Button
+							onClick={discoveryWizard.open}
+							className="bg-[var(--gradient-discovery)] text-white hover:opacity-90"
+						>
+							<Sparkles data-icon="inline-start" aria-hidden="true" />
+							Discovery Wizard
+						</Button>
+					) : null}
 
 					<Button variant="ghost" size="icon" aria-label="Notifications">
 						<Bell />

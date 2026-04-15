@@ -60,6 +60,12 @@ interface RetryOptions {
 	isRetryable: (error: unknown) => boolean;
 }
 
+function hasOrganizationHeader(headers: Record<string, string>): boolean {
+	return Object.keys(headers).some(
+		(headerName) => headerName.toLowerCase() === "x-organization-id",
+	);
+}
+
 const withRetry = async <T>(
 	operation: () => Promise<T>,
 	options: RetryOptions,
@@ -182,7 +188,7 @@ class APIClient {
 				};
 				if (typeof window !== "undefined") {
 					const selectedOrgId = localStorage.getItem(SELECTED_ORG_STORAGE_KEY);
-					if (selectedOrgId) {
+					if (selectedOrgId && !hasOrganizationHeader(mergedHeaders)) {
 						mergedHeaders["X-Organization-Id"] = selectedOrgId;
 					}
 				}
@@ -390,7 +396,7 @@ class APIClient {
 				};
 				if (typeof window !== "undefined") {
 					const selectedOrgId = localStorage.getItem(SELECTED_ORG_STORAGE_KEY);
-					if (selectedOrgId) {
+					if (selectedOrgId && !hasOrganizationHeader(mergedHeaders)) {
 						mergedHeaders["X-Organization-Id"] = selectedOrgId;
 					}
 				}

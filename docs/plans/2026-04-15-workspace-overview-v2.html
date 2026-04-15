@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SecondStream — Stream Workspace v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════
+   TOKENS — warm, restrained, editorial
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --bg: #FAF9F7;
+  --surface: #FFFFFF;
+  --fg: #1C1917;
+  --fg-2: #57534E;
+  --fg-3: #A8A29E;
+  --border: rgba(0,0,0,0.06);
+  --accent: #6366F1;
+  --accent-bg: rgba(99,102,241,0.06);
+  --green: #16A34A;
+  --amber: #CA8A04;
+  --red: #DC2626;
+  --font: 'Inter', -apple-system, system-ui, sans-serif;
+  --mono: 'SF Mono', 'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.6;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 56px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GLOBAL NAV — barely there
+   ═══════════════════════════════════════════════════════════ */
+.nav {
+  display: flex; align-items: center; gap: 24px;
+  padding: 0 40px; height: 42px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 500; color: var(--fg-3);
+  background: var(--surface);
+}
+.nav-logo { font-weight: 700; font-size: 13px; color: var(--fg); letter-spacing: -0.04em; margin-right: 8px; }
+.nav a { text-decoration: none; color: inherit; }
+.nav a.on { color: var(--fg); }
+
+/* ═══════════════════════════════════════════════════════════
+   HEADER — ultra quiet
+   ═══════════════════════════════════════════════════════════ */
+.header {
+  max-width: 1120px; margin: 0 auto;
+  padding: 28px 40px 0;
+}
+.header-top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
+}
+.header h1 {
+  font-size: 20px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.2;
+}
+.header-meta {
+  margin-top: 6px;
+  font-size: 12px; color: var(--fg-3); display: flex; gap: 8px; align-items: center;
+}
+.header-meta .dot {
+  width: 5px; height: 5px; border-radius: 50%; display: inline-block;
+}
+.header-meta .dot.amber { background: var(--amber); }
+.header-meta .sep { color: var(--border); }
+.header-actions { flex-shrink: 0; }
+.btn {
+  padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  border: 1px solid rgba(0,0,0,0.12); background: var(--surface); color: var(--fg-2);
+  cursor: pointer; font-family: inherit; transition: all 80ms;
+}
+.btn:hover { border-color: rgba(0,0,0,0.2); color: var(--fg); }
+.btn-primary { background: var(--fg); color: #fff; border-color: var(--fg); }
+.btn-primary:hover { background: #333; }
+
+/* Tabs — inline with header, minimal */
+.tabs {
+  display: flex; gap: 0; margin-top: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  padding: 8px 14px 9px; font-size: 13px; font-weight: 500; color: var(--fg-3);
+  cursor: pointer; border: none; background: none; font-family: inherit;
+  border-bottom: 1.5px solid transparent; margin-bottom: -1px;
+  transition: color 80ms;
+}
+.tab:hover { color: var(--fg-2); }
+.tab.on { color: var(--fg); font-weight: 600; border-bottom-color: var(--fg); }
+
+/* ═══════════════════════════════════════════════════════════
+   WORKSPACE — two column, brief dominant
+   ═══════════════════════════════════════════════════════════ */
+.workspace {
+  max-width: 1120px; margin: 0 auto;
+  padding: 0 40px;
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 48px;
+  align-items: start;
+  margin-top: 32px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN — the artifact IS the interface
+   No cards. No containers. Just content.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Executive summary — 2 lines, that's it */
+.exec {
+  font-size: 14.5px; line-height: 1.7; color: var(--fg-2);
+  padding-bottom: 32px; margin-bottom: 36px;
+  border-bottom: 1px solid var(--border);
+  max-width: 600px;
+}
+.exec strong { color: var(--fg); font-weight: 600; }
+.exec .flag { color: var(--amber); font-weight: 600; }
+
+/* Brief — no container, pure editorial flow */
+.brief-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--fg-3); margin-bottom: 4px;
+}
+.brief-version {
+  font-size: 11px; color: var(--fg-3); font-family: var(--mono);
+  float: right; margin-top: 2px;
+}
+.brief-heading {
+  font-size: 17px; font-weight: 700; letter-spacing: -0.025em;
+  margin-bottom: 32px; color: var(--fg); line-height: 1.2;
+}
+
+/* Section dividers — just typography, no boxes */
+.sec-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--fg-3); margin-bottom: 12px; margin-top: 36px;
+}
+.sec-label:first-of-type { margin-top: 0; }
+
+/* ═══════════════════════════════════════════════════════════
+   POINT — the atomic unit. Minimal, text-first.
+   ═══════════════════════════════════════════════════════════ */
+.pt {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 7px 0; margin: 0;
+  cursor: default; transition: background 60ms;
+  border-radius: 4px;
+  position: relative;
+}
+.pt:hover { background: rgba(0,0,0,0.02); margin: 0 -12px; padding: 7px 12px; }
+.pt.sel { background: var(--accent-bg); margin: 0 -12px; padding: 7px 12px; }
+
+/* State indicator — a subtle 3px bar */
+.st {
+  width: 3px; min-height: 16px; align-self: stretch;
+  border-radius: 2px; flex-shrink: 0; margin-top: 3px;
+}
+.st-ok { background: var(--green); }
+.st-review { background: var(--amber); }
+.st-conflict { background: var(--red); }
+.st-miss { background: transparent; border: 1px dashed var(--fg-3); }
+
+/* Point text */
+.pt-body { flex: 1; min-width: 0; }
+.pt-text { font-size: 14px; font-weight: 500; color: var(--fg); line-height: 1.45; }
+.pt-sub { font-size: 12px; color: var(--fg-3); margin-top: 2px; }
+
+/* Citation — tiny, subtle */
+.ref {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; border-radius: 3px;
+  background: var(--accent-bg); color: var(--accent);
+  font-size: 8px; font-weight: 700; margin-left: 4px;
+  position: relative; top: -2px; cursor: pointer;
+}
+.ref:hover { background: rgba(99,102,241,0.15); }
+
+/* Inline actions — only on hover, very quiet */
+.pt-actions {
+  display: flex; gap: 2px; flex-shrink: 0;
+  opacity: 0; transition: opacity 60ms;
+}
+.pt:hover .pt-actions { opacity: 1; }
+.pt.sel .pt-actions { opacity: 1; }
+.pa {
+  padding: 2px 8px; font-size: 10px; font-weight: 600;
+  color: var(--fg-3); background: none; border: 1px solid var(--border);
+  border-radius: 4px; cursor: pointer; font-family: inherit;
+  transition: all 60ms; white-space: nowrap;
+}
+.pa:hover { color: var(--fg); border-color: rgba(0,0,0,0.2); }
+
+/* "changed" marker */
+.chg {
+  font-size: 9px; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.03em; margin-left: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SECTION: OPEN QUESTIONS — folded into brief flow
+   ═══════════════════════════════════════════════════════════ */
+/* These are just points with different styling, not a separate module */
+
+/* ═══════════════════════════════════════════════════════════
+   NEXT ACTIONS — compact, end of brief, not a separate card
+   ═══════════════════════════════════════════════════════════ */
+.action {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.action:first-of-type { margin-top: 4px; }
+.act-num { font-family: var(--mono); font-size: 10px; color: var(--fg-3); margin-top: 2px; flex-shrink: 0; }
+.act-body { flex: 1; }
+.act-label { font-size: 13px; font-weight: 600; color: var(--fg); }
+.act-why { font-size: 12px; color: var(--fg-3); margin-top: 2px; }
+.act-btns { display: flex; gap: 3px; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════
+   PENDING REVIEW — the simplest possible form: a counter
+   Sits at top of rail as a quiet signal
+   ═══════════════════════════════════════════════════════════ */
+.pending-signal {
+  font-size: 12px; font-weight: 600; color: var(--fg-3);
+  display: flex; align-items: center; gap: 6px;
+  cursor: pointer; padding: 6px 0;
+  transition: color 80ms;
+}
+.pending-signal:hover { color: var(--fg-2); }
+.pending-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--amber); color: #fff;
+  font-size: 10px; font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CONTEXT PANEL (right rail) — empty by default,
+   fills when a point is selected
+   ═══════════════════════════════════════════════════════════ */
+.ctx {
+  position: sticky; top: 24px;
+  min-height: 200px;
+}
+
+/* Empty/default state */
+.ctx-empty {
+  text-align: center; padding: 48px 0;
+  color: var(--fg-3); font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Active context — for selected point */
+.ctx-active { display: none; }
+.ctx-active.show { display: block; }
+
+.ctx-for {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--fg-3); margin-bottom: 8px;
+}
+.ctx-point-text {
+  font-size: 13px; font-weight: 600; color: var(--fg);
+  line-height: 1.35; margin-bottom: 16px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--border);
+}
+
+/* Evidence in context */
+.ev {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 0;
+}
+.ev + .ev { border-top: 1px solid var(--border); }
+.ev-type {
+  font-size: 9px; font-weight: 700; color: var(--fg-3);
+  background: var(--bg); border: 1px solid var(--border);
+  padding: 2px 5px; border-radius: 3px; flex-shrink: 0;
+  margin-top: 1px;
+}
+.ev-body { flex: 1; }
+.ev-name { font-size: 12px; font-weight: 600; color: var(--fg); }
+.ev-extract { font-size: 11px; color: var(--fg-2); font-family: var(--mono); margin-top: 2px; }
+.ev-meta { font-size: 10px; color: var(--fg-3); margin-top: 2px; }
+.ev-insight {
+  font-size: 11px; color: var(--fg-2); line-height: 1.5;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+
+/* Contextual ask — tiny, unobtrusive */
+.ctx-ask {
+  margin-top: 16px; padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.ctx-ask-row {
+  display: flex; align-items: center; gap: 4px;
+}
+.ctx-ask-input {
+  flex: 1; padding: 5px 10px; font-size: 11px;
+  font-family: inherit; color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); transition: border-color 100ms;
+}
+.ctx-ask-input:focus { outline: none; border-color: var(--accent); }
+.ctx-ask-input::placeholder { color: var(--fg-3); }
+.ctx-ask-btn {
+  padding: 5px 10px; font-size: 10px; font-weight: 600;
+  background: var(--fg); color: #fff; border: none;
+  border-radius: 6px; cursor: pointer; font-family: inherit;
+  white-space: nowrap;
+}
+.ctx-ask-btn:hover { background: #333; }
+.ctx-ask-label {
+  font-size: 10px; color: var(--fg-3); margin-bottom: 6px;
+  font-weight: 500;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BOTTOM BAR — evidence capture, not chat
+   Even simpler than before
+   ═══════════════════════════════════════════════════════════ */
+.bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+  background: var(--surface); border-top: 1px solid var(--border);
+  padding: 8px 40px;
+}
+.bar-inner {
+  max-width: 1120px; margin: 0 auto;
+  display: flex; align-items: center; gap: 8px;
+}
+.bar-label { font-size: 10px; font-weight: 600; color: var(--fg-3); letter-spacing: 0.02em; white-space: nowrap; }
+.bar-input {
+  flex: 1; padding: 7px 12px; font-size: 13px; font-family: inherit;
+  color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg); transition: border-color 100ms;
+}
+.bar-input:focus { outline: none; border-color: rgba(0,0,0,0.15); }
+.bar-input::placeholder { color: var(--fg-3); }
+.bar-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--fg-3); cursor: pointer; transition: all 80ms;
+}
+.bar-btn:hover { color: var(--fg-2); border-color: rgba(0,0,0,0.15); }
+.bar-btn.go { background: var(--fg); color: #fff; border-color: var(--fg); }
+.bar-btn.go:hover { background: #333; }
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATIONS — gentle
+   ═══════════════════════════════════════════════════════════ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade { animation: fadeUp 0.25s ease-out both; }
+.d1 { animation-delay: 30ms; }
+.d2 { animation-delay: 60ms; }
+.d3 { animation-delay: 90ms; }
+.d4 { animation-delay: 120ms; }
+
+/* ═══════════════════════════════════════════════════════════
+   PENDING LIST (expandable from signal)
+   ═══════════════════════════════════════════════════════════ */
+.pending-list { display: none; margin-top: 8px; }
+.pending-list.show { display: block; }
+.pl-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 0; cursor: pointer;
+  transition: color 60ms;
+}
+.pl-item:hover { color: var(--fg); }
+.pl-item + .pl-item { border-top: 1px solid var(--border); }
+.pl-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.pl-dot.r { background: var(--red); }
+.pl-dot.a { background: var(--amber); }
+.pl-dot.b { background: var(--accent); }
+.pl-text { font-size: 12px; color: var(--fg-2); font-weight: 500; }
+</style>
+</head>
+<body>
+<!-- Global nav -->
+<nav class="nav">
+  <span class="nav-logo">SecondStream</span>
+  <a href="#" class="on">Streams</a>
+  <a href="#">Accounts</a>
+  <a href="#">Evidence</a>
+</nav>
+
+<!-- Header -->
+<header class="header fade">
+  <div class="header-top">
+    <div>
+      <h1>Acme Paint Sludge — Houston</h1>
+      <div class="header-meta">
+        <span>Acme Industrial</span>
+        <span class="sep">·</span>
+        <span><span class="dot amber"></span> Pending review</span>
+        <span class="sep">·</span>
+        <span style="font-family:var(--mono);font-size:10px;">11:42 AM</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary">Complete Discovery</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab on">Overview</button>
+    <button class="tab">Structured Capture</button>
+    <button class="tab">Evidence</button>
+    <button class="tab">History</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════
+     WORKSPACE
+     ═══════════════════════════════════════════════════════════ -->
+<div class="workspace">
+
+  <!-- ═══════════════════════════════════════
+       MAIN — the brief IS the page
+       ═══════════════════════════════════════ -->
+  <main>
+
+    <!-- Executive summary — 2 sentences, done -->
+    <p class="exec fade d1">
+      <strong>Paint sludge + absorbents</strong>, weekly from Acme Houston.
+      <span class="flag">Blocked: solids % conflict across lab report and manifest.</span>
+    </p>
+
+    <!-- Discovery Brief — no card, no container. Just content. -->
+    <div class="fade d2">
+      <span class="brief-version">v3 · 11:42</span>
+      <p class="brief-label">Discovery Brief</p>
+      <h2 class="brief-heading">Acme Paint Sludge — Houston</h2>
+
+      <!-- ── What we know ────────────────── -->
+      <p class="sec-label">What we know</p>
+
+      <div class="pt" onclick="selectPt(this, 'material')">
+        <div class="st st-ok"></div>
+        <div class="pt-body">
+          <p class="pt-text">Material: Paint sludge<span class="ref">1</span></p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Accept</button>
+          <button class="pa">Incorrect</button>
+        </div>
+      </div>
+
+      <div class="pt" onclick="selectPt(this, 'volume')">
+        <div class="st st-review"></div>
+        <div class="pt-body">
+          <p class="pt-text">Est. volume: 42–50 tons/mo<span class="ref">2</span><span class="ref">3</span><span class="chg">Updated</span></p>
+          <p class="pt-sub">3 sources · manifests + broker note</p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Accept</button>
+          <button class="pa">Incorrect</button>
+          <button class="pa">Verify</button>
+        </div>
+      </div>
+
+      <div class="pt" onclick="selectPt(this, 'frequency')">
+        <div class="st st-ok"></div>
+        <div class="pt-body">
+          <p class="pt-text">Pickup: Weekly, Thursdays<span class="ref">4</span></p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Accept</button>
+          <button class="pa">Incorrect</button>
+        </div>
+      </div>
+
+      <div class="pt" onclick="selectPt(this, 'ph')">
+        <div class="st st-review"></div>
+        <div class="pt-body">
+          <p class="pt-text">pH range: 6.2–7.1<span class="ref">5</span></p>
+          <p class="pt-sub">Inferred from historical dossier — no fresh sample</p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Accept</button>
+          <button class="pa">Verify</button>
+        </div>
+      </div>
+
+      <!-- ── What is missing ─────────────── -->
+      <p class="sec-label">What is missing</p>
+
+      <div class="pt" onclick="selectPt(this, 'epa')">
+        <div class="st st-miss"></div>
+        <div class="pt-body">
+          <p class="pt-text">EPA waste code at location-level</p>
+          <p class="pt-sub">Changes outlet options and transport class</p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Add note</button>
+        </div>
+      </div>
+
+      <div class="pt" onclick="selectPt(this, 'dwell')">
+        <div class="st st-miss"></div>
+        <div class="pt-body">
+          <p class="pt-text">Storage dwell time tolerance</p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Add note</button>
+        </div>
+      </div>
+
+      <!-- ── Conflicts ───────────────────── -->
+      <p class="sec-label">Conflicts</p>
+
+      <div class="pt sel" onclick="selectPt(this, 'solids')">
+        <div class="st st-conflict"></div>
+        <div class="pt-body">
+          <p class="pt-text">Solids %: 18% vs 32%<span class="ref">1</span><span class="ref">6</span></p>
+          <p class="pt-sub">Lab report says 32% — manifest says 18%</p>
+        </div>
+        <div class="pt-actions" style="opacity:1">
+          <button class="pa">Verify</button>
+          <button class="pa">Add note</button>
+        </div>
+      </div>
+
+      <!-- ── Next actions ────────────────── -->
+      <p class="sec-label">Recommended next</p>
+
+      <div class="action">
+        <span class="act-num">01</span>
+        <div class="act-body">
+          <p class="act-label">Request fresh sample + chain-of-custody</p>
+          <p class="act-why">Resolves solids conflict · unlocks outlet filtering</p>
+        </div>
+        <div class="act-btns">
+          <button class="btn" style="font-size:10px;padding:3px 10px">Accept</button>
+          <button class="pa">Defer</button>
+        </div>
+      </div>
+
+      <div class="action">
+        <span class="act-num">02</span>
+        <div class="act-body">
+          <p class="act-label">Call compliance lead — confirm manifest code</p>
+          <p class="act-why">5 min · best before 3 PM · needed before outreach</p>
+        </div>
+        <div class="act-btns">
+          <button class="btn" style="font-size:10px;padding:3px 10px">Accept</button>
+          <button class="pa">Defer</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════
+       CONTEXT PANEL — empty until selection
+       ═══════════════════════════════════════ -->
+  <aside class="ctx fade d3">
+
+    <!-- Pending review signal — just a count -->
+    <div class="pending-signal" onclick="togglePending()">
+      <span class="pending-count">3</span>
+      <span>items need review</span>
+    </div>
+    <div class="pending-list" id="pendingList">
+      <div class="pl-item" onclick="selectPtByKey('solids')">
+        <span class="pl-dot r"></span>
+        <span class="pl-text">Solids % conflict</span>
+      </div>
+      <div class="pl-item" onclick="selectPtByKey('ph')">
+        <span class="pl-dot a"></span>
+        <span class="pl-text">pH from historical dossier</span>
+      </div>
+      <div class="pl-item" onclick="selectPtByKey('volume')">
+        <span class="pl-dot a"></span>
+        <span class="pl-text">Volume estimate variance</span>
+      </div>
+    </div>
+
+    <!-- EMPTY STATE — shown when nothing selected -->
+    <div class="ctx-empty" id="ctxEmpty">
+      <p style="margin-bottom:4px">Select a point to see<br>evidence and context</p>
+    </div>
+
+    <!-- ACTIVE CONTEXT — shown for selected point -->
+    <!-- Solids conflict context -->
+    <div class="ctx-active" id="ctx-solids">
+      <p class="ctx-for">Evidence for selected point</p>
+      <p class="ctx-point-text">Solids %: 18% vs 32%</p>
+
+      <div class="ev">
+        <span class="ev-type">PDF</span>
+        <div class="ev-body">
+          <p class="ev-name">Lab Report #LR-884</p>
+          <p class="ev-extract">"32% solids" — p3</p>
+          <p class="ev-meta">Apr 10 · High confidence</p>
+        </div>
+      </div>
+      <div class="ev">
+        <span class="ev-type">DOC</span>
+        <div class="ev-body">
+          <p class="ev-name">Manifest #TM-220</p>
+          <p class="ev-extract">"18% solids" — line 12</p>
+          <p class="ev-meta">Apr 8 · Medium confidence</p>
+        </div>
+      </div>
+      <p class="ev-insight">Outlet compatibility and pricing depend on accurate solids %. This must be resolved before shortlisting.</p>
+
+      <div class="ctx-ask">
+        <p class="ctx-ask-label">Ask about this point</p>
+        <div class="ctx-ask-row">
+          <input type="text" class="ctx-ask-input" placeholder="e.g. Which source is more reliable?" />
+          <button class="ctx-ask-btn">Ask</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Volume context -->
+    <div class="ctx-active" id="ctx-volume">
+      <p class="ctx-for">Evidence for selected point</p>
+      <p class="ctx-point-text">Est. volume: 42–50 tons/mo</p>
+
+      <div class="ev">
+        <span class="ev-type">DOC</span>
+        <div class="ev-body">
+          <p class="ev-name">Manifests Jan–Mar</p>
+          <p class="ev-extract">42, 48, 50 tons respectively</p>
+          <p class="ev-meta">Historical average</p>
+        </div>
+      </div>
+      <div class="ev">
+        <span class="ev-type">NOTE</span>
+        <div class="ev-body">
+          <p class="ev-name">Broker note</p>
+          <p class="ev-extract">"Contract amendment caps at 38t"</p>
+          <p class="ev-meta">11:20 AM today</p>
+        </div>
+      </div>
+      <p class="ev-insight">The 38-ton cap is contractual maximum — actual throughput has been higher historically. May need clarification.</p>
+
+      <div class="ctx-ask">
+        <p class="ctx-ask-label">Ask about this point</p>
+        <div class="ctx-ask-row">
+          <input type="text" class="ctx-ask-input" placeholder="e.g. Why the discrepancy?" />
+          <button class="ctx-ask-btn">Ask</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- pH context -->
+    <div class="ctx-active" id="ctx-ph">
+      <p class="ctx-for">Evidence for selected point</p>
+      <p class="ctx-point-text">pH range: 6.2–7.1</p>
+
+      <div class="ev">
+        <span class="ev-type">PDF</span>
+        <div class="ev-body">
+          <p class="ev-name">Historical dossier — similar site</p>
+          <p class="ev-extract">pH 6.0–7.3 observed range</p>
+          <p class="ev-meta">2024 data · analogy, not direct</p>
+        </div>
+      </div>
+      <p class="ev-insight">No fresh sample exists for this stream. Value is inferred from a similar facility. Recommend verification before outlet outreach.</p>
+
+      <div class="ctx-ask">
+        <p class="ctx-ask-label">Ask about this point</p>
+        <div class="ctx-ask-row">
+          <input type="text" class="ctx-ask-input" placeholder="e.g. How confident is this inference?" />
+          <button class="ctx-ask-btn">Ask</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Material context -->
+    <div class="ctx-active" id="ctx-material">
+      <p class="ctx-for">Evidence for selected point</p>
+      <p class="ctx-point-text">Material: Paint sludge</p>
+
+      <div class="ev">
+        <span class="ev-type">PDF</span>
+        <div class="ev-body">
+          <p class="ev-name">Lab Report #LR-884</p>
+          <p class="ev-extract">"Paint sludge with absorbents" — p2</p>
+          <p class="ev-meta">Apr 10 · High confidence</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Frequency context -->
+    <div class="ctx-active" id="ctx-frequency">
+      <p class="ctx-for">Evidence for selected point</p>
+      <p class="ctx-point-text">Pickup: Weekly, Thursdays</p>
+
+      <div class="ev">
+        <span class="ev-type">DOC</span>
+        <div class="ev-body">
+          <p class="ev-name">Service agreement</p>
+          <p class="ev-extract">Thursday pickup, 7 AM–12 PM window</p>
+          <p class="ev-meta">Current contract</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- EPA missing context -->
+    <div class="ctx-active" id="ctx-epa">
+      <p class="ctx-for">What's needed</p>
+      <p class="ctx-point-text">EPA waste code at location-level</p>
+
+      <p class="ev-insight">Waste code determines outlet eligibility, transport requirements, and pricing model. Could be D001 (ignitability) or D007 (chromium) based on material composition. Verify with the latest manifest or compliance lead.</p>
+
+      <div class="ctx-ask">
+        <p class="ctx-ask-label">Ask about this point</p>
+        <div class="ctx-ask-row">
+          <input type="text" class="ctx-ask-input" placeholder="e.g. What if it's D001 vs D007?" />
+          <button class="ctx-ask-btn">Ask</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dwell time missing context -->
+    <div class="ctx-active" id="ctx-dwell">
+      <p class="ctx-for">What's needed</p>
+      <p class="ctx-point-text">Storage dwell time tolerance</p>
+
+      <p class="ev-insight">No evidence found yet. Ask the generator how long waste sits before pickup, and whether they have capacity limits.</p>
+    </div>
+
+  </aside>
+
+</div>
+
+<!-- Bottom bar -->
+<div class="bar">
+  <div class="bar-inner">
+    <span class="bar-label">Add to stream</span>
+    <input type="text" class="bar-input" placeholder="Paste text, drop a file, or type a note..." />
+    <button class="bar-btn" title="Upload">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 10V3m0 0L5.5 5.5M8 3l2.5 2.5"/><path d="M3 12h10"/></svg>
+    </button>
+    <button class="bar-btn" title="Voice">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 8a4 4 0 0 0 8 0"/><path d="M8 13v1"/></svg>
+    </button>
+    <button class="bar-btn go" title="Submit">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2 2 8l5 2 2 5z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+// Point selection — drives context panel
+function selectPt(el, key) {
+  // Deselect all
+  document.querySelectorAll('.pt').forEach(p => p.classList.remove('sel'));
+  el.classList.add('sel');
+  showContext(key);
+}
+
+function selectPtByKey(key) {
+  // Find and select the right point
+  document.querySelectorAll('.pt').forEach(p => {
+    if (p.getAttribute('onclick')?.includes("'" + key + "'")) {
+      p.classList.add('sel');
+    } else {
+      p.classList.remove('sel');
+    }
+  });
+  showContext(key);
+}
+
+function showContext(key) {
+  // Hide all contexts
+  document.getElementById('ctxEmpty').style.display = 'none';
+  document.querySelectorAll('.ctx-active').forEach(c => c.classList.remove('show'));
+  // Show the right one
+  const target = document.getElementById('ctx-' + key);
+  if (target) target.classList.add('show');
+}
+
+function togglePending() {
+  document.getElementById('pendingList').classList.toggle('show');
+}
+
+// Deselect on clicking main background
+document.querySelector('main')?.addEventListener('click', function(e) {
+  if (e.target === this) {
+    document.querySelectorAll('.pt').forEach(p => p.classList.remove('sel'));
+    document.querySelectorAll('.ctx-active').forEach(c => c.classList.remove('show'));
+    document.getElementById('ctxEmpty').style.display = '';
+  }
+});
+</script>
+</body>
+</html>

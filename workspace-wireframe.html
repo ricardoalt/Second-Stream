@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecondStream - Workspace Wireframe v5</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap');
+
+        :root {
+            /* V5 Refined Palette - Even softer, more editorial */
+            --bg-canvas: #FCFCFC;
+            --bg-surface: #FFFFFF;
+            --border-subtle: #EAEAEA;
+            --text-primary: #0F0F0F;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            
+            --amber-bg: #FCF4E6;
+            --amber-border: #F7D08A;
+            --amber-text: #8F5902;
+            
+            --emerald-bg: #E6F4EA;
+            --emerald-text: #216E35;
+        }
+
+        body {
+            font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-canvas);
+            color: var(--text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .font-mono { font-family: 'Geist Mono', monospace; }
+        .font-serif { font-family: 'Newsreader', serif; }
+
+        /* V5 Animations */
+        .transition-spring {
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05);
+        }
+        
+        .transition-smooth {
+            transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        /* Buttons */
+        .btn-base {
+            display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+            border-radius: 6px; font-size: 0.8125rem; font-weight: 500;
+            transition: all 0.2s ease; cursor: pointer;
+        }
+        .btn-primary {
+            background-color: var(--text-primary); color: #FFFFFF;
+            padding: 0.375rem 0.875rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .btn-primary:active { transform: scale(0.96); background-color: #222; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+        
+        .btn-outline {
+            background-color: #FFFFFF; border: 1px solid var(--border-subtle);
+            color: var(--text-primary); padding: 0.375rem 0.875rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+        .btn-outline:hover { background-color: #FAFAFA; border-color: #D1D1D1; }
+        .btn-outline:active { transform: scale(0.96); }
+
+        /* V5 Highlights */
+        .highlight-marker {
+            background-color: var(--amber-bg);
+            border-bottom: 1.5px dashed var(--amber-border);
+            color: var(--text-primary);
+            cursor: pointer;
+            padding: 0px 4px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        .highlight-marker:hover {
+            background-color: #FCE8B3;
+        }
+        .highlight-marker.active {
+            background-color: #FCE8B3;
+            border-bottom: 2px solid var(--amber-text);
+            box-shadow: 0 0 0 3px rgba(143, 89, 2, 0.08);
+        }
+        .highlight-resolved {
+            background-color: transparent;
+            border-bottom: 1.5px solid transparent;
+            color: var(--text-primary);
+            cursor: default;
+            padding: 0;
+            transition: all 0.6s ease;
+        }
+
+        /* Structured Data Rows */
+        .data-row {
+            display: flex; align-items: flex-start;
+            padding: 0.875rem 0;
+            border-bottom: 1px solid var(--border-subtle);
+            transition: background-color 0.2s ease;
+        }
+        .data-row:hover { background-color: rgba(0,0,0,0.01); }
+        
+        .data-row.needs-review {
+            background-color: var(--amber-bg);
+            margin: 0 -1rem; padding: 0.875rem 1rem;
+            border-radius: 8px; border-bottom-color: transparent;
+            cursor: pointer;
+            box-shadow: inset 0 0 0 1px rgba(247, 208, 138, 0.3);
+        }
+        .data-row.needs-review:hover { background-color: #FCE8B3; }
+
+        /* Empty State Dropzone */
+        .dropzone {
+            background-color: #F8F8F8;
+            border: 1px solid var(--border-subtle);
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.01);
+            border-radius: 16px;
+            transition: all 0.3s ease;
+        }
+        .dropzone:hover {
+            background-color: #FFFFFF;
+            border-color: #D1D1D1;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+            transform: translateY(-2px);
+        }
+
+        /* Glass Header */
+        .glass-header {
+            background: rgba(252, 252, 252, 0.7);
+            backdrop-filter: blur(20px) saturate(150%);
+            -webkit-backdrop-filter: blur(20px) saturate(150%);
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+        }
+
+        /* AI Skeleton Loading Animation */
+        .skeleton-line {
+            height: 14px;
+            background: linear-gradient(90deg, #F0F0F0 25%, #FAFAFA 50%, #F0F0F0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .typing-reveal {
+            opacity: 0;
+            transform: translateY(10px);
+            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes fadeUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Snippet Paper Effect */
+        .paper-snippet {
+            background-color: #FFFFFF;
+            border: 1px solid #EAEAEA;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03), 0 1px 2px rgba(0,0,0,0.02);
+            position: relative;
+            overflow: hidden;
+        }
+        .paper-snippet::before {
+            content: '';
+            position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+            background-color: var(--amber-border);
+        }
+
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-[14px]">
+
+    <!-- App Header -->
+    <header class="h-[56px] flex items-center justify-between px-6 glass-header shrink-0 z-30 relative">
+        <div class="flex items-center gap-3">
+            <button class="flex items-center justify-center w-8 h-8 rounded-md text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-smooth" title="Back to Streams">
+                <i class="ph ph-arrow-left text-lg"></i>
+            </button>
+            <div class="h-4 w-px bg-gray-200 mx-1"></div>
+            <span class="text-[11px] font-mono uppercase tracking-widest text-gray-500">STR-8492</span>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <!-- Proto Tools -->
+            <div class="flex items-center gap-2 mr-6 px-3 py-1 bg-gray-50 border border-gray-100 rounded-full">
+                <span class="text-[10px] font-mono text-gray-400 uppercase tracking-wider">Prototype</span>
+                <button onclick="resetToEmpty()" class="text-[11px] font-medium text-gray-500 hover:text-gray-900">Reset Flow</button>
+            </div>
+
+            <span id="header-status" class="text-xs text-gray-500 flex items-center gap-1.5 transition-opacity duration-300">
+                <i class="ph ph-cloud-check text-sm"></i> Saved
+            </span>
+            
+            <button class="btn-outline text-xs h-8">
+                <i class="ph ph-share-network"></i> Share
+            </button>
+            <button id="btn-submit" class="btn-primary text-xs h-8 opacity-40 cursor-not-allowed transition-all" title="Resolve all items to submit">
+                <span>Generate Proposal</span>
+                <i class="ph ph-arrow-right"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Left: Workspace / Document -->
+        <section class="flex-1 flex flex-col relative overflow-y-auto bg-[#FCFCFC] scroll-smooth" id="main-scroll">
+            <div class="max-w-[700px] w-full mx-auto px-8 py-20 pb-48 relative">
+                
+                <!-- STATE 1: EMPTY CANVAS -->
+                <div id="view-empty" class="space-y-12 transition-smooth opacity-100">
+                    <div>
+                        <h1 class="text-[2.75rem] font-serif text-gray-300 mb-4 tracking-tight leading-none">Untitled Stream</h1>
+                        <p class="text-gray-500 text-[15px] max-w-md leading-relaxed">The Discovery Brief is empty. Provide evidence or context to let the agent begin structuring the data.</p>
+                    </div>
+
+                    <!-- Refined Dropzone -->
+                    <div class="dropzone cursor-pointer group" onclick="startGenerationFlow()">
+                        <div class="p-14 text-center flex flex-col items-center justify-center min-h-[300px]">
+                            <div class="h-14 w-14 rounded-xl bg-white border border-gray-100 flex items-center justify-center mb-6 shadow-sm text-gray-400 group-hover:text-gray-900 group-hover:shadow-md transition-all duration-300 transform group-hover:-translate-y-1">
+                                <i class="ph ph-sparkle text-2xl"></i>
+                            </div>
+                            <h3 class="text-base font-medium mb-2 text-gray-900">Ingest Evidence</h3>
+                            <p class="text-[14px] text-gray-500 max-w-[280px] mx-auto mb-8 leading-relaxed">
+                                Drop SDS, invoices, or lab reports here. PDFs, images, and emails supported.
+                            </p>
+                            <div class="flex items-center gap-3">
+                                <button class="btn-outline bg-white text-[13px]">Select Files</button>
+                                <span class="text-gray-300 text-xs">or</span>
+                                <button class="btn-outline bg-white text-[13px]" onclick="event.stopPropagation(); startGenerationFlow()">
+                                    <i class="ph ph-microphone"></i> Dictate
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STATE 2: PROGRESSIVE GENERATION (The AI "Thinking" state) -->
+                <div id="view-generating" class="hidden absolute top-20 left-8 right-8 space-y-12 opacity-0 transition-smooth">
+                    <div>
+                        <div class="skeleton-line w-3/4 h-12 mb-4"></div>
+                        <div class="skeleton-line w-1/2 h-5 mb-2"></div>
+                        <div class="skeleton-line w-1/3 h-5"></div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex items-center gap-2 mb-6">
+                            <i class="ph ph-sparkle text-gray-400 animate-spin-slow"></i>
+                            <span class="text-xs font-mono uppercase tracking-widest text-gray-400">Agent Structuring Data...</span>
+                        </div>
+                        <div class="space-y-4 mb-8">
+                            <div class="skeleton-line w-full"></div>
+                            <div class="skeleton-line w-11/12"></div>
+                            <div class="skeleton-line w-4/5"></div>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="skeleton-line w-full h-10"></div>
+                            <div class="skeleton-line w-full h-10"></div>
+                            <div class="skeleton-line w-full h-10"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STATE 3: THE REVIEW ARTIFACT -->
+                <div id="view-review" class="hidden opacity-0 transform translate-y-4 transition-spring duration-700">
+                    
+                    <!-- Executive Summary -->
+                    <div class="mb-16">
+                        <div class="flex items-center gap-3 mb-6">
+                            <span id="status-badge" class="bg-amber-bg text-[var(--amber-text)] px-2.5 py-1 text-[10px] uppercase font-mono tracking-widest rounded-md flex items-center gap-2 transition-colors border border-[var(--amber-border)]">
+                                <span class="w-1.5 h-1.5 rounded-full bg-[var(--amber-text)] animate-pulse"></span>
+                                <span id="status-text">2 Pending Review</span>
+                            </span>
+                        </div>
+                        
+                        <h1 class="text-4xl md:text-[3rem] font-serif text-gray-900 mb-8 leading-[1.05] tracking-tight">Paint Thinner Sludge</h1>
+                        
+                        <div class="flex flex-col md:flex-row gap-10 border-l-2 border-[#EAEAEA] pl-6 py-2">
+                            <div class="flex-1">
+                                <span class="block text-[10px] font-mono uppercase tracking-widest text-gray-400 mb-2">Current Understanding</span>
+                                <span class="text-gray-700 leading-relaxed text-[14.5px]">D001 Ignitable waste from spray booth cleaning, accumulated in 55-gal drums at Acme Manufacturing.</span>
+                            </div>
+                            <div class="flex-1">
+                                <span class="block text-[10px] font-mono uppercase tracking-widest text-[#C23A3A] mb-2">Main Blocker</span>
+                                <span class="text-gray-700 leading-relaxed text-[14.5px]" id="summary-blocker">Missing <span class="font-medium text-gray-900">pH level</span> required to determine final facility routing.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 1: Waste Profile -->
+                    <section class="mb-14">
+                        <h2 class="text-lg font-medium text-gray-900 mb-5 pb-3 border-b border-[#EAEAEA] flex justify-between items-end">
+                            <span>1. Waste Profile</span>
+                        </h2>
+                        
+                        <p class="text-gray-800 leading-[1.7] text-[15px] mb-8 max-w-[65ch]">
+                            The stream consists of paint thinner sludge generated from the spray booth cleaning process. Based on the uploaded SDS, the primary constituents are <span class="font-medium text-gray-900">Toluene (40-60%)</span> and <span class="font-medium text-gray-900">Xylene (10-30%)</span>. It presents a <span id="hl-flashpoint" class="highlight-marker" onclick="activateLens('flashpoint')">flash point of 45°F</span>, classifying it as a D001 Ignitable Hazardous Waste.
+                        </p>
+
+                        <!-- Structured Data list -->
+                        <div class="space-y-0 text-[14px]">
+                            <div class="data-row group">
+                                <div class="w-48 text-gray-500">Physical State</div>
+                                <div class="flex-1 text-gray-900">Liquid / Sludge</div>
+                                <div class="w-8 flex justify-end opacity-0 group-hover:opacity-100 transition-smooth">
+                                    <button class="text-gray-400 hover:text-gray-900"><i class="ph ph-pencil-simple"></i></button>
+                                </div>
+                            </div>
+                            
+                            <div class="data-row group">
+                                <div class="w-48 text-gray-500 flex items-center gap-1.5">RCRA Codes <i class="ph ph-sparkle text-gray-300 text-xs" title="AI Extracted"></i></div>
+                                <div class="flex-1 text-gray-900">D001, F003, F005</div>
+                                <div class="w-8 flex justify-end opacity-0 group-hover:opacity-100 transition-smooth">
+                                    <button class="text-gray-400 hover:text-gray-900"><i class="ph ph-pencil-simple"></i></button>
+                                </div>
+                            </div>
+
+                            <div id="row-ph" class="data-row needs-review" onclick="activateLens('ph')">
+                                <div class="w-48 font-medium text-[var(--amber-text)] flex items-center gap-1.5">
+                                    <i class="ph ph-warning-circle text-lg"></i> pH Level
+                                </div>
+                                <div class="flex-1 text-[var(--amber-text)] font-medium" id="val-ph">Unknown</div>
+                                <div class="text-[13px] font-medium text-[var(--amber-text)] flex items-center gap-1 hover:underline underline-offset-4">
+                                    Resolve <i class="ph ph-arrow-right"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Section 2: Logistics -->
+                    <section class="mb-16">
+                        <h2 class="text-lg font-medium text-gray-900 mb-5 pb-3 border-b border-[#EAEAEA]">2. Logistics & Volumes</h2>
+                        
+                        <p class="text-gray-800 leading-[1.7] text-[15px] mb-8 max-w-[65ch]">
+                            The generator accumulates this waste in <span class="font-medium text-gray-900">55-gallon steel drums</span>. Historically, they generate about <span id="hl-volume" class="highlight-marker" onclick="activateLens('volume')">4 drums per month</span>. Pickups are required <span class="font-medium text-gray-900">every 60 days</span> due to space constraints on their loading dock.
+                        </p>
+                        
+                        <div class="space-y-0 text-[14px]">
+                            <div class="data-row group">
+                                <div class="w-48 text-gray-500">Container Type</div>
+                                <div class="flex-1 text-gray-900">55-gallon Drum (Steel)</div>
+                            </div>
+                            <div class="data-row group">
+                                <div class="w-48 text-gray-500 flex items-center gap-1.5">Loading Dock <i class="ph ph-sparkle text-gray-300 text-xs"></i></div>
+                                <div class="flex-1 text-gray-900">Yes (Requires Liftgate)</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Ask/Tell Command Bar -->
+                    <div class="mt-12 group">
+                        <div class="text-[11px] font-mono uppercase tracking-widest text-gray-400 mb-3 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">Agent Commands</div>
+                        <div class="border border-gray-200 rounded-xl p-2 bg-white flex items-center gap-3 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all duration-300 focus-within:border-gray-400 focus-within:shadow-[0_8px_30px_rgba(0,0,0,0.06)] focus-within:-translate-y-0.5">
+                            <div class="h-9 w-9 rounded-lg flex items-center justify-center text-gray-400 bg-[#F8F8F8] shrink-0 border border-gray-100">
+                                <i class="ph ph-sparkle text-xl"></i>
+                            </div>
+                            <input type="text" id="agent-input" placeholder="Type '/' for commands, or instruct the agent to update the brief..." class="flex-1 bg-transparent border-none outline-none text-[14px] placeholder-gray-400 py-2 text-gray-900" onkeypress="handleAgentInput(event)">
+                            
+                            <!-- Shortcut Hint -->
+                            <div class="hidden md:flex items-center gap-1 px-2 text-gray-300">
+                                <kbd class="font-mono text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50">⌘</kbd>
+                                <kbd class="font-mono text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50">K</kbd>
+                            </div>
+
+                            <button class="h-9 w-9 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-smooth flex items-center justify-center shrink-0">
+                                <i class="ph ph-microphone text-xl"></i>
+                            </button>
+                            <button class="h-9 w-9 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-smooth flex items-center justify-center shrink-0">
+                                <i class="ph ph-paperclip text-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <div id="agent-thinking" class="hidden mt-4 items-center gap-2 text-[13px] text-gray-500 ml-3">
+                            <div class="loader !w-3.5 !h-3.5 !border-2"></div> Updating brief structure...
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Right: Context Lens -->
+        <aside class="w-[360px] bg-[#FFFFFF] border-l border-[#EAEAEA] flex flex-col shrink-0 z-20 transition-transform duration-500 transform translate-x-full absolute right-0 top-0 bottom-0 md:relative md:translate-x-0" id="context-rail">
+            
+            <!-- Rail Header -->
+            <div class="p-5 border-b border-[#EAEAEA] flex items-center justify-between">
+                <div>
+                    <h3 class="text-[10px] font-mono uppercase tracking-widest text-gray-400 mb-1">Context Lens</h3>
+                    <p class="text-[13px] text-gray-500" id="lens-subtitle">Select an item to inspect</p>
+                </div>
+                <button class="md:hidden text-gray-400 hover:text-gray-900" onclick="closeRailMobile()">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-6 relative bg-[#FAFAFA]" id="lens-content">
+                
+                <!-- EMPTY STATE -->
+                <div id="lens-empty" class="absolute inset-0 flex flex-col items-center justify-center text-center p-8 opacity-100 transition-smooth">
+                    <div class="text-gray-300 mb-4">
+                        <i class="ph ph-cursor-click text-3xl"></i>
+                    </div>
+                    <p class="text-[13px] text-gray-500 leading-relaxed max-w-[200px]">Select any highlighted text or amber row in the brief to view its source evidence.</p>
+                </div>
+
+                <!-- 1. FLASHPOINT VIEW -->
+                <div id="lens-flashpoint" class="hidden opacity-0 transform translate-y-2 transition-spring duration-500 space-y-6">
+                    <div>
+                        <div class="text-xs text-gray-500 mb-3 flex items-center gap-1.5 uppercase tracking-wide font-medium"><i class="ph ph-magic-wand"></i> AI Extracted From</div>
+                        
+                        <!-- Document Chip -->
+                        <div class="flex items-center gap-3 text-[13.5px] font-medium text-gray-900 bg-white border border-gray-200 rounded-lg px-3 py-2.5 mb-4 shadow-sm hover:shadow-md transition-all cursor-pointer">
+                            <i class="ph ph-file-pdf text-[#C23A3A] text-xl"></i>
+                            <span class="truncate">SDS_Toluene_Mix.pdf</span>
+                            <i class="ph ph-arrow-up-right ml-auto text-gray-400"></i>
+                        </div>
+                        
+                        <!-- Snippet Paper -->
+                        <div class="paper-snippet p-4">
+                            <div class="text-[13.5px] text-gray-700 leading-[1.6] font-serif italic">
+                                "...boiling point is 110°C. The <mark class="bg-[var(--amber-bg)] text-gray-900 px-1 rounded not-italic font-medium">flash point is recorded at 45°F</mark> in closed cup test. Material is highly flammable and must be kept away from heat sources..."
+                            </div>
+                            <div class="mt-3 text-[10px] font-mono text-gray-400 uppercase tracking-widest text-right">Page 4, Section 9</div>
+                        </div>
+                    </div>
+
+                    <div class="pt-5 border-t border-[#EAEAEA]">
+                        <p class="text-[13px] font-medium text-gray-900 mb-3">Does this look correct?</p>
+                        <div class="flex gap-2">
+                            <button onclick="acceptEvidence('flashpoint')" class="flex-1 btn-primary bg-gray-900">
+                                <i class="ph ph-check-bold"></i> Accept
+                            </button>
+                            <button class="flex-1 btn-outline">
+                                Edit
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. VOLUME VIEW -->
+                <div id="lens-volume" class="hidden opacity-0 transform translate-y-2 transition-spring duration-500 space-y-6">
+                    <div>
+                        <div class="text-xs text-[var(--amber-text)] mb-3 flex items-center gap-1.5 uppercase tracking-wide font-medium"><i class="ph ph-warning-circle"></i> Discrepancy Found</div>
+                        
+                        <div class="space-y-4">
+                            <!-- Source 1 -->
+                            <div class="paper-snippet p-3 border-amber-200 bg-[#FFFCF5] cursor-pointer hover:shadow-md transition-all">
+                                <div class="flex items-center gap-2 mb-2 text-[11px] font-mono uppercase tracking-widest text-gray-500">
+                                    <i class="ph ph-microphone"></i> Voice Note
+                                </div>
+                                <p class="text-[13.5px] text-gray-800 italic font-serif">"Yeah they generate about <span class="font-medium bg-[var(--amber-bg)] px-1 rounded not-italic border border-[var(--amber-border)]">4 drums</span> per month according to the foreman."</p>
+                            </div>
+                            
+                            <!-- Source 2 -->
+                            <div class="paper-snippet p-3 cursor-pointer hover:shadow-md transition-all">
+                                <div class="flex items-center gap-2 mb-2 text-[11px] font-mono uppercase tracking-widest text-gray-500">
+                                    <i class="ph ph-receipt"></i> Acme_Inv_March.pdf
+                                </div>
+                                <p class="text-[13.5px] text-gray-800 font-serif italic">Line item 2 shows billing for <span class="font-medium bg-gray-100 px-1 rounded border border-gray-200 not-italic">6 drums</span> of hazardous waste.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-5 border-t border-[#EAEAEA]">
+                        <p class="text-[13px] font-medium text-gray-900 mb-3">Which value is canonical?</p>
+                        <div class="flex gap-2">
+                            <button onclick="acceptEvidence('volume', '4 drums per month')" class="flex-1 btn-outline bg-white hover:bg-gray-50">
+                                Use 4
+                            </button>
+                            <button onclick="acceptEvidence('volume', '6 drums per month')" class="flex-1 btn-outline bg-white hover:bg-gray-50">
+                                Use 6
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. pH VIEW -->
+                <div id="lens-ph" class="hidden opacity-0 transform translate-y-2 transition-spring duration-500 space-y-6">
+                    <div>
+                        <div class="flex items-center gap-3 text-[#C23A3A] mb-4">
+                            <div class="h-10 w-10 rounded-full bg-[#FCE8E8] flex items-center justify-center">
+                                <i class="ph ph-magnifying-glass-minus text-xl"></i>
+                            </div>
+                            <span class="font-medium text-[15px]">Data Not Found</span>
+                        </div>
+                        
+                        <p class="text-[14px] text-gray-600 leading-relaxed bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                            The agent scanned <span class="font-medium text-gray-900">SDS_Toluene_Mix.pdf</span> and could not locate the pH level. This is required by the TSDF for final approval.
+                        </p>
+                    </div>
+
+                    <div class="pt-5 border-t border-[#EAEAEA] space-y-4">
+                        <p class="text-[13px] font-medium text-gray-900">Resolve manually</p>
+                        <div class="flex flex-col gap-3">
+                            <input type="text" id="input-ph" placeholder="Enter pH value (e.g., 6.5)" class="w-full border border-gray-200 rounded-md px-3 py-2.5 text-[14px] focus:outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition-all shadow-sm">
+                            <button onclick="resolveMissingData('ph')" class="btn-primary w-full text-[13px] justify-center py-2.5">
+                                Save Value
+                            </button>
+                        </div>
+                        
+                        <div class="relative py-2">
+                            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
+                            <div class="relative flex justify-center"><span class="bg-[#FAFAFA] px-2 text-[11px] font-mono uppercase text-gray-400">or</span></div>
+                        </div>
+                        
+                        <button class="btn-outline w-full text-[13px] justify-center bg-white text-gray-600 border-dashed hover:border-gray-300">
+                            <i class="ph ph-envelope-simple"></i> Draft email to generator
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        let pendingCount = 3;
+        let isMobile = window.innerWidth < 768;
+
+        window.addEventListener('resize', () => { isMobile = window.innerWidth < 768; });
+
+        // PROGRESSIVE GENERATION STORYTELLING
+        function startGenerationFlow() {
+            // 1. Hide Empty State
+            const empty = document.getElementById('view-empty');
+            empty.style.opacity = '0';
+            
+            setTimeout(() => {
+                empty.classList.add('hidden');
+                
+                // 2. Show "Agent Thinking / Structuring" Skeletons
+                const gen = document.getElementById('view-generating');
+                gen.classList.remove('hidden');
+                setTimeout(() => gen.style.opacity = '1', 50);
+
+                // Simulate processing time
+                setTimeout(() => {
+                    gen.style.opacity = '0';
+                    setTimeout(() => {
+                        gen.classList.add('hidden');
+                        
+                        // 3. Reveal the Final Artifact (Review View)
+                        showReviewView();
+                    }, 300);
+                }, 2000);
+            }, 300);
+        }
+
+        function showReviewView() {
+            const review = document.getElementById('view-review');
+            review.classList.remove('hidden');
+            
+            // Staggered reveal effect via CSS
+            setTimeout(() => {
+                review.classList.remove('opacity-0', 'translate-y-4');
+                review.classList.add('opacity-100', 'translate-y-0');
+            }, 50);
+        }
+
+        function resetToEmpty() {
+            document.getElementById('view-review').classList.add('hidden', 'opacity-0', 'translate-y-4');
+            document.getElementById('view-generating').classList.add('hidden', 'opacity-0');
+            
+            const empty = document.getElementById('view-empty');
+            empty.classList.remove('hidden');
+            setTimeout(() => empty.style.opacity = '1', 50);
+            
+            closeRailMobile();
+            hideAllLensViews();
+            document.getElementById('lens-empty').style.opacity = '1';
+            document.getElementById('lens-empty').style.display = 'flex';
+            
+            // Reset state
+            pendingCount = 3;
+            updateStatusBadge();
+            
+            // Reset Flashpoint
+            const hlFlash = document.getElementById('hl-flashpoint');
+            hlFlash.className = 'highlight-marker';
+            hlFlash.innerText = 'flash point of 45°F';
+            hlFlash.style = '';
+
+            // Reset Volume
+            const hlVol = document.getElementById('hl-volume');
+            hlVol.className = 'highlight-marker';
+            hlVol.innerText = '4 drums per month';
+            hlVol.style = '';
+
+            // Reset pH
+            const rowPh = document.getElementById('row-ph');
+            rowPh.className = 'data-row needs-review';
+            rowPh.querySelector('.w-48').innerHTML = '<i class="ph ph-warning-circle text-lg"></i> pH Level';
+            rowPh.querySelector('.w-48').className = 'w-48 font-medium text-[var(--amber-text)] flex items-center gap-1.5';
+            document.getElementById('val-ph').className = 'flex-1 text-[var(--amber-text)] font-medium';
+            document.getElementById('val-ph').innerHTML = 'Unknown';
+            rowPh.children[2].innerHTML = 'Resolve <i class="ph ph-arrow-right"></i>';
+            rowPh.children[2].className = 'text-[13px] font-medium text-[var(--amber-text)] flex items-center gap-1 hover:underline underline-offset-4';
+
+            // Reset Blocker
+            const blocker = document.getElementById('summary-blocker');
+            blocker.innerHTML = 'Missing <span class="font-medium text-gray-900">pH level</span> required to determine final facility routing.';
+            blocker.previousElementSibling.innerText = "Main Blocker";
+            blocker.previousElementSibling.className = "block text-[10px] font-mono uppercase tracking-widest text-[#C23A3A] mb-2";
+        }
+
+        // LENS INTERACTION LOGIC
+        function activateLens(type) {
+            // Cleanup previous active states
+            document.querySelectorAll('.highlight-marker').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.data-row').forEach(el => el.style.boxShadow = '');
+
+            // Set new active state
+            if(type === 'flashpoint' || type === 'volume') {
+                const hl = document.getElementById(`hl-${type}`);
+                if(hl && hl.classList.contains('highlight-marker')) hl.classList.add('active');
+            } else if(type === 'ph') {
+                const row = document.getElementById('row-ph');
+                if(row && row.classList.contains('needs-review')) row.style.boxShadow = 'inset 0 0 0 2px var(--amber-border)';
+            }
+
+            if(isMobile) document.getElementById('context-rail').classList.remove('translate-x-full');
+
+            document.getElementById('lens-subtitle').innerText = `Reviewing: ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+            
+            // Cross-fade lens content
+            hideAllLensViews();
+            const targetView = document.getElementById(`lens-${type}`);
+            targetView.classList.remove('hidden');
+            
+            // Trigger animation
+            setTimeout(() => {
+                targetView.classList.remove('opacity-0', 'translate-y-2');
+                targetView.classList.add('opacity-100', 'translate-y-0');
+            }, 50);
+        }
+
+        function hideAllLensViews() {
+            const views = ['lens-empty', 'lens-flashpoint', 'lens-volume', 'lens-ph'];
+            views.forEach(v => {
+                const el = document.getElementById(v);
+                el.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => {
+                    el.classList.add('hidden');
+                    if(v === 'lens-empty') el.style.display = 'none';
+                }, 300); // match transition
+            });
+        }
+
+        function closeRailMobile() {
+            if(isMobile) {
+                document.getElementById('context-rail').classList.add('translate-x-full');
+                document.querySelectorAll('.highlight-marker').forEach(el => el.classList.remove('active'));
+                document.getElementById('row-ph').style.boxShadow = '';
+            }
+        }
+
+        // RESOLVING LOGIC
+        function acceptEvidence(type, newValue = null) {
+            const el = document.getElementById(`hl-${type}`);
+            if(!el) return;
+
+            if(newValue) el.innerText = newValue;
+
+            // Micro-interaction: verified state
+            el.classList.remove('highlight-marker', 'active');
+            el.classList.add('highlight-resolved');
+            
+            // Flash emerald green
+            el.style.backgroundColor = 'var(--emerald-bg)';
+            el.style.color = 'var(--emerald-text)';
+            setTimeout(() => {
+                el.style.backgroundColor = 'transparent';
+                el.style.color = 'var(--text-primary)';
+            }, 800);
+
+            completeStep();
+        }
+
+        function resolveMissingData(type) {
+            const input = document.getElementById(`input-${type}`);
+            if(!input.value.trim()) return;
+
+            const row = document.getElementById(`row-${type}`);
+            const valContainer = document.getElementById(`val-${type}`);
+            
+            valContainer.innerHTML = `${input.value} <i class="ph ph-check-circle text-[var(--emerald-text)] text-base ml-1" title="Manually resolved"></i>`;
+            valContainer.className = 'flex-1 text-gray-900 font-medium';
+            
+            row.className = 'data-row group';
+            row.style.boxShadow = '';
+            
+            row.querySelector('.w-48').className = 'w-48 text-gray-500';
+            row.querySelector('.w-48').innerHTML = 'pH Level';
+            
+            row.children[2].className = 'w-8 flex justify-end opacity-0 group-hover:opacity-100 transition-smooth';
+            row.children[2].innerHTML = '<button class="text-gray-400 hover:text-gray-900"><i class="ph ph-pencil-simple"></i></button>';
+
+            completeStep();
+
+            // Update Executive Summary Blocker
+            if(type === 'ph') {
+                const blocker = document.getElementById('summary-blocker');
+                blocker.innerHTML = "No active blockers. Ready for facility matching.";
+                blocker.previousElementSibling.innerText = "Status";
+                blocker.previousElementSibling.className = "block text-[10px] font-mono uppercase tracking-widest text-[#216E35] mb-2";
+            }
+        }
+
+        function completeStep() {
+            pendingCount--;
+            updateStatusBadge();
+
+            // Reset Lens
+            document.getElementById('lens-subtitle').innerText = "Select an item to inspect";
+            hideAllLensViews();
+            setTimeout(() => {
+                const empty = document.getElementById('lens-empty');
+                empty.style.display = 'flex';
+                setTimeout(() => {
+                    empty.classList.remove('opacity-0', 'translate-y-2');
+                    empty.classList.add('opacity-100', 'translate-y-0');
+                }, 50);
+            }, 300);
+            
+            // Header toast
+            const saveText = document.getElementById('header-status');
+            saveText.innerHTML = '<i class="ph ph-spinner-gap animate-spin text-sm"></i> Saving...';
+            setTimeout(() => {
+                saveText.innerHTML = '<i class="ph ph-cloud-check text-[var(--emerald-text)] text-sm"></i> Saved';
+            }, 700);
+
+            if(isMobile) closeRailMobile();
+        }
+
+        function updateStatusBadge() {
+            const badge = document.getElementById('status-badge');
+            const text = document.getElementById('status-text');
+            const submitBtn = document.getElementById('btn-submit');
+
+            if(pendingCount > 0) {
+                text.innerText = `${pendingCount} Pending Review`;
+            } else {
+                badge.className = 'bg-[var(--emerald-bg)] text-[var(--emerald-text)] px-2.5 py-1 text-[10px] uppercase font-mono tracking-widest rounded-md flex items-center gap-1.5 transition-colors border border-[#CDE5D3]';
+                badge.innerHTML = `<i class="ph ph-check-circle text-sm"></i> <span>Ready for Proposal</span>`;
+                
+                submitBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                submitBtn.title = "Submit stream for facility matching";
+            }
+        }
+
+        // Inline Agent Input
+        function handleAgentInput(e) {
+            if(e.key === 'Enter') {
+                const input = document.getElementById('agent-input');
+                if(!input.value.trim()) return;
+                
+                input.disabled = true;
+                const thinking = document.getElementById('agent-thinking');
+                thinking.classList.remove('hidden');
+                thinking.style.display = 'flex';
+                
+                setTimeout(() => {
+                    input.value = '';
+                    input.disabled = false;
+                    thinking.style.display = 'none';
+                    thinking.classList.add('hidden');
+                    
+                    input.placeholder = "Brief updated successfully.";
+                    setTimeout(() => input.placeholder = "Type '/' for commands, or instruct the agent to update the brief...", 3000);
+                }, 1500);
+            }
+        }
+
+    </script>
+</body>
+</html>

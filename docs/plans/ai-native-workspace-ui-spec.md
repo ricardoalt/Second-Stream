@@ -29,7 +29,7 @@ The central principle is:
 
 ## 2) Product role of the screen
 
-The `Stream Workspace` is the primary broker-facing surface where the user:
+The `Stream Workspace` is the primary field-agent-facing surface where the user:
 
 1. understands the current state of the stream
 2. reviews the current `Discovery Brief`
@@ -59,7 +59,7 @@ The screen must be:
 - **evidence-grounded**
 - **human-in-the-loop**
 
-It must help the broker answer quickly:
+It must help the field-agent answer quickly:
 
 1. What do we know?
 2. What is missing?
@@ -78,6 +78,10 @@ This screen should **not** become:
 - a long wizard as the default experience
 - a filesystem browser
 - a cross-platform universal control plane
+- a taskboard-first workflow
+- a timeline-first workflow
+- a visible memory inspector for primary users
+- a visible multi-agent control center
 
 The UI should not expose the full complexity of:
 
@@ -88,6 +92,19 @@ The UI should not expose the full complexity of:
 - tool registries
 
 Those remain harness internals unless needed for a specific operator workflow.
+
+---
+
+## 4.1) Scope clarity (v1 vs foundation)
+
+The workspace v1 is intentionally scoped to solve the **discovery bottleneck**.
+
+It should be implemented as the **foundation layer** for later specialist capabilities (regulatory, pricing, logistics, traceability), but v1 itself does not expose those deep specialist workflows as primary UI.
+
+Implication for UI:
+
+- keep the main workflow centered on discovery understanding and review
+- avoid adding specialist control surfaces that shift focus away from the brief
 
 ---
 
@@ -140,6 +157,12 @@ The user should only experience:
 - evidence-backed points
 - reviewable AI output
 - clear next steps
+
+### Agent visibility rule
+
+- only one primary visible agent in v1: `Discovery Completion Agent`
+- represent it as product capability metadata, not as a character
+- avoid dominant avatar/card/chat-first representation
 
 ---
 
@@ -217,7 +240,7 @@ This is the first content block under the header.
 
 ### Purpose
 
-Let the broker understand the stream situation in under 10 seconds.
+Let the field-agent understand the stream situation in under 10 seconds.
 
 ### Content
 
@@ -319,7 +342,7 @@ This block should make unresolved discovery gaps highly legible.
 
 ### 8.5 Next Best Actions
 
-This block should tell the broker what to do now.
+This block should tell the field-agent what to do now.
 
 ### Content
 
@@ -407,7 +430,7 @@ This block gives lightweight visibility into recent changes.
 
 - latest brief refresh
 - latest evidence added
-- latest broker correction
+- latest field-agent correction
 
 ### Rules
 
@@ -472,7 +495,7 @@ This tab is for evidence-first exploration.
 
 ### Purpose
 
-Allow the broker to inspect source material and its relationship to the current brief.
+Allow the field-agent to inspect source material and its relationship to the current brief.
 
 ### Required capabilities
 
@@ -496,14 +519,14 @@ This tab is for traceability and operational auditability.
 
 ### Purpose
 
-Allow the broker or reviewer to understand how the current brief evolved.
+Allow the field-agent or reviewer to understand how the current brief evolved.
 
 ### Required content
 
 - brief versions
 - important runs
 - review decisions
-- broker corrections
+- field-agent corrections
 - change summaries
 
 ### Rules
@@ -515,6 +538,20 @@ Allow the broker or reviewer to understand how the current brief evolved.
 ---
 
 ## 13) Interaction requirements
+
+### 13.0 AI interaction model (no-chat primary)
+
+Primary interaction sequence:
+
+1. ingest natural evidence (voice/note/message/file)
+2. review inline brief points + provenance/evidence
+3. use contextual `Ask/Tell` bar (optional, low-prominence) for targeted instruction or question
+
+Rules:
+
+- no persistent large chat panel in Overview default state
+- no free-floating assistant mode as primary workflow
+- Ask/Tell must be context-bound to active brief/evidence selection
 
 ### 13.1 Selecting a brief point
 
@@ -530,7 +567,7 @@ When the user reviews a point:
 
 - the review action is saved immediately
 - the point state updates visibly
-- the action becomes part of structured broker feedback
+- the action becomes part of structured field-agent feedback
 - a later brief refresh may incorporate that signal
 
 ### 13.3 Refreshing the brief

@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrgAvatar } from "@/components/features/admin";
 import { ConfirmOrgPurgeForceDialog } from "@/components/features/admin/confirm-org-purge-force-dialog";
+import { OrganizationFeedbackPanel } from "@/components/features/admin/organization-feedback-panel";
 import {
 	ConfirmDialog,
 	HoverLift,
@@ -546,6 +547,11 @@ export default function OrganizationDetailPage() {
 					/>
 				</CardContent>
 			</Card>
+
+			<OrganizationFeedbackPanel
+				orgId={organization.id}
+				orgName={organization.name}
+			/>
 
 			<AddUserModal
 				open={addUserModalOpen}

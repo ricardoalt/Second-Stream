@@ -1,10 +1,10 @@
 PRD — AI-Native Stream Workspace + Discovery Completion Agent v1
 Problem Statement
-Hoy SecondStream ayuda al broker a capturar información, revisar extracciones AI y completar el workspace, pero la comprensión actual del stream sigue viviendo principalmente en la cabeza del operador.
+Hoy SecondStream ayuda al field-agent a capturar información, revisar extracciones AI y completar el workspace, pero la comprensión actual del stream sigue viviendo principalmente en la cabeza del operador.
 El sistema actual tiene varias limitaciones:
 - el workspace está demasiado centrado en un formulario largo y cognitivamente pesado
 - la AI ayuda con extracción y sugerencias, pero no mantiene una comprensión operativa durable del caso
-- el broker tiene que reconstruir mentalmente:
+- el field-agent tiene que reconstruir mentalmente:
   - qué se sabe
   - qué falta
   - qué está en conflicto
@@ -25,8 +25,8 @@ SecondStream todavía no sostiene la comprensión viva del caso como artefacto d
 Solution
 Introducir un nuevo AI-native Stream Workspace cuyo centro ya no sea el formulario, sino un Discovery Brief vivo generado por el Discovery Completion Agent.
 Enfoque de producto
-- el workspace se convierte en la surface principal donde el broker supervisa y corrige la comprensión actual del stream
-- el Discovery Brief se convierte en el artefacto broker-facing principal
+- el workspace se convierte en la surface principal donde el field-agent supervisa y corrige la comprensión actual del stream
+- el Discovery Brief se convierte en el artefacto field-agent-facing principal
 - el agente trabaja con:
   - nueva evidencia
   - contexto del stream
@@ -39,7 +39,7 @@ Enfoque de producto
   - qué está bloqueando
   - qué deberíamos hacer ahora
 - el brief puede emitir workspace suggestions, pero no escribe directamente la verdad canónica
-- el broker sigue siendo el operador principal:
+- el field-agent sigue siendo el operador principal:
   - revisa
   - corrige
   - acepta
@@ -61,40 +61,92 @@ El harness v1 de este PRD cubre solo el flujo de workspace/discovery:
 - memoria durable controlada por SecondStream
 - herramientas/capabilities de dominio pequeñas y legibles
 - revisión humana obligatoria para cambios sensibles
+
+Modelo de interacción usuario↔AI (v1)
+Este producto NO está diseñado para que el usuario “chatee con un bot” como flujo primario. La interacción principal es sobre un brief vivo.
+- El usuario **alimenta** el stream con evidencia.
+- El agente **propone** comprensión y siguientes pasos.
+- El usuario **revisa, corrige y decide**.
+- El sistema **actualiza el Discovery Brief** y emite sugerencias revisables.
+
+Tres modos de interacción (en ese orden de importancia)
+1) **Natural ingest** (modo primario de entrada)
+   - Voz, notas, emails, mensajes, archivos, documentos, input rápido de campo.
+   - Todo ingresa al mismo pipeline de evidencia del stream.
+2) **Inline review** sobre artefactos (modo primario de control)
+   - Revisión punto a punto del Discovery Brief, su evidencia/provenance, conflictos y pending review.
+   - Acciones de alta señal: accept, mark incorrect, needs verification, add note, accept/reject suggestion.
+3) **Ask/Tell contextual** (modo secundario y acotado)
+   - Barra contextual para preguntar o instruir sobre el punto/brief activo.
+   - No reemplaza la revisión del brief ni se expande a chat libre como centro del producto.
+
+Patrón primario de operador (v1)
+- **Field-agent**
+  1) Captura natural rápida (ingest-first)
+  2) Recibe un brief útil con gaps explícitos
+  3) Revisa inline qué entendió AI y corrige lo necesario
+  4) Agrega contexto y evidencia dirigida por gaps
+  5) Decide qué falta para readiness y qué acción sigue
+  6) Usa Ask/Tell puntual para destrabar dudas concretas
+  - Structured Capture queda como surface secundaria para completar estructura cuando sea necesario.
+  - El foco no es “conversar”, sino gobernar calidad de comprensión y decisiones.
+
+Qué hace el Discovery Completion Agent en v1
+- ingesta evidencia nueva del stream
+- extrae señales de discovery (hechos, preguntas, conflictos, recomendaciones)
+- actualiza/versiona el Discovery Brief
+- detecta gaps y contradicciones entre fuentes
+- recomienda siguientes acciones
+- emite workspace suggestions reviewables (sin escribir verdad canónica directa)
+
+Modelo de stream (v1) en lenguaje de producto
+- `Canonical truth`: la verdad transaccional oficial del sistema.
+- `Evidence`: la base documental/factual que soporta o contradice lo que se afirma.
+- `Stream memory`: memoria durable del caso (observaciones y señales relevantes).
+- `Discovery Brief`: la vista viva de “qué entendemos hoy” del stream.
+- `Workspace suggestions`: propuestas revisables para actualizar el sistema oficial por el path normal.
+- `Agent layer (Discovery Completion Agent)`: capa que transforma evidencia+contexto en brief y sugerencias, siempre bajo revisión humana.
+
+Límites explícitos de UX primaria (lo que NO debe dominar)
+- chat-first UX
+- taskboard-first UX
+- timeline-first UX
+- memory inspector como surface principal
+- agent control center/multi-agent mission control como experiencia principal
 ---
 User Stories
-1. Como broker, quiero ver una comprensión actual del stream en una sola vista, para no reconstruir mentalmente el caso cada vez.
-2. Como broker, quiero que el sistema me diga claramente qué sabemos, para saber si ya tengo una base útil de trabajo.
-3. Como broker, quiero ver qué información falta, para saber qué debo pedir o verificar.
-4. Como broker, quiero ver qué está bloqueando el progreso, para priorizar mi trabajo.
-5. Como broker, quiero ver la siguiente mejor acción sugerida, para avanzar el caso sin perder tiempo.
-6. Como broker, quiero revisar un brief único y coherente, para no saltar entre formularios, archivos y sugerencias dispersas.
-7. Como broker, quiero que los puntos importantes del brief estén tipados, para distinguir hechos, preguntas, conflictos y recomendaciones.
-8. Como broker, quiero ver la evidencia que respalda cada punto importante, para confiar en el sistema.
-9. Como broker, quiero poder marcar un punto como incorrecto, para corregir al agente sin editar todo el brief.
-10. Como broker, quiero marcar un punto como needs verification, para expresar incertidumbre sin descartarlo por completo.
-11. Como broker, quiero agregar una nota sobre un punto, para dejar contexto útil para futuras corridas del agente.
-12. Como broker, quiero aceptar un punto correcto, para reforzar el conocimiento útil del sistema.
-13. Como broker, quiero que las correcciones humanas queden registradas, para que el sistema mejore con el tiempo.
-14. Como broker, quiero que el brief se refresque cuando entre evidencia nueva, para no trabajar sobre una visión vieja.
-15. Como broker, quiero poder refrescar el brief manualmente, para controlar cuándo recalcular la comprensión actual.
-16. Como broker, quiero ver si el brief actual está pendiente de revisión, para no asumir que ya está listo.
-17. Como broker, quiero aprobar un current working brief, para fijar una base operativa de trabajo.
-18. Como broker, quiero que el sistema no tome mi silencio como aprobación, para mantener control real.
-19. Como broker, quiero que el sistema muestre conflictos entre fuentes, para no esconder discrepancias importantes.
-20. Como broker, quiero que una fuente histórica sirva como analogía, no como verdad automática, para evitar contaminación de casos.
-21. Como broker, quiero que las sugerencias al workspace sean revisables, para que la verdad canónica no cambie sola.
-22. Como broker, quiero ver una cola de Pending Review, para saber qué requiere mi atención humana.
-23. Como broker, quiero abrir la evidencia relevante desde el punto del brief, para entender rápidamente por qué el agente cree algo.
-24. Como broker, quiero una vista de Structured Capture, para editar manualmente información estructurada cuando haga falta.
-25. Como broker, quiero que Structured Capture sea más liviana y enfocada, para no volver a una experiencia abrumadora.
-26. Como broker, quiero que la captura de voz, notas, mensajes y archivos alimenten el mismo modelo de descubrimiento, para no trabajar en canales separados.
-27. Como broker, quiero que el agente considere el contexto de la cuenta y ubicación, para producir mejores preguntas y recomendaciones.
-28. Como broker, quiero que el sistema recuerde observaciones importantes del stream, para no repetir trabajo.
-29. Como broker, quiero que las notas humanas importantes se traten como observaciones de primera clase, para que no se pierdan.
-30. Como broker, quiero que la historia del brief tenga versiones, para ver cómo cambió la comprensión del caso.
-31. Como broker, quiero entender por qué cambió una nueva versión del brief, para revisar solo lo importante.
-32. Como broker, quiero que las recomendaciones tengan estados claros, para diferenciar lo aceptado ahora, lo diferido y lo rechazado.
+1. Como field agent, quiero ver una comprensión actual del stream en una sola vista, para no reconstruir mentalmente el caso cada vez.
+2. Como field agent, quiero que el sistema me diga claramente qué sabemos, para saber si ya tengo una base útil de trabajo.
+3. Como field agent, quiero ver qué información falta, para saber qué debo pedir o verificar.
+4. Como field agent, quiero ver qué está bloqueando el progreso, para priorizar mi trabajo.
+5. Como field agent, quiero ver la siguiente mejor acción sugerida, para avanzar el caso sin perder tiempo.
+6. Como field agent, quiero revisar un brief único y coherente, para no saltar entre formularios, archivos y sugerencias dispersas.
+7. Como field agent, quiero que los puntos importantes del brief estén tipados, para distinguir hechos, preguntas, conflictos y recomendaciones.
+8. Como field agent, quiero ver la evidencia que respalda cada punto importante, para confiar en el sistema.
+9. Como field agent, quiero poder marcar un punto como incorrecto, para corregir al agente sin editar todo el brief.
+10. Como field agent, quiero marcar un punto como needs verification, para expresar incertidumbre sin descartarlo por completo.
+11. Como field agent, quiero agregar una nota sobre un punto, para dejar contexto útil para futuras corridas del agente.
+12. Como field agent, quiero aceptar un punto correcto, para reforzar el conocimiento útil del sistema.
+13. Como field agent, quiero que las correcciones humanas queden registradas, para que el sistema mejore con el tiempo.
+14. Como field agent, quiero que el brief se refresque cuando entre evidencia nueva, para no trabajar sobre una visión vieja.
+15. Como field agent, quiero poder refrescar el brief manualmente, para controlar cuándo recalcular la comprensión actual.
+16. Como field agent, quiero ver si el brief actual está pendiente de revisión, para no asumir que ya está listo.
+17. Como field agent, quiero aprobar un current working brief, para fijar una base operativa de trabajo.
+18. Como field agent, quiero que el sistema no tome mi silencio como aprobación, para mantener control real.
+19. Como field agent, quiero que el sistema muestre conflictos entre fuentes, para no esconder discrepancias importantes.
+20. Como field agent, quiero que una fuente histórica sirva como analogía, no como verdad automática, para evitar contaminación de casos.
+21. Como field agent, quiero que las sugerencias al workspace sean revisables, para que la verdad canónica no cambie sola.
+22. Como field agent, quiero ver una cola de Pending Review, para saber qué requiere mi atención humana.
+23. Como field agent, quiero abrir la evidencia relevante desde el punto del brief, para entender rápidamente por qué el agente cree algo.
+24. Como field agent, quiero una vista de Structured Capture, para editar manualmente información estructurada cuando haga falta.
+25. Como field agent, quiero que Structured Capture sea más liviana y enfocada, para no volver a una experiencia abrumadora.
+26. Como field agent, quiero que la captura de voz, notas, mensajes y archivos alimenten el mismo modelo de descubrimiento, para no trabajar en canales separados.
+27. Como field agent, quiero que el agente considere el contexto de la cuenta y ubicación, para producir mejores preguntas y recomendaciones.
+28. Como field agent, quiero que el sistema recuerde observaciones importantes del stream, para no repetir trabajo.
+29. Como field agent, quiero que las notas humanas importantes se traten como observaciones de primera clase, para que no se pierdan.
+30. Como field agent, quiero que la historia del brief tenga versiones, para ver cómo cambió la comprensión del caso.
+31. Como field agent, quiero entender por qué cambió una nueva versión del brief, para revisar solo lo importante.
+32. Como field agent, quiero que las recomendaciones tengan estados claros, para diferenciar lo aceptado ahora, lo diferido y lo rechazado.
 33. Como field agent, quiero ver rápidamente qué información es suficientemente confiable y cuál no, para saber qué revisar en sitio.
 34. Como field agent, quiero usar el workspace sin sentir que estoy llenando un formulario interminable, para capturar información de forma más natural.
 35. Como field agent, quiero agregar evidencia rápidamente, para alimentar el caso sin fricción.
@@ -113,9 +165,13 @@ User Stories
 ---
 Implementation Decisions
 - El primer agente canónico sigue siendo el Discovery Completion Agent.
+- Debe existir un solo agente primario visible en v1: `Discovery Completion Agent`.
+- Cualquier capacidad especialista/subagente futura permanece interna/oculta por defecto en v1.
 - El primer artefacto canónico sigue siendo el Discovery Brief.
 - El workspace será la surface principal del brief.
 - Chat seguirá siendo una surface secundaria de explicación/interrogación, no la principal.
+- La representación del agente debe sentirse como capacidad de producto, no como personaje.
+- Se evita representación dominante tipo avatar, card protagonista o experiencia chat-centric.
 - El nuevo workspace debe priorizar una experiencia artifact-first y review-first, no form-first.
 - El formulario actual no desaparece, pero se mueve a una surface secundaria de Structured Capture.
 - Los campos y preguntas actuales se mantienen como estructura de fondo, baseline de coverage y target de sugerencias estructuradas.
@@ -139,7 +195,7 @@ Implementation Decisions
 - Triggers iniciales de run:
   - nueva evidencia
   - procesamiento completado
-  - corrección del broker
+- corrección del field-agent
   - refresh manual
   - cambio material del workspace
 - El brief debe versionarse; solo una versión puede estar marcada como current working brief.
@@ -165,7 +221,14 @@ Implementation Decisions
 - El harness debe ser propiedad de SecondStream y mantenerse model-agnostic.
 - Toda memoria, sessions, artifacts y briefs deben persistirse en storage controlado por SecondStream.
 - El alcance de este PRD se limita al flujo de workspace/discovery; la expansión AI-native al resto de la plataforma se deja para fases posteriores.
+- Este v1 resuelve el discovery bottleneck y establece la base del harness para capas futuras (regulatory, pricing, logistics, traceability), pero no resuelve en profundidad esas capas en este corte.
 - La UI principal debe mantenerse simple, limpia y poco abrumadora, aunque el sistema subyacente tenga estructura suficiente para memoria, runs y aprendizaje.
+- Debe evitarse explícitamente caer en patrones de UI no alineados con el objetivo v1:
+  - dashboard overload
+  - taskboard-first UX
+  - timeline-first UX
+  - memory inspector visible al usuario principal
+  - multi-agent control center visible como surface principal
 ---
 Testing Decisions
 - Una buena prueba debe validar comportamiento observable, no detalles internos de implementación.

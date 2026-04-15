@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SecondStream — Stream Workspace Wireframe (Scenario A + B)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════
+   TOKENS
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --bg: #FDFCFB;
+  --surface: #FFFFFF;
+  --surface-hover: rgba(0,0,0,0.025);
+  --surface-selected: rgba(91,103,210,0.05);
+  --surface-expanded: rgba(91,103,210,0.03);
+
+  --fg: #1A1A1A;
+  --fg-secondary: #6B6B6B;
+  --fg-tertiary: #999999;
+
+  --border: rgba(0,0,0,0.06);
+  --border-strong: rgba(0,0,0,0.10);
+
+  --accent: #5E6AD2;
+  --accent-muted: rgba(94,106,210,0.08);
+  --accent-border: rgba(94,106,210,0.20);
+
+  --green: #2DA44E;
+  --green-muted: rgba(45,164,78,0.08);
+  --amber: #BF8700;
+  --amber-muted: rgba(191,135,0,0.08);
+  --red: #CF222E;
+  --red-muted: rgba(207,34,46,0.06);
+
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Code', monospace;
+  --radius: 8px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 60px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SCENARIO SWITCHER (wireframe-only, not part of product)
+   ═══════════════════════════════════════════════════════════ */
+.scenario-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: #1A1A1A;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 32px;
+  height: 36px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.scenario-bar span { color: rgba(255,255,255,0.5); }
+.scenario-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.7);
+  padding: 3px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 100ms;
+}
+.scenario-btn:hover { border-color: rgba(255,255,255,0.5); color: #fff; }
+.scenario-btn.active { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); color: #fff; }
+
+body { padding-top: 36px; }
+
+/* ═══════════════════════════════════════════════════════════
+   SHELL NAV
+   ═══════════════════════════════════════════════════════════ */
+.shell-nav {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 0 32px;
+  height: 44px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-secondary);
+}
+.shell-logo { font-weight: 700; font-size: 13px; color: var(--fg); letter-spacing: -0.03em; margin-right: 12px; }
+.shell-nav a { text-decoration: none; color: inherit; padding: 11px 0; border-bottom: 1.5px solid transparent; margin-bottom: -1px; transition: color 120ms; }
+.shell-nav a:hover { color: var(--fg); }
+.shell-nav a.active { color: var(--fg); border-bottom-color: var(--fg); }
+
+/* ═══════════════════════════════════════════════════════════
+   PAGE
+   ═══════════════════════════════════════════════════════════ */
+.page { max-width: 1280px; margin: 0 auto; padding: 24px 32px 80px; }
+
+/* ═══════════════════════════════════════════════════════════
+   HEADER
+   ═══════════════════════════════════════════════════════════ */
+.header { margin-bottom: 20px; }
+.breadcrumb { font-size: 12px; color: var(--fg-tertiary); margin-bottom: 12px; font-weight: 500; }
+.header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.header-title { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.2; }
+.header-meta { display: flex; align-items: center; gap: 12px; margin-top: 6px; font-size: 12px; color: var(--fg-tertiary); }
+.sep { color: var(--border-strong); }
+.status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; position: relative; top: -0.5px; }
+.status-dot.amber { background: var(--amber); }
+.status-dot.neutral { background: var(--fg-tertiary); }
+.header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 14px; border-radius: 6px; font-size: 12.5px; font-weight: 600;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--fg-secondary);
+  cursor: pointer; transition: all 100ms; font-family: inherit; line-height: 1;
+}
+.btn:hover { background: var(--surface-hover); color: var(--fg); border-color: rgba(0,0,0,0.15); }
+.btn-dark { background: var(--fg); color: white; border-color: var(--fg); }
+.btn-dark:hover { background: #333; }
+
+/* ═══════════════════════════════════════════════════════════
+   TABS
+   ═══════════════════════════════════════════════════════════ */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+.tab-item {
+  padding: 8px 16px 10px; font-size: 13px; font-weight: 500; color: var(--fg-tertiary);
+  cursor: pointer; border-bottom: 1.5px solid transparent; margin-bottom: -1px;
+  background: none; border-top: none; border-left: none; border-right: none;
+  font-family: inherit; transition: color 100ms;
+}
+.tab-item:hover { color: var(--fg-secondary); }
+.tab-item.active { color: var(--fg); font-weight: 600; border-bottom-color: var(--fg); }
+
+/* ═══════════════════════════════════════════════════════════
+   WORKSPACE GRID
+   ═══════════════════════════════════════════════════════════ */
+.workspace { display: grid; grid-template-columns: 1fr 320px; gap: 40px; align-items: start; }
+
+/* ═══════════════════════════════════════════════════════════
+   ANNOTATION — wireframe design callout (for review only)
+   ═══════════════════════════════════════════════════════════ */
+.annotation {
+  display: inline-block;
+  padding: 3px 8px;
+  background: rgba(94,106,210,0.06);
+  border: 1px dashed var(--accent-border);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EXECUTIVE SUMMARY
+   ═══════════════════════════════════════════════════════════ */
+.summary {
+  font-size: 14px; line-height: 1.7; color: var(--fg);
+  padding: 0 0 28px; border-bottom: 1px solid var(--border);
+  margin-bottom: 32px; max-width: 640px;
+}
+.summary strong { font-weight: 600; }
+.summary .blocker { color: var(--amber); font-weight: 600; }
+
+/* ═══════════════════════════════════════════════════════════
+   BRIEF
+   ═══════════════════════════════════════════════════════════ */
+.brief-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 28px; }
+.brief-title { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+.brief-meta { font-size: 11px; color: var(--fg-tertiary); font-family: var(--mono); }
+.brief-section { margin-bottom: 28px; }
+.brief-section:last-child { margin-bottom: 0; }
+.section-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--fg-tertiary); margin-bottom: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   POINT ROW
+   ═══════════════════════════════════════════════════════════ */
+.point {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 10px; margin: 0 -10px; border-radius: 6px;
+  transition: background 80ms; cursor: default; position: relative;
+}
+.point:hover { background: var(--surface-hover); }
+.point.selected { background: var(--surface-selected); }
+
+.state { width: 3px; align-self: stretch; min-height: 18px; border-radius: 1.5px; flex-shrink: 0; margin-top: 2px; }
+.state.ok { background: var(--green); }
+.state.review { background: var(--amber); }
+.state.miss { background: var(--border-strong); border: 1px dashed var(--fg-tertiary); width: 3px; }
+.state.conflict { background: var(--red); }
+
+.ptype { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-tertiary); flex-shrink: 0; width: 24px; margin-top: 2px; }
+.pcontent { flex: 1; min-width: 0; }
+.ptext { font-size: 13.5px; font-weight: 500; color: var(--fg); line-height: 1.4; }
+
+.cite {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 3px;
+  background: var(--accent-muted); color: var(--accent);
+  font-size: 9px; font-weight: 700; margin-left: 3px;
+  cursor: pointer; position: relative; top: -2px; transition: background 100ms;
+}
+.cite:hover { background: var(--accent-border); }
+
+.psource { font-size: 11px; color: var(--fg-tertiary); margin-top: 1px; }
+.changed { font-size: 9px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; margin-left: 6px; }
+
+.pactions { display: flex; gap: 1px; opacity: 0; transition: opacity 80ms; flex-shrink: 0; }
+.point:hover .pactions { opacity: 1; }
+.point.selected .pactions { opacity: 1; }
+
+.pact {
+  padding: 3px 7px; font-size: 10.5px; font-weight: 600;
+  color: var(--fg-secondary); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 4px;
+  cursor: pointer; font-family: inherit; white-space: nowrap; transition: all 80ms;
+}
+.pact:hover { background: var(--fg); color: white; border-color: var(--fg); }
+
+/* ═══════════════════════════════════════════════════════════
+   EXPANDED POINT STATE
+   ═══════════════════════════════════════════════════════════ */
+.point-expanded {
+  background: var(--surface-expanded);
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0 -10px 4px;
+}
+.point-expanded .pactions { opacity: 1; }
+
+.point-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.point-note {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 6px 8px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; font-size: 12px;
+}
+.note-author { font-size: 10px; font-weight: 700; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: 0.03em; flex-shrink: 0; width: 48px; margin-top: 1px; }
+.note-text { color: var(--fg-secondary); line-height: 1.4; flex: 1; }
+.note-time { font-size: 10px; color: var(--fg-tertiary); font-family: var(--mono); flex-shrink: 0; }
+
+.add-note-row { display: flex; align-items: flex-start; gap: 6px; }
+.note-input {
+  flex: 1; padding: 6px 10px; border: 1px solid var(--border-strong);
+  border-radius: 6px; font-size: 12px; font-family: inherit;
+  color: var(--fg); background: var(--surface);
+  resize: none; min-height: 32px; line-height: 1.4; transition: border-color 120ms;
+}
+.note-input:focus { outline: none; border-color: var(--accent); }
+.note-input::placeholder { color: var(--fg-tertiary); }
+.note-submit {
+  padding: 6px 12px; font-size: 11px; font-weight: 600;
+  background: var(--fg); color: white; border: none;
+  border-radius: 6px; cursor: pointer; font-family: inherit;
+  transition: background 100ms; white-space: nowrap;
+}
+.note-submit:hover { background: #333; }
+
+.ask-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; color: var(--fg-tertiary);
+  cursor: pointer; transition: color 100ms; padding: 2px 0;
+}
+.ask-link:hover { color: var(--accent); }
+
+/* ═══════════════════════════════════════════════════════════
+   OPEN QUESTIONS
+   ═══════════════════════════════════════════════════════════ */
+.section-title { font-size: 15px; font-weight: 700; letter-spacing: -0.015em; color: var(--fg); margin-top: 36px; margin-bottom: 14px; }
+.q-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.q-item:first-child { border-top: 1px solid var(--border); }
+.q-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.q-text { font-size: 13.5px; font-weight: 600; color: var(--fg); line-height: 1.35; }
+.q-priority { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; padding: 2px 6px; border-radius: 3px; }
+.q-priority.high { background: var(--red-muted); color: var(--red); }
+.q-priority.med { background: var(--amber-muted); color: var(--amber); }
+.q-why { font-size: 12px; color: var(--fg-secondary); margin-top: 4px; line-height: 1.45; }
+.q-resolution { font-size: 11px; color: var(--fg-tertiary); margin-top: 4px; }
+.more-link { font-size: 12px; font-weight: 600; color: var(--fg-tertiary); cursor: pointer; padding: 8px 0; background: none; border: none; font-family: inherit; }
+.more-link:hover { color: var(--fg-secondary); }
+
+/* ═══════════════════════════════════════════════════════════
+   NEXT BEST ACTIONS
+   ═══════════════════════════════════════════════════════════ */
+.nba-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.nba-item:first-of-type { border-top: 1px solid var(--border); }
+.nba-num { font-family: var(--mono); font-size: 11px; color: var(--fg-tertiary); flex-shrink: 0; margin-top: 1px; }
+.nba-body { flex: 1; min-width: 0; }
+.nba-label { font-size: 13.5px; font-weight: 600; color: var(--fg); line-height: 1.35; }
+.nba-rationale { font-size: 12px; color: var(--fg-secondary); margin-top: 3px; line-height: 1.4; }
+.nba-actions { display: flex; gap: 3px; flex-shrink: 0; align-items: center; }
+
+/* ═══════════════════════════════════════════════════════════
+   CONTEXT RAIL
+   ═══════════════════════════════════════════════════════════ */
+.rail { position: sticky; top: 56px; display: flex; flex-direction: column; gap: 20px; }
+.rail-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-tertiary); margin-bottom: 8px; }
+
+.rv-item { display: flex; align-items: flex-start; gap: 8px; padding: 7px 8px; margin: 0 -8px; border-radius: 6px; cursor: pointer; transition: background 80ms; }
+.rv-item:hover { background: var(--surface-hover); }
+.rv-item.active { background: var(--surface-selected); }
+.rv-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.rv-dot.red { background: var(--red); }
+.rv-dot.blue { background: var(--accent); }
+.rv-dot.amber { background: var(--amber); }
+.rv-body { flex: 1; min-width: 0; }
+.rv-type { font-size: 10px; font-weight: 600; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: 0.03em; }
+.rv-text { font-size: 12px; font-weight: 500; color: var(--fg); line-height: 1.35; margin-top: 1px; }
+
+.rail-link { font-size: 11px; font-weight: 600; color: var(--fg-tertiary); cursor: pointer; margin-top: 4px; transition: color 100ms; }
+.rail-link:hover { color: var(--fg-secondary); }
+.rail-divider { height: 1px; background: var(--border); }
+
+/* Evidence card */
+.ev-card { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.ev-for { font-size: 10px; font-weight: 600; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+.ev-label { font-size: 12px; font-weight: 600; color: var(--fg); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); line-height: 1.35; }
+.ev-src { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; }
+.ev-src + .ev-src { border-top: 1px solid var(--border); }
+.ev-icon { width: 24px; height: 24px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: var(--fg-tertiary); flex-shrink: 0; }
+.ev-src-body { flex: 1; min-width: 0; }
+.ev-src-name { font-size: 11px; font-weight: 600; color: var(--fg); }
+.ev-src-extract { font-size: 11px; color: var(--fg-secondary); font-family: var(--mono); margin-top: 1px; }
+.ev-src-meta { font-size: 10px; color: var(--fg-tertiary); margin-top: 2px; }
+.ev-why { font-size: 11px; color: var(--fg-secondary); line-height: 1.45; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+
+/* Recent updates */
+.upd { display: flex; gap: 10px; padding: 3px 0; align-items: baseline; }
+.upd-time { font-size: 10px; font-family: var(--mono); color: var(--fg-tertiary); flex-shrink: 0; width: 32px; }
+.upd-text { font-size: 11px; color: var(--fg-secondary); }
+
+/* Agent card */
+.agent { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.agent-row { display: flex; align-items: center; gap: 6px; }
+.agent-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+.agent-name { font-size: 11px; font-weight: 600; color: var(--fg); }
+.agent-info { font-size: 10px; color: var(--fg-tertiary); margin-top: 4px; line-height: 1.5; }
+.agent-links { display: flex; gap: 10px; margin-top: 6px; }
+.agent-links a { font-size: 10px; font-weight: 600; color: var(--fg-tertiary); text-decoration: none; transition: color 100ms; }
+.agent-links a:hover { color: var(--accent); }
+
+/* ═══════════════════════════════════════════════════════════
+   BOTTOM BAR
+   ═══════════════════════════════════════════════════════════ */
+.bottom-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  background: var(--surface); border-top: 1px solid var(--border);
+  padding: 8px 32px;
+}
+.bottom-bar-inner {
+  max-width: 1280px; margin: 0 auto; width: 100%;
+  display: flex; align-items: center; gap: 8px;
+}
+.bottom-input {
+  flex: 1; padding: 8px 14px; border: 1px solid var(--border-strong);
+  border-radius: 8px; font-size: 13px; font-family: inherit;
+  color: var(--fg); background: var(--bg); line-height: 1.4;
+  transition: border-color 120ms;
+}
+.bottom-input:focus { outline: none; border-color: var(--accent); }
+.bottom-input::placeholder { color: var(--fg-tertiary); }
+.bottom-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.bottom-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--fg-secondary); cursor: pointer; transition: all 100ms;
+}
+.bottom-btn:hover { background: var(--surface-hover); color: var(--fg); border-color: var(--border-strong); }
+.bottom-btn.active { background: var(--fg); color: white; border-color: var(--fg); }
+.bottom-label {
+  font-size: 10px; font-weight: 600; color: var(--fg-tertiary);
+  margin-right: 4px; letter-spacing: 0.02em; white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ASK DRAWER — contextual agent Q&A
+   ═══════════════════════════════════════════════════════════ */
+.ask-drawer {
+  border: 1px solid var(--accent-border); border-radius: var(--radius);
+  background: var(--surface); padding: 14px 16px; margin-top: 8px;
+}
+.ask-drawer-title { font-size: 11px; font-weight: 700; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+.ask-drawer-context { font-size: 12px; color: var(--fg-secondary); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); line-height: 1.4; }
+.ask-input-row { display: flex; align-items: flex-start; gap: 6px; }
+.ask-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 12px; font-family: inherit; color: var(--fg); background: var(--bg); min-height: 32px; transition: border-color 120ms; }
+.ask-input:focus { outline: none; border-color: var(--accent); }
+.ask-input::placeholder { color: var(--fg-tertiary); }
+.ask-send { padding: 6px 12px; font-size: 11px; font-weight: 600; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-family: inherit; }
+.ask-send:hover { opacity: 0.9; }
+.ask-response { margin-top: 10px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--fg-secondary); line-height: 1.5; }
+.ask-response strong { color: var(--fg); font-weight: 600; }
+
+/* ═══════════════════════════════════════════════════════════
+   SCENARIO A — GUIDED SURFACE (empty/new stream)
+   ═══════════════════════════════════════════════════════════ */
+.guided-intro {
+  max-width: 640px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+.guided-intro p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--fg-secondary);
+}
+.guided-intro p strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* Known facts (minimal) */
+.known-facts { margin-bottom: 32px; }
+.known-fact {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+}
+.known-fact + .known-fact {
+  border-top: 1px solid var(--border);
+}
+.kf-arrow {
+  font-size: 12px;
+  color: var(--fg-tertiary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.kf-content { flex: 1; }
+.kf-label { font-size: 13.5px; font-weight: 500; color: var(--fg); line-height: 1.4; }
+.kf-source { font-size: 11px; color: var(--fg-tertiary); margin-top: 1px; }
+.kf-empty {
+  font-size: 13px;
+  color: var(--fg-tertiary);
+  margin-top: 12px;
+  line-height: 1.5;
+}
+
+/* Missing items — guided prompts */
+.missing-items { margin-bottom: 32px; }
+.missing-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.missing-item:first-child { border-top: 1px solid var(--border); }
+.mi-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-tertiary);
+  margin-bottom: 4px;
+}
+.mi-question {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.35;
+}
+.mi-hint {
+  font-size: 12px;
+  color: var(--fg-secondary);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+/* Ingestion activity — what just happened */
+.activity-section { margin-top: 32px; }
+.activity-item {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin-bottom: 8px;
+}
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.act-arrow {
+  font-size: 12px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.act-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.act-status {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.act-detail {
+  margin-top: 6px;
+  padding-left: 20px;
+  font-size: 12px;
+  color: var(--fg-secondary);
+  line-height: 1.5;
+}
+.act-mapping {
+  margin-top: 4px;
+  padding-left: 20px;
+  font-size: 11px;
+  color: var(--fg-tertiary);
+  font-family: var(--mono);
+  line-height: 1.6;
+}
+
+/* Coverage status (rail) */
+.coverage-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 12px;
+}
+.cov-circle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  flex-shrink: 0;
+}
+.cov-circle.partial {
+  border-color: var(--amber);
+  background: var(--amber-muted);
+}
+.cov-circle.done {
+  border-color: var(--green);
+  background: var(--green-muted);
+}
+.cov-label { color: var(--fg-secondary); font-weight: 500; }
+.cov-status { margin-left: auto; font-size: 10px; color: var(--fg-tertiary); font-weight: 600; }
+
+/* Ingestion guide (rail) */
+.ingest-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ig-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 100ms;
+}
+.ig-item:hover { border-color: var(--border-strong); background: var(--surface-hover); }
+.ig-icon { font-size: 14px; flex-shrink: 0; }
+.ig-body { flex: 1; }
+.ig-title { font-size: 12px; font-weight: 600; color: var(--fg); }
+.ig-desc { font-size: 10px; color: var(--fg-tertiary); margin-top: 1px; }
+
+/* Suggested questions (rail) */
+.sq-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sq-item:first-child { border-top: 1px solid var(--border); }
+.sq-text { font-size: 12px; font-weight: 500; color: var(--fg); line-height: 1.35; }
+.sq-hint { font-size: 10px; color: var(--fg-tertiary); margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fin { animation: fadeIn 0.3s cubic-bezier(0.16,1,0.3,1) both; }
+.d1 { animation-delay: 40ms; }
+.d2 { animation-delay: 80ms; }
+.d3 { animation-delay: 120ms; }
+.d4 { animation-delay: 160ms; }
+.d5 { animation-delay: 200ms; }
+
+/* ═══════════════════════════════════════════════════════════
+   SCENARIO VISIBILITY
+   ═══════════════════════════════════════════════════════════ */
+.scenario-a { display: none; }
+.scenario-b { display: none; }
+body.show-a .scenario-a { display: block; }
+body.show-b .scenario-b { display: block; }
+body.show-a .scenario-a.grid { display: grid; }
+body.show-b .scenario-b.grid { display: grid; }
+</style>
+</head>
+<body class="show-a">
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCENARIO SWITCHER (wireframe-only control)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="scenario-bar">
+  <span>WIREFRAME</span>
+  <button class="scenario-btn active" onclick="showScenario('a')">A — New / Empty Stream</button>
+  <button class="scenario-btn" onclick="showScenario('b')">B — Active / Mature Stream</button>
+</div>
+
+<!-- Shell -->
+<nav class="shell-nav">
+  <span class="shell-logo">SecondStream</span>
+  <a href="#" class="active">Streams</a>
+  <a href="#">Accounts</a>
+  <a href="#">Evidence</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCENARIO A — NEW / EMPTY STREAM (Field Agent Flow)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page scenario-a">
+
+  <!-- Header -->
+  <header class="header fin">
+    <p class="breadcrumb">Streams / New Stream — Martinez Paint & Coatings</p>
+    <div class="header-row">
+      <div>
+        <h1 class="header-title">Martinez Paint & Coatings — Oakland</h1>
+        <div class="header-meta">
+          <span>Martinez Industrial</span>
+          <span class="sep">·</span>
+          <span>J. Morales</span>
+          <span class="sep">·</span>
+          <span><span class="status-dot neutral"></span>New</span>
+          <span class="sep">·</span>
+          <span style="font-family:var(--mono);font-size:11px;">Just now</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn">Add Evidence</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs fin d1">
+    <button class="tab-item active">Overview</button>
+    <button class="tab-item">Structured Capture</button>
+    <button class="tab-item">Evidence</button>
+    <button class="tab-item">History</button>
+  </div>
+
+  <!-- Workspace -->
+  <div class="workspace grid scenario-a">
+
+    <!-- MAIN COLUMN -->
+    <main>
+
+      <!-- Guided intro -->
+      <div class="guided-intro fin d2">
+        <p>
+          This stream is just getting started. <strong>Add evidence to help the AI build an understanding of this waste stream.</strong>
+          You can upload files, record voice notes, or simply type what you know.
+        </p>
+      </div>
+
+      <!-- What we know so far -->
+      <div class="known-facts fin d2">
+        <h3 class="section-label">What we know so far</h3>
+        <div class="known-fact">
+          <span class="kf-arrow">→</span>
+          <div class="kf-content">
+            <p class="kf-label">Client: Martinez Industrial</p>
+            <p class="kf-source">From client record</p>
+          </div>
+        </div>
+        <div class="known-fact">
+          <span class="kf-arrow">→</span>
+          <div class="kf-content">
+            <p class="kf-label">Location: Oakland, CA</p>
+            <p class="kf-source">From client record</p>
+          </div>
+        </div>
+        <div class="known-fact">
+          <span class="kf-arrow">→</span>
+          <div class="kf-content">
+            <p class="kf-label">Possible waste: Paint sludge</p>
+            <p class="kf-source">From intake form</p>
+          </div>
+        </div>
+        <p class="kf-empty">That's all we have right now. Add evidence below to build the brief.</p>
+      </div>
+
+      <!-- Top missing items -->
+      <div class="missing-items fin d3">
+        <h3 class="section-label">What we need most</h3>
+        <div class="missing-item">
+          <p class="mi-num">01</p>
+          <p class="mi-question">What is the waste material?</p>
+          <p class="mi-hint">Upload an SDS, lab report, or describe what you see on site.</p>
+        </div>
+        <div class="missing-item">
+          <p class="mi-num">02</p>
+          <p class="mi-question">How much waste per month?</p>
+          <p class="mi-hint">A rough estimate is fine — "about 3 totes a month" works.</p>
+        </div>
+        <div class="missing-item">
+          <p class="mi-num">03</p>
+          <p class="mi-question">How is the waste currently handled?</p>
+          <p class="mi-hint">Any manifests, invoices, or disposal records help us understand the baseline.</p>
+        </div>
+      </div>
+
+      <!-- Ingestion activity — shows what was recently added -->
+      <div class="activity-section fin d4">
+        <h3 class="section-label">Recent activity</h3>
+        <span class="annotation">Shows real-time feedback as user adds evidence</span>
+
+        <div class="activity-item" style="margin-top: 6px;">
+          <div class="activity-row">
+            <span class="act-arrow">⟶</span>
+            <span class="act-label">SDS uploaded</span>
+            <span class="act-status">Processing</span>
+          </div>
+          <p class="act-detail">AI extracting: chemical family, regulatory indicators, hazard class</p>
+        </div>
+
+        <div class="activity-item">
+          <div class="activity-row">
+            <span class="act-arrow">⟶</span>
+            <span class="act-label">Voice note transcribed</span>
+            <span class="act-status">Mapped</span>
+          </div>
+          <p class="act-detail">"About 3 totes a month, they store them outside near the loading dock, been using the same hauler for years"</p>
+          <p class="act-mapping">
+            quantity → ~3 totes/month<br>
+            storage → outdoor, near loading dock<br>
+            hauler → existing long-term provider
+          </p>
+        </div>
+
+        <div class="activity-item">
+          <div class="activity-row">
+            <span class="act-arrow">⟶</span>
+            <span class="act-label">Text note saved</span>
+            <span class="act-status">Mapped</span>
+          </div>
+          <p class="act-detail">"They got rejected by recyclers before — something about contaminants"</p>
+          <p class="act-mapping">
+            rejection_history → recycler rejection (contaminant issue)<br>
+            operational_risk → elevated
+          </p>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- CONTEXT RAIL -->
+    <aside class="rail fin d3">
+
+      <!-- Ingestion guide -->
+      <div>
+        <h4 class="rail-label">Ways to add information</h4>
+        <div class="ingest-guide">
+          <div class="ig-item">
+            <span class="ig-icon">📎</span>
+            <div class="ig-body">
+              <p class="ig-title">Upload a file</p>
+              <p class="ig-desc">SDS, invoice, manifest, lab report, photo</p>
+            </div>
+          </div>
+          <div class="ig-item">
+            <span class="ig-icon">🎤</span>
+            <div class="ig-body">
+              <p class="ig-title">Record a voice note</p>
+              <p class="ig-desc">Describe what you see or know</p>
+            </div>
+          </div>
+          <div class="ig-item">
+            <span class="ig-icon">📝</span>
+            <div class="ig-body">
+              <p class="ig-title">Type or paste text</p>
+              <p class="ig-desc">Notes, emails, observations</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rail-divider"></div>
+
+      <!-- Coverage -->
+      <div>
+        <h4 class="rail-label">Discovery coverage</h4>
+        <div class="coverage-item">
+          <span class="cov-circle partial"></span>
+          <span class="cov-label">Material & composition</span>
+          <span class="cov-status">Partial</span>
+        </div>
+        <div class="coverage-item">
+          <span class="cov-circle partial"></span>
+          <span class="cov-label">Volume & frequency</span>
+          <span class="cov-status">Partial</span>
+        </div>
+        <div class="coverage-item">
+          <span class="cov-circle"></span>
+          <span class="cov-label">Handling & logistics</span>
+          <span class="cov-status">—</span>
+        </div>
+        <div class="coverage-item">
+          <span class="cov-circle"></span>
+          <span class="cov-label">Compliance & docs</span>
+          <span class="cov-status">—</span>
+        </div>
+      </div>
+
+      <div class="rail-divider"></div>
+
+      <!-- Suggested next questions -->
+      <div>
+        <h4 class="rail-label">Suggested questions to explore</h4>
+        <div class="sq-item">
+          <p class="sq-text">What's the typical volume per pickup?</p>
+          <p class="sq-hint">Helps estimate transport & pricing</p>
+        </div>
+        <div class="sq-item">
+          <p class="sq-text">Is there a current disposal contract?</p>
+          <p class="sq-hint">Understanding the baseline cost</p>
+        </div>
+        <div class="sq-item">
+          <p class="sq-text">Any known hazard classifications?</p>
+          <p class="sq-hint">Determines outlet options</p>
+        </div>
+      </div>
+
+      <div class="rail-divider"></div>
+
+      <!-- Agent — even in empty state -->
+      <div class="agent">
+        <div class="agent-row">
+          <span class="agent-dot" style="background: var(--amber)"></span>
+          <span class="agent-name">Discovery Completion Agent</span>
+        </div>
+        <p class="agent-info">Waiting for more evidence to generate brief</p>
+      </div>
+
+    </aside>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCENARIO B — ACTIVE / MATURE STREAM (Broker Review Flow)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="page scenario-b">
+
+  <!-- Header -->
+  <header class="header fin">
+    <p class="breadcrumb">Streams / Acme Paint Sludge — Houston</p>
+    <div class="header-row">
+      <div>
+        <h1 class="header-title">Acme Paint Sludge — Houston</h1>
+        <div class="header-meta">
+          <span>Acme Industrial</span>
+          <span class="sep">·</span>
+          <span>R. Altamirano</span>
+          <span class="sep">·</span>
+          <span><span class="status-dot amber"></span>Pending review</span>
+          <span class="sep">·</span>
+          <span style="font-family:var(--mono);font-size:11px;">11:42 AM</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn">Refresh Brief</button>
+        <button class="btn btn-dark">Complete Discovery</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs fin d1">
+    <button class="tab-item active">Overview</button>
+    <button class="tab-item">Structured Capture</button>
+    <button class="tab-item">Evidence</button>
+    <button class="tab-item">History</button>
+  </div>
+
+  <!-- Workspace -->
+  <div class="workspace grid scenario-b">
+
+    <!-- MAIN COLUMN -->
+    <main>
+
+      <!-- Executive Summary -->
+      <p class="summary fin d2">
+        Current stream is likely <strong>paint sludge + absorbents</strong>, recurring weekly load from Acme Industrial Houston.
+        <span class="blocker">Main blocker: manifest code and solids % conflict across two documents.</span>
+        Do not finalize outlet shortlist until conflict is resolved.
+      </p>
+
+      <!-- Discovery Brief -->
+      <section class="fin d3">
+        <div class="brief-header">
+          <h2 class="brief-title">Discovery Brief</h2>
+          <span class="brief-meta">v3 · 11:42 AM</span>
+        </div>
+
+        <!-- What we know -->
+        <div class="brief-section">
+          <h3 class="section-label">What we know</h3>
+
+          <div class="point" onclick="sel(this)">
+            <div class="state ok"></div>
+            <span class="ptype">Fact</span>
+            <div class="pcontent">
+              <p class="ptext">Material family: Paint sludge<span class="cite">1</span></p>
+            </div>
+            <div class="pactions">
+              <button class="pact">Accept</button>
+              <button class="pact">Incorrect</button>
+              <button class="pact">Verify</button>
+            </div>
+          </div>
+
+          <!-- EXPANDED POINT — shows broker interaction detail -->
+          <div class="point-expanded">
+            <span class="annotation">Expanded state — click on any point</span>
+            <div style="display:flex;align-items:flex-start;gap:10px;">
+              <div class="state review"></div>
+              <span class="ptype">Fact</span>
+              <div class="pcontent">
+                <p class="ptext">Est. monthly volume: 42–50 tons<span class="cite">2</span><span class="cite">3</span><span class="changed">Changed</span></p>
+                <p class="psource">3 sources · manifests + broker note</p>
+              </div>
+              <div class="pactions" style="opacity:1">
+                <button class="pact">Accept</button>
+                <button class="pact">Incorrect</button>
+                <button class="pact">Verify</button>
+              </div>
+            </div>
+
+            <!-- Detail zone -->
+            <div class="point-detail">
+              <div class="point-note">
+                <span class="note-author">Broker</span>
+                <span class="note-text">Latest contract amendment caps monthly at 38 tons. Manifests may reflect historical volumes.</span>
+                <span class="note-time">11:20</span>
+              </div>
+              <div class="add-note-row">
+                <input type="text" class="note-input" placeholder="Add a note or correction..." />
+                <button class="note-submit">Save note</button>
+              </div>
+              <span class="ask-link">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M6.5 6.5a1.5 1.5 0 1 1 1.5 1.5v1" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.5" fill="currentColor" stroke="none"/></svg>
+                Ask about this point
+              </span>
+            </div>
+          </div>
+
+          <div class="point" onclick="sel(this)">
+            <div class="state ok"></div>
+            <span class="ptype">Fact</span>
+            <div class="pcontent">
+              <p class="ptext">Pickup frequency: Weekly, Thursdays<span class="cite">4</span></p>
+            </div>
+            <div class="pactions">
+              <button class="pact">Accept</button>
+              <button class="pact">Incorrect</button>
+              <button class="pact">Verify</button>
+            </div>
+          </div>
+
+          <div class="point" onclick="sel(this)">
+            <div class="state review"></div>
+            <span class="ptype">Assum</span>
+            <div class="pcontent">
+              <p class="ptext">pH range: 6.2–7.1<span class="cite">5</span></p>
+              <p class="psource">Inferred from historical dossier — no fresh sample</p>
+            </div>
+            <div class="pactions">
+              <button class="pact">Accept</button>
+              <button class="pact">Incorrect</button>
+              <button class="pact">Verify</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- What is missing -->
+        <div class="brief-section">
+          <h3 class="section-label">What is missing</h3>
+          <div class="point" onclick="sel(this)">
+            <div class="state miss"></div>
+            <span class="ptype">Q</span>
+            <div class="pcontent"><p class="ptext">Confirm EPA waste code at location-level</p></div>
+            <div class="pactions"><button class="pact">Add note</button></div>
+          </div>
+          <div class="point" onclick="sel(this)">
+            <div class="state miss"></div>
+            <span class="ptype">Q</span>
+            <div class="pcontent"><p class="ptext">Validate storage dwell time tolerance</p></div>
+            <div class="pactions"><button class="pact">Add note</button></div>
+          </div>
+        </div>
+
+        <!-- Conflicts -->
+        <div class="brief-section">
+          <h3 class="section-label">Conflicts</h3>
+          <div class="point selected" onclick="sel(this)">
+            <div class="state conflict"></div>
+            <span class="ptype">Confl</span>
+            <div class="pcontent">
+              <p class="ptext">Solids percentage: 18% vs 32%<span class="cite">1</span><span class="cite">6</span></p>
+              <p class="psource">Lab report vs transport manifest</p>
+            </div>
+            <div class="pactions" style="opacity:1">
+              <button class="pact">Accept</button>
+              <button class="pact">Incorrect</button>
+              <button class="pact">Verify</button>
+              <button class="pact">Note</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recommended next actions -->
+        <div class="brief-section">
+          <h3 class="section-label">Recommended next actions</h3>
+          <div class="point" onclick="sel(this)">
+            <div class="state review"></div>
+            <span class="ptype">Rec</span>
+            <div class="pcontent">
+              <p class="ptext">Request fresh sample + chain-of-custody</p>
+              <p class="psource">Resolves solids conflict · unlocks outlet filtering</p>
+            </div>
+            <div class="pactions"><button class="pact">Accept</button><button class="pact">Dismiss</button></div>
+          </div>
+          <div class="point" onclick="sel(this)">
+            <div class="state review"></div>
+            <span class="ptype">Rec</span>
+            <div class="pcontent">
+              <p class="ptext">Confirm manifest code with compliance lead</p>
+              <p class="psource">Needed before outlet outreach</p>
+            </div>
+            <div class="pactions"><button class="pact">Accept</button><button class="pact">Dismiss</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Open Questions -->
+      <h2 class="section-title fin d4">Open Questions</h2>
+      <div class="q-item fin d4">
+        <div class="q-row">
+          <p class="q-text">Is waste code D001 or D007?</p>
+          <span class="q-priority high">High</span>
+        </div>
+        <p class="q-why">Changes outlet options and transport classification.</p>
+        <p class="q-resolution">Verify latest manifest + compliance note.</p>
+      </div>
+      <div class="q-item fin d4">
+        <div class="q-row">
+          <p class="q-text">Is moisture variability seasonal?</p>
+          <span class="q-priority med">Medium</span>
+        </div>
+        <p class="q-why">Impacts transport cost and outlet tolerance.</p>
+        <p class="q-resolution">Request 3-month sample variance from generator.</p>
+      </div>
+      <button class="more-link">Show 2 more →</button>
+
+      <!-- Next Best Actions -->
+      <h2 class="section-title fin d5">Next Best Actions</h2>
+      <div class="nba-item fin d5">
+        <span class="nba-num">A1</span>
+        <div class="nba-body">
+          <p class="nba-label">Call compliance lead at Acme Houston</p>
+          <p class="nba-rationale">Unblocks manifest conflict. 5 min estimated. Best before 3 PM.</p>
+        </div>
+        <div class="nba-actions">
+          <button class="btn btn-dark" style="font-size:11px;padding:4px 10px">Accept</button>
+          <button class="btn" style="font-size:11px;padding:4px 10px">Defer</button>
+          <button class="pact">Dismiss</button>
+        </div>
+      </div>
+      <div class="nba-item fin d5">
+        <span class="nba-num">A2</span>
+        <div class="nba-body">
+          <p class="nba-label">Request updated lab sample SOP</p>
+          <p class="nba-rationale">Needed before outlet outreach begins.</p>
+        </div>
+        <div class="nba-actions">
+          <button class="btn btn-dark" style="font-size:11px;padding:4px 10px">Accept</button>
+          <button class="btn" style="font-size:11px;padding:4px 10px">Defer</button>
+          <button class="pact">Dismiss</button>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- CONTEXT RAIL -->
+    <aside class="rail fin d3">
+
+      <!-- Pending Review -->
+      <div>
+        <h4 class="rail-label">Pending Review</h4>
+        <div class="rv-item active">
+          <span class="rv-dot red"></span>
+          <div class="rv-body">
+            <span class="rv-type">Conflict</span>
+            <p class="rv-text">Solids % mismatch across sources</p>
+          </div>
+        </div>
+        <div class="rv-item">
+          <span class="rv-dot amber"></span>
+          <div class="rv-body">
+            <span class="rv-type">Assumption</span>
+            <p class="rv-text">pH band from historical dossier</p>
+          </div>
+        </div>
+        <div class="rv-item">
+          <span class="rv-dot blue"></span>
+          <div class="rv-body">
+            <span class="rv-type">Recommendation</span>
+            <p class="rv-text">"Contact outlet now" may be premature</p>
+          </div>
+        </div>
+        <span class="rail-link">View all pending →</span>
+      </div>
+
+      <div class="rail-divider"></div>
+
+      <!-- Evidence Context -->
+      <div>
+        <h4 class="rail-label">Evidence Context</h4>
+        <div class="ev-card">
+          <p class="ev-for">Selected point</p>
+          <p class="ev-label">"Solids % varies (18% vs 32%)"</p>
+          <div class="ev-src">
+            <div class="ev-icon">PDF</div>
+            <div class="ev-src-body">
+              <p class="ev-src-name">Lab Report #LR-884</p>
+              <p class="ev-src-extract">"32% solids" — p3</p>
+              <p class="ev-src-meta">Apr 10 · High confidence</p>
+            </div>
+          </div>
+          <div class="ev-src">
+            <div class="ev-icon">DOC</div>
+            <div class="ev-src-body">
+              <p class="ev-src-name">Manifest #TM-220</p>
+              <p class="ev-src-extract">"18% solids" — line 12</p>
+              <p class="ev-src-meta">Apr 8 · Medium confidence</p>
+            </div>
+          </div>
+          <p class="ev-why">Outlet compatibility depends on accurate solids %.</p>
+        </div>
+      </div>
+
+      <div class="rail-divider"></div>
+
+      <!-- Ask about this — contextual agent Q&A -->
+      <div>
+        <span class="annotation">Agent Q&A — contextual, not chat-first</span>
+        <div class="ask-drawer">
+          <p class="ask-drawer-title">Ask about this point</p>
+          <p class="ask-drawer-context">Re: "Est. monthly volume: 42–50 tons"</p>
+          <div class="ask-input-row">
+            <input type="text" class="ask-input" placeholder="Why does the latest manifest show 38 tons?" />
+            <button class="ask-send">Ask</button>
+          </div>
+          <div class="ask-response">
+            <strong>The 38-ton figure</strong> comes from the latest contract amendment (Apr 3). The manifests from Jan–Mar show 42–50 tons historically. The agent used the historical average because the amendment only caps the contractual maximum — actual throughput may still vary.
+            <span class="cite" style="margin-left:4px;top:0;">7</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rail-divider"></div>
+
+      <!-- Recent Updates -->
+      <div>
+        <h4 class="rail-label">Recent Updates</h4>
+        <div class="upd"><span class="upd-time">2m</span><span class="upd-text">Brief refreshed (v3)</span></div>
+        <div class="upd"><span class="upd-time">13m</span><span class="upd-text">Evidence added: LR-884</span></div>
+        <div class="upd"><span class="upd-time">24m</span><span class="upd-text">Broker note on volume</span></div>
+        <div class="upd"><span class="upd-time">1h</span><span class="upd-text">Broker marked pH as "verify"</span></div>
+      </div>
+
+      <div class="rail-divider"></div>
+
+      <!-- Agent -->
+      <div class="agent">
+        <div class="agent-row">
+          <span class="agent-dot"></span>
+          <span class="agent-name">Discovery Completion Agent</span>
+        </div>
+        <p class="agent-info">Run completed 2m ago · Confidence: Medium</p>
+        <div class="agent-links">
+          <a href="#">What changed</a>
+          <a href="#">Why this</a>
+          <a href="#">Run history</a>
+        </div>
+      </div>
+
+    </aside>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     BOTTOM BAR — always available
+     This is NOT chat. It's structured evidence capture.
+     ═══════════════════════════════════════════════════════════ -->
+<div class="bottom-bar">
+  <div class="bottom-bar-inner">
+    <span class="bottom-label">Add to stream</span>
+    <input type="text" class="bottom-input" placeholder="Paste text, drop a file, or type a note..." />
+    <div class="bottom-actions">
+      <button class="bottom-btn" title="Upload file">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path d="M8 10V3m0 0L5 6m3-3 3 3"/><path d="M3 12h10"/>
+        </svg>
+      </button>
+      <button class="bottom-btn" title="Voice note">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 8a4 4 0 0 0 8 0"/><path d="M8 13v1"/>
+        </svg>
+      </button>
+      <button class="bottom-btn active" title="Submit">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2 2 8l5 2 2 5z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+function sel(el) {
+  document.querySelectorAll('.point').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function showScenario(s) {
+  document.body.classList.remove('show-a', 'show-b');
+  document.body.classList.add('show-' + s);
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.scenario-btn:nth-child(' + (s === 'a' ? 2 : 3) + ')').classList.add('active');
+  // Re-trigger animations
+  document.querySelectorAll('.fin').forEach(el => {
+    el.style.animation = 'none';
+    el.offsetHeight; // reflow
+    el.style.animation = '';
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SecondStream — Stream Workspace v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #F9F8F6;
+  --surface: #FFFFFF;
+  --fg: #1A1816;
+  --fg-2: #5C5650;
+  --fg-3: #A39E97;
+  --border: rgba(0,0,0,0.055);
+  --accent: #6366F1;
+  --accent-bg: rgba(99,102,241,0.05);
+  --green: #16A34A;
+  --amber: #B45309;
+  --red: #DC2626;
+  --font: 'Inter', -apple-system, system-ui, sans-serif;
+  --mono: 'SF Mono', 'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.6;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 52px;
+}
+
+/* ── NAV ────────────────────────────────── */
+.nav {
+  display: flex; align-items: center; gap: 24px;
+  padding: 0 48px; height: 40px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 500; color: var(--fg-3);
+  background: var(--surface);
+}
+.nav-logo { font-weight: 700; font-size: 12.5px; color: var(--fg); letter-spacing: -0.04em; margin-right: 10px; }
+.nav a { text-decoration: none; color: inherit; }
+.nav a.on { color: var(--fg); }
+
+/* ── HEADER ─────────────────────────────── */
+.header {
+  max-width: 1080px; margin: 0 auto;
+  padding: 32px 48px 0;
+}
+.header-top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
+}
+.header h1 {
+  font-size: 19px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.2;
+}
+.header-meta {
+  margin-top: 5px;
+  font-size: 12px; color: var(--fg-3); display: flex; gap: 8px; align-items: center;
+}
+.header-meta .dot {
+  width: 5px; height: 5px; border-radius: 50%; display: inline-block;
+}
+.header-meta .dot.amber { background: var(--amber); }
+.header-meta .sep { opacity: 0.3; }
+.btn {
+  padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  border: 1px solid rgba(0,0,0,0.1); background: var(--surface); color: var(--fg-2);
+  cursor: pointer; font-family: inherit; transition: all 80ms;
+}
+.btn:hover { border-color: rgba(0,0,0,0.18); color: var(--fg); }
+.btn-primary { background: var(--fg); color: #fff; border-color: var(--fg); }
+.btn-primary:hover { background: #2A2520; }
+
+.tabs {
+  display: flex; gap: 0; margin-top: 22px;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  padding: 8px 16px 10px; font-size: 13px; font-weight: 500; color: var(--fg-3);
+  cursor: pointer; border: none; background: none; font-family: inherit;
+  border-bottom: 1.5px solid transparent; margin-bottom: -1px;
+  transition: color 80ms;
+}
+.tab:hover { color: var(--fg-2); }
+.tab.on { color: var(--fg); font-weight: 600; border-bottom-color: var(--fg); }
+
+/* ── WORKSPACE ──────────────────────────── */
+.workspace {
+  max-width: 1080px; margin: 0 auto;
+  padding: 0 48px;
+  display: grid;
+  grid-template-columns: 1fr 252px;
+  gap: 56px;
+  align-items: start;
+  margin-top: 36px;
+}
+
+/* ── EXECUTIVE SUMMARY ──────────────────── */
+.exec {
+  font-size: 15px; line-height: 1.75; color: var(--fg);
+  padding-bottom: 32px; margin-bottom: 40px;
+  border-bottom: 1px solid var(--border);
+  max-width: 580px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.exec em {
+  font-style: normal; color: var(--fg-2); font-weight: 400;
+}
+.exec .flag {
+  display: block; margin-top: 6px;
+  color: var(--amber); font-weight: 500; font-size: 13.5px;
+}
+
+/* ── BRIEF ──────────────────────────────── */
+.brief-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 36px;
+}
+.brief-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--fg-3);
+}
+.brief-version {
+  font-size: 10px; color: var(--fg-3); font-family: var(--mono);
+  letter-spacing: 0.02em;
+}
+
+/* ── SECTION LABEL ──────────────────────── */
+.sec-label {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--fg-3); margin-bottom: 14px; margin-top: 44px;
+}
+.sec-label:first-of-type { margin-top: 0; }
+
+/* ── POINTS ─────────────────────────────── */
+.pt {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 9px 0;
+  cursor: default; transition: background 60ms;
+  border-radius: 6px;
+  position: relative;
+}
+.pt:hover { background: rgba(0,0,0,0.018); margin: 0 -14px; padding: 9px 14px; }
+.pt.sel  { background: var(--accent-bg); margin: 0 -14px; padding: 9px 14px; }
+
+/* State — 2px bar, quieter */
+.st {
+  width: 2.5px; min-height: 18px; align-self: stretch;
+  border-radius: 2px; flex-shrink: 0; margin-top: 2px;
+}
+.st-ok { background: var(--green); opacity: 0.7; }
+.st-review { background: var(--amber); opacity: 0.8; }
+.st-conflict { background: var(--red); opacity: 0.85; }
+.st-miss { background: transparent; border: 1.5px dashed var(--fg-3); opacity: 0.4; }
+
+.pt-body { flex: 1; min-width: 0; }
+.pt-text {
+  font-size: 14px; font-weight: 500; color: var(--fg);
+  line-height: 1.5; letter-spacing: -0.008em;
+}
+.pt-sub {
+  font-size: 11.5px; color: var(--fg-3); margin-top: 3px;
+  letter-spacing: 0.005em;
+}
+
+/* Citation — even more subtle */
+.ref {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 12px; height: 12px; border-radius: 2px;
+  background: rgba(99,102,241,0.07); color: var(--accent);
+  font-size: 8px; font-weight: 700; margin-left: 3px;
+  position: relative; top: -1px; cursor: pointer;
+  opacity: 0.7; transition: opacity 80ms;
+}
+.ref:hover { opacity: 1; background: rgba(99,102,241,0.14); }
+
+/* Updated marker — italic, quiet */
+.chg {
+  font-size: 11px; font-style: italic; color: var(--accent);
+  margin-left: 6px; font-weight: 400; opacity: 0.8;
+}
+
+/* Actions — hover only */
+.pt-actions {
+  display: flex; gap: 2px; flex-shrink: 0;
+  opacity: 0; transition: opacity 60ms;
+}
+.pt:hover .pt-actions { opacity: 1; }
+.pt.sel .pt-actions { opacity: 1; }
+.pa {
+  padding: 2px 8px; font-size: 10px; font-weight: 600;
+  color: var(--fg-3); background: none; border: 1px solid rgba(0,0,0,0.07);
+  border-radius: 4px; cursor: pointer; font-family: inherit;
+  transition: all 60ms; white-space: nowrap;
+}
+.pa:hover { color: var(--fg); border-color: rgba(0,0,0,0.18); background: var(--surface); }
+
+/* ── NEXT ACTIONS ───────────────────────── */
+.action {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.action:first-of-type { margin-top: 6px; }
+.act-num {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-3);
+  margin-top: 3px; flex-shrink: 0; opacity: 0.6;
+}
+.act-body { flex: 1; }
+.act-label { font-size: 13.5px; font-weight: 600; color: var(--fg); letter-spacing: -0.01em; }
+.act-why { font-size: 11.5px; color: var(--fg-3); margin-top: 3px; }
+.act-btns { display: flex; gap: 3px; flex-shrink: 0; }
+
+/* ── CONTEXT RAIL ───────────────────────── */
+.ctx {
+  position: sticky; top: 28px;
+  min-height: 120px;
+}
+
+/* Pending signal — just text, no circle badge */
+.pending-signal {
+  font-size: 11.5px; font-weight: 500; color: var(--fg-3);
+  display: flex; align-items: center; gap: 5px;
+  cursor: pointer; padding: 0 0 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  transition: color 80ms;
+}
+.pending-signal:hover { color: var(--fg-2); }
+.pending-n {
+  font-weight: 700; color: var(--amber);
+  font-size: 12px;
+}
+
+/* Pending list */
+.pending-list { display: none; margin-top: -8px; margin-bottom: 16px; }
+.pending-list.show { display: block; }
+.pl-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 0; cursor: pointer;
+  transition: color 60ms; font-size: 11.5px; color: var(--fg-2);
+}
+.pl-item:hover { color: var(--fg); }
+.pl-item + .pl-item { border-top: 1px solid var(--border); }
+.pl-dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+.pl-dot.r { background: var(--red); }
+.pl-dot.a { background: var(--amber); }
+
+/* Empty state */
+.ctx-empty {
+  padding: 36px 0;
+  color: var(--fg-3); font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Active context */
+.ctx-active { display: none; }
+.ctx-active.show { display: block; }
+
+.ctx-for {
+  font-size: 9.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--fg-3); margin-bottom: 6px;
+}
+.ctx-point-text {
+  font-size: 13px; font-weight: 600; color: var(--fg);
+  line-height: 1.4; margin-bottom: 14px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--border);
+}
+
+/* Primary evidence source */
+.ev {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 6px 0;
+}
+.ev-type {
+  font-size: 8px; font-weight: 700; color: var(--fg-3);
+  background: var(--bg); border: 1px solid var(--border);
+  padding: 1px 4px; border-radius: 2px; flex-shrink: 0;
+  margin-top: 2px; letter-spacing: 0.04em;
+}
+.ev-body { flex: 1; }
+.ev-name { font-size: 12px; font-weight: 600; color: var(--fg); }
+.ev-extract { font-size: 11px; color: var(--fg-2); font-family: var(--mono); margin-top: 2px; }
+.ev-meta { font-size: 10px; color: var(--fg-3); margin-top: 2px; }
+
+/* More sources — collapsed */
+.ev-more {
+  font-size: 10.5px; font-weight: 500; color: var(--fg-3);
+  cursor: pointer; padding: 4px 0; margin-top: 2px;
+  transition: color 80ms;
+}
+.ev-more:hover { color: var(--fg-2); }
+.ev-extra { display: none; }
+.ev-extra.show { display: block; border-top: 1px solid var(--border); padding-top: 6px; margin-top: 4px; }
+
+/* Insight */
+.ev-insight {
+  font-size: 11.5px; color: var(--fg-2); line-height: 1.55;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+
+/* Ask/Tell — hidden by default, revealed on click */
+.ctx-ask-trigger {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 500; color: var(--fg-3);
+  cursor: pointer; margin-top: 14px; padding: 3px 0;
+  transition: color 80ms; border: none; background: none;
+  font-family: inherit;
+}
+.ctx-ask-trigger:hover { color: var(--accent); }
+.ctx-ask-trigger svg { opacity: 0.5; }
+.ctx-ask-trigger:hover svg { opacity: 0.8; }
+
+.ctx-ask-panel {
+  display: none; margin-top: 8px;
+  padding: 10px 12px;
+  background: rgba(99,102,241,0.03);
+  border: 1px solid rgba(99,102,241,0.1);
+  border-radius: 8px;
+}
+.ctx-ask-panel.show { display: block; }
+.ctx-ask-row { display: flex; align-items: center; gap: 4px; }
+.ctx-ask-input {
+  flex: 1; padding: 5px 10px; font-size: 11px;
+  font-family: inherit; color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); transition: border-color 100ms;
+}
+.ctx-ask-input:focus { outline: none; border-color: var(--accent); }
+.ctx-ask-input::placeholder { color: var(--fg-3); }
+.ctx-ask-btn {
+  padding: 5px 10px; font-size: 10px; font-weight: 600;
+  background: var(--fg); color: #fff; border: none;
+  border-radius: 6px; cursor: pointer; font-family: inherit;
+  white-space: nowrap;
+}
+.ctx-ask-btn:hover { background: #2A2520; }
+
+/* ── BOTTOM BAR ─────────────────────────── */
+.bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+  background: var(--surface); border-top: 1px solid var(--border);
+  padding: 7px 48px;
+}
+.bar-inner {
+  max-width: 1080px; margin: 0 auto;
+  display: flex; align-items: center; gap: 8px;
+}
+.bar-label { font-size: 10px; font-weight: 600; color: var(--fg-3); letter-spacing: 0.02em; white-space: nowrap; }
+.bar-input {
+  flex: 1; padding: 6px 12px; font-size: 12.5px; font-family: inherit;
+  color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg); transition: border-color 100ms;
+}
+.bar-input:focus { outline: none; border-color: rgba(0,0,0,0.12); }
+.bar-input::placeholder { color: var(--fg-3); }
+.bar-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--fg-3); cursor: pointer; transition: all 80ms;
+}
+.bar-btn:hover { color: var(--fg-2); border-color: rgba(0,0,0,0.12); }
+.bar-btn.go { background: var(--fg); color: #fff; border-color: var(--fg); }
+.bar-btn.go:hover { background: #2A2520; }
+
+/* ── ANIMATIONS ─────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade { animation: fadeUp 0.3s ease-out both; }
+.d1 { animation-delay: 40ms; }
+.d2 { animation-delay: 80ms; }
+.d3 { animation-delay: 100ms; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-logo">SecondStream</span>
+  <a href="#" class="on">Streams</a>
+  <a href="#">Accounts</a>
+  <a href="#">Evidence</a>
+</nav>
+
+<header class="header fade">
+  <div class="header-top">
+    <div>
+      <h1>Acme Paint Sludge — Houston</h1>
+      <div class="header-meta">
+        <span>Acme Industrial</span>
+        <span class="sep">·</span>
+        <span><span class="dot amber"></span> Pending review</span>
+        <span class="sep">·</span>
+        <span style="font-family:var(--mono);font-size:10px;opacity:0.7">11:42 AM</span>
+      </div>
+    </div>
+    <div>
+      <button class="btn btn-primary">Complete Discovery</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab on">Overview</button>
+    <button class="tab">Structured Capture</button>
+    <button class="tab">Evidence</button>
+    <button class="tab">History</button>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ═══ MAIN ═══════════════════════════ -->
+  <main>
+
+    <!-- Executive Summary — editorial, structured, readable -->
+    <div class="exec fade d1">
+      Paint sludge with absorbents, recurring weekly load from Acme Industrial Houston.
+      The material profile and logistics are largely understood, but a solids percentage
+      conflict between the lab report and transport manifest is blocking outlet shortlisting.
+      <span class="flag">Do not begin outlet outreach until the solids conflict is resolved.</span>
+    </div>
+
+    <!-- Discovery Brief -->
+    <div class="fade d2">
+      <div class="brief-top">
+        <span class="brief-label">Discovery Brief</span>
+        <span class="brief-version">v3 · 11:42</span>
+      </div>
+
+      <!-- What we know -->
+      <p class="sec-label">What we know</p>
+
+      <div class="pt" onclick="selectPt(this,'material')">
+        <div class="st st-ok"></div>
+        <div class="pt-body">
+          <p class="pt-text">Material family is paint sludge with absorbents<span class="ref">1</span></p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Accept</button>
+          <button class="pa">Incorrect</button>
+        </div>
+      </div>
+
+      <div class="pt" onclick="selectPt(this,'volume')">
+        <div class="st st-review"></div>
+        <div class="pt-body">
+          <p class="pt-text">Estimated volume is 42–50 tons per month<span class="ref">2</span><span class="ref">3</span><span class="chg">updated</span></p>
+          <p class="pt-sub">Three sources — manifests and broker note conflict on cap</p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Accept</button>
+          <button class="pa">Incorrect</button>
+          <button class="pa">Verify</button>
+        </div>
+      </div>
+
+      <div class="pt" onclick="selectPt(this,'frequency')">
+        <div class="st st-ok"></div>
+        <div class="pt-body">
+          <p class="pt-text">Pickup is weekly, Thursdays<span class="ref">4</span></p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Accept</button>
+          <button class="pa">Incorrect</button>
+        </div>
+      </div>
+
+      <div class="pt" onclick="selectPt(this,'ph')">
+        <div class="st st-review"></div>
+        <div class="pt-body">
+          <p class="pt-text">pH range is approximately 6.2–7.1<span class="ref">5</span></p>
+          <p class="pt-sub">Inferred from a similar facility — no fresh sample for this stream</p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Accept</button>
+          <button class="pa">Verify</button>
+        </div>
+      </div>
+
+      <!-- What is missing -->
+      <p class="sec-label">What is missing</p>
+
+      <div class="pt" onclick="selectPt(this,'epa')">
+        <div class="st st-miss"></div>
+        <div class="pt-body">
+          <p class="pt-text">EPA waste code has not been confirmed at location level</p>
+          <p class="pt-sub">Determines outlet eligibility and transport requirements</p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Add note</button>
+        </div>
+      </div>
+
+      <div class="pt" onclick="selectPt(this,'dwell')">
+        <div class="st st-miss"></div>
+        <div class="pt-body">
+          <p class="pt-text">Storage dwell time tolerance is unknown</p>
+        </div>
+        <div class="pt-actions">
+          <button class="pa">Add note</button>
+        </div>
+      </div>
+
+      <!-- Conflicts -->
+      <p class="sec-label">Conflicts</p>
+
+      <div class="pt sel" onclick="selectPt(this,'solids')">
+        <div class="st st-conflict"></div>
+        <div class="pt-body">
+          <p class="pt-text">Solids percentage: lab report reads 32%, manifest reads 18%<span class="ref">1</span><span class="ref">6</span></p>
+          <p class="pt-sub">This discrepancy blocks outlet pricing and compatibility assessment</p>
+        </div>
+        <div class="pt-actions" style="opacity:1">
+          <button class="pa">Verify</button>
+          <button class="pa">Add note</button>
+        </div>
+      </div>
+
+      <!-- Next actions -->
+      <p class="sec-label">Recommended next</p>
+
+      <div class="action">
+        <span class="act-num">01</span>
+        <div class="act-body">
+          <p class="act-label">Request fresh sample with chain-of-custody</p>
+          <p class="act-why">Resolves solids conflict and unlocks outlet filtering</p>
+        </div>
+        <div class="act-btns">
+          <button class="btn" style="font-size:10px;padding:3px 10px">Accept</button>
+          <button class="pa">Defer</button>
+        </div>
+      </div>
+
+      <div class="action">
+        <span class="act-num">02</span>
+        <div class="act-body">
+          <p class="act-label">Confirm manifest code with compliance lead</p>
+          <p class="act-why">Needed before outlet outreach — 5 min call</p>
+        </div>
+        <div class="act-btns">
+          <button class="btn" style="font-size:10px;padding:3px 10px">Accept</button>
+          <button class="pa">Defer</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ═══ CONTEXT RAIL ═══════════════════ -->
+  <aside class="ctx fade d3">
+
+    <!-- Pending review — no badge, just quiet text -->
+    <div class="pending-signal" onclick="togglePending()">
+      <span class="pending-n">3</span> points need review
+    </div>
+    <div class="pending-list" id="pendingList">
+      <div class="pl-item" onclick="selectPtByKey('solids')">
+        <span class="pl-dot r"></span>
+        Solids % conflict
+      </div>
+      <div class="pl-item" onclick="selectPtByKey('ph')">
+        <span class="pl-dot a"></span>
+        pH inferred, not sampled
+      </div>
+      <div class="pl-item" onclick="selectPtByKey('volume')">
+        <span class="pl-dot a"></span>
+        Volume cap ambiguity
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div class="ctx-empty" id="ctxEmpty">
+      Select a brief point to<br>inspect evidence and context
+    </div>
+
+    <!-- ── Solids context ──────────────── -->
+    <div class="ctx-active" id="ctx-solids">
+      <p class="ctx-for">Evidence</p>
+      <p class="ctx-point-text">Solids percentage conflict</p>
+
+      <div class="ev">
+        <span class="ev-type">PDF</span>
+        <div class="ev-body">
+          <p class="ev-name">Lab Report #LR-884</p>
+          <p class="ev-extract">"32% solids" — page 3</p>
+        </div>
+      </div>
+      <div class="ev-more" onclick="this.nextElementSibling.classList.toggle('show'); this.textContent = this.textContent === '+ 1 more source' ? '− collapse' : '+ 1 more source'">+ 1 more source</div>
+      <div class="ev-extra">
+        <div class="ev">
+          <span class="ev-type">DOC</span>
+          <div class="ev-body">
+            <p class="ev-name">Manifest #TM-220</p>
+            <p class="ev-extract">"18% solids" — line 12</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="ev-insight">Outlet compatibility and pricing depend on solids %. This must be resolved before shortlisting.</p>
+
+      <button class="ctx-ask-trigger" onclick="toggleAsk(this)">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M6.5 6.5a1.5 1.5 0 1 1 1.5 1.5v1" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".5" fill="currentColor" stroke="none"/></svg>
+        Ask about this point
+      </button>
+      <div class="ctx-ask-panel">
+        <div class="ctx-ask-row">
+          <input type="text" class="ctx-ask-input" placeholder="Which source should we trust?" />
+          <button class="ctx-ask-btn">Ask</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Volume context ──────────────── -->
+    <div class="ctx-active" id="ctx-volume">
+      <p class="ctx-for">Evidence</p>
+      <p class="ctx-point-text">Estimated monthly volume</p>
+
+      <div class="ev">
+        <span class="ev-type">DOC</span>
+        <div class="ev-body">
+          <p class="ev-name">Manifests Jan–Mar</p>
+          <p class="ev-extract">42, 48, 50 tons respectively</p>
+        </div>
+      </div>
+      <div class="ev-more" onclick="this.nextElementSibling.classList.toggle('show'); this.textContent = this.textContent === '+ 1 more source' ? '− collapse' : '+ 1 more source'">+ 1 more source</div>
+      <div class="ev-extra">
+        <div class="ev">
+          <span class="ev-type">NOTE</span>
+          <div class="ev-body">
+            <p class="ev-name">Broker note</p>
+            <p class="ev-extract">"Contract caps at 38t"</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="ev-insight">38-ton figure is a contractual maximum — actual throughput has been higher historically.</p>
+
+      <button class="ctx-ask-trigger" onclick="toggleAsk(this)">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M6.5 6.5a1.5 1.5 0 1 1 1.5 1.5v1" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".5" fill="currentColor" stroke="none"/></svg>
+        Ask about this point
+      </button>
+      <div class="ctx-ask-panel">
+        <div class="ctx-ask-row">
+          <input type="text" class="ctx-ask-input" placeholder="Why the discrepancy?" />
+          <button class="ctx-ask-btn">Ask</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── pH context ──────────────────── -->
+    <div class="ctx-active" id="ctx-ph">
+      <p class="ctx-for">Evidence</p>
+      <p class="ctx-point-text">pH range estimate</p>
+
+      <div class="ev">
+        <span class="ev-type">PDF</span>
+        <div class="ev-body">
+          <p class="ev-name">Historical dossier — similar site</p>
+          <p class="ev-extract">pH 6.0–7.3 observed</p>
+          <p class="ev-meta">2024 · analogy, not direct measurement</p>
+        </div>
+      </div>
+
+      <p class="ev-insight">No fresh sample for this stream. Value inferred from a similar facility. Verify before outlet outreach.</p>
+
+      <button class="ctx-ask-trigger" onclick="toggleAsk(this)">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M6.5 6.5a1.5 1.5 0 1 1 1.5 1.5v1" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".5" fill="currentColor" stroke="none"/></svg>
+        Ask about this point
+      </button>
+      <div class="ctx-ask-panel">
+        <div class="ctx-ask-row">
+          <input type="text" class="ctx-ask-input" placeholder="How confident is this inference?" />
+          <button class="ctx-ask-btn">Ask</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Material context ────────────── -->
+    <div class="ctx-active" id="ctx-material">
+      <p class="ctx-for">Evidence</p>
+      <p class="ctx-point-text">Material classification</p>
+
+      <div class="ev">
+        <span class="ev-type">PDF</span>
+        <div class="ev-body">
+          <p class="ev-name">Lab Report #LR-884</p>
+          <p class="ev-extract">"Paint sludge with absorbents" — p2</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Frequency context ───────────── -->
+    <div class="ctx-active" id="ctx-frequency">
+      <p class="ctx-for">Evidence</p>
+      <p class="ctx-point-text">Pickup schedule</p>
+
+      <div class="ev">
+        <span class="ev-type">DOC</span>
+        <div class="ev-body">
+          <p class="ev-name">Service agreement</p>
+          <p class="ev-extract">Thursdays, 7 AM–12 PM</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── EPA missing context ─────────── -->
+    <div class="ctx-active" id="ctx-epa">
+      <p class="ctx-for">What's needed</p>
+      <p class="ctx-point-text">EPA waste code</p>
+
+      <p class="ev-insight">Could be D001 (ignitability) or D007 (chromium) based on material composition. Determines outlet eligibility, transport class, and pricing. Check latest manifest or ask compliance lead.</p>
+
+      <button class="ctx-ask-trigger" onclick="toggleAsk(this)">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M6.5 6.5a1.5 1.5 0 1 1 1.5 1.5v1" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".5" fill="currentColor" stroke="none"/></svg>
+        Ask about this point
+      </button>
+      <div class="ctx-ask-panel">
+        <div class="ctx-ask-row">
+          <input type="text" class="ctx-ask-input" placeholder="What changes if it's D001 vs D007?" />
+          <button class="ctx-ask-btn">Ask</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Dwell time missing context ──── -->
+    <div class="ctx-active" id="ctx-dwell">
+      <p class="ctx-for">What's needed</p>
+      <p class="ctx-point-text">Storage dwell time</p>
+
+      <p class="ev-insight">No information available. Ask the generator how long waste typically sits before pickup.</p>
+    </div>
+
+  </aside>
+
+</div>
+
+<!-- Bottom bar -->
+<div class="bar">
+  <div class="bar-inner">
+    <span class="bar-label">Add to stream</span>
+    <input type="text" class="bar-input" placeholder="Paste text, drop a file, or type a note..." />
+    <button class="bar-btn" title="Upload">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 10V3m0 0L5.5 5.5M8 3l2.5 2.5"/><path d="M3 12h10"/></svg>
+    </button>
+    <button class="bar-btn" title="Voice">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 8a4 4 0 0 0 8 0"/><path d="M8 13v1"/></svg>
+    </button>
+    <button class="bar-btn go" title="Submit">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2 2 8l5 2 2 5z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+function selectPt(el, key) {
+  document.querySelectorAll('.pt').forEach(p => p.classList.remove('sel'));
+  el.classList.add('sel');
+  showContext(key);
+}
+function selectPtByKey(key) {
+  document.querySelectorAll('.pt').forEach(p => {
+    p.classList.toggle('sel', p.getAttribute('onclick')?.includes("'" + key + "'"));
+  });
+  showContext(key);
+}
+function showContext(key) {
+  document.getElementById('ctxEmpty').style.display = 'none';
+  document.querySelectorAll('.ctx-active').forEach(c => c.classList.remove('show'));
+  document.querySelectorAll('.ctx-ask-panel').forEach(p => p.classList.remove('show'));
+  const t = document.getElementById('ctx-' + key);
+  if (t) t.classList.add('show');
+}
+function togglePending() {
+  document.getElementById('pendingList').classList.toggle('show');
+}
+function toggleAsk(trigger) {
+  const panel = trigger.nextElementSibling;
+  panel.classList.toggle('show');
+  if (panel.classList.contains('show')) {
+    panel.querySelector('input')?.focus();
+  }
+}
+document.querySelector('main')?.addEventListener('click', function(e) {
+  if (e.target === this) {
+    document.querySelectorAll('.pt').forEach(p => p.classList.remove('sel'));
+    document.querySelectorAll('.ctx-active').forEach(c => c.classList.remove('show'));
+    document.querySelectorAll('.ctx-ask-panel').forEach(p => p.classList.remove('show'));
+    document.getElementById('ctxEmpty').style.display = '';
+  }
+});
+</script>
+</body>
+</html>

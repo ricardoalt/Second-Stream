@@ -181,6 +181,27 @@ Solve discovery bottleneck.
 6. Historical Pricing Lookup  
 7. Deal Stage Tracker (blocker visibility)
 
+### **v1 Clarification (AI-native workspace alignment)**
+
+This MVP scope should be interpreted through the AI-native workspace direction:
+
+* For the current v1 UX planning, the **primary operator is the field-agent**.
+* Primary visible AI capability in v1 is the **Discovery Completion Agent**.
+* Primary artifact is a living **Discovery Brief** that makes knowns, gaps, conflicts, and next actions explicit.
+* Primary interaction is **artifact + evidence review**, with optional contextual Ask/Tell (not chat-first UX).
+* The v1 objective is to remove the discovery bottleneck and externalize tacit discovery understanding into a reviewable product artifact.
+
+### **What v1 does NOT fully solve yet (by design)**
+
+v1 establishes the foundation for, but does not deeply solve:
+
+* advanced regulatory reasoning workflows
+* deep pricing intelligence workflows
+* logistics orchestration workflows
+* full downstream traceability workflows
+
+Those remain later specialist layers built on top of the v1 harness/workspace foundation.
+
 ### **Rationale**
 
 If discovery becomes structured:
@@ -250,4 +271,3 @@ If built correctly, it transforms:
 * Complex discovery → repeatable system
 
 ---
-

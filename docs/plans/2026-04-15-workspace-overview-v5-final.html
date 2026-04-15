@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SecondStream — Stream Workspace v5 (Final Reference)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #F9F8F6;
+  --bg-2: #F4F2EF;
+  --surface: #FFFFFF;
+  --fg: #1C1917;
+  --fg-2: #57534E;
+  --fg-3: #A8A29E;
+  --border: rgba(0,0,0,0.06);
+  --border-subtle: rgba(0,0,0,0.035);
+  --accent: #6366F1;
+  --accent-bg: rgba(99,102,241,0.045);
+  --accent-border: rgba(99,102,241,0.12);
+  --green: #16A34A;
+  --green-bg: rgba(22,163,74,0.05);
+  --amber: #B45309;
+  --red: #DC2626;
+  --font: 'Inter', -apple-system, system-ui, sans-serif;
+  --mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  --radius: 8px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font); background: var(--bg); color: var(--fg);
+  line-height: 1.6; font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  padding-bottom: 56px;
+}
+
+/* ── NAV ─────────────────────────── */
+.nav {
+  display: flex; align-items: center; gap: 28px;
+  padding: 0 48px; height: 42px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 500; color: var(--fg-3);
+  background: var(--surface);
+}
+.nav-logo {
+  font-weight: 700; font-size: 13px; color: var(--fg);
+  letter-spacing: -0.04em; margin-right: 8px;
+}
+.nav a { text-decoration: none; color: inherit; transition: color 80ms; }
+.nav a:hover { color: var(--fg-2); }
+.nav a.on { color: var(--fg); }
+
+/* ── HEADER ──────────────────────── */
+.header { max-width: 1080px; margin: 0 auto; padding: 28px 48px 0; }
+.header-top {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 24px;
+}
+.header h1 {
+  font-size: 18px; font-weight: 700;
+  letter-spacing: -0.03em; line-height: 1.25; color: var(--fg);
+}
+.header-meta {
+  margin-top: 6px; font-size: 12px; color: var(--fg-3);
+  display: flex; gap: 8px; align-items: center;
+}
+.header-meta .dot {
+  width: 5px; height: 5px; border-radius: 50%; display: inline-block;
+}
+.header-meta .dot.amber { background: var(--amber); }
+.header-meta .sep { opacity: 0.25; }
+
+.btn {
+  padding: 6px 16px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--surface); color: var(--fg-2);
+  cursor: pointer; font-family: inherit; transition: all 80ms;
+  letter-spacing: -0.01em;
+}
+.btn:hover { border-color: rgba(0,0,0,0.15); color: var(--fg); }
+.btn-primary {
+  background: var(--fg); color: #fff; border-color: var(--fg);
+}
+.btn-primary:hover { background: #292524; }
+
+.tabs {
+  display: flex; gap: 0; margin-top: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  padding: 8px 18px 10px; font-size: 13px; font-weight: 500;
+  color: var(--fg-3); cursor: pointer; border: none; background: none;
+  font-family: inherit; border-bottom: 1.5px solid transparent;
+  margin-bottom: -1px; transition: color 80ms; letter-spacing: -0.005em;
+}
+.tab:hover { color: var(--fg-2); }
+.tab.on { color: var(--fg); font-weight: 600; border-bottom-color: var(--fg); }
+
+/* ── TAB CONTENT ─────────────────── */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ── WORKSPACE ───────────────────── */
+.workspace {
+  max-width: 1080px; margin: 0 auto; padding: 0 48px;
+  display: grid; grid-template-columns: 1fr 240px;
+  gap: 64px; align-items: start; margin-top: 32px;
+}
+
+/* ── EXEC SUMMARY ────────────────── */
+.exec {
+  padding-bottom: 28px; margin-bottom: 40px;
+  border-bottom: 1px solid var(--border);
+  max-width: 560px;
+}
+.exec-lead {
+  font-size: 15px; font-weight: 500; color: var(--fg);
+  line-height: 1.5; letter-spacing: -0.01em;
+}
+.exec-detail {
+  font-size: 13.5px; color: var(--fg-2); line-height: 1.6;
+  margin-top: 6px; letter-spacing: -0.005em;
+}
+.exec-flag {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin-top: 10px; font-size: 12.5px; font-weight: 500;
+  color: var(--amber); line-height: 1.45;
+}
+.exec-flag::before {
+  content: ''; width: 3px; min-height: 14px;
+  background: var(--amber); border-radius: 1px;
+  margin-top: 3px; flex-shrink: 0; opacity: 0.7;
+}
+
+/* ── BRIEF ───────────────────────── */
+.brief-top {
+  display: flex; align-items: baseline;
+  justify-content: space-between; margin-bottom: 32px;
+}
+.brief-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--fg-3);
+}
+.brief-version {
+  font-size: 10px; color: var(--fg-3); font-family: var(--mono);
+  letter-spacing: 0.01em;
+}
+
+.sec-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--fg-3);
+  margin-bottom: 12px; margin-top: 40px;
+}
+.sec-label:first-of-type { margin-top: 0; }
+
+/* ── POINTS ──────────────────────── */
+.pt {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0; cursor: default;
+  transition: background 80ms, padding 80ms, margin 80ms;
+  border-radius: 6px; position: relative;
+}
+.pt:hover {
+  background: rgba(0,0,0,0.015);
+  margin: 0 -12px; padding: 10px 12px;
+}
+.pt.sel {
+  background: var(--accent-bg);
+  margin: 0 -12px; padding: 10px 12px;
+}
+
+.st {
+  width: 2px; min-height: 16px; align-self: stretch;
+  border-radius: 1px; flex-shrink: 0; margin-top: 3px;
+}
+.st-ok { background: var(--green); opacity: 0.55; }
+.st-review { background: var(--amber); opacity: 0.65; }
+.st-conflict { background: var(--red); opacity: 0.7; }
+.st-miss {
+  background: transparent;
+  border: 1px dashed var(--fg-3); opacity: 0.3;
+}
+
+.pt-body { flex: 1; min-width: 0; }
+.pt-text {
+  font-size: 14px; font-weight: 500; color: var(--fg);
+  line-height: 1.5; letter-spacing: -0.01em;
+}
+.pt-sub {
+  font-size: 11.5px; color: var(--fg-3); margin-top: 2px;
+  line-height: 1.45;
+}
+
+/* Citations — barely there */
+.ref {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 11px; height: 11px; border-radius: 2px;
+  background: rgba(99,102,241,0.06); color: var(--accent);
+  font-size: 7.5px; font-weight: 700; margin-left: 3px;
+  position: relative; top: -1px; cursor: pointer;
+  opacity: 0.5; transition: opacity 80ms;
+}
+.ref:hover { opacity: 1; background: rgba(99,102,241,0.12); }
+
+.chg {
+  font-size: 10.5px; font-style: italic; color: var(--accent);
+  margin-left: 5px; font-weight: 400; opacity: 0.6;
+}
+
+/* Actions — ghost until hovered */
+.pt-actions {
+  display: flex; gap: 3px; flex-shrink: 0;
+  opacity: 0; transition: opacity 80ms;
+}
+.pt:hover .pt-actions { opacity: 1; }
+.pt.sel .pt-actions { opacity: 1; }
+.pa {
+  padding: 3px 8px; font-size: 10px; font-weight: 600;
+  color: var(--fg-3); background: none;
+  border: 1px solid transparent; border-radius: 4px;
+  cursor: pointer; font-family: inherit;
+  transition: all 60ms; white-space: nowrap;
+}
+.pa:hover {
+  color: var(--fg-2); border-color: var(--border);
+  background: var(--surface);
+}
+
+/* New point pulse */
+.pt.just-added { animation: pointAdded 2.5s ease-out both; }
+@keyframes pointAdded {
+  0% { background: var(--green-bg); margin: 0 -12px; padding: 10px 12px; }
+  100% { background: transparent; }
+}
+
+/* ── RECOMMENDED NEXT ────────────── */
+.action {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 11px 0; border-top: 1px solid var(--border-subtle);
+}
+.action:first-of-type { margin-top: 4px; }
+.act-num {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-3);
+  margin-top: 2px; flex-shrink: 0; opacity: 0.45;
+}
+.act-body { flex: 1; }
+.act-label {
+  font-size: 13px; font-weight: 600; color: var(--fg);
+  letter-spacing: -0.01em; line-height: 1.4;
+}
+.act-why {
+  font-size: 11px; color: var(--fg-3); margin-top: 2px;
+  line-height: 1.4;
+}
+.act-btns { display: flex; gap: 3px; flex-shrink: 0; }
+
+/* ── CONTEXT RAIL ────────────────── */
+.ctx { position: sticky; top: 24px; min-height: 80px; }
+
+.pending-signal {
+  font-size: 11px; font-weight: 500; color: var(--fg-3);
+  display: flex; align-items: center; gap: 5px;
+  cursor: pointer; padding: 0 0 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px; transition: color 80ms;
+}
+.pending-signal:hover { color: var(--fg-2); }
+.pending-n { font-weight: 700; color: var(--amber); font-size: 11.5px; }
+
+.pending-list { display: none; margin-top: -6px; margin-bottom: 14px; }
+.pending-list.show { display: block; }
+.pl-item {
+  display: flex; align-items: center; gap: 6px; padding: 5px 0;
+  cursor: pointer; font-size: 11px; color: var(--fg-2);
+  transition: color 60ms;
+}
+.pl-item:hover { color: var(--fg); }
+.pl-item + .pl-item { border-top: 1px solid var(--border-subtle); }
+.pl-dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+.pl-dot.r { background: var(--red); opacity: 0.8; }
+.pl-dot.a { background: var(--amber); opacity: 0.8; }
+
+.ctx-empty {
+  padding: 32px 0; color: var(--fg-3); font-size: 11.5px; line-height: 1.55;
+}
+.ctx-active { display: none; }
+.ctx-active.show { display: block; }
+
+.ctx-for {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--fg-3); margin-bottom: 5px;
+}
+.ctx-point-text {
+  font-size: 12.5px; font-weight: 600; color: var(--fg);
+  line-height: 1.35; margin-bottom: 12px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Source evidence */
+.ev { display: flex; align-items: flex-start; gap: 7px; padding: 5px 0; }
+.ev-type {
+  font-size: 7.5px; font-weight: 700; color: var(--fg-3);
+  background: var(--bg-2); border: 1px solid var(--border-subtle);
+  padding: 1px 4px; border-radius: 2px; flex-shrink: 0;
+  margin-top: 2px; letter-spacing: 0.04em;
+}
+.ev-body { flex: 1; }
+.ev-name { font-size: 11.5px; font-weight: 600; color: var(--fg); }
+.ev-extract {
+  font-size: 10.5px; color: var(--fg-2); font-family: var(--mono);
+  margin-top: 1px; line-height: 1.45;
+}
+.ev-meta { font-size: 9.5px; color: var(--fg-3); margin-top: 2px; }
+
+.ev-more {
+  font-size: 10px; font-weight: 500; color: var(--fg-3);
+  cursor: pointer; padding: 3px 0; margin-top: 1px;
+  transition: color 80ms;
+}
+.ev-more:hover { color: var(--fg-2); }
+.ev-extra { display: none; }
+.ev-extra.show {
+  display: block; border-top: 1px solid var(--border-subtle);
+  padding-top: 5px; margin-top: 3px;
+}
+
+.ev-insight {
+  font-size: 11px; color: var(--fg-2); line-height: 1.55;
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ── ASK (contextual tool) ───────── */
+.ctx-ask-trigger {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 500; color: var(--fg-3);
+  cursor: pointer; margin-top: 12px; padding: 0;
+  transition: color 100ms; border: none; background: none;
+  font-family: inherit;
+}
+.ctx-ask-trigger:hover { color: var(--accent); }
+.ctx-ask-trigger svg { opacity: 0.4; transition: opacity 80ms; }
+.ctx-ask-trigger:hover svg { opacity: 0.7; }
+
+.ctx-ask-panel {
+  display: none; margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: 7px;
+}
+.ctx-ask-panel.show {
+  display: block;
+  animation: fadeUp 0.15s ease-out both;
+}
+.ctx-ask-hint {
+  font-size: 9px; color: var(--fg-3);
+  margin-bottom: 5px; display: block;
+}
+.ctx-ask-row { display: flex; align-items: center; gap: 4px; }
+.ctx-ask-input {
+  flex: 1; padding: 5px 8px; font-size: 11px;
+  font-family: inherit; color: var(--fg);
+  border: 1px solid var(--border); border-radius: 5px;
+  background: var(--surface); transition: border-color 100ms;
+}
+.ctx-ask-input:focus { outline: none; border-color: var(--accent); }
+.ctx-ask-input::placeholder { color: var(--fg-3); }
+.ctx-ask-send {
+  padding: 5px; border: none; background: none;
+  color: var(--fg-3); cursor: pointer; border-radius: 4px;
+  transition: color 80ms;
+}
+.ctx-ask-send:hover { color: var(--accent); }
+
+/* ── BOTTOM BAR ──────────────────── */
+.bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+  background: var(--surface); border-top: 1px solid var(--border);
+  padding: 8px 48px;
+}
+.bar-inner {
+  max-width: 1080px; margin: 0 auto;
+  display: flex; align-items: center; gap: 8px;
+}
+.bar-label {
+  font-size: 10px; font-weight: 600; color: var(--fg-3);
+  letter-spacing: 0.02em; white-space: nowrap;
+}
+.bar-input {
+  flex: 1; padding: 7px 12px; font-size: 12.5px;
+  font-family: inherit; color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg); transition: border-color 100ms;
+}
+.bar-input:focus { outline: none; border-color: rgba(0,0,0,0.12); }
+.bar-input::placeholder { color: var(--fg-3); }
+.bar-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--fg-3); cursor: pointer; transition: all 80ms;
+}
+.bar-btn:hover { color: var(--fg-2); border-color: rgba(0,0,0,0.12); }
+.bar-btn.go { background: var(--fg); color: #fff; border-color: var(--fg); }
+.bar-btn.go:hover { background: #292524; }
+
+/* ── INGEST TOAST ────────────────── */
+.ingest-feedback {
+  position: fixed; bottom: 56px; left: 0; right: 0; z-index: 49;
+  display: flex; justify-content: center; pointer-events: none;
+}
+.ingest-toast {
+  pointer-events: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 18px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.04), 0 0 1px rgba(0,0,0,0.06);
+  max-width: 440px; width: 100%; font-size: 13px;
+  transform: translateY(16px); opacity: 0;
+  transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+}
+.ingest-toast.show { transform: translateY(-8px); opacity: 1; }
+.toast-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 5px;
+}
+.toast-status {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.toast-status.processing { color: var(--accent); }
+.toast-status.mapped { color: var(--green); }
+.toast-title { font-weight: 600; color: var(--fg); font-size: 12px; }
+.toast-mappings { font-size: 11.5px; color: var(--fg-2); line-height: 1.5; }
+.toast-mapping-row { display: flex; gap: 6px; padding: 1px 0; }
+.toast-field {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-3);
+  flex-shrink: 0;
+}
+.toast-value { color: var(--fg-2); font-size: 11px; }
+.toast-close {
+  font-size: 10px; font-weight: 500; color: var(--fg-3);
+  cursor: pointer; margin-top: 5px; border: none;
+  background: none; font-family: inherit; padding: 2px 0;
+  transition: color 80ms;
+}
+.toast-close:hover { color: var(--fg); }
+
+/* ── STRUCTURED CAPTURE ──────────── */
+.capture-page {
+  max-width: 640px; margin: 32px auto 0; padding: 0 48px;
+}
+.capture-intro {
+  font-size: 12.5px; color: var(--fg-3); margin-bottom: 24px;
+  line-height: 1.55;
+}
+
+.field-group {
+  margin-bottom: 6px; border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+  background: var(--surface);
+}
+.fg-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 14px; cursor: pointer; transition: background 60ms;
+}
+.fg-header:hover { background: rgba(0,0,0,0.012); }
+.fg-title {
+  font-size: 12.5px; font-weight: 600; color: var(--fg);
+  letter-spacing: -0.01em;
+}
+.fg-right {
+  display: flex; align-items: center; gap: 8px;
+}
+.fg-status {
+  font-size: 9.5px; font-weight: 600; display: flex;
+  align-items: center; gap: 4px; letter-spacing: 0.01em;
+}
+.fg-status.complete { color: var(--green); }
+.fg-status.review { color: var(--amber); }
+.fg-status.incomplete { color: var(--fg-3); }
+.fg-status .s-dot { width: 4px; height: 4px; border-radius: 50%; }
+.fg-status.complete .s-dot { background: var(--green); opacity: 0.7; }
+.fg-status.review .s-dot { background: var(--amber); opacity: 0.7; }
+.fg-status.incomplete .s-dot { background: var(--fg-3); opacity: 0.3; }
+.fg-chevron {
+  color: var(--fg-3); font-size: 11px;
+  transition: transform 0.15s ease; opacity: 0.5;
+}
+.fg-header.open .fg-chevron { transform: rotate(90deg); }
+
+.fg-body { display: none; padding: 0 14px 14px; }
+.fg-body.open { display: block; }
+
+/* Fields */
+.field { padding: 9px 0; border-top: 1px solid var(--border-subtle); }
+.field:first-child { border-top: none; }
+.field-row {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 10px;
+}
+.field-label {
+  font-size: 11.5px; font-weight: 500; color: var(--fg-3);
+  flex-shrink: 0; width: 120px; margin-top: 1px;
+}
+.field-value-area { flex: 1; min-width: 0; }
+.field-value {
+  font-size: 13px; font-weight: 500; color: var(--fg);
+  line-height: 1.35;
+}
+.field-value.empty {
+  color: var(--fg-3); font-style: italic; font-weight: 400;
+  font-size: 12.5px;
+}
+.field-source {
+  font-size: 9.5px; color: var(--fg-3); margin-top: 2px;
+  display: flex; align-items: center; gap: 4px;
+}
+.field-source .ai-tag {
+  font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--accent);
+  background: var(--accent-bg); padding: 1px 4px; border-radius: 2px;
+}
+.field-source .manual-tag {
+  font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--fg-3);
+  background: rgba(0,0,0,0.03); padding: 1px 4px; border-radius: 2px;
+}
+.field-conflict {
+  font-size: 10.5px; color: var(--red); font-weight: 500;
+  margin-top: 2px; display: flex; align-items: center; gap: 4px;
+}
+.field-conflict::before {
+  content: ''; width: 3px; height: 3px; border-radius: 50%;
+  background: var(--red); flex-shrink: 0; opacity: 0.8;
+}
+
+.field-edit-trigger {
+  font-size: 10px; font-weight: 500; color: var(--fg-3);
+  cursor: pointer; transition: color 80ms; border: none;
+  background: none; font-family: inherit; padding: 0;
+  flex-shrink: 0; margin-top: 1px;
+}
+.field-edit-trigger:hover { color: var(--accent); }
+.field-edit-zone { display: none; margin-top: 5px; }
+.field-edit-zone.show { display: flex; gap: 4px; align-items: center; }
+.field-edit-input {
+  flex: 1; padding: 5px 8px; font-size: 11.5px; color: var(--fg);
+  border: 1px solid var(--border); border-radius: 5px;
+  font-family: inherit; background: var(--bg);
+  transition: border-color 100ms;
+}
+.field-edit-input:focus { outline: none; border-color: var(--accent); }
+.field-edit-save {
+  padding: 5px 10px; font-size: 10px; font-weight: 600;
+  background: var(--fg); color: #fff; border: none;
+  border-radius: 5px; cursor: pointer; font-family: inherit;
+}
+
+/* ── ANIMATIONS ──────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade { animation: fadeUp 0.25s ease-out both; }
+.d1 { animation-delay: 30ms; }
+.d2 { animation-delay: 60ms; }
+.d3 { animation-delay: 80ms; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-logo">SecondStream</span>
+  <a href="#" class="on">Streams</a>
+  <a href="#">Accounts</a>
+  <a href="#">Evidence</a>
+</nav>
+
+<header class="header fade">
+  <div class="header-top">
+    <div>
+      <h1>Acme Paint Sludge — Houston</h1>
+      <div class="header-meta">
+        <span>Acme Industrial</span>
+        <span class="sep">·</span>
+        <span>M. Torres</span>
+        <span class="sep">·</span>
+        <span><span class="dot amber"></span> Pending review</span>
+        <span class="sep">·</span>
+        <span style="font-family:var(--mono);font-size:10px;opacity:0.6">11:42 AM</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn">Refresh Brief</button>
+      <button class="btn btn-primary">Complete Discovery</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab on" onclick="switchTab('overview')">Overview</button>
+    <button class="tab" onclick="switchTab('capture')">Structured Capture</button>
+    <button class="tab" onclick="switchTab('evidence')">Evidence</button>
+    <button class="tab" onclick="switchTab('history')">History</button>
+  </div>
+</header>
+
+<!-- ═══ OVERVIEW ═══════════════════ -->
+<div class="tab-content active" id="tab-overview">
+  <div class="workspace">
+    <main>
+      <!-- Executive summary — structured, not a paragraph -->
+      <div class="exec fade d1">
+        <p class="exec-lead">Paint sludge with absorbents — recurring weekly load from Acme Industrial Houston.</p>
+        <p class="exec-detail">Material profile and logistics are largely understood. A solids percentage conflict between the lab report and transport manifest is blocking outlet shortlisting.</p>
+        <p class="exec-flag">Hold outlet outreach until the solids conflict is resolved.</p>
+      </div>
+
+      <div class="fade d2">
+        <div class="brief-top">
+          <span class="brief-label">Discovery Brief</span>
+          <span class="brief-version">v3 · 11:42</span>
+        </div>
+
+        <p class="sec-label">What we know</p>
+
+        <div class="pt" onclick="selectPt(this,'material')">
+          <div class="st st-ok"></div>
+          <div class="pt-body">
+            <p class="pt-text">Material family is paint sludge with absorbents<span class="ref">1</span></p>
+          </div>
+          <div class="pt-actions"><button class="pa">Accept</button><button class="pa">Incorrect</button></div>
+        </div>
+
+        <div class="pt" onclick="selectPt(this,'volume')">
+          <div class="st st-review"></div>
+          <div class="pt-body">
+            <p class="pt-text">Estimated volume is 42–50 tons per month<span class="ref">2</span><span class="ref">3</span><span class="chg">updated</span></p>
+            <p class="pt-sub">Manifests and contract cap disagree on upper bound</p>
+          </div>
+          <div class="pt-actions"><button class="pa">Accept</button><button class="pa">Incorrect</button><button class="pa">Verify</button></div>
+        </div>
+
+        <div class="pt" onclick="selectPt(this,'frequency')">
+          <div class="st st-ok"></div>
+          <div class="pt-body">
+            <p class="pt-text">Pickup is weekly, Thursdays<span class="ref">4</span></p>
+          </div>
+          <div class="pt-actions"><button class="pa">Accept</button><button class="pa">Incorrect</button></div>
+        </div>
+
+        <div class="pt" onclick="selectPt(this,'ph')">
+          <div class="st st-review"></div>
+          <div class="pt-body">
+            <p class="pt-text">pH range is approximately 6.2–7.1<span class="ref">5</span></p>
+            <p class="pt-sub">Inferred from a similar facility — no direct sample</p>
+          </div>
+          <div class="pt-actions"><button class="pa">Accept</button><button class="pa">Verify</button></div>
+        </div>
+
+        <!-- Appears after voice note submission -->
+        <div class="pt just-added" id="newPoint1" style="display:none" onclick="selectPt(this,'container')">
+          <div class="st st-review"></div>
+          <div class="pt-body">
+            <p class="pt-text">Containers are 55-gallon drums, stored outdoors near loading dock<span class="ref">7</span><span class="chg">new</span></p>
+            <p class="pt-sub">From field visit voice note — needs verification</p>
+          </div>
+          <div class="pt-actions"><button class="pa">Accept</button><button class="pa">Incorrect</button></div>
+        </div>
+
+        <p class="sec-label">What is missing</p>
+
+        <div class="pt" onclick="selectPt(this,'epa')">
+          <div class="st st-miss"></div>
+          <div class="pt-body">
+            <p class="pt-text">EPA waste code has not been confirmed at location level</p>
+            <p class="pt-sub">Required for outlet eligibility and transport classification</p>
+          </div>
+          <div class="pt-actions"><button class="pa">Add note</button></div>
+        </div>
+
+        <div class="pt" onclick="selectPt(this,'dwell')">
+          <div class="st st-miss"></div>
+          <div class="pt-body">
+            <p class="pt-text">Storage dwell time tolerance is unknown</p>
+          </div>
+          <div class="pt-actions"><button class="pa">Add note</button></div>
+        </div>
+
+        <p class="sec-label">Conflicts</p>
+
+        <div class="pt sel" onclick="selectPt(this,'solids')">
+          <div class="st st-conflict"></div>
+          <div class="pt-body">
+            <p class="pt-text">Solids percentage: lab report reads 32%, manifest reads 18%<span class="ref">1</span><span class="ref">6</span></p>
+            <p class="pt-sub">Blocks outlet pricing and compatibility assessment</p>
+          </div>
+          <div class="pt-actions" style="opacity:1"><button class="pa">Verify</button><button class="pa">Add note</button></div>
+        </div>
+
+        <p class="sec-label">Recommended next</p>
+
+        <div class="action">
+          <span class="act-num">01</span>
+          <div class="act-body">
+            <p class="act-label">Request fresh sample with chain-of-custody</p>
+            <p class="act-why">Resolves solids conflict, unlocks outlet filtering</p>
+          </div>
+          <div class="act-btns"><button class="btn" style="font-size:10px;padding:3px 10px">Accept</button><button class="pa">Defer</button></div>
+        </div>
+        <div class="action">
+          <span class="act-num">02</span>
+          <div class="act-body">
+            <p class="act-label">Confirm EPA waste code with compliance lead</p>
+            <p class="act-why">Required before outlet outreach — 5 min call</p>
+          </div>
+          <div class="act-btns"><button class="btn" style="font-size:10px;padding:3px 10px">Accept</button><button class="pa">Defer</button></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Context rail -->
+    <aside class="ctx fade d3">
+      <div class="pending-signal" onclick="togglePending()">
+        <span class="pending-n">3</span> points need review
+      </div>
+      <div class="pending-list" id="pendingList">
+        <div class="pl-item" onclick="selectPtByKey('solids')"><span class="pl-dot r"></span>Solids % conflict</div>
+        <div class="pl-item" onclick="selectPtByKey('ph')"><span class="pl-dot a"></span>pH inferred, not sampled</div>
+        <div class="pl-item" onclick="selectPtByKey('volume')"><span class="pl-dot a"></span>Volume cap ambiguity</div>
+      </div>
+      <div class="ctx-empty" id="ctxEmpty">Select a brief point to<br>see evidence and context</div>
+
+      <!-- Solids -->
+      <div class="ctx-active" id="ctx-solids">
+        <p class="ctx-for">Evidence</p>
+        <p class="ctx-point-text">Solids percentage conflict</p>
+        <div class="ev"><span class="ev-type">PDF</span><div class="ev-body"><p class="ev-name">Lab Report #LR-884</p><p class="ev-extract">"32% solids" — page 3</p></div></div>
+        <div class="ev-more" onclick="this.nextElementSibling.classList.toggle('show'); this.textContent = this.textContent === '+ 1 more source' ? '− collapse' : '+ 1 more source'">+ 1 more source</div>
+        <div class="ev-extra"><div class="ev"><span class="ev-type">DOC</span><div class="ev-body"><p class="ev-name">Manifest #TM-220</p><p class="ev-extract">"18% solids" — line 12</p></div></div></div>
+        <p class="ev-insight">Outlet compatibility and pricing depend on solids %. Must be resolved before shortlisting.</p>
+        <button class="ctx-ask-trigger" onclick="toggleAsk(this)"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M6.5 6.5a1.5 1.5 0 1 1 1.5 1.5v1" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".5" fill="currentColor" stroke="none"/></svg> Ask about this</button>
+        <div class="ctx-ask-panel"><span class="ctx-ask-hint">Ask a question scoped to this point</span><div class="ctx-ask-row"><input type="text" class="ctx-ask-input" placeholder="Which source should we trust?" /><button class="ctx-ask-send" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2 2 8l5 2 2 5z"/></svg></button></div></div>
+      </div>
+
+      <!-- Volume -->
+      <div class="ctx-active" id="ctx-volume">
+        <p class="ctx-for">Evidence</p>
+        <p class="ctx-point-text">Estimated monthly volume</p>
+        <div class="ev"><span class="ev-type">DOC</span><div class="ev-body"><p class="ev-name">Manifests Jan–Mar</p><p class="ev-extract">42, 48, 50 tons respectively</p></div></div>
+        <div class="ev-more" onclick="this.nextElementSibling.classList.toggle('show'); this.textContent = this.textContent === '+ 1 more source' ? '− collapse' : '+ 1 more source'">+ 1 more source</div>
+        <div class="ev-extra"><div class="ev"><span class="ev-type">NOTE</span><div class="ev-body"><p class="ev-name">Contract terms</p><p class="ev-extract">"Contract caps at 38t"</p></div></div></div>
+        <p class="ev-insight">38-ton figure is a contractual cap — actual throughput has exceeded it consistently.</p>
+        <button class="ctx-ask-trigger" onclick="toggleAsk(this)"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M6.5 6.5a1.5 1.5 0 1 1 1.5 1.5v1" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".5" fill="currentColor" stroke="none"/></svg> Ask about this</button>
+        <div class="ctx-ask-panel"><span class="ctx-ask-hint">Ask a question scoped to this point</span><div class="ctx-ask-row"><input type="text" class="ctx-ask-input" placeholder="Why the discrepancy?" /><button class="ctx-ask-send"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2 2 8l5 2 2 5z"/></svg></button></div></div>
+      </div>
+
+      <!-- Material -->
+      <div class="ctx-active" id="ctx-material">
+        <p class="ctx-for">Evidence</p><p class="ctx-point-text">Material classification</p>
+        <div class="ev"><span class="ev-type">PDF</span><div class="ev-body"><p class="ev-name">Lab Report #LR-884</p><p class="ev-extract">"Paint sludge with absorbents" — p2</p></div></div>
+      </div>
+
+      <!-- Frequency -->
+      <div class="ctx-active" id="ctx-frequency">
+        <p class="ctx-for">Evidence</p><p class="ctx-point-text">Pickup schedule</p>
+        <div class="ev"><span class="ev-type">DOC</span><div class="ev-body"><p class="ev-name">Service agreement</p><p class="ev-extract">Thursdays, 7 AM–12 PM</p></div></div>
+      </div>
+
+      <!-- pH -->
+      <div class="ctx-active" id="ctx-ph">
+        <p class="ctx-for">Evidence</p><p class="ctx-point-text">pH range</p>
+        <div class="ev"><span class="ev-type">PDF</span><div class="ev-body"><p class="ev-name">Historical dossier — similar site</p><p class="ev-extract">pH 6.0–7.3 observed</p><p class="ev-meta">2024 · analogy, not direct</p></div></div>
+        <p class="ev-insight">No direct sample for this stream. Verify before outlet outreach.</p>
+        <button class="ctx-ask-trigger" onclick="toggleAsk(this)"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M6.5 6.5a1.5 1.5 0 1 1 1.5 1.5v1" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".5" fill="currentColor" stroke="none"/></svg> Ask about this</button>
+        <div class="ctx-ask-panel"><span class="ctx-ask-hint">Ask a question scoped to this point</span><div class="ctx-ask-row"><input type="text" class="ctx-ask-input" placeholder="How confident is this inference?" /><button class="ctx-ask-send"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2 2 8l5 2 2 5z"/></svg></button></div></div>
+      </div>
+
+      <!-- EPA -->
+      <div class="ctx-active" id="ctx-epa">
+        <p class="ctx-for">What's needed</p><p class="ctx-point-text">EPA waste code</p>
+        <p class="ev-insight">Could be D001 (ignitability) or D007 (chromium). Determines outlet eligibility, transport class, and pricing.</p>
+        <button class="ctx-ask-trigger" onclick="toggleAsk(this)"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M6.5 6.5a1.5 1.5 0 1 1 1.5 1.5v1" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".5" fill="currentColor" stroke="none"/></svg> Ask about this</button>
+        <div class="ctx-ask-panel"><span class="ctx-ask-hint">Ask a question scoped to this point</span><div class="ctx-ask-row"><input type="text" class="ctx-ask-input" placeholder="What changes if it's D001 vs D007?" /><button class="ctx-ask-send"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2 2 8l5 2 2 5z"/></svg></button></div></div>
+      </div>
+
+      <!-- Dwell -->
+      <div class="ctx-active" id="ctx-dwell"><p class="ctx-for">What's needed</p><p class="ctx-point-text">Storage dwell time</p><p class="ev-insight">No information yet. Confirm with generator contact how long waste sits before pickup.</p></div>
+
+      <!-- Container (from voice note) -->
+      <div class="ctx-active" id="ctx-container">
+        <p class="ctx-for">Evidence</p><p class="ctx-point-text">Container and storage</p>
+        <div class="ev"><span class="ev-type">VOICE</span><div class="ev-body"><p class="ev-name">Field visit — voice note</p><p class="ev-extract">"55-gallon drums, outside by loading dock"</p><p class="ev-meta">Just now · Transcribed</p></div></div>
+        <p class="ev-insight">Outdoor storage may affect waste integrity. Confirm if drums are sealed and whether there's weather exposure.</p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ═══ STRUCTURED CAPTURE ═════════ -->
+<div class="tab-content" id="tab-capture">
+  <div class="capture-page fade">
+    <p class="capture-intro">
+      Structured data populated from evidence and the Discovery Brief. Edit any field directly.
+    </p>
+
+    <!-- Material & Composition -->
+    <div class="field-group">
+      <div class="fg-header open" onclick="toggleGroup(this)">
+        <span class="fg-title">Material & composition</span>
+        <div class="fg-right">
+          <span class="fg-status review"><span class="s-dot"></span> Needs review</span>
+          <span class="fg-chevron">›</span>
+        </div>
+      </div>
+      <div class="fg-body open">
+        <div class="field">
+          <div class="field-row">
+            <span class="field-label">Material type</span>
+            <div class="field-value-area">
+              <p class="field-value">Paint sludge with absorbents</p>
+              <p class="field-source"><span class="ai-tag">AI</span> Lab Report #LR-884</p>
+            </div>
+            <button class="field-edit-trigger" onclick="toggleEdit(this)">Edit</button>
+          </div>
+          <div class="field-edit-zone"><input class="field-edit-input" value="Paint sludge with absorbents" /><button class="field-edit-save">Save</button></div>
+        </div>
+
+        <div class="field">
+          <div class="field-row">
+            <span class="field-label">Hazard class</span>
+            <div class="field-value-area"><p class="field-value empty">Not yet determined</p></div>
+            <button class="field-edit-trigger" onclick="toggleEdit(this)">Add</button>
+          </div>
+          <div class="field-edit-zone"><input class="field-edit-input" placeholder="e.g. D001, D007" /><button class="field-edit-save">Save</button></div>
+        </div>
+
+        <div class="field">
+          <div class="field-row">
+            <span class="field-label">Solids %</span>
+            <div class="field-value-area">
+              <p class="field-value">18% — 32%</p>
+              <p class="field-conflict">Conflict: lab report vs manifest</p>
+              <p class="field-source"><span class="ai-tag">AI</span> 2 sources disagree</p>
+            </div>
+            <button class="field-edit-trigger" onclick="toggleEdit(this)">Resolve</button>
+          </div>
+          <div class="field-edit-zone"><input class="field-edit-input" placeholder="Correct value" /><button class="field-edit-save">Save</button></div>
+        </div>
+
+        <div class="field">
+          <div class="field-row">
+            <span class="field-label">pH range</span>
+            <div class="field-value-area">
+              <p class="field-value">~6.2–7.1</p>
+              <p class="field-source"><span class="ai-tag">AI</span> Inferred from similar site (unverified)</p>
+            </div>
+            <button class="field-edit-trigger" onclick="toggleEdit(this)">Edit</button>
+          </div>
+          <div class="field-edit-zone"><input class="field-edit-input" value="6.2–7.1" /><button class="field-edit-save">Save</button></div>
+        </div>
+
+        <div class="field">
+          <div class="field-row">
+            <span class="field-label">EPA waste code</span>
+            <div class="field-value-area"><p class="field-value empty">Not confirmed at location level</p></div>
+            <button class="field-edit-trigger" onclick="toggleEdit(this)">Add</button>
+          </div>
+          <div class="field-edit-zone"><input class="field-edit-input" placeholder="e.g. D001" /><button class="field-edit-save">Save</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Volume & Frequency -->
+    <div class="field-group">
+      <div class="fg-header" onclick="toggleGroup(this)">
+        <span class="fg-title">Volume & frequency</span>
+        <div class="fg-right">
+          <span class="fg-status review"><span class="s-dot"></span> Needs review</span>
+          <span class="fg-chevron">›</span>
+        </div>
+      </div>
+      <div class="fg-body">
+        <div class="field"><div class="field-row"><span class="field-label">Monthly volume</span><div class="field-value-area"><p class="field-value">42–50 tons</p><p class="field-source"><span class="ai-tag">AI</span> Manifests + contract terms (cap discrepancy)</p></div><button class="field-edit-trigger" onclick="toggleEdit(this)">Edit</button></div><div class="field-edit-zone"><input class="field-edit-input" value="42–50 tons" /><button class="field-edit-save">Save</button></div></div>
+        <div class="field"><div class="field-row"><span class="field-label">Pickup frequency</span><div class="field-value-area"><p class="field-value">Weekly, Thursdays</p><p class="field-source"><span class="ai-tag">AI</span> Service agreement</p></div><button class="field-edit-trigger" onclick="toggleEdit(this)">Edit</button></div><div class="field-edit-zone"><input class="field-edit-input" value="Weekly, Thursdays" /><button class="field-edit-save">Save</button></div></div>
+        <div class="field"><div class="field-row"><span class="field-label">Container type</span><div class="field-value-area"><p class="field-value empty">Not yet determined</p></div><button class="field-edit-trigger" onclick="toggleEdit(this)">Add</button></div><div class="field-edit-zone"><input class="field-edit-input" placeholder="e.g. 55-gal drums, totes" /><button class="field-edit-save">Save</button></div></div>
+        <div class="field"><div class="field-row"><span class="field-label">Dwell time</span><div class="field-value-area"><p class="field-value empty">Unknown</p></div><button class="field-edit-trigger" onclick="toggleEdit(this)">Add</button></div><div class="field-edit-zone"><input class="field-edit-input" placeholder="How long waste sits before pickup" /><button class="field-edit-save">Save</button></div></div>
+      </div>
+    </div>
+
+    <!-- Handling & Logistics -->
+    <div class="field-group">
+      <div class="fg-header" onclick="toggleGroup(this)">
+        <span class="fg-title">Handling & logistics</span>
+        <div class="fg-right">
+          <span class="fg-status incomplete"><span class="s-dot"></span> Missing info</span>
+          <span class="fg-chevron">›</span>
+        </div>
+      </div>
+      <div class="fg-body">
+        <div class="field"><div class="field-row"><span class="field-label">Current hauler</span><div class="field-value-area"><p class="field-value empty">Not yet determined</p></div><button class="field-edit-trigger" onclick="toggleEdit(this)">Add</button></div><div class="field-edit-zone"><input class="field-edit-input" placeholder="Hauler name" /><button class="field-edit-save">Save</button></div></div>
+        <div class="field"><div class="field-row"><span class="field-label">Storage method</span><div class="field-value-area"><p class="field-value empty">Not yet determined</p></div><button class="field-edit-trigger" onclick="toggleEdit(this)">Add</button></div><div class="field-edit-zone"><input class="field-edit-input" placeholder="Indoor/outdoor, containment" /><button class="field-edit-save">Save</button></div></div>
+        <div class="field"><div class="field-row"><span class="field-label">Access notes</span><div class="field-value-area"><p class="field-value empty">—</p></div><button class="field-edit-trigger" onclick="toggleEdit(this)">Add</button></div><div class="field-edit-zone"><input class="field-edit-input" placeholder="Loading dock, hours, requirements" /><button class="field-edit-save">Save</button></div></div>
+      </div>
+    </div>
+
+    <!-- Compliance -->
+    <div class="field-group">
+      <div class="fg-header" onclick="toggleGroup(this)">
+        <span class="fg-title">Compliance & documentation</span>
+        <div class="fg-right">
+          <span class="fg-status complete"><span class="s-dot"></span> On file</span>
+          <span class="fg-chevron">›</span>
+        </div>
+      </div>
+      <div class="fg-body">
+        <div class="field"><div class="field-row"><span class="field-label">Manifests</span><div class="field-value-area"><p class="field-value">3 documents</p><p class="field-source"><span class="manual-tag">UPLOADED</span> Jan, Feb, Mar</p></div></div></div>
+        <div class="field"><div class="field-row"><span class="field-label">Lab reports</span><div class="field-value-area"><p class="field-value">1 document</p><p class="field-source"><span class="manual-tag">UPLOADED</span> LR-884 (Apr 10)</p></div></div></div>
+        <div class="field"><div class="field-row"><span class="field-label">Service agreement</span><div class="field-value-area"><p class="field-value">1 document</p><p class="field-source"><span class="manual-tag">UPLOADED</span> Current contract</p></div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="ingest-feedback">
+  <div class="ingest-toast" id="ingestToast">
+    <div class="toast-head">
+      <span class="toast-status processing" id="toastStatus">Processing</span>
+      <span class="toast-title" id="toastTitle">Voice note</span>
+    </div>
+    <div class="toast-mappings" id="toastBody"></div>
+    <button class="toast-close" onclick="hideToast()">Dismiss</button>
+  </div>
+</div>
+
+<!-- Bottom bar -->
+<div class="bar">
+  <div class="bar-inner">
+    <span class="bar-label">Add to stream</span>
+    <input type="text" class="bar-input" id="barInput" placeholder="Paste text, drop a file, or type a note..." onkeydown="if(event.key==='Enter')simulateIngest()" />
+    <button class="bar-btn" title="Upload"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 10V3m0 0L5.5 5.5M8 3l2.5 2.5"/><path d="M3 12h10"/></svg></button>
+    <button class="bar-btn" title="Voice" onclick="simulateVoice()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 8a4 4 0 0 0 8 0"/><path d="M8 13v1"/></svg></button>
+    <button class="bar-btn go" title="Submit" onclick="simulateIngest()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2 2 8l5 2 2 5z"/></svg></button>
+  </div>
+</div>
+
+<script>
+function switchTab(id) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.target.classList.add('on');
+}
+function selectPt(el, key) {
+  document.querySelectorAll('.pt').forEach(p => p.classList.remove('sel'));
+  el.classList.add('sel'); showContext(key);
+}
+function selectPtByKey(key) {
+  document.querySelectorAll('.pt').forEach(p => {
+    p.classList.toggle('sel', p.getAttribute('onclick')?.includes("'" + key + "'"));
+  }); showContext(key);
+}
+function showContext(key) {
+  document.getElementById('ctxEmpty').style.display = 'none';
+  document.querySelectorAll('.ctx-active').forEach(c => c.classList.remove('show'));
+  document.querySelectorAll('.ctx-ask-panel').forEach(p => p.classList.remove('show'));
+  const t = document.getElementById('ctx-' + key);
+  if (t) t.classList.add('show');
+}
+function togglePending() { document.getElementById('pendingList').classList.toggle('show'); }
+function toggleAsk(trigger) {
+  const panel = trigger.nextElementSibling;
+  panel.classList.toggle('show');
+  if (panel.classList.contains('show')) panel.querySelector('input')?.focus();
+}
+function toggleGroup(header) {
+  header.classList.toggle('open');
+  header.nextElementSibling.classList.toggle('open');
+}
+function toggleEdit(trigger) {
+  const zone = trigger.closest('.field').querySelector('.field-edit-zone');
+  zone.classList.toggle('show');
+  if (zone.classList.contains('show')) zone.querySelector('input')?.focus();
+}
+function simulateIngest() {
+  const input = document.getElementById('barInput');
+  const text = input.value.trim(); if (!text) return;
+  input.value = '';
+  const toast = document.getElementById('ingestToast');
+  document.getElementById('toastStatus').textContent = 'Processing';
+  document.getElementById('toastStatus').className = 'toast-status processing';
+  document.getElementById('toastTitle').textContent = 'Text note';
+  document.getElementById('toastBody').innerHTML = '<p style="color:var(--fg-3);font-size:11px">"' + text.substring(0,60) + (text.length > 60 ? '…' : '') + '"</p>';
+  toast.classList.add('show');
+  setTimeout(() => {
+    document.getElementById('toastStatus').textContent = 'Mapped to brief';
+    document.getElementById('toastStatus').className = 'toast-status mapped';
+    document.getElementById('toastBody').innerHTML = '<div class="toast-mapping-row"><span class="toast-field">note →</span><span class="toast-value">Saved as observation</span></div>';
+  }, 1500);
+  setTimeout(() => { toast.classList.remove('show'); }, 4000);
+}
+function simulateVoice() {
+  const toast = document.getElementById('ingestToast');
+  document.getElementById('toastStatus').textContent = 'Transcribing';
+  document.getElementById('toastStatus').className = 'toast-status processing';
+  document.getElementById('toastTitle').textContent = 'Voice note';
+  document.getElementById('toastBody').innerHTML = '<p style="color:var(--fg-3);font-size:11px;font-style:italic">"They use 55-gallon drums, store them outside near the loading dock, been there about two weeks usually"</p>';
+  toast.classList.add('show');
+  setTimeout(() => {
+    document.getElementById('toastStatus').textContent = 'Mapped to brief';
+    document.getElementById('toastStatus').className = 'toast-status mapped';
+    document.getElementById('toastBody').innerHTML =
+      '<div class="toast-mapping-row"><span class="toast-field">container →</span><span class="toast-value">55-gallon drums</span></div>' +
+      '<div class="toast-mapping-row"><span class="toast-field">storage →</span><span class="toast-value">outdoors, near loading dock</span></div>' +
+      '<div class="toast-mapping-row"><span class="toast-field">dwell time →</span><span class="toast-value">~2 weeks</span></div>';
+    const newPt = document.getElementById('newPoint1');
+    if (newPt) { newPt.style.display = ''; newPt.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    document.querySelector('.brief-version').textContent = 'v4 · just now';
+  }, 2000);
+  setTimeout(() => { toast.classList.remove('show'); }, 5500);
+}
+function hideToast() { document.getElementById('ingestToast').classList.remove('show'); }
+</script>
+</body>
+</html>

@@ -80,6 +80,20 @@ export interface ListFeedbackParams {
 	limit?: number;
 }
 
+interface FeedbackRequestOptions {
+	organizationId?: string;
+}
+
+function getOrgHeader(
+	options?: FeedbackRequestOptions,
+): Record<string, string> | undefined {
+	if (!options?.organizationId) {
+		return undefined;
+	}
+
+	return { "X-Organization-Id": options.organizationId };
+}
+
 export const feedbackAPI = {
 	async submit(
 		payload: FeedbackPayload,
@@ -90,7 +104,10 @@ export const feedbackAPI = {
 		);
 	},
 
-	async list(params?: ListFeedbackParams): Promise<AdminFeedbackItem[]> {
+	async list(
+		params?: ListFeedbackParams,
+		options?: FeedbackRequestOptions,
+	): Promise<AdminFeedbackItem[]> {
 		const query = new URLSearchParams();
 		if (params?.days) query.set("days", String(params.days));
 		if (params?.resolved !== undefined)
@@ -102,7 +119,7 @@ export const feedbackAPI = {
 		const endpoint = queryString
 			? `/admin/feedback?${queryString}`
 			: "/admin/feedback";
-		return apiClient.get<AdminFeedbackItem[]>(endpoint);
+		return apiClient.get<AdminFeedbackItem[]>(endpoint, getOrgHeader(options));
 	},
 
 	async resolve(id: string): Promise<AdminFeedbackItem> {
@@ -133,9 +150,11 @@ export const feedbackAPI = {
 
 	async listAttachments(
 		feedbackId: string,
+		options?: FeedbackRequestOptions,
 	): Promise<AdminFeedbackAttachment[]> {
 		return apiClient.get<AdminFeedbackAttachment[]>(
 			`/admin/feedback/${feedbackId}/attachments`,
+			getOrgHeader(options),
 		);
 	},
 
