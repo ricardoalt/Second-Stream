@@ -122,16 +122,30 @@ export const feedbackAPI = {
 		return apiClient.get<AdminFeedbackItem[]>(endpoint, getOrgHeader(options));
 	},
 
-	async resolve(id: string): Promise<AdminFeedbackItem> {
-		return apiClient.patch<AdminFeedbackItem>(`/admin/feedback/${id}`, {
-			resolved: true,
-		} as unknown as Record<string, unknown>);
+	async resolve(
+		id: string,
+		options?: FeedbackRequestOptions,
+	): Promise<AdminFeedbackItem> {
+		return apiClient.patch<AdminFeedbackItem>(
+			`/admin/feedback/${id}`,
+			{
+				resolved: true,
+			} as unknown as Record<string, unknown>,
+			getOrgHeader(options),
+		);
 	},
 
-	async reopen(id: string): Promise<AdminFeedbackItem> {
-		return apiClient.patch<AdminFeedbackItem>(`/admin/feedback/${id}`, {
-			resolved: false,
-		} as unknown as Record<string, unknown>);
+	async reopen(
+		id: string,
+		options?: FeedbackRequestOptions,
+	): Promise<AdminFeedbackItem> {
+		return apiClient.patch<AdminFeedbackItem>(
+			`/admin/feedback/${id}`,
+			{
+				resolved: false,
+			} as unknown as Record<string, unknown>,
+			getOrgHeader(options),
+		);
 	},
 
 	async uploadAttachments(
@@ -158,7 +172,7 @@ export const feedbackAPI = {
 		);
 	},
 
-	async delete(id: string): Promise<void> {
-		await apiClient.delete(`/admin/feedback/${id}`);
+	async delete(id: string, options?: FeedbackRequestOptions): Promise<void> {
+		await apiClient.delete(`/admin/feedback/${id}`, getOrgHeader(options));
 	},
 };

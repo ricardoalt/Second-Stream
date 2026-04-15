@@ -15,6 +15,8 @@ interface OrgContextGuardProps {
 
 type OrgsStatus = "idle" | "loading" | "loaded";
 
+const ORG_GUARD_LOADING_TIMEOUT_MS = 8000;
+
 function LoadingShell() {
 	return (
 		<div className="min-h-screen bg-background">
@@ -67,21 +69,42 @@ export function OrgContextGuard({ children }: OrgContextGuardProps) {
 
 	const [orgsStatus, setOrgsStatus] = useState<OrgsStatus>("idle");
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [guardTimeoutElapsed, setGuardTimeoutElapsed] = useState(false);
 	const isPublicPath = isPublicRoute(pathname);
+
+	const guardApplies =
+		isAuthenticated && isSuperAdmin && !isPublicPath && !isOrgExemptRoute(pathname);
+
+	useEffect(() => {
+		if (!guardApplies || orgsStatus !== "loading") {
+			setGuardTimeoutElapsed(false);
+			return;
+		}
+
+		const timeout = window.setTimeout(() => {
+			setGuardTimeoutElapsed(true);
+			setOrgsStatus("loaded");
+			setErrorMessage(
+				"We couldn't verify organization context right now. Please select an organization to continue or retry.",
+			);
+			toast.error("Organization context check timed out. Please select again.");
+		}, ORG_GUARD_LOADING_TIMEOUT_MS);
+
+		return () => {
+			window.clearTimeout(timeout);
+		};
+	}, [guardApplies, orgsStatus]);
 
 	// Single effect: load orgs when guard applies, then validate selection
 	useEffect(() => {
 		// Reset state when guard doesn't apply (logout, role change)
-		if (isPublicPath || !isSuperAdmin || !isAuthenticated) {
+		if (!guardApplies) {
 			if (orgsStatus !== "idle") {
 				setOrgsStatus("idle");
 				setErrorMessage(null);
 			}
 			return;
 		}
-
-		const guardApplies = !isOrgExemptRoute(pathname);
-		if (!guardApplies) return;
 
 		async function loadAndValidate() {
 			setOrgsStatus("loading");
@@ -101,6 +124,11 @@ export function OrgContextGuard({ children }: OrgContextGuardProps) {
 						toast.error("Organization unavailable - please select again");
 					}
 				}
+			} catch {
+				setErrorMessage(
+					"We couldn't load organizations right now. Please try again.",
+				);
+				toast.error("Unable to load organizations. Please retry.");
 			} finally {
 				setOrgsStatus("loaded");
 			}
@@ -110,10 +138,7 @@ export function OrgContextGuard({ children }: OrgContextGuardProps) {
 			void loadAndValidate();
 		}
 	}, [
-		isPublicPath,
-		isSuperAdmin,
-		isAuthenticated,
-		pathname,
+		guardApplies,
 		orgsStatus,
 		loadOrganizations,
 		clearSelection,
@@ -122,6 +147,7 @@ export function OrgContextGuard({ children }: OrgContextGuardProps) {
 	const handleSelectOrg = useCallback(
 		(orgId: string) => {
 			setErrorMessage(null);
+			setGuardTimeoutElapsed(false);
 			selectOrganization(orgId);
 			const org = organizations.find((o) => o.id === orgId);
 			if (org) {
@@ -165,12 +191,18 @@ export function OrgContextGuard({ children }: OrgContextGuardProps) {
 
 	// 6. Super admin on protected route without org - BLOCK render
 	if (!selectedOrgId) {
+		const resolvedErrorMessage =
+			errorMessage ??
+			(guardTimeoutElapsed
+				? "Organization validation timed out. Please select an organization to recover."
+				: null);
+
 		return (
 			<OrgRequiredScreen
 				organizations={organizations}
 				isLoading={false}
 				onSelect={handleSelectOrg}
-				{...(errorMessage && { errorMessage })}
+				{...(resolvedErrorMessage && { errorMessage: resolvedErrorMessage })}
 			/>
 		);
 	}

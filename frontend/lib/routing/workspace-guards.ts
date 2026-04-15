@@ -4,7 +4,10 @@ type MinimalUser = {
 };
 
 export function getPostAuthLandingPath(user: MinimalUser | null): string {
-	void user;
+	if (user?.isSuperuser) {
+		return "/dashboard";
+	}
+
 	return "/dashboard";
 }
 

@@ -267,6 +267,10 @@ function transformAgentDetail(
 	};
 }
 
+function withOrganizationHeader(orgId: string): Record<string, string> {
+	return { "X-Organization-Id": orgId };
+}
+
 export const organizationsAPI = {
 	/**
 	 * List all organizations (Platform Admin only)
@@ -288,6 +292,7 @@ export const organizationsAPI = {
 	async get(orgId: string): Promise<Organization> {
 		const data = await apiClient.get<RawOrganizationResponse>(
 			`/organizations/${orgId}`,
+			withOrganizationHeader(orgId),
 		);
 		return transformOrganization(data);
 	},
@@ -325,6 +330,7 @@ export const organizationsAPI = {
 	async listOrgUsers(orgId: string): Promise<User[]> {
 		const data = await apiClient.get<RawUserResponse[]>(
 			`/organizations/${orgId}/users`,
+			withOrganizationHeader(orgId),
 		);
 		return data.map(transformUser);
 	},
@@ -346,6 +352,7 @@ export const organizationsAPI = {
 		const data = await apiClient.post<RawUserResponse>(
 			`/organizations/${orgId}/users`,
 			body,
+			withOrganizationHeader(orgId),
 		);
 		return transformUser(data);
 	},
@@ -395,7 +402,10 @@ export const organizationsAPI = {
 		const endpoint = query
 			? `/organizations/${orgId}/users/${userId}?${query}`
 			: `/organizations/${orgId}/users/${userId}`;
-		const data = await apiClient.get<RawAgentDetailResponse>(endpoint);
+		const data = await apiClient.get<RawAgentDetailResponse>(
+			endpoint,
+			withOrganizationHeader(orgId),
+		);
 		return transformAgentDetail(data);
 	},
 
@@ -434,6 +444,7 @@ export const organizationsAPI = {
 		const data = await apiClient.patch<RawOrganizationResponse>(
 			`/organizations/${orgId}`,
 			body,
+			withOrganizationHeader(orgId),
 		);
 		return transformOrganization(data);
 	},
@@ -448,6 +459,7 @@ export const organizationsAPI = {
 		const data = await apiClient.post<RawOrganizationResponse>(
 			`/organizations/${orgId}/archive`,
 			body,
+			withOrganizationHeader(orgId),
 		);
 		return transformOrganization(data);
 	},
@@ -455,6 +467,8 @@ export const organizationsAPI = {
 	async restore(orgId: string): Promise<Organization> {
 		const data = await apiClient.post<RawOrganizationResponse>(
 			`/organizations/${orgId}/restore`,
+			undefined,
+			withOrganizationHeader(orgId),
 		);
 		return transformOrganization(data);
 	},
@@ -471,6 +485,7 @@ export const organizationsAPI = {
 				reason: payload.reason,
 				ticket_id: payload.ticketId,
 			},
+			withOrganizationHeader(orgId),
 		);
 
 		if (response?.error?.code === "ORG_STORAGE_CLEANUP_PENDING") {
@@ -499,6 +514,7 @@ export const organizationsAPI = {
 		const data = await apiClient.patch<RawUserResponse>(
 			`/organizations/${orgId}/users/${userId}`,
 			body,
+			withOrganizationHeader(orgId),
 		);
 		return transformUser(data);
 	},

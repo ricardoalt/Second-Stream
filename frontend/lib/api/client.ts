@@ -60,6 +60,24 @@ interface RetryOptions {
 	isRetryable: (error: unknown) => boolean;
 }
 
+function shouldAutoAttachOrganizationHeader(endpoint: string): boolean {
+	if (endpoint === "/health") return false;
+	if (endpoint === "/auth" || endpoint.startsWith("/auth/")) return false;
+
+	if (endpoint === "/organizations" || endpoint.startsWith("/organizations?")) {
+		return false;
+	}
+
+	if (
+		endpoint.startsWith("/organizations/") &&
+		!endpoint.startsWith("/organizations/current")
+	) {
+		return false;
+	}
+
+	return true;
+}
+
 function hasOrganizationHeader(headers: Record<string, string>): boolean {
 	return Object.keys(headers).some(
 		(headerName) => headerName.toLowerCase() === "x-organization-id",
@@ -186,7 +204,10 @@ class APIClient {
 					...this.defaultHeaders,
 					...headers,
 				};
-				if (typeof window !== "undefined") {
+				if (
+					typeof window !== "undefined" &&
+					shouldAutoAttachOrganizationHeader(endpoint)
+				) {
 					const selectedOrgId = localStorage.getItem(SELECTED_ORG_STORAGE_KEY);
 					if (selectedOrgId && !hasOrganizationHeader(mergedHeaders)) {
 						mergedHeaders["X-Organization-Id"] = selectedOrgId;
@@ -394,7 +415,10 @@ class APIClient {
 					...this.defaultHeaders,
 					...headers,
 				};
-				if (typeof window !== "undefined") {
+				if (
+					typeof window !== "undefined" &&
+					shouldAutoAttachOrganizationHeader(endpoint)
+				) {
 					const selectedOrgId = localStorage.getItem(SELECTED_ORG_STORAGE_KEY);
 					if (selectedOrgId && !hasOrganizationHeader(mergedHeaders)) {
 						mergedHeaders["X-Organization-Id"] = selectedOrgId;
