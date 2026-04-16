@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { ReactElement } from "react";
 import { useCallback } from "react";
 import { DraftConfirmationModal } from "@/components/features/discovery/draft-confirmation-modal";
+import { resolveSuggestedClientAndLocation } from "@/components/features/discovery/suggested-client-location";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
@@ -104,88 +105,6 @@ function sourceTypeLabelFromDraft(
 		return "Voice interview";
 	}
 	return "Bulk import";
-}
-
-function normalizeSuggestionToken(value: string | null | undefined): string {
-	return (value ?? "").trim().toLocaleLowerCase();
-}
-
-export function resolveSuggestedClientAndLocation(params: {
-	rawSuggestedClientName: string | null;
-	rawSuggestedLocationName: string | null;
-	suggestedLocationCity: string | null;
-	locationLabel: string | null;
-	hasStructuredLocationSuggestion: boolean;
-}): {
-	suggestedClientName: string | null;
-	suggestedLocationName: string | null;
-} {
-	const {
-		rawSuggestedClientName,
-		rawSuggestedLocationName,
-		suggestedLocationCity,
-		locationLabel,
-		hasStructuredLocationSuggestion,
-	} = params;
-
-	const suggestedClientName = (rawSuggestedClientName ?? "").trim();
-	const suggestedLocationName = (rawSuggestedLocationName ?? "").trim();
-
-	if (!suggestedClientName) {
-		return {
-			suggestedClientName: null,
-			suggestedLocationName: suggestedLocationName || null,
-		};
-	}
-
-	if (suggestedLocationName) {
-		return {
-			suggestedClientName,
-			suggestedLocationName,
-		};
-	}
-
-	if (hasStructuredLocationSuggestion) {
-		return {
-			suggestedClientName,
-			suggestedLocationName: null,
-		};
-	}
-
-	const separatorIndex = suggestedClientName.indexOf(" - ");
-	if (separatorIndex <= 0) {
-		return {
-			suggestedClientName,
-			suggestedLocationName: null,
-		};
-	}
-
-	const clientPart = suggestedClientName.slice(0, separatorIndex).trim();
-	const locationPart = suggestedClientName.slice(separatorIndex + 3).trim();
-	if (!clientPart || !locationPart) {
-		return {
-			suggestedClientName,
-			suggestedLocationName: null,
-		};
-	}
-
-	const normalizedLocationPart = normalizeSuggestionToken(locationPart);
-	const cityMatches =
-		normalizeSuggestionToken(suggestedLocationCity) === normalizedLocationPart;
-	const labelMatches =
-		normalizeSuggestionToken(locationLabel) === normalizedLocationPart;
-
-	if (!(cityMatches || labelMatches)) {
-		return {
-			suggestedClientName,
-			suggestedLocationName: null,
-		};
-	}
-
-	return {
-		suggestedClientName: clientPart,
-		suggestedLocationName: locationPart,
-	};
 }
 
 export async function confirmTerminalDiscoverySnapshot({
@@ -575,6 +494,9 @@ export function DiscoveryWizard({
 				open={orchestration.candidateModalOpen}
 				onOpenChange={orchestration.handleCandidateModalOpenChange}
 				candidates={orchestration.candidates}
+				reviewPresentation={
+					orchestration.candidates.length === 1 ? "single" : "batch"
+				}
 				editingCandidateId={orchestration.editingCandidateId}
 				onEditCandidate={orchestration.setEditingCandidateId}
 				onCandidateFieldChange={orchestration.handleCandidateFieldChange}

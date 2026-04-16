@@ -6,13 +6,11 @@ import { bulkImportAPI } from "@/lib/api/bulk-import";
 import { fetchCandidates } from "@/lib/api/dashboard";
 import { discoverySessionsAPI } from "@/lib/api/discovery-sessions";
 import {
-	parseAiCreateCompanySelection,
-	parseAiCreateLocationSelection,
-} from "@/lib/discovery-ai-suggestions";
-import {
 	buildCandidateReviewNotes,
 	type CandidateEditableField,
 	type CandidateValidationErrors,
+	resolveCandidatesAfterFieldChange,
+	resolveDiscoveryDecisionResolutions as resolveDecisionResolutions,
 	toDiscoveryNormalizedData,
 	validateCandidateForConfirmation,
 } from "@/lib/discovery-confirmation-utils";
@@ -32,76 +30,8 @@ const TERMINAL_STATUSES = new Set([
 	"failed",
 ]);
 
-export function resolveDiscoveryDecisionResolutions(params: {
-	candidate: DraftCandidate;
-	defaultLocationId: string;
-}): {
-	companyResolution?:
-		| { mode: "existing"; companyId: string }
-		| { mode: "create_new"; name: string };
-	locationResolution?:
-		| { mode: "existing"; locationId: string }
-		| {
-				mode: "create_new";
-				name: string;
-				city: string;
-				state: string;
-				address?: string;
-		  };
-} {
-	const { candidate, defaultLocationId } = params;
-	const clientId = (candidate.clientId ?? "").trim();
-	const locationId = (candidate.locationId ?? defaultLocationId ?? "").trim();
-	const suggestedClientName = (candidate.suggestedClientName ?? "").trim();
-	const aiClientAccepted = candidate.aiSuggestedClientAccepted === true;
-
-	const companyResolution = clientId
-		? {
-				mode: "existing" as const,
-				companyId: clientId,
-			}
-		: aiClientAccepted && suggestedClientName
-			? {
-					mode: "create_new" as const,
-					name: suggestedClientName,
-				}
-			: undefined;
-
-	const suggestedLocationName = (candidate.suggestedLocationName ?? "").trim();
-	const suggestedLocationCity = (candidate.suggestedLocationCity ?? "").trim();
-	const suggestedLocationState = (
-		candidate.suggestedLocationState ?? ""
-	).trim();
-	const suggestedLocationAddress = (
-		candidate.suggestedLocationAddress ?? ""
-	).trim();
-	const aiLocationAccepted = candidate.aiSuggestedLocationAccepted === true;
-
-	const locationResolution = locationId
-		? {
-				mode: "existing" as const,
-				locationId,
-			}
-		: aiLocationAccepted &&
-				suggestedLocationName &&
-				suggestedLocationCity &&
-				suggestedLocationState
-			? {
-					mode: "create_new" as const,
-					name: suggestedLocationName,
-					city: suggestedLocationCity,
-					state: suggestedLocationState,
-					...(suggestedLocationAddress
-						? { address: suggestedLocationAddress }
-						: {}),
-				}
-			: undefined;
-
-	return {
-		...(companyResolution ? { companyResolution } : {}),
-		...(locationResolution ? { locationResolution } : {}),
-	};
-}
+export const resolveDiscoveryDecisionResolutions = resolveDecisionResolutions;
+export { resolveCandidatesAfterFieldChange };
 
 type ResumeStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
@@ -349,130 +279,6 @@ export function resolveProcessingTerminalRoute(params: {
 	}
 
 	return { phase: "no-results", openCandidateModal: false };
-}
-
-function normalizeSuggestedName(value?: string | null): string {
-	return (value ?? "").trim().toLocaleLowerCase();
-}
-
-export function resolveCandidatesAfterFieldChange(params: {
-	candidates: DraftCandidate[];
-	itemId: string;
-	field: CandidateEditableField;
-	value: string;
-}): DraftCandidate[] {
-	const { candidates, itemId, field, value } = params;
-	if (field !== "clientId") {
-		return candidates.map((candidate) =>
-			candidate.itemId === itemId
-				? field === "locationId"
-					? (() => {
-							const acceptedSuggestedLocationLabel =
-								parseAiCreateLocationSelection(value);
-							if (acceptedSuggestedLocationLabel !== null) {
-								return {
-									...candidate,
-									locationId: null,
-									suggestedLocationName:
-										candidate.suggestedLocationName ??
-										acceptedSuggestedLocationLabel,
-									aiSuggestedLocationAccepted: true,
-									locationResolutionHint: "suggested" as const,
-								};
-							}
-
-							return {
-								...candidate,
-								locationId: value,
-								aiSuggestedLocationAccepted: false,
-								locationResolutionHint: value ? "none" : "missing",
-							};
-						})()
-					: {
-							...candidate,
-							[field]: value,
-						}
-				: candidate,
-		);
-	}
-
-	const acceptedSuggestedClientName = parseAiCreateCompanySelection(value);
-	if (acceptedSuggestedClientName !== null) {
-		return candidates.map((candidate) => {
-			if (candidate.itemId !== itemId) {
-				return candidate;
-			}
-
-			if (candidate.clientLocked) {
-				return candidate;
-			}
-
-			return {
-				...candidate,
-				clientId: null,
-				suggestedClientName: acceptedSuggestedClientName,
-				aiSuggestedClientAccepted: true,
-				locationId: null,
-				aiSuggestedLocationAccepted: false,
-				locationResolutionHint: "missing",
-				locationSuggestionLabel: null,
-			};
-		});
-	}
-
-	const targetCandidate = candidates.find(
-		(candidate) => candidate.itemId === itemId,
-	);
-	if (!targetCandidate) {
-		return candidates;
-	}
-
-	const normalizedSuggestedClient = normalizeSuggestedName(
-		targetCandidate.suggestedClientName,
-	);
-
-	return candidates.map((candidate) => {
-		const isTarget = candidate.itemId === itemId;
-		const sameSuggestedClient =
-			normalizedSuggestedClient.length > 0 &&
-			normalizeSuggestedName(candidate.suggestedClientName) ===
-				normalizedSuggestedClient;
-		const shouldAutoApply =
-			value.trim().length > 0 &&
-			sameSuggestedClient &&
-			!(candidate.clientId ?? "").trim();
-
-		if (!isTarget && !shouldAutoApply) {
-			return candidate;
-		}
-
-		if (candidate.clientLocked) {
-			return candidate;
-		}
-
-		const currentClientId = candidate.clientId ?? "";
-		const nextClientId = value;
-		const shouldResetLocation = nextClientId !== currentClientId;
-
-		if (shouldResetLocation) {
-			return {
-				...candidate,
-				clientId: nextClientId,
-				aiSuggestedClientAccepted: false,
-				locationId: null,
-				aiSuggestedLocationAccepted: false,
-				locationResolutionHint: "missing",
-				locationSuggestionLabel: null,
-			};
-		}
-
-		return {
-			...candidate,
-			clientId: nextClientId,
-			aiSuggestedClientAccepted: false,
-			locationId: candidate.locationId,
-		};
-	});
 }
 
 function reviewCounts(candidates: DraftCandidate[]): ReviewSummary {

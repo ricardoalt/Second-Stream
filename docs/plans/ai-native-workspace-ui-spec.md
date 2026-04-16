@@ -225,6 +225,8 @@ The header must include:
 - `Pending review`
 - `Current working brief`
 - `Stale`
+- `Updating`
+- `Blocked`
 
 ### Rules
 
@@ -291,6 +293,39 @@ Keep visible state simple:
 - `missing`
 - `conflict`
 
+### Recommended v1 visible labels
+
+For the production-facing UI, use short human labels instead of technical jargon.
+
+**Content state labels**
+- `Verificado`
+- `Inferido`
+- `En conflicto`
+- `Sin confirmar`
+
+**Workflow label**
+- `Requiere revisión`
+
+Rules:
+- treat these as the primary visible labels in the UI
+- avoid labels like `provenance`, `confidence score`, `evidence quality`, or other technical system language in the main artifact view
+- provenance should remain visible as a short supporting line, not as the primary label
+
+### Versioning rule
+
+- every agent update to the brief creates a new version
+- the latest version becomes the `current working brief`
+- `current working brief` does **not** imply every point is already human-validated
+- points changed by the system may remain visibly marked as `needs review` or `conflict`
+- the UI should preserve a **single main visible brief**, not two competing primary artifacts
+
+### Review model rule
+
+- review happens at point level
+- a point may belong to the current working brief and still require review
+- changes that are structural, sensitive, or high-impact may be grouped into a distinct review bundle
+- however, those changes should still resolve back into the same central brief surface
+
 ### Each visible point should show
 
 - a short title/label
@@ -298,6 +333,7 @@ Keep visible state simple:
 - its point type
 - its current state
 - a subtle source hint or provenance cue
+- whether the point changed in the current version
 
 ### Point-level actions
 
@@ -309,6 +345,12 @@ Allowed actions:
 - `Mark incorrect`
 - `Needs verification`
 - `Add note`
+
+### Diff rule
+
+- diff should be shown **per point**, not as the default full-screen primary experience
+- default UI should show only that a point changed and why it requires attention
+- detailed before/after should be available on demand
 
 ### Interaction rule
 
@@ -464,6 +506,15 @@ Examples:
 - `Handling & logistics`
 - `Compliance & documentation`
 
+### Default field strategy
+
+Use a hybrid strategy:
+
+- a small set of stable default groups should exist for nearly all streams
+- those groups should contain the minimum indispensable fields for discovery completion
+- the system may surface additional suggested fields over time as agents discover recurring useful structure
+- suggested fields should not immediately bloat the default UI
+
 ### Group state
 
 Each group should show a lightweight summary state:
@@ -486,6 +537,10 @@ Suggestions may appear inline, but they must be:
 - reviewable
 - source-hinted
 - non-dominant
+
+### Relationship to Complete Discovery
+
+`Complete Discovery` should be gated by completion of a minimum set of indispensable groups/fields, not by an arbitrary raw count of all possible fields.
 
 ---
 
@@ -529,6 +584,15 @@ Allow the field-agent or reviewer to understand how the current brief evolved.
 - field-agent corrections
 - change summaries
 
+### Primary purpose
+
+History is primarily for:
+
+- traceability
+- auditability
+- understanding how the current brief evolved
+- supporting version compare and diff inspection
+
 ### Rules
 
 - do not expose raw chain-of-thought
@@ -553,6 +617,14 @@ Rules:
 - no free-floating assistant mode as primary workflow
 - Ask/Tell must be context-bound to active brief/evidence selection
 
+Additional rules:
+
+- the workspace should use one persistent primary composer as the stable entry point
+- lightweight contextual actions may appear on the selected brief point or evidence item
+- avoid both extremes: a dominant large chat panel or a fully fragmented contextual-only input model
+- if a user asks a question that implies a material brief change, the system should answer first and then offer an explicit proposed change
+- do not silently mutate the brief from an ambiguous question
+
 ### 13.1 Selecting a brief point
 
 When the user selects a point in the brief:
@@ -560,6 +632,12 @@ When the user selects a point in the brief:
 - the point gets a subtle focus state
 - the right rail updates to show contextual evidence
 - related review items become easier to understand
+
+Point metadata and workflow should remain distinct:
+
+- `Inferido` describes the nature of the point
+- `Requiere revisión` describes required human action
+- they may appear together, but one should not automatically imply the other
 
 ### 13.2 Reviewing a point
 
@@ -590,6 +668,12 @@ After update:
 - show lightweight change summary
 - highlight materially changed points
 
+The preferred v1 model is:
+
+- automatic non-invasive refresh on relevant evidence/correction events
+- visible manual `Refresh Brief` control
+- no opaque auto-update behavior without freshness/change signaling
+
 ### 13.4 Completing discovery
 
 This should never be a blind CTA.
@@ -601,6 +685,32 @@ Before the user completes discovery, the UI should make clear if there are:
 - insufficient confidence/provenance for the current brief
 
 If the stream is not ready, the UI should explain why.
+
+### Minimum completion rule
+
+For v1, `Complete Discovery` should use a simple gate:
+
+- require completion of a defined minimum set of indispensable groups/fields
+- avoid advanced readiness scoring in the primary UI
+- keep the gating reason easy to understand for a field-agent
+
+### Pending Review visibility rule
+
+The visible review queue should only include items that require meaningful human judgment.
+
+Default candidates include:
+
+- conflicts
+- high-impact changes
+- regulatory/compliance-sensitive changes
+- low-confidence changes in critical points
+- operational blockers
+
+Do not include by default:
+
+- low-salience inferred points
+- cosmetic wording changes
+- minor routine updates that do not require an explicit human yes
 
 ---
 

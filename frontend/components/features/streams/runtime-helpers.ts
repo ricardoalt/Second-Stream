@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { toast } from "sonner";
+import { resolveSuggestedClientAndLocation } from "@/components/features/discovery/suggested-client-location";
 import { bulkImportAPI } from "@/lib/api/bulk-import";
 import type { DraftItemRow } from "@/lib/types/dashboard";
 import type { DraftCandidate } from "@/lib/types/discovery";
@@ -76,6 +77,20 @@ export function mapDraftRowToDraftCandidate(
 	draftItemRow: DraftItemRow,
 	editorState: DraftEditorState,
 ): DraftCandidate {
+	const suggestedNames = resolveSuggestedClientAndLocation({
+		rawSuggestedClientName:
+			draftItemRow.suggestedCompanyLabel ?? draftItemRow.companyLabel ?? null,
+		rawSuggestedLocationName:
+			draftItemRow.suggestedLocationName ?? draftItemRow.locationLabel ?? null,
+		suggestedLocationCity: draftItemRow.suggestedLocationCity ?? null,
+		locationLabel: draftItemRow.locationLabel ?? null,
+		hasStructuredLocationSuggestion:
+			Boolean((draftItemRow.suggestedLocationName ?? "").trim()) ||
+			Boolean((draftItemRow.suggestedLocationCity ?? "").trim()) ||
+			Boolean((draftItemRow.suggestedLocationState ?? "").trim()) ||
+			Boolean((draftItemRow.suggestedLocationAddress ?? "").trim()),
+	});
+
 	const targetLocationId =
 		draftItemRow.target?.entrypointType === "location"
 			? draftItemRow.target.entrypointId
@@ -84,11 +99,11 @@ export function mapDraftRowToDraftCandidate(
 	return {
 		itemId: draftItemRow.itemId,
 		runId: draftItemRow.runId,
-		suggestedClientName: draftItemRow.suggestedCompanyLabel ?? null,
+		suggestedClientName: suggestedNames.suggestedClientName,
 		suggestedClientConfidence: draftItemRow.suggestedClientConfidence ?? null,
 		suggestedClientEvidence: draftItemRow.suggestedClientEvidence ?? [],
 		aiSuggestedClientAccepted: false,
-		suggestedLocationName: draftItemRow.suggestedLocationName ?? null,
+		suggestedLocationName: suggestedNames.suggestedLocationName,
 		aiSuggestedLocationAccepted: false,
 		suggestedLocationCity: draftItemRow.suggestedLocationCity ?? null,
 		suggestedLocationState: draftItemRow.suggestedLocationState ?? null,

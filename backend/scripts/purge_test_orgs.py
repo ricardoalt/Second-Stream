@@ -31,6 +31,7 @@ from app.models.bulk_import import ImportItem, ImportRun
 from app.models.company import Company
 from app.models.company_contact import CompanyContact
 from app.models.discovery_session import DiscoverySession, DiscoverySource
+from app.models.feedback import Feedback
 from app.models.feedback_attachment import FeedbackAttachment
 from app.models.file import ProjectFile
 from app.models.incoming_material import IncomingMaterial
@@ -55,6 +56,7 @@ PROTECTED_SLUGS = {"dsr", "movistar", "acme-org"}
 # Tablas hoja primero, raíz al final
 DELETION_ORDER: list[tuple[str, Any]] = [
     ("feedback_attachments", FeedbackAttachment),
+    ("feedback", Feedback),
     ("proposal_ratings", ProposalRating),
     ("intake_unmapped_notes", IntakeUnmappedNote),
     ("intake_suggestions", IntakeSuggestion),

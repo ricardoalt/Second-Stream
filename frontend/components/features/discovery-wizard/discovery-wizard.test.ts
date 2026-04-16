@@ -466,6 +466,48 @@ describe("review helpers", () => {
 		]);
 	});
 
+	it("parses contaminated combined AI client/location labels for wizard candidates", () => {
+		const rows: DraftItemRow[] = [
+			{
+				kind: "draft_item",
+				bucket: "needs_confirmation",
+				itemId: "item-combined-wizard-1",
+				runId: "run-combined-wizard-1",
+				groupId: null,
+				streamName: "Spent Solvent",
+				companyId: null,
+				companyLabel: null,
+				suggestedCompanyLabel: "NEMS High Haz / Champion X - Midland",
+				locationLabel: null,
+				suggestedLocationName: null,
+				suggestedLocationCity: "Midland",
+				suggestedLocationState: "TX",
+				suggestedLocationAddress: null,
+				volume: null,
+				frequency: null,
+				units: null,
+				volumeSummary: "BULK LOAD / 5-6 PER MONTH",
+				lastActivityAt: "2026-01-01T00:00:00Z",
+				sourceType: "bulk_import",
+				sourceFilename: "structured.csv",
+				draftStatus: "pending_review",
+				confidence: 0.62,
+				draftKind: "orphan_stream",
+				queuePriority: "normal",
+				queuePriorityReason: "normal",
+				confirmable: true,
+				target: null,
+			},
+		];
+
+		expect(discoveryWizardModule.mapCandidateRows(rows, null, null)).toEqual([
+			expect.objectContaining({
+				suggestedClientName: "Champion X",
+				suggestedLocationName: "Midland",
+			}),
+		]);
+	});
+
 	it("routes to no-results when no candidates exist", () => {
 		expect(
 			discoveryWizardModule.shouldRouteToNoResults({
@@ -1318,6 +1360,63 @@ describe("candidate confirmation flow", () => {
 				locationResolutionHint: "none",
 			}),
 		]);
+	});
+
+	it("returns the same candidates reference for client no-op updates", () => {
+		const candidates: DraftCandidate[] = [
+			{
+				itemId: "item-noop-client",
+				runId: "run-noop-client",
+				clientId: "company-22",
+				locationId: "location-22",
+				material: "Recovered paper",
+				volume: "100 kg/week",
+				frequency: "weekly",
+				units: "kg",
+				locationLabel: "Plant A",
+				source: "x.csv",
+				confidence: 0.9,
+				status: "pending",
+				suggestedClientName: "EXXON",
+			},
+		];
+
+		const result = orchestrationModule.resolveCandidatesAfterFieldChange({
+			candidates,
+			itemId: "item-noop-client",
+			field: "clientId",
+			value: "company-22",
+		});
+
+		expect(result).toBe(candidates);
+	});
+
+	it("returns the same candidates reference for location no-op updates", () => {
+		const candidates: DraftCandidate[] = [
+			{
+				itemId: "item-noop-location",
+				runId: "run-noop-location",
+				clientId: "company-22",
+				locationId: "location-22",
+				material: "Recovered paper",
+				volume: "100 kg/week",
+				frequency: "weekly",
+				units: "kg",
+				locationLabel: "Plant A",
+				source: "x.csv",
+				confidence: 0.9,
+				status: "pending",
+			},
+		];
+
+		const result = orchestrationModule.resolveCandidatesAfterFieldChange({
+			candidates,
+			itemId: "item-noop-location",
+			field: "locationId",
+			value: "location-22",
+		});
+
+		expect(result).toBe(candidates);
 	});
 
 	it("shows Assign Owner only for org-admin or superadmin", () => {

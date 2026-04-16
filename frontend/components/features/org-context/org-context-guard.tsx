@@ -73,7 +73,10 @@ export function OrgContextGuard({ children }: OrgContextGuardProps) {
 	const isPublicPath = isPublicRoute(pathname);
 
 	const guardApplies =
-		isAuthenticated && isSuperAdmin && !isPublicPath && !isOrgExemptRoute(pathname);
+		isAuthenticated &&
+		isSuperAdmin &&
+		!isPublicPath &&
+		!isOrgExemptRoute(pathname);
 
 	useEffect(() => {
 		if (!guardApplies || orgsStatus !== "loading") {
@@ -137,12 +140,7 @@ export function OrgContextGuard({ children }: OrgContextGuardProps) {
 		if (orgsStatus === "idle") {
 			void loadAndValidate();
 		}
-	}, [
-		guardApplies,
-		orgsStatus,
-		loadOrganizations,
-		clearSelection,
-	]);
+	}, [guardApplies, orgsStatus, loadOrganizations, clearSelection]);
 
 	const handleSelectOrg = useCallback(
 		(orgId: string) => {

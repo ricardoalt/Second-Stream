@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
 	DraftConfirmationModal,
 	useDraftConfirmationModal,
@@ -10,6 +11,8 @@ import {
 	buildCandidateReviewNotes,
 	type CandidateEditableField,
 	type CandidateValidationErrors,
+	resolveCandidatesAfterFieldChange,
+	resolveDiscoveryDecisionResolutions,
 	toDiscoveryNormalizedData,
 	validateCandidateForConfirmation,
 } from "@/lib/discovery-confirmation-utils";
@@ -56,6 +59,7 @@ export function StreamsDraftConfirmation({
 	>({});
 	const [confirmingId, setConfirmingId] = useState<string | null>(null);
 	const [isBulkConfirming, setIsBulkConfirming] = useState(false);
+	const [submissionError, setSubmissionError] = useState<string | null>(null);
 
 	const initialCandidate = useMemo(() => {
 		if (!draftItemRow) {
@@ -78,6 +82,7 @@ export function StreamsDraftConfirmation({
 			setCandidateErrors({});
 			setConfirmingId(null);
 			setIsBulkConfirming(false);
+			setSubmissionError(null);
 			return;
 		}
 
@@ -86,6 +91,7 @@ export function StreamsDraftConfirmation({
 		setCandidateErrors({});
 		setConfirmingId(null);
 		setIsBulkConfirming(false);
+		setSubmissionError(null);
 	}, [initialCandidate]);
 
 	const handleOpenChange = useCallback(
@@ -101,11 +107,12 @@ export function StreamsDraftConfirmation({
 	const handleCandidateFieldChange = useCallback(
 		(itemId: string, field: CandidateEditableField, value: string) => {
 			setCandidates((prev) =>
-				prev.map((candidate) =>
-					candidate.itemId === itemId
-						? { ...candidate, [field]: value }
-						: candidate,
-				),
+				resolveCandidatesAfterFieldChange({
+					candidates: prev,
+					itemId,
+					field,
+					value,
+				}),
 			);
 
 			setCandidateErrors((prev) => {
@@ -116,17 +123,24 @@ export function StreamsDraftConfirmation({
 					[itemId]: nextErrors,
 				};
 			});
+			setSubmissionError(null);
 		},
 		[],
 	);
 
 	const confirmCandidate = useCallback(async (candidate: DraftCandidate) => {
+		setSubmissionError(null);
 		const errors = validateCandidateForConfirmation(candidate);
 		if (Object.keys(errors).length > 0) {
 			setCandidateErrors((prev) => ({
 				...prev,
 				[candidate.itemId]: errors,
 			}));
+			setEditingCandidateId(candidate.itemId);
+			setSubmissionError(
+				"Complete client, location, and required fields before confirming.",
+			);
+			toast.error("Complete required fields before confirming stream");
 			return false;
 		}
 
@@ -135,21 +149,29 @@ export function StreamsDraftConfirmation({
 			[candidate.itemId]: {},
 		}));
 
-		const payload: Parameters<typeof bulkImportAPI.decideDiscoveryDraft>[1] = {
-			action: "confirm",
-			normalizedData: toDiscoveryNormalizedData(candidate),
-			reviewNotes: buildCandidateReviewNotes(candidate),
-		};
+		try {
+			const resolutions = resolveDiscoveryDecisionResolutions({
+				candidate,
+			});
+			const payload: Parameters<typeof bulkImportAPI.decideDiscoveryDraft>[1] =
+				{
+					action: "confirm",
+					normalizedData: toDiscoveryNormalizedData(candidate),
+					reviewNotes: buildCandidateReviewNotes(candidate),
+					...resolutions,
+				};
 
-		if (candidate.locationId) {
-			payload.locationResolution = {
-				mode: "existing",
-				locationId: candidate.locationId,
-			};
+			await bulkImportAPI.decideDiscoveryDraft(candidate.itemId, payload);
+			return true;
+		} catch (error) {
+			const message =
+				error instanceof Error
+					? error.message
+					: "Could not confirm this draft. Please try again.";
+			setSubmissionError(message);
+			toast.error(message);
+			return false;
 		}
-
-		await bulkImportAPI.decideDiscoveryDraft(candidate.itemId, payload);
-		return true;
 	}, []);
 
 	const handleConfirmCandidate = useCallback(
@@ -217,9 +239,11 @@ export function StreamsDraftConfirmation({
 			onConfirmCandidate={handleConfirmCandidate}
 			onProcessFinalizeAll={handleProcessFinalizeAll}
 			candidateErrors={candidateErrors}
+			globalError={submissionError}
 			confirmingId={confirmingId}
 			disableActions={confirmingId !== null || isBulkConfirming}
 			isBulkConfirming={isBulkConfirming}
+			reviewPresentation="single"
 		/>
 	);
 }

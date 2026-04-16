@@ -11,7 +11,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CompanyCombobox } from "@/components/features/shared/company-combobox";
 import { LocationCombobox } from "@/components/features/shared/location-combobox";
 import { Badge, badgeVariants } from "@/components/ui/badge";
@@ -42,12 +42,20 @@ import type {
 	CandidateValidationErrors,
 } from "@/lib/discovery-confirmation-utils";
 import { useCompanyStore } from "@/lib/stores/company-store";
+import { useLocationStore } from "@/lib/stores/location-store";
 import type { DraftCandidate } from "@/lib/types/discovery";
 import { cn } from "@/lib/utils";
 
 interface CompanyMatchCandidate {
 	id: string;
 	name: string;
+}
+
+interface LocationMatchCandidate {
+	id: string;
+	companyId: string;
+	name: string;
+	city: string;
 }
 
 export function useDraftConfirmationModal(initialOpen = false) {
@@ -68,6 +76,7 @@ type DraftConfirmationModalProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	candidates: DraftCandidate[];
+	reviewPresentation?: "batch" | "single";
 	editingCandidateId: string | null;
 	onEditCandidate: (itemId: string | null) => void;
 	onCandidateFieldChange: (
@@ -79,6 +88,7 @@ type DraftConfirmationModalProps = {
 	onRejectCandidate?: (itemId: string) => void;
 	onProcessFinalizeAll: () => void;
 	candidateErrors?: Record<string, CandidateValidationErrors>;
+	globalError?: string | null;
 	confirmingId?: string | null;
 	disableActions?: boolean;
 	isBulkConfirming?: boolean;
@@ -316,6 +326,48 @@ export type PrefillCandidateAction = {
 	value: string;
 };
 
+export function isAutoPrefillActionApplied(params: {
+	candidate: DraftCandidate;
+	action: PrefillCandidateAction;
+}): boolean {
+	const { candidate, action } = params;
+	const currentValue =
+		action.field === "clientId"
+			? (candidate.clientId ?? "")
+			: (candidate.locationId ?? "");
+
+	if (currentValue === action.value) {
+		return true;
+	}
+
+	if (action.field === "clientId") {
+		const acceptedSuggestedClientName = parseAiCreateCompanySelection(
+			action.value,
+		);
+		if (acceptedSuggestedClientName === null) {
+			return false;
+		}
+
+		return (
+			candidate.aiSuggestedClientAccepted === true &&
+			(candidate.suggestedClientName ?? "") === acceptedSuggestedClientName
+		);
+	}
+
+	const acceptedSuggestedLocationLabel = parseAiCreateLocationSelection(
+		action.value,
+	);
+	if (acceptedSuggestedLocationLabel === null) {
+		return false;
+	}
+
+	return (
+		candidate.aiSuggestedLocationAccepted === true &&
+		resolveLocationSuggestedPrefillValue(candidate) ===
+			acceptedSuggestedLocationLabel
+	);
+}
+
 function hasAiSelectionPrefix(value: string): boolean {
 	return (
 		value.startsWith(AI_CREATE_COMPANY_SELECTION_PREFIX) ||
@@ -326,13 +378,24 @@ function hasAiSelectionPrefix(value: string): boolean {
 export function resolveAutoPrefillActions(params: {
 	candidates: DraftCandidate[];
 	draftClientMatches: Record<string, string[]>;
+	locations?: LocationMatchCandidate[];
+	loadedLocationCompanyIds?: string[];
 }): PrefillCandidateAction[] {
-	const { candidates, draftClientMatches } = params;
+	const {
+		candidates,
+		draftClientMatches,
+		locations = [],
+		loadedLocationCompanyIds,
+	} = params;
 	const actions: PrefillCandidateAction[] = [];
+	const loadedCompanyIdSet = loadedLocationCompanyIds
+		? new Set(loadedLocationCompanyIds)
+		: null;
 
 	for (const candidate of candidates) {
 		const currentClientValue = (candidate.clientId ?? "").trim();
 		const currentLocationValue = (candidate.locationId ?? "").trim();
+		let resolvedClientValue = currentClientValue;
 
 		if (
 			currentClientValue.length === 0 &&
@@ -340,6 +403,7 @@ export function resolveAutoPrefillActions(params: {
 		) {
 			const existingMatches = draftClientMatches[candidate.itemId] ?? [];
 			if (existingMatches.length === 1 && (existingMatches[0] ?? "").trim()) {
+				resolvedClientValue = (existingMatches[0] ?? "").trim();
 				actions.push({
 					itemId: candidate.itemId,
 					field: "clientId",
@@ -348,6 +412,7 @@ export function resolveAutoPrefillActions(params: {
 			} else if (existingMatches.length === 0) {
 				const suggestedClient = resolveClientSuggestedPrefillValue(candidate);
 				if (suggestedClient) {
+					resolvedClientValue = buildAiCreateCompanySelection(suggestedClient);
 					actions.push({
 						itemId: candidate.itemId,
 						field: "clientId",
@@ -357,15 +422,55 @@ export function resolveAutoPrefillActions(params: {
 			}
 		}
 
+		const hasResolvableExistingClient =
+			resolvedClientValue.length > 0 &&
+			parseAiCreateCompanySelection(resolvedClientValue) === null;
+		const canResolveLocationWithCurrentOrPrefilledClient =
+			canResolveLocationForCandidate(candidate) || hasResolvableExistingClient;
+
 		if (
 			currentLocationValue.length === 0 &&
-			candidate.aiSuggestedLocationAccepted !== true &&
+			(candidate.aiSuggestedLocationAccepted !== true ||
+				hasResolvableExistingClient) &&
 			candidate.locationResolutionHint !== "ambiguous" &&
-			canResolveLocationForCandidate(candidate) &&
+			canResolveLocationWithCurrentOrPrefilledClient &&
 			canCreateLocationFromSuggestion(candidate)
 		) {
 			const suggestedLocation = resolveLocationSuggestedPrefillValue(candidate);
-			if (suggestedLocation) {
+			const normalizedSuggestedLocation =
+				normalizeSuggestion(suggestedLocation);
+
+			if (
+				hasResolvableExistingClient &&
+				loadedCompanyIdSet &&
+				!loadedCompanyIdSet.has(resolvedClientValue)
+			) {
+				continue;
+			}
+
+			const locationMatches = hasResolvableExistingClient
+				? locations.filter((location) => {
+						if (location.companyId !== resolvedClientValue) {
+							return false;
+						}
+
+						return resolveExistingLocationMatchLabels(location).some(
+							(label) =>
+								normalizeSuggestion(label) === normalizedSuggestedLocation,
+						);
+				  })
+				: [];
+
+			if (
+				locationMatches.length === 1 &&
+				(locationMatches[0]?.id ?? "").trim()
+			) {
+				actions.push({
+					itemId: candidate.itemId,
+					field: "locationId",
+					value: locationMatches[0]?.id ?? "",
+				});
+			} else if (suggestedLocation) {
 				actions.push({
 					itemId: candidate.itemId,
 					field: "locationId",
@@ -384,6 +489,67 @@ export function resolveAutoPrefillActions(params: {
 		}
 		return parseAiCreateLocationSelection(action.value) !== null;
 	});
+}
+
+function resolveExistingLocationMatchLabel(
+	location: LocationMatchCandidate,
+): string {
+	const name = trimToNull(location.name);
+	if (!name) {
+		return "";
+	}
+
+	const city = trimToNull(location.city);
+	if (!city || normalizeToken(city) === normalizeToken(name)) {
+		return name;
+	}
+
+	return `${name} - ${city}`;
+}
+
+function resolveExistingLocationMatchLabels(
+	location: LocationMatchCandidate,
+): string[] {
+	const labels = new Set<string>();
+	const primary = resolveExistingLocationMatchLabel(location);
+	if (primary) {
+		labels.add(primary);
+	}
+
+	const name = trimToNull(location.name);
+	if (name) {
+		labels.add(name);
+	}
+
+	const city = trimToNull(location.city);
+	if (!name || !city) {
+		return Array.from(labels);
+	}
+
+	const tokens = name
+		.split(" - ")
+		.map((token) => token.trim())
+		.filter((token) => token.length > 0);
+
+	if (tokens.length <= 1) {
+		return Array.from(labels);
+	}
+
+	const nameWithoutLeadingPrefix = tokens.slice(1).join(" - ");
+	if (nameWithoutLeadingPrefix) {
+		labels.add(nameWithoutLeadingPrefix);
+
+		if (normalizeToken(nameWithoutLeadingPrefix) !== normalizeToken(city)) {
+			labels.add(`${nameWithoutLeadingPrefix} - ${city}`);
+		}
+	}
+
+	const trailingToken = tokens[tokens.length - 1] ?? "";
+	if (normalizeToken(trailingToken) === normalizeToken(city)) {
+		labels.add(city);
+	}
+
+	return Array.from(labels);
 }
 
 export function resolveCreateNewAvailability(candidate: DraftCandidate): {
@@ -588,6 +754,7 @@ export function DraftConfirmationModal({
 	open,
 	onOpenChange,
 	candidates,
+	reviewPresentation = "batch",
 	editingCandidateId,
 	onEditCandidate,
 	onCandidateFieldChange,
@@ -595,12 +762,18 @@ export function DraftConfirmationModal({
 	onRejectCandidate,
 	onProcessFinalizeAll,
 	candidateErrors = {},
+	globalError = null,
 	confirmingId = null,
 	disableActions = false,
 	isBulkConfirming = false,
 }: DraftConfirmationModalProps) {
 	const { companies, loadCompanies } = useCompanyStore();
+	const { locations, loadLocationsByCompany } = useLocationStore();
 	const [hasLoadedCompanies, setHasLoadedCompanies] = useState(false);
+	const [loadedLocationCompanyIds, setLoadedLocationCompanyIds] = useState<
+		Set<string>
+	>(new Set());
+	const requestedLocationCompanyIdsRef = useRef<Set<string>>(new Set());
 
 	useEffect(() => {
 		if (hasLoadedCompanies) {
@@ -616,6 +789,21 @@ export function DraftConfirmationModal({
 		[candidates],
 	);
 	const pendingCount = activeReviewCandidates.length;
+	const isSingleReview = reviewPresentation === "single";
+	const singlePendingCandidate =
+		isSingleReview && activeReviewCandidates.length === 1
+			? activeReviewCandidates[0]
+			: null;
+	const singlePendingResolutionState = singlePendingCandidate
+		? resolveCandidateResolutionState(singlePendingCandidate)
+		: null;
+	const singlePendingBusy = singlePendingCandidate
+		? isCandidateBusy({
+				candidate: singlePendingCandidate,
+				confirmingId,
+				isBulkConfirming,
+			})
+		: false;
 	const showRejectAction = canRejectCandidates(onRejectCandidate);
 	const confirmedCount = candidates.filter(
 		(c) => c.status === "confirmed",
@@ -642,15 +830,59 @@ export function DraftConfirmationModal({
 	);
 
 	useEffect(() => {
+		const companyIds = new Set<string>();
+		for (const candidate of candidates) {
+			const clientId = (candidate.clientId ?? "").trim();
+			if (!clientId || parseAiCreateCompanySelection(clientId) !== null) {
+				continue;
+			}
+			companyIds.add(clientId);
+		}
+
+		for (const companyId of companyIds) {
+			if (requestedLocationCompanyIdsRef.current.has(companyId)) {
+				continue;
+			}
+			requestedLocationCompanyIdsRef.current.add(companyId);
+			void loadLocationsByCompany(companyId).finally(() => {
+				setLoadedLocationCompanyIds((previous) => {
+					const next = new Set(previous);
+					next.add(companyId);
+					return next;
+				});
+			});
+		}
+	}, [candidates, loadLocationsByCompany]);
+
+	useEffect(() => {
 		const prefillActions = resolveAutoPrefillActions({
 			candidates,
 			draftClientMatches: suggestedClientMatches.draftClientMatches,
+			locations: locations.map((location) => ({
+				id: location.id,
+				companyId: location.companyId,
+				name: location.name,
+				city: location.city,
+			})),
+			loadedLocationCompanyIds: Array.from(loadedLocationCompanyIds),
 		});
+		const candidatesById = new Map(
+			candidates.map((candidate) => [candidate.itemId, candidate]),
+		);
 		for (const action of prefillActions) {
+			const candidate = candidatesById.get(action.itemId);
+			if (!candidate) {
+				continue;
+			}
+			if (isAutoPrefillActionApplied({ candidate, action })) {
+				continue;
+			}
 			onCandidateFieldChange(action.itemId, action.field, action.value);
 		}
 	}, [
 		candidates,
+		locations,
+		loadedLocationCompanyIds,
 		onCandidateFieldChange,
 		suggestedClientMatches.draftClientMatches,
 	]);
@@ -996,12 +1228,16 @@ export function DraftConfirmationModal({
 																			onConfirmCandidate(candidate.itemId)
 																		}
 																		disabled={
+																			isSingleReview ||
 																			!isPending ||
 																			resolutionState.requiresResolution ||
 																			disableActions ||
 																			showSpinner
 																		}
-																		className="h-8 bg-success px-2.5 text-xs text-success-foreground transition-all duration-200 hover:scale-105 hover:bg-success/90 active:scale-95"
+																		className={cn(
+																			"h-8 bg-success px-2.5 text-xs text-success-foreground transition-all duration-200 hover:scale-105 hover:bg-success/90 active:scale-95",
+																			isSingleReview && "hidden",
+																		)}
 																	>
 																		{showSpinner ? (
 																			<Loader2 className="size-3.5 animate-spin" />
@@ -1445,6 +1681,11 @@ export function DraftConfirmationModal({
 							</Tooltip>
 
 							<div className="flex shrink-0 items-center gap-3">
+								{globalError ? (
+									<p className="max-w-[28rem] text-xs text-destructive">
+										{globalError}
+									</p>
+								) : null}
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
@@ -1464,15 +1705,33 @@ export function DraftConfirmationModal({
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
-											onClick={onProcessFinalizeAll}
-											disabled={disableActions || totalCount === 0}
+											onClick={() => {
+												if (isSingleReview && singlePendingCandidate) {
+													onConfirmCandidate(singlePendingCandidate.itemId);
+													return;
+												}
+												onProcessFinalizeAll();
+											}}
+											disabled={
+												disableActions ||
+												totalCount === 0 ||
+												(isSingleReview &&
+													(!singlePendingCandidate ||
+														singlePendingResolutionState?.requiresResolution ===
+															true ||
+														singlePendingBusy))
+											}
 											className="bg-success text-success-foreground hover:bg-success/90 transition-all duration-200 hover:scale-105 active:scale-95"
 										>
-											{isBulkConfirming ? (
+											{isBulkConfirming || singlePendingBusy ? (
 												<>
 													<Loader2 className="mr-1.5 size-4 animate-spin" />
-													{processFinalizeAllLabel(true)}
+													{isSingleReview
+														? "Confirming…"
+														: processFinalizeAllLabel(true)}
 												</>
+											) : isSingleReview ? (
+												"Confirm Stream"
 											) : (
 												processFinalizeAllLabel(false)
 											)}
@@ -1480,9 +1739,13 @@ export function DraftConfirmationModal({
 									</TooltipTrigger>
 									<TooltipContent side="top">
 										<p>
-											{pendingCount > 0
-												? `Finish review and save ${pendingCount} remaining stream${pendingCount === 1 ? "" : "s"} as draft${pendingCount === 1 ? "" : "s"}`
-												: "Finish review with confirmed streams"}
+											{isSingleReview
+												? singlePendingResolutionState?.requiresResolution
+													? "Select a client and location to confirm"
+													: "Confirm and create waste stream"
+												: pendingCount > 0
+													? `Finish review and save ${pendingCount} remaining stream${pendingCount === 1 ? "" : "s"} as draft${pendingCount === 1 ? "" : "s"}`
+													: "Finish review with confirmed streams"}
 										</p>
 									</TooltipContent>
 								</Tooltip>

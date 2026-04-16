@@ -515,10 +515,186 @@ describe("DraftConfirmationModal helpers", () => {
 				draftClientMatches: {
 					"draft-create-new-location": [],
 				},
+				locations: [],
 			}),
 		).toEqual([
 			{
 				itemId: "draft-create-new-location",
+				field: "locationId",
+				value: buildAiCreateLocationSelection("North Plant - Monterrey"),
+			},
+		]);
+	});
+
+	it("prefills existing location when suggested location has a unique company match", () => {
+		expect(
+			modalModule.resolveAutoPrefillActions({
+				candidates: [
+					{
+						...pendingCandidate,
+						itemId: "draft-existing-location",
+						clientId: "company-77",
+						locationId: null,
+						suggestedLocationName: "North Plant",
+						suggestedLocationCity: "Monterrey",
+						suggestedLocationState: "NL",
+					},
+				],
+				draftClientMatches: {
+					"draft-existing-location": [],
+				},
+				locations: [
+					{
+						id: "location-unique",
+						companyId: "company-77",
+						name: "North Plant",
+						city: "Monterrey",
+					},
+				],
+			}),
+		).toEqual([
+			{
+				itemId: "draft-existing-location",
+				field: "locationId",
+				value: "location-unique",
+			},
+		]);
+	});
+
+	it("prefills existing location when stored location name includes client prefix", () => {
+		expect(
+			modalModule.resolveAutoPrefillActions({
+				candidates: [
+					{
+						...pendingCandidate,
+						itemId: "draft-prefix-location",
+						clientId: "company-77",
+						locationId: null,
+						suggestedLocationName: "Longview",
+						suggestedLocationCity: "Longview",
+						suggestedLocationState: "TX",
+					},
+				],
+				draftClientMatches: {
+					"draft-prefix-location": [],
+				},
+				locations: [
+					{
+						id: "location-longview",
+						companyId: "company-77",
+						name: "BRONCO PRYSMIAN - Longview",
+						city: "Longview",
+					},
+				],
+			}),
+		).toEqual([
+			{
+				itemId: "draft-prefix-location",
+				field: "locationId",
+				value: "location-longview",
+			},
+		]);
+	});
+
+	it("remains conservative when multiple prefixed locations normalize to same suggestion", () => {
+		expect(
+			modalModule.resolveAutoPrefillActions({
+				candidates: [
+					{
+						...pendingCandidate,
+						itemId: "draft-prefix-ambiguous",
+						clientId: "company-77",
+						locationId: null,
+						suggestedLocationName: "Longview",
+						suggestedLocationCity: "Longview",
+						suggestedLocationState: "TX",
+					},
+				],
+				draftClientMatches: {
+					"draft-prefix-ambiguous": [],
+				},
+				locations: [
+					{
+						id: "location-longview-1",
+						companyId: "company-77",
+						name: "BRONCO PRYSMIAN - Longview",
+						city: "Longview",
+					},
+					{
+						id: "location-longview-2",
+						companyId: "company-77",
+						name: "ANOTHER PREFIX - Longview",
+						city: "Longview",
+					},
+				],
+			}),
+		).toEqual([
+			{
+				itemId: "draft-prefix-ambiguous",
+				field: "locationId",
+				value: buildAiCreateLocationSelection("Longview"),
+			},
+		]);
+	});
+
+	it("waits for company locations to load before selecting location create-new", () => {
+		expect(
+			modalModule.resolveAutoPrefillActions({
+				candidates: [
+					{
+						...pendingCandidate,
+						itemId: "draft-await-locations",
+						clientId: "company-77",
+						locationId: null,
+						suggestedLocationName: "North Plant",
+						suggestedLocationCity: "Monterrey",
+						suggestedLocationState: "NL",
+					},
+				],
+				draftClientMatches: {
+					"draft-await-locations": [],
+				},
+				locations: [],
+				loadedLocationCompanyIds: [],
+			}),
+		).toEqual([]);
+	});
+
+	it("does not auto-select existing location when suggested location matches multiple locations", () => {
+		expect(
+			modalModule.resolveAutoPrefillActions({
+				candidates: [
+					{
+						...pendingCandidate,
+						itemId: "draft-ambiguous-location",
+						clientId: "company-77",
+						locationId: null,
+						suggestedLocationName: "North Plant",
+						suggestedLocationCity: "Monterrey",
+						suggestedLocationState: "NL",
+					},
+				],
+				draftClientMatches: {
+					"draft-ambiguous-location": [],
+				},
+				locations: [
+					{
+						id: "location-1",
+						companyId: "company-77",
+						name: "North Plant",
+						city: "Monterrey",
+					},
+					{
+						id: "location-2",
+						companyId: "company-77",
+						name: "North Plant",
+						city: "Monterrey",
+					},
+				],
+			}),
+		).toEqual([
+			{
+				itemId: "draft-ambiguous-location",
 				field: "locationId",
 				value: buildAiCreateLocationSelection("North Plant - Monterrey"),
 			},
@@ -575,6 +751,43 @@ describe("DraftConfirmationModal helpers", () => {
 				},
 			}),
 		).toEqual([]);
+	});
+
+	it("upgrades accepted location create-new to existing unique match once locations are loaded", () => {
+		expect(
+			modalModule.resolveAutoPrefillActions({
+				candidates: [
+					{
+						...pendingCandidate,
+						itemId: "draft-upgrade-location",
+						clientId: "company-77",
+						locationId: null,
+						suggestedLocationName: "North Plant",
+						suggestedLocationCity: "Monterrey",
+						suggestedLocationState: "NL",
+						aiSuggestedLocationAccepted: true,
+					},
+				],
+				draftClientMatches: {
+					"draft-upgrade-location": [],
+				},
+				locations: [
+					{
+						id: "location-unique",
+						companyId: "company-77",
+						name: "North Plant",
+						city: "Monterrey",
+					},
+				],
+				loadedLocationCompanyIds: ["company-77"],
+			}),
+		).toEqual([
+			{
+				itemId: "draft-upgrade-location",
+				field: "locationId",
+				value: "location-unique",
+			},
+		]);
 	});
 
 	it("exposes suggested client prefill only when no existing client is selected", () => {
@@ -764,6 +977,38 @@ describe("DraftConfirmationModal helpers", () => {
 				suggestedLocationName: "North Plant",
 				suggestedLocationCity: null,
 				suggestedLocationState: "NL",
+			}),
+		).toBe(false);
+	});
+
+	it("detects when a create-new prefill action is already applied", () => {
+		const action = {
+			itemId: "item-1",
+			field: "clientId" as const,
+			value: buildAiCreateCompanySelection("EXXON"),
+		};
+
+		expect(
+			modalModule.isAutoPrefillActionApplied({
+				candidate: {
+					...pendingCandidate,
+					clientId: null,
+					suggestedClientName: "EXXON",
+					aiSuggestedClientAccepted: true,
+				},
+				action,
+			}),
+		).toBe(true);
+
+		expect(
+			modalModule.isAutoPrefillActionApplied({
+				candidate: {
+					...pendingCandidate,
+					clientId: null,
+					suggestedClientName: "OTHER",
+					aiSuggestedClientAccepted: true,
+				},
+				action,
 			}),
 		).toBe(false);
 	});

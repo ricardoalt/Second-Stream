@@ -291,6 +291,151 @@ describe("/streams runtime hardening", () => {
 		);
 	});
 
+	it("uses locationLabel fallback for suggested location in Drafts bucket mapping", () => {
+		const draftRow: DraftItemRow = {
+			kind: "draft_item",
+			bucket: "needs_confirmation",
+			itemId: "item-fallback-1",
+			runId: "run-fallback-1",
+			groupId: null,
+			streamName: "Spent Solvent",
+			companyId: null,
+			companyLabel: null,
+			suggestedCompanyLabel: "EXXON",
+			locationLabel: "Baton Rouge",
+			suggestedLocationName: null,
+			suggestedLocationCity: null,
+			suggestedLocationState: null,
+			suggestedLocationAddress: null,
+			volume: "BULK LOAD",
+			frequency: "5-6 PER MONTH",
+			units: "BULK LOAD",
+			volumeSummary: "BULK LOAD / 5-6 PER MONTH",
+			lastActivityAt: "2026-01-01T00:00:00Z",
+			sourceType: "bulk_import",
+			sourceFilename: "drafts.xlsx",
+			draftStatus: "pending_review",
+			confidence: 0.73,
+			draftKind: "orphan_stream",
+			queuePriority: "normal",
+			queuePriorityReason: "normal",
+			confirmable: true,
+			target: null,
+		};
+		const editorState: DraftEditorState = {
+			wasteType: "Spent Solvent",
+			volume: "BULK LOAD",
+			frequency: "5-6 PER MONTH",
+			units: "BULK LOAD",
+			clientId: "",
+			locationId: "",
+		};
+
+		expect(mapDraftRowToDraftCandidate(draftRow, editorState)).toEqual(
+			expect.objectContaining({
+				suggestedClientName: "EXXON",
+				suggestedLocationName: "Baton Rouge",
+				locationLabel: "Baton Rouge",
+			}),
+		);
+	});
+
+	it("parses contaminated suggested client/location labels in Drafts bucket mapping", () => {
+		const draftRow: DraftItemRow = {
+			kind: "draft_item",
+			bucket: "needs_confirmation",
+			itemId: "item-combined-1",
+			runId: "run-combined-1",
+			groupId: null,
+			streamName: "Spent Solvent",
+			companyId: null,
+			companyLabel: null,
+			suggestedCompanyLabel: "NEMS High Haz / Champion X - Midland",
+			locationLabel: null,
+			suggestedLocationName: null,
+			suggestedLocationCity: "Midland",
+			suggestedLocationState: "TX",
+			suggestedLocationAddress: null,
+			volume: "BULK LOAD",
+			frequency: "5-6 PER MONTH",
+			units: "BULK LOAD",
+			volumeSummary: "BULK LOAD / 5-6 PER MONTH",
+			lastActivityAt: "2026-01-01T00:00:00Z",
+			sourceType: "bulk_import",
+			sourceFilename: "drafts.xlsx",
+			draftStatus: "pending_review",
+			confidence: 0.73,
+			draftKind: "orphan_stream",
+			queuePriority: "normal",
+			queuePriorityReason: "normal",
+			confirmable: true,
+			target: null,
+		};
+		const editorState: DraftEditorState = {
+			wasteType: "Spent Solvent",
+			volume: "BULK LOAD",
+			frequency: "5-6 PER MONTH",
+			units: "BULK LOAD",
+			clientId: "",
+			locationId: "",
+		};
+
+		expect(mapDraftRowToDraftCandidate(draftRow, editorState)).toEqual(
+			expect.objectContaining({
+				suggestedClientName: "Champion X",
+				suggestedLocationName: "Midland",
+			}),
+		);
+	});
+
+	it("keeps combined suggestion intact when location hint does not match", () => {
+		const draftRow: DraftItemRow = {
+			kind: "draft_item",
+			bucket: "needs_confirmation",
+			itemId: "item-combined-mismatch-1",
+			runId: "run-combined-mismatch-1",
+			groupId: null,
+			streamName: "Spent Solvent",
+			companyId: null,
+			companyLabel: null,
+			suggestedCompanyLabel: "NEMS High Haz / Champion X - Midland",
+			locationLabel: null,
+			suggestedLocationName: null,
+			suggestedLocationCity: "Houston",
+			suggestedLocationState: "TX",
+			suggestedLocationAddress: null,
+			volume: "BULK LOAD",
+			frequency: "5-6 PER MONTH",
+			units: "BULK LOAD",
+			volumeSummary: "BULK LOAD / 5-6 PER MONTH",
+			lastActivityAt: "2026-01-01T00:00:00Z",
+			sourceType: "bulk_import",
+			sourceFilename: "drafts.xlsx",
+			draftStatus: "pending_review",
+			confidence: 0.73,
+			draftKind: "orphan_stream",
+			queuePriority: "normal",
+			queuePriorityReason: "normal",
+			confirmable: true,
+			target: null,
+		};
+		const editorState: DraftEditorState = {
+			wasteType: "Spent Solvent",
+			volume: "BULK LOAD",
+			frequency: "5-6 PER MONTH",
+			units: "BULK LOAD",
+			clientId: "",
+			locationId: "",
+		};
+
+		expect(mapDraftRowToDraftCandidate(draftRow, editorState)).toEqual(
+			expect.objectContaining({
+				suggestedClientName: "NEMS High Haz / Champion X - Midland",
+				suggestedLocationName: null,
+			}),
+		);
+	});
+
 	it("adapts draft rows using structured values and AI-suggested labels when unresolved", () => {
 		const draftRow: DraftItemRow = {
 			kind: "draft_item",
