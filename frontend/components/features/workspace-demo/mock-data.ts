@@ -55,6 +55,14 @@ export interface RecommendedAction {
 	why: string;
 }
 
+export interface BriefVersionEntry {
+	id: string;
+	label: string;
+	time: string;
+	status: "current" | "review" | "published";
+	summary: string;
+}
+
 export type EvidenceItemType =
 	| "PDF"
 	| "DOC"
@@ -113,6 +121,12 @@ export const DEMO_STREAM = {
 	briefVersion: "v3",
 	briefTime: "11:42 AM",
 	readinessPercent: 58,
+};
+
+export const DEMO_AGENT = {
+	name: "SecondStream Analyst",
+	mode: "Evidence-first",
+	lastRun: "11:42 AM",
 };
 
 // ── Executive Summary ──────────────────────────────────────────────────────
@@ -215,6 +229,37 @@ export const DEMO_RECOMMENDED_ACTIONS: RecommendedAction[] = [
 		why: "Required before outlet outreach — 5 min call",
 	},
 ];
+
+export const DEMO_BRIEF_VERSIONS: BriefVersionEntry[] = [
+	{
+		id: "v1",
+		label: "v1",
+		time: "Yesterday",
+		status: "published",
+		summary: "Initial brief from service agreement",
+	},
+	{
+		id: "v2",
+		label: "v2",
+		time: "11:35 AM",
+		status: "review",
+		summary: "Added manifests and volume range",
+	},
+	{
+		id: "v3",
+		label: "v3",
+		time: "11:42 AM",
+		status: "current",
+		summary: "Current working brief with unresolved solids conflict",
+	},
+];
+
+export const DEMO_PROVENANCE_SUMMARY: Record<string, string[]> = {
+	solids: ["LR-884 p3", "TM-220 line 12"],
+	volume: ["Jan–Mar manifests", "Contract cap note"],
+	ph: ["Historical dossier 2024"],
+	epa: ["Compliance call required"],
+};
 
 // ── Context Panels (for evidence rail) ────────────────────────────────────
 

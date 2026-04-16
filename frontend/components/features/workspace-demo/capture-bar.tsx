@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
@@ -11,9 +12,6 @@ import {
 	type CaptureState,
 	DEMO_CAPTURE_RESULT,
 } from "./mock-data";
-
-// ── MappedStrip ───────────────────────────────────────────────────────────────
-// Feedback strip shown above the dock after evidence is mapped to brief.
 
 function MappedStrip({
 	result,
@@ -25,76 +23,48 @@ function MappedStrip({
 	onDismiss: () => void;
 }) {
 	return (
-		<div
-			className={cn(
-				"flex items-center gap-2.5 px-3.5 py-2 mb-1.5",
-				"bg-success/[0.06] border-l-2 border-success rounded-r-lg",
-				"animate-in slide-in-from-bottom-2 duration-200",
-			)}
-		>
-			{/* Check icon */}
+		<div className="mb-2 flex items-center gap-2.5 rounded-md border border-success/20 bg-success/[0.08] px-3 py-2 animate-in slide-in-from-bottom-2 duration-200">
 			<svg
-				width="11"
-				height="11"
+				width="12"
+				height="12"
 				viewBox="0 0 16 16"
 				fill="none"
 				stroke="currentColor"
 				strokeWidth="2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-				className="text-success flex-shrink-0"
+				className="text-success"
 			>
 				<title>Mapped</title>
 				<path d="M3 8l3.5 3.5L13 4" />
 			</svg>
-			<span className="text-[10.5px] font-medium text-success/90 flex-shrink-0">
-				Mapped to brief:
-			</span>
-			<div className="flex items-center gap-1.5 flex-1 flex-wrap">
-				{result.mappedLabels.map((label, i) => (
-					<button
-						key={result.mappedPoints[i]}
+			<p className="text-[10.5px] font-semibold text-success/90 shrink-0">
+				Evidence mapped:
+			</p>
+			<div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+				{result.mappedLabels.map((label, index) => (
+					<Button
+						key={result.mappedPoints[index]}
 						type="button"
-						onClick={() => onPointSelect(result.mappedPoints[i] ?? "")}
-						className={cn(
-							"text-[10.5px] font-semibold px-2 py-px rounded",
-							"bg-success/[0.1] text-success border border-success/20",
-							"hover:bg-success/[0.18] transition-colors duration-75 font-sans",
-						)}
+						variant="outline"
+						size="sm"
+						className="h-5 px-1.5 text-[9.5px] border-success/30 text-success bg-success/5 hover:bg-success/10"
+						onClick={() => onPointSelect(result.mappedPoints[index] ?? "")}
 					>
 						{label}
-					</button>
+					</Button>
 				))}
 			</div>
 			<Button
 				type="button"
 				variant="ghost"
 				size="sm"
-				aria-label="Dismiss"
+				className="h-6 px-2 text-[10px]"
 				onClick={onDismiss}
-				className="h-5 w-5 p-0 text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0"
 			>
-				<svg
-					width="8"
-					height="8"
-					viewBox="0 0 16 16"
-					fill="none"
-					stroke="currentColor"
-					strokeWidth="2"
-					strokeLinecap="round"
-				>
-					<title>Dismiss</title>
-					<path d="M2 2l12 12M14 2L2 14" />
-				</svg>
+				Dismiss
 			</Button>
 		</div>
 	);
 }
-
-// ── CaptureBar ────────────────────────────────────────────────────────────────
-// Fixed ingest dock — feels like adding evidence/context, not opening a chat.
-// State machine: idle → processing → mapped
-// Uses Input + Button primitives for consistency with platform.
 
 interface CaptureBarProps {
 	onPointSelect: (id: string) => void;
@@ -102,14 +72,17 @@ interface CaptureBarProps {
 
 export function CaptureBar({ onPointSelect }: CaptureBarProps) {
 	const inputRef = useRef<HTMLInputElement>(null);
-	const [captureState, setCaptureState] = useState<CaptureState>("idle");
-	const [captureResult, setCaptureResult] = useState<CaptureResult | null>(
-		null,
-	);
 	const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [captureState, setCaptureState] = useState<CaptureState>("idle");
+	const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null);
 
 	const isProcessing = captureState === "processing";
 	const isMapped = captureState === "mapped";
+
+	const contextualActions = useMemo(
+		() => ["Request source check", "Flag inconsistency", "Create correction note"],
+		[],
+	);
 
 	function runSimulation() {
 		if (isProcessing) return;
@@ -117,7 +90,6 @@ export function CaptureBar({ onPointSelect }: CaptureBarProps) {
 		setTimeout(() => {
 			setCaptureResult(DEMO_CAPTURE_RESULT);
 			setCaptureState("mapped");
-			// Auto-dismiss after 6s
 			dismissTimerRef.current = setTimeout(() => {
 				setCaptureState("idle");
 				setCaptureResult(null);
@@ -126,7 +98,9 @@ export function CaptureBar({ onPointSelect }: CaptureBarProps) {
 	}
 
 	function handleDismiss() {
-		if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+		if (dismissTimerRef.current) {
+			clearTimeout(dismissTimerRef.current);
+		}
 		setCaptureState("idle");
 		setCaptureResult(null);
 	}
@@ -137,151 +111,82 @@ export function CaptureBar({ onPointSelect }: CaptureBarProps) {
 		if (inputRef.current) inputRef.current.value = "";
 	}
 
-	function handleVoice() {
-		runSimulation();
-	}
-
 	return (
-		<div
-			className={cn(
-				"fixed bottom-0 left-0 right-0 z-50",
-				"bg-card border-t border-border/60",
-				// Match AgentShell main content horizontal padding
-				"px-6 py-2.5",
-			)}
-		>
-			<div className="mx-auto max-w-[1400px] flex flex-col gap-0">
-				{/* Mapped strip — slides up above dock */}
-				{isMapped && captureResult && (
+		<div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-card/95 px-6 py-2.5 backdrop-blur-sm">
+			<div className="mx-auto max-w-[1400px]">
+				{isMapped && captureResult ? (
 					<MappedStrip
 						result={captureResult}
 						onPointSelect={onPointSelect}
 						onDismiss={handleDismiss}
 					/>
-				)}
+				) : null}
 
-				{/* Indeterminate progress — thin line when processing */}
-				{isProcessing && (
-					<div className="w-full h-[2px] bg-primary/10 rounded-full overflow-hidden mb-2">
-						<div
-							className={cn(
-								"h-full bg-primary/60 rounded-full",
-								"animate-[progress-indeterminate_1.4s_ease-in-out_infinite]",
-							)}
-							style={{ width: "40%" }}
-						/>
+				<div className="rounded-xl border border-border/60 bg-surface-container-low px-3 py-2">
+					<div className="mb-2 flex items-center justify-between gap-3">
+						<div className="flex items-center gap-2">
+							<Badge variant="neutral-subtle" className="h-5 px-1.5 text-[10px] font-semibold">
+								Global composer
+							</Badge>
+							<p className="text-[10.5px] text-muted-foreground">
+								Response-first. Proposed changes require review.
+							</p>
+						</div>
+						<div className="flex items-center gap-1.5">
+							{contextualActions.map((action) => (
+								<Button
+									key={action}
+									type="button"
+									variant="ghost"
+									size="sm"
+									className="h-6 px-2 text-[10px] text-muted-foreground"
+								>
+									{action}
+								</Button>
+							))}
+						</div>
 					</div>
-				)}
 
-				{/* Dock row */}
-				<div className="flex items-center gap-2">
-					{/* Dock label */}
-					<Badge
-						variant="neutral-subtle"
-						className="text-[10px] font-semibold whitespace-nowrap shrink-0 h-6"
-					>
-						Add to stream
-					</Badge>
+					<Separator className="opacity-40" />
 
-					{/* Main input — uses platform Input primitive */}
-					<Input
-						ref={inputRef}
-						type="text"
-						disabled={isProcessing}
-						placeholder={
-							isProcessing
-								? "Processing evidence..."
-								: "Paste text, drop a file, or type a note..."
-						}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") handleSubmit();
-						}}
-						className={cn(
-							"flex-1 h-8 text-[12.5px]",
-							isProcessing && "opacity-50 cursor-not-allowed",
-						)}
-					/>
+					<div className="mt-2 flex items-center gap-2">
+						<Input
+							ref={inputRef}
+							type="text"
+							disabled={isProcessing}
+							placeholder={
+								isProcessing
+									? "Analyzing and preparing suggested changes..."
+									: "Ask a question or propose a change with source references..."
+							}
+							onKeyDown={(event) => {
+								if (event.key === "Enter") handleSubmit();
+							}}
+							className={cn("h-8 text-[12.5px]", isProcessing && "opacity-60")}
+						/>
 
-					{/* Upload affordance */}
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						aria-label="Upload file"
-						title="Upload file"
-						disabled={isProcessing}
-						className="h-8 w-8 p-0"
-					>
-						<svg
-							width="13"
-							height="13"
-							viewBox="0 0 16 16"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.5"
-							strokeLinecap="round"
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-8 px-2 text-[11px]"
+							disabled={isProcessing}
 						>
-							<title>Upload</title>
-							<path d="M8 10V3m0 0L5.5 5.5M8 3l2.5 2.5" />
-							<path d="M3 12h10" />
-						</svg>
-					</Button>
-
-					{/* Voice affordance */}
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						aria-label="Voice note"
-						title="Voice note"
-						onClick={handleVoice}
-						disabled={isProcessing}
-						className="h-8 w-8 p-0"
-					>
-						<svg
-							width="13"
-							height="13"
-							viewBox="0 0 16 16"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.5"
-							strokeLinecap="round"
+							Attach
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-8 px-2 text-[11px]"
+							disabled={isProcessing}
 						>
-							<title>Voice</title>
-							<rect x="6" y="2" width="4" height="7" rx="2" />
-							<path d="M4 8a4 4 0 0 0 8 0" />
-							<path d="M8 13v1" />
-						</svg>
-					</Button>
-
-					{/* Submit */}
-					<Button
-						type="button"
-						size="sm"
-						aria-label="Submit evidence"
-						title="Submit"
-						onClick={handleSubmit}
-						disabled={isProcessing}
-						className="h-8 w-8 p-0"
-					>
-						{isProcessing ? (
-							<Spinner className="h-3 w-3" />
-						) : (
-							<svg
-								width="13"
-								height="13"
-								viewBox="0 0 16 16"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.5"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							>
-								<title>Submit</title>
-								<path d="M14 2 2 8l5 2 2 5z" />
-							</svg>
-						)}
-					</Button>
+							Voice
+						</Button>
+						<Button type="button" size="sm" className="h-8 px-3 text-[11px]" onClick={handleSubmit}>
+							{isProcessing ? <Spinner className="h-3 w-3" /> : "Propose"}
+						</Button>
+					</div>
 				</div>
 			</div>
 		</div>

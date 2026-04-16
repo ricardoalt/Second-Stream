@@ -10,12 +10,17 @@ import { DEMO_FIELD_GROUPS } from "./mock-data";
 
 export function StructuredCaptureTab() {
 	return (
-		<div className={cn("mt-7 max-w-2xl")}>
+		<div className={cn("mt-7 max-w-3xl")}>
 			{/* Intro */}
-			<p className={cn("text-sm text-muted-foreground mb-5 leading-relaxed")}>
-				Structured data populated from evidence and the Discovery Brief. Edit
-				any field directly — changes sync back to the brief automatically.
-			</p>
+			<div className="mb-5 rounded-lg border border-border/60 bg-surface-container-low px-4 py-3">
+				<p className={cn("text-sm text-foreground font-medium leading-relaxed")}>
+					Structured Capture
+				</p>
+				<p className={cn("text-[12px] text-muted-foreground mt-1 leading-relaxed")}>
+					Operational fields extracted from evidence and linked to the working brief.
+					Edits are proposed updates and should be reviewed before final handoff.
+				</p>
+			</div>
 
 			{/* Field groups */}
 			<div className="flex flex-col gap-0">

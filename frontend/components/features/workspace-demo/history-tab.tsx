@@ -174,7 +174,11 @@ function HistoryRow({ event }: { event: HistoryEvent }) {
 
 export function HistoryTab() {
 	return (
-		<div className="mt-7 max-w-2xl">
+		<div className="mt-7 max-w-3xl">
+			<p className="mb-4 text-[12px] leading-relaxed text-muted-foreground">
+				History records when and why the brief changed. Use it to audit decisions,
+				not to drive day-to-day editing.
+			</p>
 			<div className="flex items-center justify-between mb-4">
 				<h2 className="text-[13px] font-semibold text-foreground">
 					Activity history

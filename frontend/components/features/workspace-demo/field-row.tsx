@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { StructuredField } from "./mock-data";
 
@@ -37,31 +40,21 @@ function InlineEditZone({
 
 	return (
 		<div className="flex items-center gap-1 mt-1.5">
-			<input
+			<Input
 				type="text"
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
 				placeholder={placeholder}
-				className={cn(
-					"flex-1 px-2 py-1 text-[11.5px] font-sans",
-					"text-foreground border border-border rounded-md",
-					"bg-background focus:outline-none focus:border-primary",
-					"placeholder:text-muted-foreground/50",
-					"transition-colors duration-100",
-				)}
+				className="h-8 flex-1 text-[11.5px]"
 			/>
-			<button
+			<Button
 				type="button"
+				size="sm"
 				onClick={onClose}
-				className={cn(
-					"px-2.5 py-1 text-[10px] font-semibold",
-					"bg-foreground text-background rounded-md",
-					"font-sans cursor-pointer border-none",
-					"hover:bg-foreground/90 transition-colors",
-				)}
+				className="h-8 px-2.5 text-[10px]"
 			>
 				Save
-			</button>
+			</Button>
 		</div>
 	);
 }
@@ -92,15 +85,12 @@ export function FieldRow({ field }: FieldRowProps) {
 				{/* Value area */}
 				<div className="flex-1 min-w-0">
 					{field.conflict && (
-						<p
-							className={cn(
-								"text-[10.5px] font-medium text-destructive mb-0.5",
-								"flex items-center gap-1",
-							)}
-						>
-							<span className="w-1 h-1 rounded-full bg-destructive flex-shrink-0 opacity-80" />
-							{field.conflict}
-						</p>
+						<div className="mb-1 flex items-center gap-1.5">
+							<Badge variant="destructive-subtle" className="h-4 px-1 text-[8px] font-bold">
+								En conflicto
+							</Badge>
+							<p className="text-[10.5px] font-medium text-destructive">{field.conflict}</p>
+						</div>
 					)}
 					<p
 						className={cn(
@@ -123,18 +113,15 @@ export function FieldRow({ field }: FieldRowProps) {
 				</div>
 
 				{/* Edit trigger */}
-				<button
+				<Button
 					type="button"
+					size="sm"
+					variant="ghost"
 					onClick={() => setIsEditing((v) => !v)}
-					className={cn(
-						"text-[10px] font-medium text-muted-foreground",
-						"cursor-pointer bg-transparent border-none",
-						"hover:text-primary transition-colors duration-75",
-						"font-sans flex-shrink-0 mt-px",
-					)}
+					className="h-6 px-2 text-[10px] font-semibold text-muted-foreground hover:text-primary mt-px"
 				>
 					{field.action}
-				</button>
+				</Button>
 			</div>
 
 			{/* Inline edit zone */}

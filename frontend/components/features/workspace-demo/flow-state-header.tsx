@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import {
 	DEMO_EXEC_SUMMARY,
 	DEMO_PENDING_ITEMS,
-	DEMO_READINESS,
 	type ReadinessModel,
 } from "./mock-data";
 

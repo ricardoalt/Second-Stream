@@ -7,6 +7,8 @@ import {
 	HoverCardContent,
 	HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { BriefChange, BriefPoint, PointState } from "./mock-data";
 
@@ -122,6 +124,7 @@ function UpdatedBadge({ change }: { change?: BriefChange | undefined }) {
 // Primary actions use Button primitives; secondary actions are ghost.
 
 function InlineReviewCluster({ actions }: { actions: BriefPoint["actions"] }) {
+	const [proposalOpen, setProposalOpen] = useState(false);
 	const primaryActions = actions.filter(
 		(a) => a === "Accept" || a === "Incorrect",
 	);
@@ -150,16 +153,59 @@ function InlineReviewCluster({ actions }: { actions: BriefPoint["actions"] }) {
 				</Button>
 			))}
 			{secondaryActions.map((action) => (
-				<Button
-					key={action}
-					type="button"
-					size="sm"
-					variant="ghost"
-					onClick={(e) => e.stopPropagation()}
-					className="h-6 px-2 text-[10px] font-semibold text-muted-foreground/70 hover:text-foreground"
-				>
-					{action}
-				</Button>
+				action === "Add note" ? (
+					<Popover key={action} open={proposalOpen} onOpenChange={setProposalOpen}>
+						<PopoverTrigger asChild>
+							<Button
+								type="button"
+								size="sm"
+								variant="ghost"
+								onClick={(e) => e.stopPropagation()}
+								className="h-6 px-2 text-[10px] font-semibold text-muted-foreground/70 hover:text-foreground"
+							>
+								Propose change
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent align="start" className="w-[300px] p-3">
+							<p className="text-[11px] font-semibold text-foreground">
+								Proposed change (requires review)
+							</p>
+							<p className="text-[10px] text-muted-foreground mt-1">
+								Write the change request first. Nothing updates without explicit approval.
+							</p>
+							<Textarea
+								rows={3}
+								placeholder="Example: Replace 18% with 32% based on LR-884 p3"
+								className="mt-2 text-[11px]"
+							/>
+							<div className="mt-2 flex justify-end gap-1.5">
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									className="h-6 px-2 text-[10px]"
+									onClick={() => setProposalOpen(false)}
+								>
+									Cancel
+								</Button>
+								<Button type="button" size="sm" className="h-6 px-2 text-[10px]">
+									Submit for review
+								</Button>
+							</div>
+						</PopoverContent>
+					</Popover>
+				) : (
+					<Button
+						key={action}
+						type="button"
+						size="sm"
+						variant="ghost"
+						onClick={(e) => e.stopPropagation()}
+						className="h-6 px-2 text-[10px] font-semibold text-muted-foreground/70 hover:text-foreground"
+					>
+						{action}
+					</Button>
+				)
 			))}
 		</div>
 	);

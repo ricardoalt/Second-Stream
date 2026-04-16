@@ -29,8 +29,8 @@ export function WorkspaceDemo() {
 	const primaryAction = reviewCount > 0 ? "review" : "complete";
 
 	return (
-		// pb-20 provides breathing room above the fixed CaptureBar
-		<div className="pb-20">
+		// pb-28 provides breathing room above the fixed CaptureBar
+		<div className="pb-28">
 			<WorkspaceHeader
 				primaryAction={primaryAction}
 				reviewCount={reviewCount}
@@ -45,7 +45,7 @@ export function WorkspaceDemo() {
 				>
 					{(
 						[
-							{ value: "overview", label: "Overview" },
+							{ value: "overview", label: "Discovery Brief" },
 							{ value: "capture", label: "Structured Capture" },
 							{ value: "evidence", label: "Evidence" },
 							{ value: "history", label: "History" },

@@ -123,7 +123,11 @@ function EvidenceRow({ doc }: { doc: EvidenceDoc }) {
 
 export function EvidenceTab() {
 	return (
-		<div className="mt-7 max-w-2xl">
+		<div className="mt-7 max-w-3xl">
+			<p className="mb-4 text-[12px] leading-relaxed text-muted-foreground">
+				Evidence stays subordinate to the brief: sources are here for traceability,
+				not as the primary decision surface.
+			</p>
 			<div className="flex items-center justify-between mb-4">
 				<h2 className="text-[13px] font-semibold text-foreground">Evidence</h2>
 				<Badge variant="neutral-subtle" className="text-[10px] font-medium">

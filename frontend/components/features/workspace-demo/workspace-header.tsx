@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { PrimaryActionType } from "./mock-data";
-import { DEMO_STREAM } from "./mock-data";
+import { DEMO_AGENT, DEMO_STREAM } from "./mock-data";
 
 // ── WorkspaceHeader ───────────────────────────────────────────────────────────
 // Compact platform header — matches agent shell conventions.
@@ -55,6 +55,12 @@ export function WorkspaceHeader({
 								Discovery workspace
 							</p>
 							<Badge
+								variant="primary-subtle"
+								className="h-5 px-1.5 text-[10px] font-medium"
+							>
+								{DEMO_AGENT.name}
+							</Badge>
+							<Badge
 								variant="outline"
 								className="h-5 px-1.5 text-[10px] font-medium border-border/50"
 							>
@@ -73,7 +79,7 @@ export function WorkspaceHeader({
 							<span
 								className={cn("font-mono text-[10px] text-muted-foreground/50")}
 							>
-								Brief {DEMO_STREAM.briefVersion} · {DEMO_STREAM.briefTime}
+								{DEMO_AGENT.mode} · Last run {DEMO_AGENT.lastRun}
 							</span>
 						</div>
 					</div>
@@ -117,19 +123,22 @@ export function WorkspaceHeader({
 							<DropdownMenuContent align="end" className="w-44">
 								{primaryAction !== "refresh" && (
 									<DropdownMenuItem className="text-[12px]">
-										Refresh Brief
+										Refresh dossier
 									</DropdownMenuItem>
 								)}
 								{primaryAction !== "complete" && (
 									<DropdownMenuItem className="text-[12px]">
-										Complete Discovery
+										Prepare handoff
 									</DropdownMenuItem>
 								)}
 								<DropdownMenuItem className="text-[12px]">
-									Add Evidence
+									Add evidence
+								</DropdownMenuItem>
+								<DropdownMenuItem className="text-[12px]">
+									Open review queue
 								</DropdownMenuItem>
 								<DropdownMenuItem className="text-[12px] text-muted-foreground">
-									Share stream
+									View version history
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
