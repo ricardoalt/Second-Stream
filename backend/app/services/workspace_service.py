@@ -783,8 +783,15 @@ class WorkspaceService:
         current_user: User,
     ) -> WorkspaceCompleteDiscoveryResponse:
         insights_refresh_failed = False
+        stream_offer = await OfferService.ensure_stream_offer_exists(
+            db=db,
+            project=project,
+            current_user=current_user,
+        )
         if project.proposal_follow_up_state is None:
             project.proposal_follow_up_state = "uploaded"
+            stream_offer.status = "uploaded"
+            stream_offer.updated_by_user_id = current_user.id
         await WorkspaceService._persist_workspace_patch(
             db=db,
             project=project,
@@ -818,6 +825,7 @@ class WorkspaceService:
         return WorkspaceCompleteDiscoveryResponse(
             message="Discovery marked complete",
             offer=WorkspaceOfferNavigationTarget(
+                offer_id=stream_offer.id,
                 project_id=project.id,
             ),
             insights_refresh_failed=insights_refresh_failed,

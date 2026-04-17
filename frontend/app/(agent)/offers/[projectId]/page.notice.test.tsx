@@ -21,21 +21,21 @@ describe("offer detail handoff degraded-success notice", () => {
 	it("removes insightsRefreshFailed from href while preserving path, hash, and other params", () => {
 		expect(
 			offerDetailPageModule.removeInsightsRefreshFailedFromHref(
-				"https://secondstream.test/offers/project-123?insightsRefreshFailed=1",
+				"https://secondstream.test/offers/offer-123?insightsRefreshFailed=1",
 			),
-		).toBe("/offers/project-123");
+		).toBe("/offers/offer-123");
 
 		expect(
 			offerDetailPageModule.removeInsightsRefreshFailedFromHref(
-				"https://secondstream.test/offers/project-123?foo=bar&insightsRefreshFailed=1#section-a",
+				"https://secondstream.test/offers/offer-123?foo=bar&insightsRefreshFailed=1#section-a",
 			),
-		).toBe("/offers/project-123?foo=bar#section-a");
+		).toBe("/offers/offer-123?foo=bar#section-a");
 	});
 
 	it("returns null when cleanup is not needed", () => {
 		expect(
 			offerDetailPageModule.removeInsightsRefreshFailedFromHref(
-				"https://secondstream.test/offers/project-123?foo=bar",
+				"https://secondstream.test/offers/offer-123?foo=bar",
 			),
 		).toBeNull();
 	});

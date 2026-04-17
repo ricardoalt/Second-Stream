@@ -13,10 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents import offer_insights_agent
 from app.models.file import ProjectFile
 from app.models.intake_note import IntakeNote
+from app.models.offer import Offer
+from app.models.offer_document import OfferDocument
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.dashboard import ProposalFollowUpState
 from app.schemas.offer import (
+    OfferContextCardDTO,
+    OfferContextFieldDTO,
     OfferDetailDTO,
     OfferDocumentMetadataDTO,
     OfferInsightsData,
@@ -57,8 +61,103 @@ class OfferService:
 
         return OfferService._build_offer_detail_dto(
             project=project,
+            offer=None,
             stream_snapshot=stream_snapshot,
             insights=insights_dto,
+            offer_document=offer_document,
+        )
+
+    @staticmethod
+    async def get_offer_detail_by_offer_id(
+        *,
+        db: AsyncSession,
+        offer_id,
+        organization_id,
+        current_user: User,
+    ) -> OfferDetailDTO:
+        result = await db.execute(
+            select(Offer).where(
+                Offer.id == offer_id,
+                Offer.organization_id == organization_id,
+            )
+        )
+        offer = result.scalar_one_or_none()
+        if offer is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
+
+        project: Project | None = None
+        if offer.project_id is not None:
+            project_result = await db.execute(
+                select(Project).where(
+                    Project.id == offer.project_id,
+                    Project.organization_id == offer.organization_id,
+                )
+            )
+            project = project_result.scalar_one_or_none()
+            if project is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
+
+        if (
+            project is not None
+            and not current_user.is_superuser
+            and current_user.role != "org_admin"
+            and project.user_id != current_user.id
+        ):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
+
+        if project is not None:
+            offer_v1 = OfferService._load_offer_v1(project.project_data)
+            source_updated_at = await OfferService._resolve_source_updated_at(db=db, project=project)
+            stream_snapshot = OfferService._load_stream_snapshot(project.project_data)
+            offer_document = await OfferService._load_offer_document_metadata_for_offer(
+                db=db,
+                offer=offer,
+                fallback_project=project,
+            )
+            generated_at = (
+                offer_v1.freshness.generated_at if offer_v1.freshness is not None else None
+            )
+            insights_dto = OfferService._build_insights_dto(
+                insights=offer_v1.insights,
+                generated_at=generated_at,
+                source_updated_at=source_updated_at,
+            )
+            return OfferService._build_offer_detail_dto(
+                project=project,
+                offer=offer,
+                stream_snapshot=stream_snapshot,
+                insights=insights_dto,
+                offer_document=offer_document,
+            )
+
+        stream_snapshot = OfferStreamSnapshotDTO()
+        context_summary = (
+            offer.context_summary.strip()
+            if isinstance(offer.context_summary, str) and offer.context_summary.strip()
+            else None
+        )
+        offer_document = await OfferService._load_offer_document_metadata_for_offer(
+            db=db,
+            offer=offer,
+            fallback_project=None,
+        )
+        return OfferDetailDTO(
+            offer_id=offer.id,
+            project_id=None,
+            display_title=offer.display_title,
+            source_type="manual",
+            context_card=OfferContextCardDTO(
+                title="Offer context",
+                description=context_summary,
+                fields=[
+                    OfferContextFieldDTO(label="Client", value=offer.display_client),
+                    OfferContextFieldDTO(label="Location", value=offer.display_location),
+                    OfferContextFieldDTO(label="Offer title", value=offer.display_title),
+                ],
+            ),
+            stream_snapshot=stream_snapshot,
+            follow_up_state=cast(ProposalFollowUpState, offer.status),
+            insights=None,
             offer_document=offer_document,
         )
 
@@ -66,6 +165,7 @@ class OfferService:
     def _build_offer_detail_dto(
         *,
         project: Project,
+        offer: Offer | None,
         stream_snapshot: OfferStreamSnapshotDTO,
         insights: OfferInsightsDTO | None,
         offer_document: OfferDocumentMetadataDTO | None,
@@ -73,7 +173,21 @@ class OfferService:
         follow_up_state = cast(ProposalFollowUpState | None, project.proposal_follow_up_state)
 
         return OfferDetailDTO(
+            offer_id=offer.id if offer is not None else None,
             project_id=project.id,
+            display_title=(offer.display_title if offer is not None else project.name),
+            source_type="stream",
+            context_card=OfferContextCardDTO(
+                title="Stream snapshot",
+                description="Workspace baseline currently driving Offer insights.",
+                fields=[
+                    OfferContextFieldDTO(label="Material type", value=stream_snapshot.material_type),
+                    OfferContextFieldDTO(label="Material name", value=stream_snapshot.material_name),
+                    OfferContextFieldDTO(label="Composition", value=stream_snapshot.composition),
+                    OfferContextFieldDTO(label="Volume", value=stream_snapshot.volume),
+                    OfferContextFieldDTO(label="Frequency", value=stream_snapshot.frequency),
+                ],
+            ),
             stream_snapshot=stream_snapshot,
             follow_up_state=follow_up_state,
             insights=insights,
@@ -194,10 +308,130 @@ class OfferService:
 
         return OfferService._build_offer_detail_dto(
             project=project,
+            offer=None,
             stream_snapshot=stream_snapshot,
             insights=insights_dto,
             offer_document=offer_document,
         )
+
+    @staticmethod
+    async def _load_offer_document_metadata_for_offer(
+        *,
+        db: AsyncSession,
+        offer: Offer,
+        fallback_project: Project | None,
+    ) -> OfferDocumentMetadataDTO | None:
+        doc_result = await db.execute(
+            select(OfferDocument)
+            .where(
+                OfferDocument.offer_id == offer.id,
+                OfferDocument.organization_id == offer.organization_id,
+                OfferDocument.is_active.is_(True),
+            )
+            .order_by(OfferDocument.created_at.desc())
+            .limit(1)
+        )
+        document = doc_result.scalar_one_or_none()
+        if document is not None:
+            return OfferDocumentMetadataDTO(
+                file_id=document.id,
+                filename=document.filename,
+                mime_type=document.mime_type,
+                file_size=document.file_size,
+                uploaded_at=document.created_at,
+            )
+        if fallback_project is None:
+            return None
+        return await OfferService._load_offer_document_metadata(db=db, project=fallback_project)
+
+    @staticmethod
+    async def ensure_stream_offer_exists(
+        *,
+        db: AsyncSession,
+        project: Project,
+        current_user: User | None = None,
+    ) -> Offer:
+        result = await db.execute(
+            select(Offer).where(
+                Offer.organization_id == project.organization_id,
+                Offer.project_id == project.id,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing is not None:
+            if existing.status != (project.proposal_follow_up_state or "uploaded"):
+                existing.status = project.proposal_follow_up_state or "uploaded"
+                if current_user is not None:
+                    existing.updated_by_user_id = current_user.id
+            return existing
+
+        stream_offer = Offer(
+            organization_id=project.organization_id,
+            source_kind="stream",
+            project_id=project.id,
+            status=project.proposal_follow_up_state or "uploaded",
+            display_client=project.client,
+            display_location=project.location,
+            display_title=project.name,
+            context_snapshot=(
+                project.project_data.get(WORKSPACE_PROJECT_DATA_KEY)
+                if isinstance(project.project_data, dict)
+                and isinstance(project.project_data.get(WORKSPACE_PROJECT_DATA_KEY), dict)
+                else None
+            ),
+            insights_json=(
+                project.project_data.get(OFFER_PROJECT_DATA_KEY)
+                if isinstance(project.project_data, dict)
+                and isinstance(project.project_data.get(OFFER_PROJECT_DATA_KEY), dict)
+                else None
+            ),
+            archived_at=project.archived_at,
+            created_by_user_id=current_user.id if current_user is not None else project.user_id,
+            updated_by_user_id=current_user.id if current_user is not None else project.user_id,
+        )
+        db.add(stream_offer)
+        await db.flush()
+        return stream_offer
+
+    @staticmethod
+    async def replace_offer_document(
+        *,
+        db: AsyncSession,
+        offer: Offer,
+        filename: str,
+        file_path: str,
+        file_size: int | None,
+        mime_type: str | None,
+        file_type: str | None,
+        file_hash: str | None,
+        uploaded_by: User,
+    ) -> OfferDocument:
+        active_result = await db.execute(
+            select(OfferDocument).where(
+                OfferDocument.offer_id == offer.id,
+                OfferDocument.organization_id == offer.organization_id,
+                OfferDocument.is_active.is_(True),
+            )
+        )
+        active_documents = list(active_result.scalars().all())
+        for existing in active_documents:
+            existing.is_active = False
+
+        new_document = OfferDocument(
+            organization_id=offer.organization_id,
+            offer_id=offer.id,
+            filename=filename,
+            file_path=file_path,
+            file_size=file_size,
+            mime_type=mime_type,
+            file_type=file_type,
+            file_hash=file_hash,
+            is_active=True,
+            uploaded_by=uploaded_by.id,
+        )
+        db.add(new_document)
+        await db.flush()
+        return new_document
 
     @staticmethod
     async def _load_offer_document_metadata(

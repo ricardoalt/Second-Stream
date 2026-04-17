@@ -44,6 +44,7 @@ from app.authz.authz import (
 )
 from app.main import limiter
 from app.models.discovery_session import DiscoverySource
+from app.models.offer import Offer
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.common import ErrorResponse, PaginatedResponse, SuccessResponse
@@ -674,6 +675,84 @@ async def _build_persisted_dashboard_rows(
     return rows
 
 
+async def _sync_stream_offers_with_projects(*, db: AsyncDB, org_id: UUID) -> None:
+    from app.models.file import ProjectFile
+    from app.models.proposal import Proposal
+
+    proposal_ids_result = await db.execute(
+        select(Proposal.project_id)
+        .where(Proposal.organization_id == org_id)
+        .group_by(Proposal.project_id)
+    )
+    proposal_project_ids = {project_id for project_id in proposal_ids_result.scalars().all()}
+
+    offer_doc_ids_result = await db.execute(
+        select(ProjectFile.project_id)
+        .where(
+            ProjectFile.organization_id == org_id,
+            ProjectFile.category == "offer_document",
+        )
+        .group_by(ProjectFile.project_id)
+    )
+    offer_document_project_ids = {
+        project_id for project_id in offer_doc_ids_result.scalars().all()
+    }
+
+    result = await db.execute(
+        select(Project, Offer)
+        .outerjoin(
+            Offer,
+            and_(
+                Offer.project_id == Project.id,
+                Offer.organization_id == Project.organization_id,
+                Offer.source_kind == "stream",
+            ),
+        )
+        .where(Project.organization_id == org_id)
+    )
+
+    for project, stream_offer in result.all():
+        assert isinstance(project, Project)
+        offer = stream_offer if isinstance(stream_offer, Offer) else None
+
+        project_data = project.project_data if isinstance(project.project_data, dict) else {}
+        has_offer_v1 = isinstance(project_data.get("offer_v1"), dict)
+        eligible = (
+            project.proposal_follow_up_state is not None
+            or project.id in proposal_project_ids
+            or project.id in offer_document_project_ids
+            or has_offer_v1
+        )
+        if not eligible:
+            continue
+
+        target_status = project.proposal_follow_up_state or "uploaded"
+        if offer is None:
+            db.add(
+                Offer(
+                    organization_id=project.organization_id,
+                    source_kind="stream",
+                    project_id=project.id,
+                    status=target_status,
+                    display_client=project.client,
+                    display_location=project.location,
+                    display_title=project.name,
+                    archived_at=project.archived_at,
+                    created_by_user_id=project.user_id,
+                    updated_by_user_id=project.user_id,
+                )
+            )
+            continue
+
+        offer.status = target_status
+        offer.archived_at = project.archived_at
+        offer.display_client = project.client
+        offer.display_location = project.location
+        offer.display_title = project.name
+
+    await db.flush()
+
+
 def _offers_proposal_projection_subqueries(org_id: UUID) -> tuple[Any, Any]:
     from app.models.proposal import Proposal
 
@@ -725,6 +804,53 @@ def _offers_proposal_projection_subqueries(org_id: UUID) -> tuple[Any, Any]:
     )
 
     return proposal_counts, latest_proposal
+
+
+def _offer_status_from_project_state(state: ProposalFollowUpState | None) -> str | None:
+    if state is None:
+        return "uploaded"
+    return state
+
+
+async def _ensure_stream_offer_for_project(
+    *,
+    db: AsyncDB,
+    project: Project,
+) -> Offer:
+    result = await db.execute(
+        select(Offer).where(
+            Offer.organization_id == project.organization_id,
+            Offer.project_id == project.id,
+        )
+    )
+    offer = result.scalar_one_or_none()
+    if offer is not None:
+        expected_status = _offer_status_from_project_state(
+            cast(ProposalFollowUpState | None, project.proposal_follow_up_state)
+        )
+        if expected_status is not None and offer.status != expected_status:
+            offer.status = expected_status
+        offer.archived_at = project.archived_at
+        return offer
+
+    offer = Offer(
+        organization_id=project.organization_id,
+        source_kind="stream",
+        project_id=project.id,
+        status=_offer_status_from_project_state(
+            cast(ProposalFollowUpState | None, project.proposal_follow_up_state)
+        )
+        or "uploaded",
+        display_client=project.client,
+        display_location=project.location,
+        display_title=project.name,
+        archived_at=project.archived_at,
+        created_by_user_id=project.user_id,
+        updated_by_user_id=project.user_id,
+    )
+    db.add(offer)
+    await db.flush()
+    return offer
 
 
 async def _build_draft_dashboard_rows(
@@ -1241,9 +1367,12 @@ async def _archive_project(
     if project.archived_at is not None:
         return SuccessResponse(message=f"Project {project.name} already archived")
 
+    offer = await _ensure_stream_offer_for_project(db=db, project=project)
+
     project.archived_at = datetime.now(UTC)
     project.archived_by_user_id = user_id
     project.archived_by_parent_id = None
+    offer.archived_at = project.archived_at
 
     await db.commit()
     return SuccessResponse(message=f"Project {project.name} archived successfully")
@@ -1261,9 +1390,12 @@ async def _restore_project(
     if project.archived_at is None:
         return SuccessResponse(message=f"Project {project.name} already active")
 
+    offer = await _ensure_stream_offer_for_project(db=db, project=project)
+
     project.archived_at = None
     project.archived_by_user_id = None
     project.archived_by_parent_id = None
+    offer.archived_at = None
 
     await db.commit()
     return SuccessResponse(message=f"Project {project.name} restored successfully")
@@ -1566,19 +1698,27 @@ async def get_offers_pipeline_projection(
     from app.models.location import Location
 
     require_permission(current_user, permissions.PROJECT_READ)
+    await _sync_stream_offers_with_projects(db=db, org_id=org.id)
 
     proposal_counts, latest_proposal = _offers_proposal_projection_subqueries(org.id)
 
     query = (
         select(
+            Offer,
             Project,
             Company.name.label("company_label"),
             Location.name.label("location_label"),
-            func.coalesce(proposal_counts.c.proposal_count, 0).label("proposal_count"),
             latest_proposal.c.proposal_id,
             latest_proposal.c.proposal_version,
             latest_proposal.c.proposal_title,
             latest_proposal.c.proposal_capex,
+        )
+        .join(
+            Project,
+            and_(
+                Offer.project_id == Project.id,
+                Offer.organization_id == Project.organization_id,
+            ),
         )
         .outerjoin(
             Location,
@@ -1594,10 +1734,12 @@ async def get_offers_pipeline_projection(
                 Company.organization_id == Project.organization_id,
             ),
         )
-        .outerjoin(proposal_counts, proposal_counts.c.project_id == Project.id)
         .outerjoin(latest_proposal, latest_proposal.c.project_id == Project.id)
         .where(
-            Project.organization_id == org.id,
+            Offer.organization_id == org.id,
+            Offer.source_kind == "stream",
+            Offer.archived_at.is_(None),
+            Offer.status.in_(OPEN_OFFER_PIPELINE_STATES),
             Project.archived_at.is_(None),
         )
     )
@@ -1615,20 +1757,18 @@ async def get_offers_pipeline_projection(
     rows: list[OfferPipelineRow] = []
 
     for (
+        offer,
         project,
         company_label,
         location_label,
-        proposal_count,
         latest_proposal_id,
         latest_proposal_version,
         latest_proposal_title,
         latest_proposal_capex,
     ) in result.all():
+        assert isinstance(offer, Offer)
         assert isinstance(project, Project)
-        effective_state = _effective_proposal_follow_up_state(
-            stored_state=project.proposal_follow_up_state,
-            proposal_count=int(proposal_count),
-        )
+        effective_state = cast(OfferPipelineState | None, offer.status)
         if not _is_open_offer_pipeline_state(effective_state):
             continue
 
@@ -1646,6 +1786,7 @@ async def get_offers_pipeline_projection(
         counts[state] += 1
         rows.append(
             OfferPipelineRow(
+                offer_id=offer.id,
                 project_id=project.id,
                 stream_name=project.name,
                 company_label=resolved_company_label,
@@ -1688,19 +1829,27 @@ async def get_offers_archive_projection(
     from app.models.location import Location
 
     require_permission(current_user, permissions.PROJECT_READ)
+    await _sync_stream_offers_with_projects(db=db, org_id=org.id)
 
     proposal_counts, latest_proposal = _offers_proposal_projection_subqueries(org.id)
 
     query = (
         select(
+            Offer,
             Project,
             Company.name.label("company_label"),
             Location.name.label("location_label"),
-            func.coalesce(proposal_counts.c.proposal_count, 0).label("proposal_count"),
             latest_proposal.c.proposal_id,
             latest_proposal.c.proposal_version,
             latest_proposal.c.proposal_title,
             latest_proposal.c.proposal_capex,
+        )
+        .join(
+            Project,
+            and_(
+                Offer.project_id == Project.id,
+                Offer.organization_id == Project.organization_id,
+            ),
         )
         .outerjoin(
             Location,
@@ -1716,10 +1865,11 @@ async def get_offers_archive_projection(
                 Company.organization_id == Project.organization_id,
             ),
         )
-        .outerjoin(proposal_counts, proposal_counts.c.project_id == Project.id)
         .outerjoin(latest_proposal, latest_proposal.c.project_id == Project.id)
         .where(
-            Project.organization_id == org.id,
+            Offer.organization_id == org.id,
+            Offer.source_kind == "stream",
+            Offer.archived_at.isnot(None),
             Project.archived_at.isnot(None),
         )
     )
@@ -1736,20 +1886,18 @@ async def get_offers_archive_projection(
     rows: list[OfferArchiveRow] = []
 
     for (
+        offer,
         project,
         company_label,
         location_label,
-        proposal_count,
         latest_proposal_id,
         latest_proposal_version,
         latest_proposal_title,
         latest_proposal_capex,
     ) in result.all():
+        assert isinstance(offer, Offer)
         assert isinstance(project, Project)
-        effective_state = _effective_proposal_follow_up_state(
-            stored_state=project.proposal_follow_up_state,
-            proposal_count=int(proposal_count),
-        )
+        effective_state = offer.status
         if effective_state not in TERMINAL_OFFER_ARCHIVE_STATE_MAP:
             continue
 
@@ -1773,6 +1921,7 @@ async def get_offers_archive_projection(
         counts[archive_state] += 1
         rows.append(
             OfferArchiveRow(
+                offer_id=offer.id,
                 project_id=project.id,
                 stream_name=project.name,
                 company_label=resolved_company_label,
@@ -2175,6 +2324,8 @@ async def update_project_proposal_follow_up_state(
     )
     next_state = payload.state
 
+    offer = await _ensure_stream_offer_for_project(db=db, project=project)
+
     if current_state == next_state:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -2189,6 +2340,9 @@ async def update_project_proposal_follow_up_state(
         )
 
     project.proposal_follow_up_state = next_state
+    offer.status = next_state
+    offer.archived_at = datetime.now(UTC) if next_state in {"accepted", "rejected"} else None
+    offer.updated_by_user_id = current_user.id
     await create_timeline_event(
         db=db,
         project_id=project.id,

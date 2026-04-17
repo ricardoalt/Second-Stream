@@ -14,7 +14,8 @@ type OfferArchiveBackendState = "accepted" | "declined";
 type OfferArchivePossiblyLegacyState = OfferArchiveBackendState | "rejected";
 
 export interface OfferPipelineRowDTO {
-	projectId: string;
+	offerId: string;
+	projectId: string | null;
 	streamName: string;
 	companyLabel: string | null;
 	locationLabel: string | null;
@@ -38,7 +39,8 @@ export interface OfferPipelineResponseDTO {
 }
 
 export interface OfferArchiveRowDTO {
-	projectId: string;
+	offerId: string;
+	projectId: string | null;
 	streamName: string;
 	companyLabel: string | null;
 	locationLabel: string | null;
@@ -52,7 +54,8 @@ export interface OfferArchiveRowDTO {
 }
 
 interface OfferArchiveBackendRowDTO {
-	projectId: string;
+	offerId: string;
+	projectId: string | null;
 	streamName: string;
 	companyLabel: string | null;
 	locationLabel: string | null;
@@ -90,7 +93,15 @@ export function normalizeOfferArchiveState(
 }
 
 export interface OfferDetailDTO {
-	projectId: string;
+	offerId: string;
+	projectId: string | null;
+	displayTitle: string | null;
+	sourceType: "stream" | "manual";
+	contextCard: {
+		title: "Stream snapshot" | "Offer context";
+		description: string | null;
+		fields: Array<{ label: string; value: string | null }>;
+	};
 	streamSnapshot: {
 		materialType: string | null;
 		materialName: string | null;
@@ -120,9 +131,24 @@ export interface OfferDetailDTO {
 }
 
 export interface OfferFollowUpStateUpdateResponse {
-	projectId: string;
+	offerId: string;
+	projectId: string | null;
 	followUpState: ProposalFollowUpState;
 	updatedAt: string;
+}
+
+export type ManualOfferInitialStatus =
+	| "uploaded"
+	| "waiting_to_send"
+	| "waiting_response"
+	| "under_negotiation";
+
+export interface CreateManualOfferPayload {
+	client: string;
+	location: string;
+	title: string;
+	initialStatus: ManualOfferInitialStatus;
+	file: File;
 }
 
 export const offersAPI = {
@@ -131,7 +157,7 @@ export const offersAPI = {
 			key: "offers:pipeline",
 			ttlMs: OFFERS_CACHE_TTL_MS,
 			fetcher: () =>
-				apiClient.get<OfferPipelineResponseDTO>("/projects/offers/pipeline"),
+				apiClient.get<OfferPipelineResponseDTO>("/offers/pipeline"),
 		});
 	},
 
@@ -153,7 +179,7 @@ export const offersAPI = {
 			ttlMs: OFFERS_CACHE_TTL_MS,
 			fetcher: () =>
 				apiClient.get<OfferArchiveBackendResponseDTO>(
-					`/projects/offers/archive${suffix}`,
+					`/offers/archive${suffix}`,
 				),
 		});
 
@@ -168,23 +194,36 @@ export const offersAPI = {
 		};
 	},
 
-	async getOfferDetail(projectId: string): Promise<OfferDetailDTO> {
-		return apiClient.get<OfferDetailDTO>(`/projects/${projectId}/offer`);
+	async getOfferDetail(offerId: string): Promise<OfferDetailDTO> {
+		return apiClient.get<OfferDetailDTO>(`/offers/${offerId}`);
+	},
+
+	async createManualOffer(
+		payload: CreateManualOfferPayload,
+	): Promise<OfferDetailDTO> {
+		return apiClient.uploadFile<OfferDetailDTO>("/offers", payload.file, {
+			client: payload.client,
+			location: payload.location,
+			title: payload.title,
+			initial_status: payload.initialStatus,
+		});
 	},
 
 	async updateOfferFollowUpState(
-		projectId: string,
+		offerId: string,
 		state: ProposalFollowUpState,
 	): Promise<OfferFollowUpStateUpdateResponse> {
 		const response = await apiClient.patch<{
+			offerId: string;
 			projectId: string;
-			proposalFollowUpState: ProposalFollowUpState;
+			followUpState: ProposalFollowUpState;
 			updatedAt: string;
-		}>(`/projects/${projectId}/proposal-follow-up-state`, { state });
+		}>(`/offers/${offerId}/status`, { state });
 
 		return {
+			offerId: response.offerId,
 			projectId: response.projectId,
-			followUpState: response.proposalFollowUpState,
+			followUpState: response.followUpState,
 			updatedAt: response.updatedAt,
 		};
 	},
@@ -195,18 +234,15 @@ export const offersAPI = {
 		);
 	},
 
-	async uploadOfferDocument(projectId: string, file: File) {
-		return apiClient.uploadFile(`/projects/${projectId}/files`, file, {
-			category: "offer_document",
-			process_with_ai: false,
-		});
+	async uploadOfferDocument(offerId: string, file: File) {
+		return apiClient.uploadFile(`/offers/${offerId}/document`, file);
 	},
 
 	async transitionOfferFollowUpState(
-		projectId: string,
+		offerId: string,
 		nextState: ProposalFollowUpState,
 	): Promise<OfferDetailDTO> {
-		await offersAPI.updateOfferFollowUpState(projectId, nextState);
-		return offersAPI.getOfferDetail(projectId);
+		await offersAPI.updateOfferFollowUpState(offerId, nextState);
+		return offersAPI.getOfferDetail(offerId);
 	},
 };

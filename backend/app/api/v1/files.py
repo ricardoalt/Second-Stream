@@ -37,7 +37,9 @@ from app.models.timeline import TimelineEvent
 from app.schemas.common import ErrorResponse
 from app.schemas.file import FileDetailResponse, FileListResponse, FileUploadResponse
 from app.services.intake_ingestion_service import IntakeIngestionService
+from app.services.offer_service import OfferService
 from app.services.project_file_service import (
+    OFFER_DOCUMENT_CATEGORY,
     normalize_file_category,
     replace_single_active_category_file,
 )
@@ -332,6 +334,24 @@ async def upload_file(
 
         db.add(project_file)
         await db.flush()  # Get the ID
+
+        if normalized_category == OFFER_DOCUMENT_CATEGORY:
+            offer = await OfferService.ensure_stream_offer_exists(
+                db=db,
+                project=locked_project,
+                current_user=current_user,
+            )
+            await OfferService.replace_offer_document(
+                db=db,
+                offer=offer,
+                filename=project_file.filename,
+                file_path=project_file.file_path,
+                file_size=project_file.file_size,
+                mime_type=project_file.mime_type,
+                file_type=project_file.file_type,
+                file_hash=project_file.file_hash,
+                uploaded_by=current_user,
+            )
 
         # Queue ingestion if requested and supported
         if should_process:

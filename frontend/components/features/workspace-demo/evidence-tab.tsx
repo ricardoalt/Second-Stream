@@ -1,12 +1,9 @@
 "use client";
 
+import { SectionHeader } from "@/components/patterns/layout/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
-
-// ── Evidence item data ────────────────────────────────────────────────────────
-// Minimal-real list of evidence documents attached to this stream.
 
 interface EvidenceDoc {
 	id: string;
@@ -68,12 +65,9 @@ const EVIDENCE_DOCS: EvidenceDoc[] = [
 	},
 ];
 
-// ── EvidenceRow ───────────────────────────────────────────────────────────────
-
 function EvidenceRow({ doc }: { doc: EvidenceDoc }) {
 	return (
 		<div className="flex items-start gap-3 py-3">
-			{/* Type badge */}
 			<Badge
 				variant="neutral-subtle"
 				className="text-[7.5px] font-bold tracking-[0.04em] px-1 py-0 h-4 rounded-[2px] flex-shrink-0 mt-0.5"
@@ -81,17 +75,16 @@ function EvidenceRow({ doc }: { doc: EvidenceDoc }) {
 				{doc.type}
 			</Badge>
 
-			{/* Content */}
 			<div className="flex-1 min-w-0">
 				<div className="flex items-baseline justify-between gap-2">
-					<p className="text-[13px] font-semibold text-foreground leading-snug">
+					<p className="text-sm font-semibold text-foreground leading-snug">
 						{doc.name}
 					</p>
 					<span className="font-mono text-[9.5px] text-muted-foreground/50 flex-shrink-0">
 						{doc.addedAt}
 					</span>
 				</div>
-				<p className="text-[11.5px] text-muted-foreground/80 mt-0.5 leading-snug">
+				<p className="text-xs text-muted-foreground/80 mt-0.5 leading-snug">
 					{doc.summary}
 				</p>
 				{doc.linkedPoints.length > 0 && (
@@ -100,15 +93,13 @@ function EvidenceRow({ doc }: { doc: EvidenceDoc }) {
 							Links:
 						</span>
 						{doc.linkedPoints.map((point) => (
-							<span
+							<Badge
 								key={point}
-								className={cn(
-									"text-[9.5px] font-medium px-1.5 py-px rounded",
-									"bg-primary/[0.06] text-primary border border-primary/12",
-								)}
+								variant="neutral-subtle"
+								className="h-4 px-1.5 text-[9px] font-medium"
 							>
 								{point}
-							</span>
+							</Badge>
 						))}
 					</div>
 				)}
@@ -117,22 +108,18 @@ function EvidenceRow({ doc }: { doc: EvidenceDoc }) {
 	);
 }
 
-// ── EvidenceTab ───────────────────────────────────────────────────────────────
-// Compact list of all evidence documents attached to this stream.
-// Replaces the placeholder with a real, minimal-real surface.
-
 export function EvidenceTab() {
 	return (
 		<div className="mt-7 max-w-3xl">
-			<p className="mb-4 text-[12px] leading-relaxed text-muted-foreground">
-				Evidence stays subordinate to the brief: sources are here for traceability,
-				not as the primary decision surface.
-			</p>
-			<div className="flex items-center justify-between mb-4">
-				<h2 className="text-[13px] font-semibold text-foreground">Evidence</h2>
-				<Badge variant="neutral-subtle" className="text-[10px] font-medium">
-					{EVIDENCE_DOCS.length} documents
-				</Badge>
+			<div className="mb-6">
+				<SectionHeader
+					title="Evidence"
+					actions={
+						<Badge variant="neutral-subtle" className="text-xs font-medium">
+							{EVIDENCE_DOCS.length} documents
+						</Badge>
+					}
+				/>
 			</div>
 
 			<Card className="shadow-xs">

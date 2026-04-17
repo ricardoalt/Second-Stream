@@ -323,6 +323,7 @@ class WorkspaceConfirmProposalResponse(BaseSchema):
 
 
 class WorkspaceOfferNavigationTarget(BaseSchema):
+    offer_id: UUID | None = None
     project_id: UUID
 
 

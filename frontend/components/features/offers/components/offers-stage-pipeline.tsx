@@ -32,8 +32,8 @@ function StageColumn({
 			<div className="mt-3 flex flex-col gap-2">
 				{offers.slice(0, 3).map((offer) => (
 					<Link
-						key={`${offer.projectId}-${offer.reference}`}
-						href={routes.offers.detail(offer.projectId)}
+						key={`${offer.offerId}-${offer.reference}`}
+						href={routes.offers.detail(offer.offerId)}
 						className="rounded-lg bg-surface-container-lowest p-2 transition-colors hover:bg-surface"
 					>
 						<p className="truncate text-sm font-medium text-foreground">

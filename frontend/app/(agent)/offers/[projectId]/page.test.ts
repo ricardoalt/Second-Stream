@@ -59,7 +59,14 @@ describe("offer detail runtime behavior", () => {
 
 	it("hydrates direct /offers/[projectId] detail from backend offer endpoint", async () => {
 		const getSpy = mock(async () => ({
+			offerId: "offer-442",
 			projectId: "project-442",
+			sourceType: "stream" as const,
+			contextCard: {
+				title: "Stream snapshot" as const,
+				description: null,
+				fields: [],
+			},
 			streamSnapshot: {
 				materialType: "Plastic film",
 				materialName: "LDPE trim",
@@ -73,9 +80,10 @@ describe("offer detail runtime behavior", () => {
 		}));
 		apiClient.get = getSpy as typeof apiClient.get;
 
-		const detail = await offersAPI.getOfferDetail("project-442");
+		const detail = await offersAPI.getOfferDetail("offer-442");
 
-		expect(getSpy).toHaveBeenCalledWith("/projects/project-442/offer");
+		expect(getSpy).toHaveBeenCalledWith("/offers/offer-442");
+		expect(detail.offerId).toBe("offer-442");
 		expect(detail.projectId).toBe("project-442");
 		expect(detail.streamSnapshot.materialType).toBe("Plastic film");
 		expect(detail.followUpState).toBe("uploaded");
@@ -89,16 +97,9 @@ describe("offer detail runtime behavior", () => {
 		const uploadSpy = mock(async () => ({ id: "file-1" }));
 		apiClient.uploadFile = uploadSpy as typeof apiClient.uploadFile;
 
-		await offersAPI.uploadOfferDocument("project-442", file);
+		await offersAPI.uploadOfferDocument("offer-442", file);
 
-		expect(uploadSpy).toHaveBeenCalledWith(
-			"/projects/project-442/files",
-			file,
-			{
-				category: "offer_document",
-				process_with_ai: false,
-			},
-		);
+		expect(uploadSpy).toHaveBeenCalledWith("/offers/offer-442/document", file);
 	});
 
 	it("refreshes offer insights from the dedicated backend endpoint", async () => {
@@ -137,32 +138,41 @@ describe("offer detail runtime behavior", () => {
 
 	it("wires follow-up transition mutations to the canonical backend endpoint", async () => {
 		const patchSpy = mock(async () => ({
+			offerId: "offer-442",
 			projectId: "project-442",
-			proposalFollowUpState: "waiting_response" as const,
+			followUpState: "waiting_response" as const,
 			updatedAt: "2026-03-28T02:00:00.000Z",
 		}));
 		apiClient.patch = patchSpy as typeof apiClient.patch;
 
 		const response = await offersAPI.updateOfferFollowUpState(
-			"project-442",
+			"offer-442",
 			"waiting_response",
 		);
 
-		expect(patchSpy).toHaveBeenCalledWith(
-			"/projects/project-442/proposal-follow-up-state",
-			{ state: "waiting_response" },
-		);
+		expect(patchSpy).toHaveBeenCalledWith("/offers/offer-442/status", {
+			state: "waiting_response",
+		});
+		expect(response.offerId).toBe("offer-442");
 		expect(response.followUpState).toBe("waiting_response");
 	});
 
 	it("refreshes detail state after a successful transition mutation", async () => {
 		const updateSpy = mock(async () => ({
+			offerId: "offer-442",
 			projectId: "project-442",
-			proposalFollowUpState: "under_negotiation" as const,
+			followUpState: "under_negotiation" as const,
 			updatedAt: "2026-03-28T02:01:00.000Z",
 		}));
 		const refreshedDetail = {
+			offerId: "offer-442",
 			projectId: "project-442",
+			sourceType: "stream" as const,
+			contextCard: {
+				title: "Stream snapshot" as const,
+				description: null,
+				fields: [],
+			},
 			streamSnapshot: {
 				materialType: "Plastic film",
 				materialName: "LDPE trim",
@@ -181,12 +191,45 @@ describe("offer detail runtime behavior", () => {
 		offersAPI.getOfferDetail = getDetailSpy as typeof offersAPI.getOfferDetail;
 
 		const response = await offersAPI.transitionOfferFollowUpState(
-			"project-442",
+			"offer-442",
 			"under_negotiation",
 		);
 
-		expect(updateSpy).toHaveBeenCalledWith("project-442", "under_negotiation");
-		expect(getDetailSpy).toHaveBeenCalledWith("project-442");
+		expect(updateSpy).toHaveBeenCalledWith("offer-442", "under_negotiation");
+		expect(getDetailSpy).toHaveBeenCalledWith("offer-442");
 		expect(response).toEqual(refreshedDetail);
+	});
+
+	it("prefers human-readable display title for detail header", async () => {
+		const pageModule = await import("./page");
+		expect(
+			pageModule.resolveOfferDetailHeaderTitle({
+				displayTitle: "Manual Offer - Q2",
+				offerId: "offer-442",
+			}),
+		).toBe("Manual Offer - Q2");
+
+		expect(
+			pageModule.resolveOfferDetailHeaderTitle({
+				displayTitle: "  Stream Alpha  ",
+				offerId: "offer-443",
+			}),
+		).toBe("Stream Alpha");
+	});
+
+	it("falls back to generic Offer header when display title is missing", async () => {
+		const pageModule = await import("./page");
+		expect(
+			pageModule.resolveOfferDetailHeaderTitle({
+				displayTitle: null,
+				offerId: "offer-442",
+			}),
+		).toBe("Offer");
+		expect(
+			pageModule.resolveOfferDetailHeaderTitle({
+				displayTitle: "   ",
+				offerId: "offer-443",
+			}),
+		).toBe("Offer");
 	});
 });

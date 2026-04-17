@@ -14,7 +14,15 @@ def test_project_data_structure_includes_offer_v1_by_default():
 def test_offer_detail_dto_serializes_freshness_metadata():
     generated_at = datetime.now(UTC)
     detail = OfferDetailDTO(
+        offer_id=uuid4(),
         project_id=uuid4(),
+        display_title="LDPE Stream",
+        source_type="stream",
+        context_card={
+            "title": "Stream snapshot",
+            "description": None,
+            "fields": [],
+        },
         stream_snapshot={},
         insights={
             "summary": "Solid baseline for offer delivery.",
@@ -30,6 +38,10 @@ def test_offer_detail_dto_serializes_freshness_metadata():
     )
 
     serialized = detail.model_dump(by_alias=True)
+    assert "offerId" in serialized
     assert "projectId" in serialized
+    assert serialized["displayTitle"] == "LDPE Stream"
+    assert serialized["sourceType"] == "stream"
+    assert serialized["contextCard"]["title"] == "Stream snapshot"
     assert "streamSnapshot" in serialized
     assert serialized["insights"]["freshness"]["isStale"] is False

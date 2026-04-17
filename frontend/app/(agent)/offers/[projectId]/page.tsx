@@ -19,11 +19,13 @@ import { routes } from "@/lib/routes";
 import type { ProposalFollowUpState } from "@/lib/types/dashboard";
 import { getErrorMessage } from "@/lib/utils/logger";
 
-function shouldShowInsightsRefreshFailedNotice(queryParamValue: string | null) {
+export function shouldShowInsightsRefreshFailedNotice(
+	queryParamValue: string | null,
+) {
 	return queryParamValue === "1";
 }
 
-function removeInsightsRefreshFailedFromHref(href: string) {
+export function removeInsightsRefreshFailedFromHref(href: string) {
 	const url = new URL(href);
 	if (!url.searchParams.has("insightsRefreshFailed")) {
 		return null;
@@ -35,7 +37,7 @@ function removeInsightsRefreshFailedFromHref(href: string) {
 	return `${url.pathname}${search ? `?${search}` : ""}${url.hash}`;
 }
 
-function OfferInsightsRefreshFailedNotice() {
+export function OfferInsightsRefreshFailedNotice() {
 	return (
 		<Alert variant="warning">
 			<AlertTriangle className="size-4" aria-hidden />
@@ -48,11 +50,22 @@ function OfferInsightsRefreshFailedNotice() {
 	);
 }
 
+export function resolveOfferDetailHeaderTitle(detail: {
+	displayTitle: string | null;
+	offerId: string;
+}) {
+	const candidate = detail.displayTitle?.trim();
+	if (candidate) {
+		return candidate;
+	}
+
+	return "Offer";
+}
+
 export default function OfferDetailPage() {
 	const params = useParams<{ projectId: string }>();
 	const searchParams = useSearchParams();
-	const projectId =
-		typeof params.projectId === "string" ? params.projectId : "";
+	const offerId = typeof params.projectId === "string" ? params.projectId : "";
 	const [insightsRefreshFailedOnHandoff] = useState(() =>
 		shouldShowInsightsRefreshFailedNotice(
 			searchParams.get("insightsRefreshFailed"),
@@ -73,8 +86,8 @@ export default function OfferDetailPage() {
 	const [isUploading, setIsUploading] = useState(false);
 	const [uploadError, setUploadError] = useState<string | null>(null);
 
-	const hydrateDetail = async (targetProjectId: string) => {
-		const response = await offersAPI.getOfferDetail(targetProjectId);
+	const hydrateDetail = async (targetOfferId: string) => {
+		const response = await offersAPI.getOfferDetail(targetOfferId);
 		setDetail(response);
 	};
 
@@ -92,7 +105,7 @@ export default function OfferDetailPage() {
 	}, [insightsRefreshFailedOnHandoff]);
 
 	useEffect(() => {
-		if (!projectId) {
+		if (!offerId) {
 			setError("Offer link is missing project context.");
 			setLoading(false);
 			return;
@@ -107,7 +120,7 @@ export default function OfferDetailPage() {
 		setUploadError(null);
 
 		void offersAPI
-			.getOfferDetail(projectId)
+			.getOfferDetail(offerId)
 			.then((response) => {
 				if (cancelled) return;
 				setDetail(response);
@@ -126,7 +139,7 @@ export default function OfferDetailPage() {
 		return () => {
 			cancelled = true;
 		};
-	}, [projectId]);
+	}, [offerId]);
 
 	const followUpState = detail?.followUpState;
 	const stage = followUpState
@@ -137,14 +150,14 @@ export default function OfferDetailPage() {
 		: [];
 
 	const handleTransition = async (nextState: ProposalFollowUpState) => {
-		if (!projectId) {
+		if (!offerId) {
 			return;
 		}
 		setTransitionError(null);
 		setIsTransitioning(true);
 		try {
 			const refreshedDetail = await offersAPI.transitionOfferFollowUpState(
-				projectId,
+				offerId,
 				nextState,
 			);
 			setDetail(refreshedDetail);
@@ -156,7 +169,7 @@ export default function OfferDetailPage() {
 				),
 			);
 			try {
-				await hydrateDetail(projectId);
+				await hydrateDetail(offerId);
 			} catch {
 				// Keep current UI state and surfaced mutation error.
 			}
@@ -166,11 +179,11 @@ export default function OfferDetailPage() {
 	};
 
 	const handleRefreshInsights = async () => {
-		if (!projectId) return;
+		if (!detail?.projectId || detail.sourceType !== "stream") return;
 		setRefreshError(null);
 		setIsRefreshing(true);
 		try {
-			const refreshed = await offersAPI.refreshOfferInsights(projectId);
+			const refreshed = await offersAPI.refreshOfferInsights(detail.projectId);
 			setDetail(refreshed);
 		} catch (refreshRequestError) {
 			setRefreshError(
@@ -185,12 +198,12 @@ export default function OfferDetailPage() {
 	};
 
 	const handleUploadReplace = async (file: File | null) => {
-		if (!projectId || !file) return;
+		if (!offerId || !file) return;
 		setUploadError(null);
 		setIsUploading(true);
 		try {
-			await offersAPI.uploadOfferDocument(projectId, file);
-			await hydrateDetail(projectId);
+			await offersAPI.uploadOfferDocument(offerId, file);
+			await hydrateDetail(offerId);
 		} catch (uploadRequestError) {
 			setUploadError(
 				getErrorMessage(
@@ -262,6 +275,7 @@ export default function OfferDetailPage() {
 
 	const isArchivedState =
 		detail.followUpState === "accepted" || detail.followUpState === "rejected";
+	const headerTitle = resolveOfferDetailHeaderTitle(detail);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -278,7 +292,7 @@ export default function OfferDetailPage() {
 							Offer detail
 						</p>
 						<h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-							Project {detail.projectId}
+							{headerTitle}
 						</h1>
 						<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
 							<OfferStatusBadge stage={stage} />

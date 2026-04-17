@@ -1717,7 +1717,8 @@ async def test_workspace_complete_discovery_keeps_existing_proposals_but_not_nav
     response = await client.post(f"/api/v1/projects/{project.id}/workspace/complete-discovery")
     assert response.status_code == 200
     payload = response.json()
-    assert payload["offer"] == {"projectId": str(project.id)}
+    assert payload["offer"]["projectId"] == str(project.id)
+    assert payload["offer"]["offerId"]
 
     await db_session.refresh(project)
     assert project.proposal_follow_up_state == "waiting_to_send"
@@ -1812,7 +1813,8 @@ async def test_workspace_complete_discovery_with_multiple_active_proposals_still
     response = await client.post(f"/api/v1/projects/{project.id}/workspace/complete-discovery")
     assert response.status_code == 200
     payload = response.json()
-    assert payload["offer"] == {"projectId": str(project.id)}
+    assert payload["offer"]["projectId"] == str(project.id)
+    assert payload["offer"]["offerId"]
 
     await db_session.refresh(project)
     project_data = _project_data_dict(project)
@@ -1867,7 +1869,8 @@ async def test_workspace_complete_discovery_succeeds_when_offer_insights_refresh
     assert response.status_code == 200
     payload = response.json()
     assert payload["message"] == "Discovery marked complete"
-    assert payload["offer"] == {"projectId": str(project.id)}
+    assert payload["offer"]["projectId"] == str(project.id)
+    assert payload["offer"]["offerId"]
     assert payload["insightsRefreshFailed"] is True
 
     await db_session.refresh(project)

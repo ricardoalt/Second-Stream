@@ -4,7 +4,20 @@ import type { OfferDetailDTO } from "@/lib/api/offers";
 import { OfferDetailPrimarySurface } from "./offer-detail-primary-surface";
 
 const detailWithInsights: OfferDetailDTO = {
+	offerId: "offer-442",
 	projectId: "project-442",
+	sourceType: "stream",
+	contextCard: {
+		title: "Stream snapshot",
+		description: "Workspace baseline currently driving Offer insights.",
+		fields: [
+			{ label: "Material type", value: "Plastic film" },
+			{ label: "Material name", value: "LDPE trim" },
+			{ label: "Composition", value: "95% LDPE" },
+			{ label: "Volume", value: "12 tons/month" },
+			{ label: "Frequency", value: "Daily" },
+		],
+	},
 	streamSnapshot: {
 		materialType: "Plastic film",
 		materialName: "LDPE trim",
@@ -82,5 +95,41 @@ describe("offer detail primary surface", () => {
 
 		expect(markup).toContain("No Offer insights yet");
 		expect(markup).toContain("No Offer document uploaded yet.");
+	});
+
+	it("renders manual offer context card when sourceType is manual", () => {
+		const markup = renderToStaticMarkup(
+			<OfferDetailPrimarySurface
+				detail={{
+					...detailWithInsights,
+					sourceType: "manual",
+					projectId: null,
+					contextCard: {
+						title: "Offer context",
+						description: null,
+						fields: [
+							{ label: "Client", value: "Acme" },
+							{ label: "Location", value: "Plant 1" },
+							{ label: "Offer title", value: "Manual offer" },
+						],
+					},
+				}}
+				nextTransitions={[]}
+				isRefreshing={false}
+				isUploading={false}
+				isTransitioning={false}
+				onRefreshInsights={() => {}}
+				onUploadClick={() => {}}
+				onTransition={() => {}}
+				onDownload={() => {}}
+				refreshError={null}
+				uploadError={null}
+				transitionError={null}
+			/>,
+		);
+
+		expect(markup).toContain("Offer context");
+		expect(markup).toContain("Client");
+		expect(markup).toContain("Plant 1");
 	});
 });

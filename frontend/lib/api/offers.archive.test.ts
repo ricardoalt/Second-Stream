@@ -29,6 +29,7 @@ describe("offers archive api client", () => {
 			counts: { total: 1, accepted: 0, declined: 1 },
 			items: [
 				{
+					offerId: "offer-1",
 					projectId: "project-1",
 					streamName: "Catalyst Stream",
 					companyLabel: "Catalyst Co",
@@ -51,7 +52,7 @@ describe("offers archive api client", () => {
 		});
 
 		expect(getSpy).toHaveBeenCalledWith(
-			"/projects/offers/archive?search=catalyst&status=declined",
+			"/offers/archive?search=catalyst&status=declined",
 		);
 		expect(response.items[0]?.proposalFollowUpState).toBe("declined");
 	});

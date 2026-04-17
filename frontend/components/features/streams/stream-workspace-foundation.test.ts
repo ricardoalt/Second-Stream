@@ -251,18 +251,16 @@ describe("stream workspace foundation verification", () => {
 		).toBe(true);
 	});
 
-	it("builds Offer detail href with project context", () => {
+	it("builds Offer detail href with offer context", () => {
 		expect(
 			streamDetailModule.buildOfferDetailHref({
-				projectId: "project-123",
+				offerId: "offer-123",
 			}),
-		).toBe("/offers/project-123");
+		).toBe("/offers/offer-123");
 	});
 
-	it("keeps complete discovery aligned to project-scoped offer handoff", () => {
-		expect(workspaceShellSource.includes("response.offer.projectId")).toBe(
-			true,
-		);
+	it("keeps complete discovery aligned to offer-scoped handoff", () => {
+		expect(workspaceShellSource.includes("response.offer.offerId")).toBe(true);
 		expect(workspaceShellSource.includes("response.offer.proposalId")).toBe(
 			false,
 		);

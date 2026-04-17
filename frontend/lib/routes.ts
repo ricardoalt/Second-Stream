@@ -16,7 +16,7 @@ export const routes = {
 	},
 	offers: {
 		all: "/offers",
-		detail: (projectId: string) => `/offers/${projectId}` as const,
+		detail: (offerId: string) => `/offers/${offerId}` as const,
 		archive: "/offers/archive",
 	},
 	settings: "/settings",

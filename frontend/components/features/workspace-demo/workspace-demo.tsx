@@ -29,8 +29,8 @@ export function WorkspaceDemo() {
 	const primaryAction = reviewCount > 0 ? "review" : "complete";
 
 	return (
-		// pb-28 provides breathing room above the fixed CaptureBar
-		<div className="pb-28">
+		// pb-24 provides breathing room above the fixed CaptureBar
+		<div className="pb-24">
 			<WorkspaceHeader
 				primaryAction={primaryAction}
 				reviewCount={reviewCount}
@@ -56,7 +56,7 @@ export function WorkspaceDemo() {
 							value={tab.value}
 							className={cn(
 								"bg-transparent rounded-none shadow-none",
-								"px-4 py-2 pb-2.5 text-[13px] font-medium",
+								"px-4 py-2 pb-2.5 text-sm font-medium",
 								"text-muted-foreground border-b-[1.5px] border-transparent",
 								"mb-[-1px] tracking-[-0.005em]",
 								"hover:text-foreground/80",

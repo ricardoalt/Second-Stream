@@ -1,6 +1,7 @@
 """Schemas for Offer v1 persistence and API contracts."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -89,11 +90,33 @@ class OfferStreamSnapshotDTO(BaseSchema):
     frequency: str | None = None
 
 
+class OfferContextFieldDTO(BaseSchema):
+    label: str
+    value: str | None = None
+
+
+class OfferContextCardDTO(BaseSchema):
+    title: Literal["Stream snapshot", "Offer context"]
+    description: str | None = None
+    fields: list[OfferContextFieldDTO] = Field(default_factory=list)
+
+
 class OfferDetailDTO(BaseSchema):
     """Project-scoped Offer detail response contract (v1 foundation)."""
 
-    project_id: UUID
+    offer_id: UUID | None = None
+    project_id: UUID | None = None
+    display_title: str | None = None
+    source_type: Literal["stream", "manual"] = "stream"
+    context_card: OfferContextCardDTO | None = None
     stream_snapshot: OfferStreamSnapshotDTO
     follow_up_state: ProposalFollowUpState | None = None
     insights: OfferInsightsDTO | None = None
     offer_document: OfferDocumentMetadataDTO | None = None
+
+
+class OfferFollowUpStateResponseDTO(BaseSchema):
+    offer_id: UUID
+    project_id: UUID | None = None
+    follow_up_state: ProposalFollowUpState
+    updated_at: datetime

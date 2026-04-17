@@ -175,7 +175,8 @@ class OfferPipelineCountsResponse(BaseSchema):
 
 
 class OfferPipelineRow(BaseSchema):
-    project_id: UUID
+    offer_id: UUID | None = None
+    project_id: UUID | None = None
     stream_name: str
     company_label: str | None = None
     location_label: str | None = None
@@ -203,7 +204,8 @@ class OfferArchiveCountsResponse(BaseSchema):
 
 
 class OfferArchiveRow(BaseSchema):
-    project_id: UUID
+    offer_id: UUID | None = None
+    project_id: UUID | None = None
     stream_name: str
     company_label: str | None = None
     location_label: str | None = None

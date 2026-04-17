@@ -65,54 +65,49 @@ export function OfferDetailPrimarySurface({
 				<Card className="bg-surface-container-lowest shadow-sm">
 					<CardHeader>
 						<CardTitle className="font-display text-xl font-semibold text-foreground">
-							Stream snapshot
+							{detail.contextCard?.title ?? "Stream snapshot"}
 						</CardTitle>
 						<CardDescription>
-							Workspace baseline currently driving Offer insights.
+							{detail.contextCard?.description ??
+								"Workspace baseline currently driving Offer insights."}
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<dl className="grid gap-3 sm:grid-cols-2">
-							<div>
-								<dt className="text-xs font-semibold uppercase tracking-[0.08em] text-secondary">
-									Material type
-								</dt>
-								<dd className="text-sm text-foreground">
-									{detail.streamSnapshot.materialType ?? "N/A"}
-								</dd>
-							</div>
-							<div>
-								<dt className="text-xs font-semibold uppercase tracking-[0.08em] text-secondary">
-									Material name
-								</dt>
-								<dd className="text-sm text-foreground">
-									{detail.streamSnapshot.materialName ?? "N/A"}
-								</dd>
-							</div>
-							<div>
-								<dt className="text-xs font-semibold uppercase tracking-[0.08em] text-secondary">
-									Composition
-								</dt>
-								<dd className="text-sm text-foreground">
-									{detail.streamSnapshot.composition ?? "N/A"}
-								</dd>
-							</div>
-							<div>
-								<dt className="text-xs font-semibold uppercase tracking-[0.08em] text-secondary">
-									Volume
-								</dt>
-								<dd className="text-sm text-foreground">
-									{detail.streamSnapshot.volume ?? "N/A"}
-								</dd>
-							</div>
-							<div>
-								<dt className="text-xs font-semibold uppercase tracking-[0.08em] text-secondary">
-									Frequency
-								</dt>
-								<dd className="text-sm text-foreground">
-									{detail.streamSnapshot.frequency ?? "N/A"}
-								</dd>
-							</div>
+							{(detail.contextCard?.fields.length
+								? detail.contextCard.fields
+								: [
+										{
+											label: "Material type",
+											value: detail.streamSnapshot.materialType,
+										},
+										{
+											label: "Material name",
+											value: detail.streamSnapshot.materialName,
+										},
+										{
+											label: "Composition",
+											value: detail.streamSnapshot.composition,
+										},
+										{
+											label: "Volume",
+											value: detail.streamSnapshot.volume,
+										},
+										{
+											label: "Frequency",
+											value: detail.streamSnapshot.frequency,
+										},
+									]
+							).map((field) => (
+								<div key={field.label}>
+									<dt className="text-xs font-semibold uppercase tracking-[0.08em] text-secondary">
+										{field.label}
+									</dt>
+									<dd className="text-sm text-foreground">
+										{field.value ?? "N/A"}
+									</dd>
+								</div>
+							))}
 						</dl>
 					</CardContent>
 				</Card>

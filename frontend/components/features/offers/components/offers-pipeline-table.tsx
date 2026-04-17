@@ -38,7 +38,7 @@ export function OffersPipelineTable({
 			<TableBody>
 				{offers.map((offer, index) => (
 					<TableRow
-						key={`${offer.projectId}-${offer.reference}`}
+						key={`${offer.offerId}-${offer.reference}`}
 						className={
 							index % 2 === 0 ? "bg-surface" : "bg-surface-container-low"
 						}
@@ -46,7 +46,7 @@ export function OffersPipelineTable({
 						<TableCell className="px-4 py-3">
 							<div className="flex flex-col gap-0.5">
 								<Link
-									href={routes.offers.detail(offer.projectId)}
+									href={routes.offers.detail(offer.offerId)}
 									className="font-medium text-foreground hover:text-primary"
 								>
 									{offer.streamName}

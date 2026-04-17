@@ -59,7 +59,7 @@ export function OffersArchiveTable({
 			<TableBody>
 				{offers.map((offer, index) => (
 					<TableRow
-						key={offer.projectId}
+						key={offer.offerId}
 						className={
 							index % 2 === 0 ? "bg-surface" : "bg-surface-container-low"
 						}
@@ -91,7 +91,7 @@ export function OffersArchiveTable({
 						<TableCell className="px-4 py-3">
 							<div className="flex items-center justify-end gap-2">
 								<Button variant="ghost" size="sm" asChild>
-									<Link href={routes.offers.detail(offer.projectId)}>
+									<Link href={routes.offers.detail(offer.offerId)}>
 										<Eye data-icon="inline-start" aria-hidden />
 										View
 									</Link>

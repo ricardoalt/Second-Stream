@@ -588,6 +588,12 @@ app.include_router(
 
 app.include_router(
     offers.router,
+    prefix=f"{settings.API_V1_PREFIX}/offers",
+    tags=["Offers"],
+)
+
+app.include_router(
+    offers.project_router,
     prefix=f"{settings.API_V1_PREFIX}/projects",
     tags=["Offers"],
 )

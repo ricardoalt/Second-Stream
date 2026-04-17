@@ -22,7 +22,8 @@ export type OfferTimelineEvent = {
 };
 
 export type OfferPipelineRecord = {
-	projectId: string;
+	offerId: string;
+	projectId: string | null;
 	reference: string;
 	clientName: string;
 	streamName: string;

@@ -20,17 +20,17 @@ describe("stream detail offer handoff", () => {
 	it("preserves degraded-success handoff in Offer detail href", () => {
 		expect(
 			streamDetailModule.buildOfferDetailHandoffHref({
-				projectId: "project-123",
+				offerId: "offer-123",
 				insightsRefreshFailed: true,
 			}),
-		).toBe("/offers/project-123?insightsRefreshFailed=1");
+		).toBe("/offers/offer-123?insightsRefreshFailed=1");
 
 		expect(
 			streamDetailModule.buildOfferDetailHandoffHref({
-				projectId: "project-123",
+				offerId: "offer-123",
 				insightsRefreshFailed: false,
 			}),
-		).toBe("/offers/project-123");
+		).toBe("/offers/offer-123");
 	});
 
 	it("prefers canonical Project.name for stream title", () => {

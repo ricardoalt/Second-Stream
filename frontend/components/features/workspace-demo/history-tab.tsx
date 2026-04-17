@@ -1,11 +1,10 @@
 "use client";
 
+import { SectionHeader } from "@/components/patterns/layout/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-
-// ── History event data ────────────────────────────────────────────────────────
 
 type HistoryEventType =
 	| "brief-updated"
@@ -97,22 +96,13 @@ const EVENT_TYPE_COLOR: Record<HistoryEventType, string> = {
 	"stream-created": "text-muted-foreground",
 };
 
-// ── HistoryRow ────────────────────────────────────────────────────────────────
-
 function HistoryRow({ event }: { event: HistoryEvent }) {
 	const iconPath = EVENT_TYPE_ICONS[event.type];
 	const iconColor = EVENT_TYPE_COLOR[event.type];
 
 	return (
 		<div className="flex items-start gap-3 py-3">
-			{/* Event icon */}
-			<div
-				className={cn(
-					"w-6 h-6 rounded-md flex-shrink-0 mt-0.5",
-					"flex items-center justify-center",
-					"bg-muted/60",
-				)}
-			>
+			<div className="w-6 h-6 rounded-md flex-shrink-0 mt-0.5 flex items-center justify-center bg-muted/60">
 				<svg
 					width="11"
 					height="11"
@@ -129,28 +119,21 @@ function HistoryRow({ event }: { event: HistoryEvent }) {
 				</svg>
 			</div>
 
-			{/* Content */}
 			<div className="flex-1 min-w-0">
 				<div className="flex items-baseline justify-between gap-2">
-					<p className="text-[13px] font-semibold text-foreground leading-snug">
+					<p className="text-sm font-semibold text-foreground leading-snug">
 						{event.label}
 					</p>
 					<span className="font-mono text-[9.5px] text-muted-foreground/50 flex-shrink-0">
 						{event.time}
 					</span>
 				</div>
-				<p className="text-[11.5px] text-muted-foreground/80 mt-0.5 leading-snug">
+				<p className="text-xs text-muted-foreground/80 mt-0.5 leading-snug">
 					{event.detail}
 				</p>
 				<div className="flex items-center gap-1 mt-1">
 					<Badge
-						variant={
-							event.actorType === "ai"
-								? "primary-subtle"
-								: event.actorType === "system"
-									? "neutral-subtle"
-									: "neutral-subtle"
-						}
+						variant="neutral-subtle"
 						className="text-[8.5px] font-bold px-1 py-0 h-4"
 					>
 						{event.actorType === "ai"
@@ -159,7 +142,7 @@ function HistoryRow({ event }: { event: HistoryEvent }) {
 								? "System"
 								: "Human"}
 					</Badge>
-					<span className="text-[10.5px] text-muted-foreground/60">
+					<span className="text-xs text-muted-foreground/60">
 						{event.actor}
 					</span>
 				</div>
@@ -168,24 +151,18 @@ function HistoryRow({ event }: { event: HistoryEvent }) {
 	);
 }
 
-// ── HistoryTab ────────────────────────────────────────────────────────────────
-// Compact chronological event log for this stream.
-// Replaces placeholder with a real, minimal-real surface.
-
 export function HistoryTab() {
 	return (
 		<div className="mt-7 max-w-3xl">
-			<p className="mb-4 text-[12px] leading-relaxed text-muted-foreground">
-				History records when and why the brief changed. Use it to audit decisions,
-				not to drive day-to-day editing.
-			</p>
-			<div className="flex items-center justify-between mb-4">
-				<h2 className="text-[13px] font-semibold text-foreground">
-					Activity history
-				</h2>
-				<Badge variant="neutral-subtle" className="text-[10px] font-medium">
-					{HISTORY_EVENTS.length} events
-				</Badge>
+			<div className="mb-6">
+				<SectionHeader
+					title="Activity history"
+					actions={
+						<Badge variant="neutral-subtle" className="text-xs font-medium">
+							{HISTORY_EVENTS.length} events
+						</Badge>
+					}
+				/>
 			</div>
 
 			<Card className="shadow-xs">

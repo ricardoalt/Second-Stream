@@ -8,14 +8,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
 import type { PrimaryActionType } from "./mock-data";
-import { DEMO_AGENT, DEMO_STREAM } from "./mock-data";
-
-// ── WorkspaceHeader ───────────────────────────────────────────────────────────
-// Compact platform header — matches agent shell conventions.
-// Uses breadcrumb-style context label + h1 + Badge variant (real primitives).
-// Adaptive primary action: "Review N items" > "Complete Discovery"
+import { DEMO_STREAM } from "./mock-data";
 
 interface WorkspaceHeaderProps {
 	primaryAction: PrimaryActionType;
@@ -30,69 +24,42 @@ export function WorkspaceHeader({
 		primaryAction === "review"
 			? `Review ${reviewCount} item${reviewCount !== 1 ? "s" : ""}`
 			: primaryAction === "refresh"
-				? "Refresh Brief"
-				: "Complete Discovery";
+				? "Refresh brief"
+				: "Complete discovery";
 
 	return (
 		<header className="animate-fade-in-up">
 			<div className="flex flex-col gap-1.5">
-				{/* Breadcrumb context — matches platform convention */}
-				<p className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+				<p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
 					Waste Streams &rsaquo; Discovery &rsaquo;{" "}
 					<span className="font-bold text-foreground">{DEMO_STREAM.title}</span>
 				</p>
 
-				{/* Title row */}
 				<div className="flex items-start justify-between gap-4">
-					<div className="flex flex-col gap-0.5">
-						<h1 className="font-display text-[1.65rem] font-bold tracking-tight text-foreground leading-tight">
+					<div className="flex flex-col gap-1">
+						<h1 className="font-display text-2xl font-semibold tracking-tight text-foreground leading-tight">
 							{DEMO_STREAM.title}
 						</h1>
 
-						{/* Meta row */}
-						<div className="flex items-center gap-2.5 flex-wrap">
+						<div className="flex items-center gap-2 flex-wrap">
 							<p className="text-sm text-muted-foreground">
-								Discovery workspace
+								{DEMO_STREAM.company} · {DEMO_STREAM.owner}
 							</p>
-							<Badge
-								variant="primary-subtle"
-								className="h-5 px-1.5 text-[10px] font-medium"
-							>
-								{DEMO_AGENT.name}
-							</Badge>
-							<Badge
-								variant="outline"
-								className="h-5 px-1.5 text-[10px] font-medium border-border/50"
-							>
-								{DEMO_STREAM.company}
-							</Badge>
-							<Badge
-								variant={
-									DEMO_STREAM.statusVariant === "warning"
-										? "warning-subtle"
-										: "success-subtle"
-								}
-								className="h-5 px-1.5 text-[10px] font-medium"
-							>
-								{DEMO_STREAM.status}
-							</Badge>
-							<span
-								className={cn("font-mono text-[10px] text-muted-foreground/50")}
-							>
-								{DEMO_AGENT.mode} · Last run {DEMO_AGENT.lastRun}
-							</span>
+							{DEMO_STREAM.statusVariant === "warning" && (
+								<Badge
+									variant="warning-subtle"
+									className="h-5 px-1.5 text-[10px] font-medium"
+								>
+									{DEMO_STREAM.status}
+								</Badge>
+							)}
 						</div>
 					</div>
 
-					{/* Right: adaptive primary CTA + overflow menu */}
 					<div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
 						<Button
 							size="sm"
-							className={cn(
-								"text-[12px] font-semibold",
-								primaryAction === "review" &&
-									"bg-warning/[0.12] text-warning border border-warning/25 hover:bg-warning/[0.2] shadow-none",
-							)}
+							className="text-xs font-semibold"
 							variant={primaryAction === "review" ? "outline" : "default"}
 						>
 							{primaryLabel}
@@ -121,24 +88,14 @@ export function WorkspaceHeader({
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end" className="w-44">
-								{primaryAction !== "refresh" && (
-									<DropdownMenuItem className="text-[12px]">
-										Refresh dossier
-									</DropdownMenuItem>
-								)}
-								{primaryAction !== "complete" && (
-									<DropdownMenuItem className="text-[12px]">
-										Prepare handoff
-									</DropdownMenuItem>
-								)}
-								<DropdownMenuItem className="text-[12px]">
+								<DropdownMenuItem className="text-sm">
+									Refresh brief
+								</DropdownMenuItem>
+								<DropdownMenuItem className="text-sm">
 									Add evidence
 								</DropdownMenuItem>
-								<DropdownMenuItem className="text-[12px]">
+								<DropdownMenuItem className="text-sm">
 									Open review queue
-								</DropdownMenuItem>
-								<DropdownMenuItem className="text-[12px] text-muted-foreground">
-									View version history
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>

@@ -204,22 +204,22 @@ export function resolveCompleteDiscoveryDisabled({
 	);
 }
 
-export function buildOfferDetailHref({ projectId }: { projectId: string }) {
-	return `/offers/${projectId}`;
+export function buildOfferDetailHref({ offerId }: { offerId: string }) {
+	return `/offers/${offerId}`;
 }
 
 export function buildOfferDetailHandoffHref({
-	projectId,
+	offerId,
 	insightsRefreshFailed,
 }: {
-	projectId: string;
+	offerId: string;
 	insightsRefreshFailed: boolean;
 }) {
 	if (!insightsRefreshFailed) {
-		return buildOfferDetailHref({ projectId });
+		return buildOfferDetailHref({ offerId });
 	}
 
-	return `${buildOfferDetailHref({ projectId })}?insightsRefreshFailed=1`;
+	return `${buildOfferDetailHref({ offerId })}?insightsRefreshFailed=1`;
 }
 
 export function resolveStreamDetailTitle({
@@ -590,7 +590,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		try {
 			const response = await workspaceAPI.completeDiscovery(id);
 			const href = buildOfferDetailHandoffHref({
-				projectId: response.offer.projectId,
+				offerId: response.offer.offerId,
 				insightsRefreshFailed: response.insightsRefreshFailed,
 			});
 			setCompleteDiscoveryModalOpen(false);

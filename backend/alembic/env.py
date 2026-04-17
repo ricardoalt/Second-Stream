@@ -33,6 +33,8 @@ from app.models import (  # noqa: F401
     IntakeUnmappedNote,
     Location,
     LocationContact,
+    Offer,
+    OfferDocument,
     Project,
     Proposal,
     ProjectFile,

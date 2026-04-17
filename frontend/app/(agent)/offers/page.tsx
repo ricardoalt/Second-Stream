@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Filter, Wallet } from "lucide-react";
+import { BarChart3, FileUp, Filter, Plus, Wallet } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -12,6 +12,8 @@ import type {
 	OfferStage,
 } from "@/components/features/offers/types";
 import { mapProjectFollowUpToOfferStage } from "@/components/features/offers/utils";
+import { CompanyCombobox } from "@/components/features/shared/company-combobox";
+import { LocationCombobox } from "@/components/features/shared/location-combobox";
 import {
 	EmptyState,
 	FilterBar,
@@ -24,11 +26,37 @@ import {
 	FadeIn,
 	HoverLift,
 } from "@/components/patterns/animations/motion-components";
-import { Card, CardContent, Skeleton } from "@/components/ui";
-import { type OfferPipelineResponseDTO, offersAPI } from "@/lib/api/offers";
 import {
+	Button,
+	Card,
+	CardContent,
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	Input,
+	Label,
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+	Skeleton,
+} from "@/components/ui";
+import {
+	type ManualOfferInitialStatus,
+	type OfferPipelineResponseDTO,
+	offersAPI,
+} from "@/lib/api/offers";
+import { useCompanyStore } from "@/lib/stores/company-store";
+import { useLocationStore } from "@/lib/stores/location-store";
+import {
+	invalidateClientDataCache,
 	isClientDataCacheStale,
 	peekClientDataCache,
+	revalidateClientDataCache,
 } from "@/lib/utils/client-data-cache";
 import { getErrorMessage } from "@/lib/utils/logger";
 
@@ -44,6 +72,96 @@ const ACTIVE_STAGE_SET = new Set<OfferStage>([
 ]);
 
 const OFFERS_PIPELINE_CACHE_KEY = "offers:pipeline";
+
+export type ManualOfferFormValues = {
+	companyId: string;
+	locationId: string;
+	title: string;
+	initialStatus: ManualOfferInitialStatus;
+	file: File | null;
+};
+
+export type ManualOfferFormErrors = Partial<
+	Record<"companyId" | "locationId" | "title" | "file", string>
+>;
+
+type ManualOfferCompanyOption = { id: string; name: string };
+type ManualOfferLocationOption = {
+	id: string;
+	companyId: string;
+	name: string;
+};
+
+const MANUAL_OFFER_INITIAL_STATUS_OPTIONS: Array<{
+	value: ManualOfferInitialStatus;
+	label: string;
+}> = [
+	{ value: "uploaded", label: "Offer started" },
+	{ value: "waiting_to_send", label: "Ready to send" },
+	{ value: "waiting_response", label: "Awaiting response" },
+	{ value: "under_negotiation", label: "In negotiation" },
+];
+
+const DEFAULT_MANUAL_OFFER_FORM: ManualOfferFormValues = {
+	companyId: "",
+	locationId: "",
+	title: "",
+	initialStatus: "uploaded",
+	file: null,
+};
+
+export function validateManualOfferForm(
+	values: ManualOfferFormValues,
+): ManualOfferFormErrors {
+	const errors: ManualOfferFormErrors = {};
+	if (values.companyId.trim().length === 0) {
+		errors.companyId = "Client is required.";
+	}
+	if (values.locationId.trim().length === 0) {
+		errors.locationId = "Location is required.";
+	}
+	if (values.title.trim().length === 0) {
+		errors.title = "Offer title is required.";
+	}
+	if (!values.file) {
+		errors.file = "Offer document is required.";
+	}
+	return errors;
+}
+
+export function resolveManualOfferCreatePayload(args: {
+	values: ManualOfferFormValues;
+	companies: ManualOfferCompanyOption[];
+	locations: ManualOfferLocationOption[];
+}) {
+	if (!args.values.file) {
+		throw new Error("Offer document is required.");
+	}
+
+	const company = args.companies.find(
+		(item) => item.id === args.values.companyId,
+	);
+	if (!company?.name.trim()) {
+		throw new Error("Selected client is invalid.");
+	}
+
+	const location = args.locations.find(
+		(item) =>
+			item.id === args.values.locationId &&
+			item.companyId === args.values.companyId,
+	);
+	if (!location?.name.trim()) {
+		throw new Error("Selected location is invalid.");
+	}
+
+	return {
+		client: company.name.trim(),
+		location: location.name.trim(),
+		title: args.values.title.trim(),
+		initialStatus: args.values.initialStatus,
+		file: args.values.file,
+	};
+}
 
 const OffersPipelineTable = dynamic(
 	() =>
@@ -88,6 +206,7 @@ function mapPipelineResponseToOffers(
 	response: OfferPipelineResponseDTO,
 ): OfferPipelineRecord[] {
 	return response.items.map((item) => ({
+		offerId: item.offerId,
 		projectId: item.projectId,
 		reference: item.latestProposalVersion ?? "No version",
 		clientName: item.companyLabel ?? "Unknown client",
@@ -96,6 +215,33 @@ function mapPipelineResponseToOffers(
 		valueUsd: item.valueUsd ?? 0,
 		updatedAt: formatDate(item.lastActivityAt),
 	}));
+}
+
+export async function createManualOfferAndRefreshPipeline(args: {
+	values: ManualOfferFormValues;
+	companies: ManualOfferCompanyOption[];
+	locations: ManualOfferLocationOption[];
+	createManualOffer: (values: {
+		client: string;
+		location: string;
+		title: string;
+		initialStatus: ManualOfferInitialStatus;
+		file: File;
+	}) => Promise<unknown>;
+	invalidateCache: (key: string) => void;
+	revalidatePipeline: () => Promise<OfferPipelineResponseDTO>;
+}): Promise<OfferPipelineRecord[]> {
+	const payload = resolveManualOfferCreatePayload({
+		values: args.values,
+		companies: args.companies,
+		locations: args.locations,
+	});
+
+	await args.createManualOffer(payload);
+
+	args.invalidateCache(OFFERS_PIPELINE_CACHE_KEY);
+	const refreshed = await args.revalidatePipeline();
+	return mapPipelineResponseToOffers(refreshed);
 }
 
 function readCachedOffers(): OfferPipelineRecord[] {
@@ -120,6 +266,8 @@ function formatDate(value: string) {
 }
 
 export default function OffersPage() {
+	const companies = useCompanyStore((state) => state.companies);
+	const locations = useLocationStore((state) => state.locations);
 	const [loading, setLoading] = useState(() => readCachedOffers().length === 0);
 	const [error, setError] = useState<string | null>(null);
 	const [offers, setOffers] = useState<OfferPipelineRecord[]>(() =>
@@ -128,6 +276,13 @@ export default function OffersPage() {
 	const [query, setQuery] = useState("");
 	const [selectedStage, setSelectedStage] = useState<OfferStage | "all">("all");
 	const [selectedClient, setSelectedClient] = useState<string>("all");
+	const [createModalOpen, setCreateModalOpen] = useState(false);
+	const [manualFormValues, setManualFormValues] =
+		useState<ManualOfferFormValues>(DEFAULT_MANUAL_OFFER_FORM);
+	const [manualFormErrors, setManualFormErrors] =
+		useState<ManualOfferFormErrors>({});
+	const [createFormError, setCreateFormError] = useState<string | null>(null);
+	const [isCreatingOffer, setIsCreatingOffer] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -182,6 +337,61 @@ export default function OffersPage() {
 		};
 	}, []);
 
+	const resetManualCreateState = () => {
+		setManualFormValues(DEFAULT_MANUAL_OFFER_FORM);
+		setManualFormErrors({});
+		setCreateFormError(null);
+	};
+
+	const openManualCreateModal = () => {
+		resetManualCreateState();
+		setCreateModalOpen(true);
+	};
+
+	const closeManualCreateModal = () => {
+		setCreateModalOpen(false);
+	};
+
+	const handleCreateManualOffer = async () => {
+		const validationErrors = validateManualOfferForm(manualFormValues);
+		setManualFormErrors(validationErrors);
+		setCreateFormError(null);
+
+		if (Object.keys(validationErrors).length > 0) {
+			return;
+		}
+
+		if (!manualFormValues.file) {
+			return;
+		}
+
+		setIsCreatingOffer(true);
+		try {
+			const refreshedOffers = await createManualOfferAndRefreshPipeline({
+				values: manualFormValues,
+				companies,
+				locations,
+				createManualOffer: offersAPI.createManualOffer,
+				invalidateCache: invalidateClientDataCache,
+				revalidatePipeline: () =>
+					revalidateClientDataCache({
+						key: OFFERS_PIPELINE_CACHE_KEY,
+						ttlMs: 60_000,
+						fetcher: () => offersAPI.getPipeline(),
+					}),
+			});
+			setOffers(refreshedOffers);
+			setCreateModalOpen(false);
+			resetManualCreateState();
+		} catch (createError) {
+			setCreateFormError(
+				getErrorMessage(createError, "Could not create manual Offer."),
+			);
+		} finally {
+			setIsCreatingOffer(false);
+		}
+	};
+
 	const clients = useMemo(
 		() =>
 			Array.from(new Set(offers.map((offer) => offer.clientName))).sort(
@@ -213,6 +423,8 @@ export default function OffersPage() {
 			);
 		});
 	}, [offers, query, selectedStage, selectedClient]);
+
+	const selectedCompanyId = manualFormValues.companyId;
 
 	const pipelineByStage = useMemo(
 		() =>
@@ -283,9 +495,166 @@ export default function OffersPage() {
 				subtitle="Manage active commercial follow-up with real backend pipeline states."
 				icon={BarChart3}
 				badge="Offers"
+				actions={
+					<Button onClick={openManualCreateModal} className="gap-2">
+						<Plus className="size-4" aria-hidden />
+						Create Offer
+					</Button>
+				}
 				breadcrumbs={[{ label: "Home", href: "/" }, { label: "Offers" }]}
 				variant="hero"
 			/>
+
+			<Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+				<DialogContent className="sm:max-w-xl">
+					<DialogHeader>
+						<DialogTitle>Create manual Offer</DialogTitle>
+						<DialogDescription>
+							Track an externally-created Offer in this pipeline.
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="grid gap-4 py-1">
+						<div className="grid gap-2">
+							<Label htmlFor="manual-offer-client">Client</Label>
+							<CompanyCombobox
+								value={manualFormValues.companyId}
+								onValueChange={(value) =>
+									setManualFormValues((previous) => ({
+										...previous,
+										companyId: value,
+										locationId:
+											previous.companyId === value ? previous.locationId : "",
+									}))
+								}
+								placeholder="Select client"
+								portalled={false}
+							/>
+							{manualFormErrors.companyId ? (
+								<p className="text-xs text-destructive">
+									{manualFormErrors.companyId}
+								</p>
+							) : null}
+						</div>
+
+						<div className="grid gap-2">
+							<Label htmlFor="manual-offer-location">Location</Label>
+							<LocationCombobox
+								companyId={selectedCompanyId}
+								value={manualFormValues.locationId}
+								onValueChange={(value) =>
+									setManualFormValues((previous) => ({
+										...previous,
+										locationId: value,
+									}))
+								}
+								placeholder="Select location"
+								portalled={false}
+							/>
+							{manualFormErrors.locationId ? (
+								<p className="text-xs text-destructive">
+									{manualFormErrors.locationId}
+								</p>
+							) : null}
+						</div>
+
+						<div className="grid gap-2">
+							<Label htmlFor="manual-offer-title">Offer title</Label>
+							<Input
+								id="manual-offer-title"
+								value={manualFormValues.title}
+								onChange={(event) =>
+									setManualFormValues((previous) => ({
+										...previous,
+										title: event.target.value,
+									}))
+								}
+								placeholder="Q2 Bale Contract"
+								aria-invalid={manualFormErrors.title ? true : undefined}
+							/>
+							{manualFormErrors.title ? (
+								<p className="text-xs text-destructive">
+									{manualFormErrors.title}
+								</p>
+							) : null}
+						</div>
+
+						<div className="grid gap-2">
+							<Label htmlFor="manual-offer-status">Initial status</Label>
+							<Select
+								value={manualFormValues.initialStatus}
+								onValueChange={(value) =>
+									setManualFormValues((previous) => ({
+										...previous,
+										initialStatus: value as ManualOfferInitialStatus,
+									}))
+								}
+							>
+								<SelectTrigger id="manual-offer-status">
+									<SelectValue placeholder="Select initial status" />
+								</SelectTrigger>
+								<SelectContent>
+									{MANUAL_OFFER_INITIAL_STATUS_OPTIONS.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="grid gap-2">
+							<Label htmlFor="manual-offer-file">Offer document</Label>
+							<Input
+								id="manual-offer-file"
+								type="file"
+								accept=".pdf,.doc,.docx"
+								onChange={(event) => {
+									const selected = event.target.files?.[0] ?? null;
+									setManualFormValues((previous) => ({
+										...previous,
+										file: selected,
+									}));
+								}}
+								aria-invalid={manualFormErrors.file ? true : undefined}
+							/>
+							{manualFormValues.file ? (
+								<p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+									<FileUp className="size-3.5" aria-hidden />
+									{manualFormValues.file.name}
+								</p>
+							) : null}
+							{manualFormErrors.file ? (
+								<p className="text-xs text-destructive">
+									{manualFormErrors.file}
+								</p>
+							) : null}
+						</div>
+
+						{createFormError ? (
+							<p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+								{createFormError}
+							</p>
+						) : null}
+					</div>
+
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={closeManualCreateModal}
+							disabled={isCreatingOffer}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={handleCreateManualOffer}
+							disabled={isCreatingOffer}
+						>
+							{isCreatingOffer ? "Creating…" : "Create Offer"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			{error ? (
 				<Card className="border-0 bg-destructive/5 shadow-xs">

@@ -15,6 +15,8 @@ from app.models.location import Location
 from app.models.location_contact import LocationContact
 from app.models.organization import Organization
 from app.models.organization_purge_manifest import OrganizationPurgeManifest
+from app.models.offer import Offer
+from app.models.offer_document import OfferDocument
 from app.models.project import Project
 from app.models.proposal import Proposal
 from app.models.proposal_rating import ProposalRating
@@ -41,6 +43,8 @@ __all__ = [
     "LocationContact",
     "Organization",
     "OrganizationPurgeManifest",
+    "Offer",
+    "OfferDocument",
     "Project",
     "ProjectFile",
     "Proposal",

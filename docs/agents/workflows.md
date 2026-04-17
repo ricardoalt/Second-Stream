@@ -7,10 +7,16 @@
 4) Add Pydantic schemas: `backend/app/schemas/`
 5) Add tests: `backend/tests/test_<feature>.py`
 
-### Offer detail and offer document rules (v1)
-1) Offer detail is project-rooted: `GET /api/v1/projects/{project_id}/offer`.
-2) Required primary surface data in contract/UI: `streamSnapshot`, `insights`, `followUpState`, `offerDocument`.
-3) Offer document uploads must use `category=offer_document` and must not run ingestion/AI (`process_with_ai=true` is rejected server-side).
+### Offer detail and offer document rules
+1) Canonical Offer detail is offer-rooted: `GET /api/v1/offers/{offer_id}`.
+2) Stream compatibility alias remains: `GET /api/v1/projects/{project_id}/offer`.
+3) Canonical list endpoints are Offer-rooted:
+   - Pipeline: `GET /api/v1/offers/pipeline`
+   - Archive: `GET /api/v1/offers/archive`
+4) Manual offer create is Offer-rooted and requires `client`, `location`, `title`, `initial_status`, and `file`: `POST /api/v1/offers`.
+5) Offer status transition is Offer-rooted: `PATCH /api/v1/offers/{offer_id}/status`.
+6) Offer document replace is Offer-rooted: `POST /api/v1/offers/{offer_id}/document`.
+7) Stream offer document upload via project files (`category=offer_document`) still works and now syncs to offer documents.
 
 ### Adding a frontend feature
 1) Page: `frontend/app/<feature>/page.tsx`

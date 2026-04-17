@@ -5,6 +5,7 @@ import { OffersArchiveTable } from "./offers-archive-table";
 
 const rows: OfferArchiveRowDTO[] = [
 	{
+		offerId: "offer-1",
 		projectId: "project-1",
 		streamName: "Catalyst Stream",
 		companyLabel: "Catalyst Co",
