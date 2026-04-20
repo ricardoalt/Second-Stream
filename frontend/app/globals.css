@@ -1285,3 +1285,45 @@ body {
 		oklch(0.46 0.13 195) 100%
 	);
 }
+
+/* ============================================================================
+ * CHAT UI SCROLLBAR — Minimalistic like Linear/Vercel (from SecondstreamAI)
+ * ============================================================================ */
+
+.chat-scroll-container,
+[data-slot="conversation-content"] {
+	scrollbar-width: thin;
+	scrollbar-color: transparent transparent;
+}
+
+.chat-scroll-container:hover,
+[data-slot="conversation-content"]:hover {
+	scrollbar-color: oklch(0.5 0 0 / 30%) transparent;
+}
+
+.chat-scroll-container::-webkit-scrollbar,
+[data-slot="conversation-content"]::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+.chat-scroll-container::-webkit-scrollbar-track,
+[data-slot="conversation-content"]::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.chat-scroll-container::-webkit-scrollbar-thumb,
+[data-slot="conversation-content"]::-webkit-scrollbar-thumb {
+	background: transparent;
+	border-radius: 9999px;
+}
+
+.chat-scroll-container:hover::-webkit-scrollbar-thumb,
+[data-slot="conversation-content"]:hover::-webkit-scrollbar-thumb {
+	background: oklch(0.5 0 0 / 30%);
+}
+
+.chat-scroll-container::-webkit-scrollbar-thumb:hover,
+[data-slot="conversation-content"]::-webkit-scrollbar-thumb:hover {
+	background: oklch(0.5 0 0 / 50%);
+}

@@ -172,7 +172,9 @@ function areCandidatesEquivalent(
 	next: DraftCandidate,
 ): boolean {
 	for (const key in current) {
-		if (current[key as keyof DraftCandidate] !== next[key as keyof DraftCandidate]) {
+		if (
+			current[key as keyof DraftCandidate] !== next[key as keyof DraftCandidate]
+		) {
 			return false;
 		}
 	}

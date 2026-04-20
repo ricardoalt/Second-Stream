@@ -40,7 +40,8 @@ function tryResolveCombinedSuggestion(params: {
 	suggestedLocationCity: string | null;
 	locationLabel: string | null;
 }): { suggestedClientName: string; suggestedLocationName: string } | null {
-	const { rawSuggestedClientName, suggestedLocationCity, locationLabel } = params;
+	const { rawSuggestedClientName, suggestedLocationCity, locationLabel } =
+		params;
 
 	const slashSegments = rawSuggestedClientName
 		.split("/")
