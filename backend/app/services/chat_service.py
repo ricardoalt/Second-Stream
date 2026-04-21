@@ -263,13 +263,18 @@ async def _load_recent_thread_history(
     db: AsyncSession,
     thread_id: UUID,
     limit: int,
+    exclude_message_id: UUID | None = None,
 ) -> list[ChatHistoryItem]:
+    filters = [
+        ChatMessage.thread_id == thread_id,
+        ChatMessage.status == "completed",
+    ]
+    if exclude_message_id is not None:
+        filters.append(ChatMessage.id != exclude_message_id)
+
     rows = await db.execute(
         select(ChatMessage.role, ChatMessage.content_text)
-        .where(
-            ChatMessage.thread_id == thread_id,
-            ChatMessage.status == "completed",
-        )
+        .where(*filters)
         .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
         .limit(limit)
     )
@@ -362,6 +367,7 @@ async def stream_chat_turn(
         db=db,
         thread_id=thread_id,
         limit=CHAT_MODEL_CONTEXT_WINDOW,
+        exclude_message_id=user_message.id,
     )
     agent_prompt = _build_agent_prompt(history=history, user_message=user_message.content_text)
     deps = ChatAgentDeps(

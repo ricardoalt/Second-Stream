@@ -1,4 +1,5 @@
 import io
+import json
 import uuid
 
 import pytest
@@ -30,6 +31,18 @@ def _assert_error_contract(response, expected_status: int, expected_code: str) -
     payload = response.json()
     assert payload["code"] == expected_code
     assert isinstance(payload["message"], str)
+
+
+def _parse_sse_events(payload: str) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    for raw_event in payload.strip().split("\n\n"):
+        if not raw_event:
+            continue
+        lines = raw_event.splitlines()
+        event_name = lines[0].removeprefix("event: ")
+        data = json.loads(lines[1].removeprefix("data: "))
+        events.append({"event": event_name, "data": data})
+    return events
 
 
 @pytest.mark.asyncio
@@ -152,11 +165,16 @@ async def test_chat_stream_success_contract(client: AsyncClient, db_session, set
         f"/api/v1/chat/threads/{thread_id}/messages/stream",
         json={"contentText": "Stream me"},
     )
+    events = _parse_sse_events(response.text)
+
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
-    assert "event: start" in response.text
-    assert "event: delta" in response.text
-    assert "event: completed" in response.text
+    assert [event["event"] for event in events] == ["start", "delta", "delta", "completed"]
+    assert isinstance(events[0]["data"]["run_id"], str)
+    assert events[0]["data"]["run_id"]
+    assert events[1]["data"] == {"delta": "First chunk"}
+    assert events[2]["data"] == {"delta": "Second chunk."}
+    assert uuid.UUID(events[3]["data"]["message_id"])
 
     assistant_count = await db_session.scalar(
         select(func.count())
@@ -191,10 +209,13 @@ async def test_chat_stream_error_contract_without_partial_assistant(
         f"/api/v1/chat/threads/{thread_id}/messages/stream",
         json={"contentText": "This should fail"},
     )
+    events = _parse_sse_events(response.text)
+
     assert response.status_code == 200
-    assert "event: start" in response.text
-    assert "event: error" in response.text
-    assert "event: completed" not in response.text
+    assert [event["event"] for event in events] == ["start", "error"]
+    assert isinstance(events[0]["data"]["run_id"], str)
+    assert events[0]["data"]["run_id"]
+    assert events[1]["data"] == {"code": "CHAT_STREAM_FAILED"}
 
     assistant_count = await db_session.scalar(
         select(func.count())

@@ -62,7 +62,19 @@ async def test_stream_chat_turn_emits_start_delta_completed_and_persists_assista
     )
     thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
 
+    observed_counts: dict[str, int] = {}
+
     async def _fake_generate(*, prompt, deps):
+        observed_counts["user_before_generation"] = await db_session.scalar(
+            select(func.count())
+            .select_from(ChatMessage)
+            .where(ChatMessage.thread_id == thread.id, ChatMessage.role == "user")
+        )
+        observed_counts["assistant_before_generation"] = await db_session.scalar(
+            select(func.count())
+            .select_from(ChatMessage)
+            .where(ChatMessage.thread_id == thread.id, ChatMessage.role == "assistant")
+        )
         return chat_service.ChatAgentOutput(response_text="First chunk. Second chunk.")
 
     monkeypatch.setattr(chat_service, "generate_chat_response", _fake_generate)
@@ -79,10 +91,15 @@ async def test_stream_chat_turn_emits_start_delta_completed_and_persists_assista
         )
     ]
 
-    assert events[0]["event"] == "start"
-    assert events[1]["event"] == "delta"
-    assert events[2]["event"] == "delta"
+    assert events[0] == {"event": "start", "run_id": "run-stream-success"}
+    assert events[1] == {"event": "delta", "delta": "First chunk"}
+    assert events[2] == {"event": "delta", "delta": "Second chunk."}
     assert events[3]["event"] == "completed"
+    assert uuid.UUID(events[3]["message_id"])
+    assert observed_counts == {
+        "user_before_generation": 1,
+        "assistant_before_generation": 0,
+    }
 
     assistant_rows = await db_session.execute(
         select(ChatMessage).where(
@@ -125,7 +142,10 @@ async def test_stream_chat_turn_emits_error_and_does_not_persist_partial_assista
         )
     ]
 
-    assert [item["event"] for item in events] == ["start", "error"]
+    assert events == [
+        {"event": "start", "run_id": "run-stream-error"},
+        {"event": "error", "code": "CHAT_STREAM_FAILED"},
+    ]
 
     assistant_count = await db_session.scalar(
         select(func.count())
@@ -140,6 +160,97 @@ async def test_stream_chat_turn_emits_error_and_does_not_persist_partial_assista
         .where(ChatMessage.thread_id == thread_id, ChatMessage.role == "user")
     )
     assert user_count == 1
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_turn_prompt_includes_active_user_turn_only_once(db_session, monkeypatch):
+    org = await create_org(db_session, "Chat Prompt Org", "chat-prompt-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-prompt-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    await _create_message(
+        db_session,
+        org_id=org.id,
+        user_id=owner.id,
+        thread_id=thread.id,
+        role="user",
+        text="earlier-user-message",
+    )
+    await _create_message(
+        db_session,
+        org_id=org.id,
+        user_id=owner.id,
+        thread_id=thread.id,
+        role="assistant",
+        text="earlier-assistant-message",
+    )
+
+    captured_prompt: dict[str, str] = {}
+
+    async def _fake_generate(*, prompt, deps):
+        captured_prompt["value"] = prompt
+        return chat_service.ChatAgentOutput(response_text="Done")
+
+    monkeypatch.setattr(chat_service, "generate_chat_response", _fake_generate)
+
+    _ = [
+        event
+        async for event in stream_chat_turn(
+            db=db_session,
+            organization_id=org.id,
+            created_by_user_id=owner.id,
+            thread_id=thread.id,
+            content_text="current-user-message",
+            run_id="run-prompt-dedup",
+        )
+    ]
+
+    assert captured_prompt["value"].count("current-user-message") == 1
+    assert "USER: earlier-user-message" in captured_prompt["value"]
+    assert "ASSISTANT: earlier-assistant-message" in captured_prompt["value"]
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_turn_prompt_with_empty_history_includes_single_user_turn(db_session, monkeypatch):
+    org = await create_org(db_session, "Chat Empty History Org", "chat-empty-history-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-empty-history-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    captured_prompt: dict[str, str] = {}
+
+    async def _fake_generate(*, prompt, deps):
+        captured_prompt["value"] = prompt
+        return chat_service.ChatAgentOutput(response_text="Done")
+
+    monkeypatch.setattr(chat_service, "generate_chat_response", _fake_generate)
+
+    _ = [
+        event
+        async for event in stream_chat_turn(
+            db=db_session,
+            organization_id=org.id,
+            created_by_user_id=owner.id,
+            thread_id=thread.id,
+            content_text="lone-user-message",
+            run_id="run-empty-history",
+        )
+    ]
+
+    assert "(no previous messages)" in captured_prompt["value"]
+    assert captured_prompt["value"].count("USER: lone-user-message") == 1
+    assert "USER: USER: lone-user-message" not in captured_prompt["value"]
 
 
 @pytest.mark.asyncio
@@ -196,7 +307,8 @@ async def test_stream_chat_turn_persists_full_history_but_uses_recent_window_for
 
     assert oldest_text not in captured_prompt["value"]
     assert first_in_window in captured_prompt["value"]
-    assert "latest-user-message" in captured_prompt["value"]
+    assert captured_prompt["value"].count("latest-user-message") == 1
+    assert captured_prompt["value"].index(first_in_window) < captured_prompt["value"].index("history-13")
 
     total_count = await db_session.scalar(
         select(func.count()).select_from(ChatMessage).where(ChatMessage.thread_id == thread.id)
