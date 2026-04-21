@@ -19,6 +19,9 @@ from app.core.database import Base
 
 # Import all models to ensure they're registered with Base.metadata
 from app.models import (  # noqa: F401
+    ChatAttachment,
+    ChatMessage,
+    ChatThread,
     Organization,
     OrganizationPurgeManifest,
     User,

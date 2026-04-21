@@ -67,6 +67,9 @@ INCOMING_MATERIAL_DELETE: Final[str] = "incoming_material:delete"
 FILE_READ: Final[str] = "file:read"
 FILE_UPLOAD: Final[str] = "file:upload"
 FILE_DELETE: Final[str] = "file:delete"
+CHAT_READ: Final[str] = "chat:read"
+CHAT_WRITE: Final[str] = "chat:write"
+CHAT_ATTACHMENT_UPLOAD: Final[str] = "chat_attachment:upload"
 INTAKE_UPDATE: Final[str] = "intake:update"
 PROPOSAL_READ: Final[str] = "proposal:read"
 PROPOSAL_GENERATE: Final[str] = "proposal:generate"
@@ -125,6 +128,9 @@ ALL_PERMISSIONS: Final[tuple[str, ...]] = (
     FILE_READ,
     FILE_UPLOAD,
     FILE_DELETE,
+    CHAT_READ,
+    CHAT_WRITE,
+    CHAT_ATTACHMENT_UPLOAD,
     INTAKE_UPDATE,
     PROPOSAL_READ,
     PROPOSAL_GENERATE,

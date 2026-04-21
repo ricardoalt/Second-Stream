@@ -1,11 +1,16 @@
 "use client";
 
-import { GitBranchIcon, GlobeIcon, RefreshCcwIcon } from "lucide-react";
+import { GlobeIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { nanoid } from "nanoid";
-import { useRouter } from "next/navigation";
+import Image from "next/image";
 import type * as React from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import {
+	createChatThread,
+	reloadPersistedThreadHistory,
+	streamPersistedChatTurn,
+} from "@/lib/api/chat";
 import {
 	canSubmitPromptMessage,
 	shouldShowLoadingShimmer,
@@ -18,7 +23,6 @@ import {
 } from "./ai-elements/conversation";
 import {
 	Message,
-	MessageAction,
 	MessageActions,
 	MessageContent,
 	MessageResponse,
@@ -35,57 +39,20 @@ import { WorkingMemoryUpdate } from "./ai-elements/working-memory-update";
 import { ChatPromptComposer } from "./chat-prompt-composer";
 import { CopyButton } from "./copy-button";
 
-// Thread type for branching
-interface Thread {
-	id: string;
-	title: string | null;
-	resourceId: string;
-	createdAt: string;
-	updatedAt: string;
-}
-
-// Storage helpers
-const getStoredMessages = (threadId: string): MyUIMessage[] => {
-	if (typeof window === "undefined") return [];
-	const stored = localStorage.getItem(`secondstream_chat_messages_${threadId}`);
-	return stored ? JSON.parse(stored) : [];
-};
-
-const setStoredMessages = (threadId: string, messages: MyUIMessage[]) => {
-	if (typeof window === "undefined") return;
-	localStorage.setItem(
-		`secondstream_chat_messages_${threadId}`,
-		JSON.stringify(messages),
-	);
-};
-
-const getStoredThreads = (): Thread[] => {
-	if (typeof window === "undefined") return [];
-	const stored = localStorage.getItem("secondstream_chat_threads");
-	return stored ? JSON.parse(stored) : [];
-};
-
-const setStoredThreads = (threads: Thread[]) => {
-	if (typeof window === "undefined") return;
-	localStorage.setItem("secondstream_chat_threads", JSON.stringify(threads));
-};
-
 interface ChatInterfaceProps {
 	initialMessages?: MyUIMessage[];
 	threadId: string;
 	onMessagesChange?: (messages: MyUIMessage[]) => void;
+	onThreadCreated?: (threadId: string) => void;
 }
 
 export function ChatInterface({
 	initialMessages = [],
 	threadId,
 	onMessagesChange,
+	onThreadCreated,
 }: ChatInterfaceProps) {
-	const router = useRouter();
-	const [messages, setMessages] = useState<MyUIMessage[]>(() => {
-		if (threadId === "new") return initialMessages;
-		return getStoredMessages(threadId);
-	});
+	const [messages, setMessages] = useState<MyUIMessage[]>(initialMessages);
 	const [status, setStatus] = useState<"ready" | "streaming" | "submitted">(
 		"ready",
 	);
@@ -95,89 +62,59 @@ export function ChatInterface({
 
 	const clearError = useCallback(() => setError(null), []);
 
-	const regenerate = useCallback(
-		({ messageId }: { messageId: string }) => {
-			// Find the assistant message to regenerate
-			const messageIndex = messages.findIndex((m) => m.id === messageId);
-			if (messageIndex === -1 || messages[messageIndex].role !== "assistant")
+	useEffect(() => {
+		let cancelled = false;
+
+		const loadThreadHistory = async () => {
+			if (threadId === "new") {
+				setMessages(initialMessages);
+				setStatus("ready");
 				return;
-
-			// Remove this and all subsequent messages
-			const previousMessages = messages.slice(0, messageIndex);
-			setMessages(previousMessages);
-			setStoredMessages(threadId, previousMessages);
-
-			// Trigger new response (simulate by finding the previous user message)
-			const lastUserMessage = previousMessages
-				.slice()
-				.reverse()
-				.find((m) => m.role === "user");
-
-			if (lastUserMessage) {
-				// Simulate AI response
-				setStatus("streaming");
-				setTimeout(() => {
-					const responses = [
-						"I understand. Let me help you with that.",
-						"That's an interesting question. Here's what I think...",
-						"I can assist with that. Let me analyze the information.",
-						"Thanks for sharing. Based on what you've told me...",
-						"I'll help you explore this. Here are my thoughts...",
-					];
-					const randomResponse =
-						responses[Math.floor(Math.random() * responses.length)];
-
-					const aiMessage: MyUIMessage = {
-						id: nanoid(),
-						role: "assistant",
-						content: randomResponse,
-						parts: [{ type: "text", text: randomResponse }],
-						createdAt: new Date().toISOString(),
-					};
-
-					const newMessages = [...previousMessages, aiMessage];
-					setMessages(newMessages);
-					setStoredMessages(threadId, newMessages);
-					setStatus("ready");
-					onMessagesChange?.(newMessages);
-				}, 1500);
 			}
-		},
-		[messages, threadId, onMessagesChange],
-	);
 
-	const handleBranch = useCallback(
-		(upToMessageId: string) => {
-			// Get source messages up to this point
-			const messageIndex = messages.findIndex((m) => m.id === upToMessageId);
-			if (messageIndex === -1) return;
+			setStatus("submitted");
+			try {
+				const persistedMessages = await reloadPersistedThreadHistory(threadId);
+				if (cancelled) return;
+				setMessages(persistedMessages);
+				onMessagesChange?.(persistedMessages);
+				setStatus("ready");
+			} catch {
+				if (cancelled) return;
+				setMessages([]);
+				setStatus("ready");
+			}
+		};
 
-			const branchedMessages = messages.slice(0, messageIndex + 1);
+		void loadThreadHistory();
 
-			// Create new thread
-			const newThread: Thread = {
-				id: nanoid(),
-				title: `Branch from ${threadId.slice(0, 8)}...`,
-				resourceId: "user-id",
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			};
-
-			const threads = getStoredThreads();
-			setStoredThreads([newThread, ...threads]);
-
-			// Save branched messages
-			setStoredMessages(newThread.id, branchedMessages);
-
-			// Navigate to new thread
-			router.push(`/chat/${newThread.id}`);
-		},
-		[messages, threadId, router],
-	);
+		return () => {
+			cancelled = true;
+		};
+	}, [initialMessages, onMessagesChange, threadId]);
 
 	const sendMessage = useCallback(
 		async (message: PromptInputMessage) => {
+			if ((message.files?.length ?? 0) > 0) {
+				setError(
+					new Error(
+						"Attachment uploads in chat composer are not available yet in v1.",
+					),
+				);
+				return;
+			}
+
 			setStatus("submitted");
+			let resolvedThreadId = threadId;
+
+			if (threadId === "new") {
+				const candidateTitle = message.text.trim().slice(0, 80);
+				const createdThread = await createChatThread(
+					candidateTitle.length > 0 ? candidateTitle : undefined,
+				);
+				resolvedThreadId = createdThread.id;
+				onThreadCreated?.(resolvedThreadId);
+			}
 
 			// Create user message
 			const userMessage: MyUIMessage = {
@@ -196,63 +133,69 @@ export function ChatInterface({
 				createdAt: new Date().toISOString(),
 			};
 
-			const updatedMessages = [...messages, userMessage];
-			setMessages(updatedMessages);
-			setStoredMessages(threadId, updatedMessages);
-			onMessagesChange?.(updatedMessages);
+			setMessages((previousMessages) => {
+				const updatedMessages = [...previousMessages, userMessage];
+				onMessagesChange?.(updatedMessages);
+				return updatedMessages;
+			});
 
-			// Simulate streaming response
 			setStatus("streaming");
+			const assistantMessageDraftId = nanoid();
+			setMessages((previousMessages) => [
+				...previousMessages,
+				{
+					id: assistantMessageDraftId,
+					role: "assistant",
+					content: "",
+					parts: [{ type: "text", text: "" }],
+					createdAt: new Date().toISOString(),
+				},
+			]);
 
-			const responses = [
-				"I understand. Let me help you with that.",
-				"That's an interesting question. Here's what I think...",
-				"I can assist with that. Let me analyze the information.",
-				"Thanks for sharing. Based on what you've told me...",
-				"I'll help you explore this. Here are my thoughts...",
-			];
-			const randomResponse =
-				responses[Math.floor(Math.random() * responses.length)];
+			let streamErrorCode: string | null = null;
 
-			// Simulate delay
-			await new Promise((resolve) => setTimeout(resolve, 1500));
+			await streamPersistedChatTurn({
+				threadId: resolvedThreadId,
+				contentText: message.text,
+				onEvent: (event) => {
+					if (event.event === "delta") {
+						setMessages((previousMessages) =>
+							previousMessages.map((chatMessage) => {
+								if (chatMessage.id !== assistantMessageDraftId) {
+									return chatMessage;
+								}
 
-			const aiMessage: MyUIMessage = {
-				id: nanoid(),
-				role: "assistant",
-				content: randomResponse,
-				parts: [{ type: "text", text: randomResponse }],
-				createdAt: new Date().toISOString(),
-			};
+								const currentText =
+									typeof chatMessage.content === "string"
+										? chatMessage.content
+										: "";
+								const nextText = currentText + event.delta;
+								return {
+									...chatMessage,
+									content: nextText,
+									parts: [{ type: "text", text: nextText }],
+								};
+							}),
+						);
+					}
 
-			const finalMessages = [...updatedMessages, aiMessage];
-			setMessages(finalMessages);
-			setStoredMessages(threadId, finalMessages);
-			setStatus("ready");
-			onMessagesChange?.(finalMessages);
+					if (event.event === "error") {
+						streamErrorCode = event.code ?? "CHAT_STREAM_FAILED";
+					}
+				},
+			});
 
-			// Update thread title if first message
-			if (messages.length === 0) {
-				const threads = getStoredThreads();
-				const updatedThreads = threads.map((t) =>
-					t.id === threadId
-						? {
-								...t,
-								title:
-									message.text.slice(0, 50) +
-									(message.text.length > 50 ? "..." : ""),
-							}
-						: t,
-				);
-				setStoredThreads(updatedThreads);
-
-				// Notify other components
-				window.dispatchEvent(
-					new StorageEvent("storage", { key: "secondstream_chat_threads" }),
-				);
+			if (streamErrorCode) {
+				throw new Error(`Stream failed (${streamErrorCode})`);
 			}
+
+			const persistedMessages =
+				await reloadPersistedThreadHistory(resolvedThreadId);
+			setMessages(persistedMessages);
+			onMessagesChange?.(persistedMessages);
+			setStatus("ready");
 		},
-		[messages, threadId, onMessagesChange],
+		[onMessagesChange, onThreadCreated, threadId],
 	);
 
 	const handleSubmitMessage = useCallback(
@@ -262,9 +205,27 @@ export function ChatInterface({
 			}
 
 			clearError();
-			await sendMessage(message);
+			try {
+				await sendMessage(message);
+			} catch (sendError) {
+				setError(
+					sendError instanceof Error
+						? sendError
+						: new Error("Unable to complete this chat turn."),
+				);
+				setStatus("ready");
+				if (threadId !== "new") {
+					const persistedMessages = await reloadPersistedThreadHistory(
+						threadId,
+					).catch(() => null);
+					if (persistedMessages) {
+						setMessages(persistedMessages);
+						onMessagesChange?.(persistedMessages);
+					}
+				}
+			}
 		},
-		[clearError, sendMessage],
+		[clearError, onMessagesChange, sendMessage, threadId],
 	);
 
 	return (
@@ -332,10 +293,13 @@ export function ChatInterface({
 																			key={`${message.id}-${i}`}
 																			className="mb-2"
 																		>
-																			<img
+																			<Image
 																				alt={part.filename ?? "Uploaded image"}
 																				className="max-h-80 rounded-lg border object-contain"
 																				src={part.url}
+																				unoptimized
+																				width={512}
+																				height={512}
 																			/>
 																		</div>
 																	);
@@ -431,22 +395,6 @@ export function ChatInterface({
 																.map((p) => p.text)
 																.join("\n")}
 														/>
-														<MessageAction
-															tooltip="Branch from here"
-															onClick={() => {
-																handleBranch(message.id);
-															}}
-														>
-															<GitBranchIcon className="size-3" />
-														</MessageAction>
-														<MessageAction
-															tooltip="Regenerate"
-															onClick={() => {
-																regenerate({ messageId: message.id });
-															}}
-														>
-															<RefreshCcwIcon className="size-3" />
-														</MessageAction>
 													</MessageActions>
 												)}
 											</Message>

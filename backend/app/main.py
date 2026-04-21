@@ -517,6 +517,7 @@ from app.api.v1 import (
     admin_users,
     auth,
     bulk_import,
+    chat,
     companies,
     discovery_sessions,
     feedback,
@@ -644,6 +645,12 @@ app.include_router(
     voice_interviews.router,
     prefix=f"{settings.API_V1_PREFIX}/voice-interviews",
     tags=["Voice Interviews"],
+)
+
+app.include_router(
+    chat.router,
+    prefix=f"{settings.API_V1_PREFIX}",
+    tags=["Chat"],
 )
 
 # ============================================================================

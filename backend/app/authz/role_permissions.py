@@ -44,6 +44,9 @@ ORG_ADMIN_PERMISSIONS = frozenset(
         permissions.FILE_READ,
         permissions.FILE_UPLOAD,
         permissions.FILE_DELETE,
+        permissions.CHAT_READ,
+        permissions.CHAT_WRITE,
+        permissions.CHAT_ATTACHMENT_UPLOAD,
         permissions.INTAKE_UPDATE,
         permissions.PROPOSAL_READ,
         permissions.PROPOSAL_GENERATE,
@@ -79,6 +82,9 @@ FIELD_AGENT_PERMISSIONS = frozenset(
         permissions.FILE_READ,
         permissions.FILE_UPLOAD,
         permissions.FILE_DELETE,
+        permissions.CHAT_READ,
+        permissions.CHAT_WRITE,
+        permissions.CHAT_ATTACHMENT_UPLOAD,
         permissions.INTAKE_UPDATE,
         permissions.PROPOSAL_READ,
         permissions.PROPOSAL_GENERATE,
@@ -101,6 +107,7 @@ ROLE_PERMISSIONS: dict[UserRole, frozenset[str]] = {
             permissions.PROJECT_READ,
             permissions.PROPOSAL_READ,
             permissions.FILE_READ,
+            permissions.CHAT_READ,
         }
     ),
     UserRole.SALES: frozenset(
@@ -108,6 +115,7 @@ ROLE_PERMISSIONS: dict[UserRole, frozenset[str]] = {
             permissions.PROJECT_READ,
             permissions.PROPOSAL_READ,
             permissions.FILE_READ,
+            permissions.CHAT_READ,
         }
     ),
 }
