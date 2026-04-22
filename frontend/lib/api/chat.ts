@@ -13,7 +13,7 @@ export interface ChatThreadSummaryDTO {
 
 interface ChatAttachmentDTO {
 	id: string;
-	messageId: string;
+	messageId: string | null;
 	originalFilename: string;
 	contentType: string | null;
 	sizeBytes: number;
@@ -77,10 +77,12 @@ export function parseChatSSEBuffer(buffer: string): {
 		const normalizedPayload = normalizePayload(payload);
 
 		if (eventName === "start") {
+			const runId = stringOrUndefined(normalizedPayload.runId);
+			const threadId = stringOrUndefined(normalizedPayload.threadId);
 			events.push({
 				event: "start",
-				runId: stringOrUndefined(normalizedPayload.runId),
-				threadId: stringOrUndefined(normalizedPayload.threadId),
+				...(runId ? { runId } : {}),
+				...(threadId ? { threadId } : {}),
 			});
 			continue;
 		}
@@ -94,17 +96,19 @@ export function parseChatSSEBuffer(buffer: string): {
 		}
 
 		if (eventName === "completed") {
+			const messageId = stringOrUndefined(normalizedPayload.messageId);
 			events.push({
 				event: "completed",
-				messageId: stringOrUndefined(normalizedPayload.messageId),
+				...(messageId ? { messageId } : {}),
 			});
 			continue;
 		}
 
 		if (eventName === "error") {
+			const code = stringOrUndefined(normalizedPayload.code);
 			events.push({
 				event: "error",
-				code: stringOrUndefined(normalizedPayload.code),
+				...(code ? { code } : {}),
 			});
 		}
 	}
@@ -145,20 +149,39 @@ export async function reloadPersistedThreadHistory(
 	}));
 }
 
+export async function uploadChatAttachment(file: File): Promise<string> {
+	const response = await apiClient.uploadFile<ChatAttachmentDTO>(
+		"/chat/attachments",
+		file,
+	);
+	return response.id;
+}
+
 export async function streamPersistedChatTurn(options: {
 	threadId: string;
 	contentText: string;
+	existingAttachmentIds?: string[];
 	signal?: AbortSignal;
 	onEvent: (event: ChatStreamEvent) => void;
 }): Promise<void> {
+	const body: Record<string, unknown> = { contentText: options.contentText };
+	if (
+		options.existingAttachmentIds &&
+		options.existingAttachmentIds.length > 0
+	) {
+		body.existingAttachmentIds = options.existingAttachmentIds;
+	}
+
+	const requestInit: RequestInit = {
+		method: "POST",
+		headers: resolveStreamingHeaders(),
+		body: JSON.stringify(body),
+		...(options.signal ? { signal: options.signal } : {}),
+	};
+
 	const response = await fetch(
 		`${resolveBaseUrl()}/chat/threads/${options.threadId}/messages/stream`,
-		{
-			method: "POST",
-			headers: resolveStreamingHeaders(),
-			body: JSON.stringify({ contentText: options.contentText }),
-			signal: options.signal,
-		},
+		requestInit,
 	);
 
 	if (!response.ok) {

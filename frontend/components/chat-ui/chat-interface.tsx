@@ -10,7 +10,17 @@ import {
 	createChatThread,
 	reloadPersistedThreadHistory,
 	streamPersistedChatTurn,
+	uploadChatAttachment,
 } from "@/lib/api/chat";
+import {
+	type AttachmentUploadState,
+	initializeUploadStates,
+	updateUploadState,
+} from "@/lib/chat-attachment-utils";
+import {
+	streamAndReloadPersistedTurn,
+	uploadDraftAttachmentsForSend,
+} from "@/lib/chat-send-flow";
 import {
 	canSubmitPromptMessage,
 	shouldShowLoadingShimmer,
@@ -39,6 +49,8 @@ import { WorkingMemoryUpdate } from "./ai-elements/working-memory-update";
 import { ChatPromptComposer } from "./chat-prompt-composer";
 import { CopyButton } from "./copy-button";
 
+export { runDraftAttachmentSendFlow } from "@/lib/chat-send-flow";
+
 interface ChatInterfaceProps {
 	initialMessages?: MyUIMessage[];
 	threadId: string;
@@ -57,10 +69,20 @@ export function ChatInterface({
 		"ready",
 	);
 	const [error, setError] = useState<Error | null>(null);
+	const [attachmentUploadStates, setAttachmentUploadStates] = useState<
+		AttachmentUploadState[]
+	>([]);
 
 	const isEmptyState = messages.length === 0;
+	const isUploading = attachmentUploadStates.some(
+		(s) => s.status === "uploading",
+	);
+	const composerStatus = isUploading ? "submitted" : status;
 
-	const clearError = useCallback(() => setError(null), []);
+	const clearError = useCallback(() => {
+		setError(null);
+		setAttachmentUploadStates([]);
+	}, []);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -95,14 +117,31 @@ export function ChatInterface({
 
 	const sendMessage = useCallback(
 		async (message: PromptInputMessage) => {
-			if ((message.files?.length ?? 0) > 0) {
-				setError(
-					new Error(
-						"Attachment uploads in chat composer are not available yet in v1.",
-					),
-				);
-				return;
+			const fileCount = message.files?.length ?? 0;
+			let existingAttachmentIds: string[] = [];
+
+			if (fileCount > 0) {
+				setAttachmentUploadStates(initializeUploadStates(fileCount));
+				const uploadResult = await uploadDraftAttachmentsForSend({
+					files: message.files ?? [],
+					uploadAttachment: uploadChatAttachment,
+					onUploadStateChange: (index, state) => {
+						setAttachmentUploadStates((previous) =>
+							updateUploadState(previous, index, state),
+						);
+					},
+				});
+
+				if (uploadResult.status === "error") {
+					setError(uploadResult.error);
+					setStatus("ready");
+					return;
+				}
+
+				existingAttachmentIds = uploadResult.attachmentIds;
 			}
+
+			setAttachmentUploadStates([]);
 
 			setStatus("submitted");
 			let resolvedThreadId = threadId;
@@ -120,17 +159,18 @@ export function ChatInterface({
 			const userMessage: MyUIMessage = {
 				id: nanoid(),
 				role: "user",
-				content: message.text,
 				parts: [
 					{ type: "text", text: message.text },
-					...(message.files?.map((f) => ({
-						type: "file" as const,
-						filename: f.filename,
-						mediaType: f.mediaType,
-						url: f.url,
-					})) || []),
+					...(message.files?.map(
+						(f) =>
+							({
+								type: "file",
+								filename: f.filename,
+								mediaType: f.mediaType,
+								url: f.url,
+							}) as MyUIMessage["parts"][number],
+					) || []),
 				],
-				createdAt: new Date().toISOString(),
 			};
 
 			setMessages((previousMessages) => {
@@ -148,16 +188,16 @@ export function ChatInterface({
 					role: "assistant",
 					content: "",
 					parts: [{ type: "text", text: "" }],
-					createdAt: new Date().toISOString(),
 				},
 			]);
 
-			let streamErrorCode: string | null = null;
-
-			await streamPersistedChatTurn({
+			const persistedMessages = await streamAndReloadPersistedTurn({
 				threadId: resolvedThreadId,
 				contentText: message.text,
-				onEvent: (event) => {
+				attachmentIds: existingAttachmentIds,
+				streamTurn: streamPersistedChatTurn,
+				reloadHistory: reloadPersistedThreadHistory,
+				onStreamEvent: (event) => {
 					if (event.event === "delta") {
 						setMessages((previousMessages) =>
 							previousMessages.map((chatMessage) => {
@@ -165,32 +205,21 @@ export function ChatInterface({
 									return chatMessage;
 								}
 
+								const currentTextPart = chatMessage.parts.find(
+									(part) => part.type === "text",
+								);
 								const currentText =
-									typeof chatMessage.content === "string"
-										? chatMessage.content
-										: "";
+									currentTextPart?.type === "text" ? currentTextPart.text : "";
 								const nextText = currentText + event.delta;
 								return {
 									...chatMessage,
-									content: nextText,
 									parts: [{ type: "text", text: nextText }],
 								};
 							}),
 						);
 					}
-
-					if (event.event === "error") {
-						streamErrorCode = event.code ?? "CHAT_STREAM_FAILED";
-					}
 				},
 			});
-
-			if (streamErrorCode) {
-				throw new Error(`Stream failed (${streamErrorCode})`);
-			}
-
-			const persistedMessages =
-				await reloadPersistedThreadHistory(resolvedThreadId);
 			setMessages(persistedMessages);
 			onMessagesChange?.(persistedMessages);
 			setStatus("ready");
@@ -253,7 +282,7 @@ export function ChatInterface({
 							}}
 							onSubmitMessage={handleSubmitMessage}
 							placeholder="Ask anything"
-							status={status}
+							status={composerStatus}
 							textareaClassName="min-h-16 text-lg"
 						/>
 					</motion.div>
@@ -375,11 +404,10 @@ export function ChatInterface({
 																	<WorkingMemoryUpdate
 																		key={`${message.id}-${i}`}
 																		state={part.state}
-																		input={
-																			part.state !== "input-streaming"
-																				? part.input
-																				: undefined
-																		}
+																		{...(part.state !== "input-streaming" &&
+																		part.input
+																			? { input: part.input }
+																			: {})}
 																	/>
 																);
 															default:
@@ -435,7 +463,7 @@ export function ChatInterface({
 								}}
 								onSubmitMessage={handleSubmitMessage}
 								placeholder="Say something..."
-								status={status}
+								status={composerStatus}
 								textareaClassName="min-h-14"
 							/>
 						</div>

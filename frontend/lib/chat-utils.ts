@@ -1,5 +1,5 @@
 import type { ChatStatus } from "ai";
-import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
+import type { PromptInputMessage } from "@/components/chat-ui/ai-elements/prompt-input";
 import type { MyUIMessage } from "@/types/ui-message";
 
 export const canSubmitPromptMessage = (
@@ -43,7 +43,8 @@ export function shouldShowLoadingShimmer(
 
 function findLast<T>(arr: T[], predicate: (item: T) => boolean): T | undefined {
 	for (let i = arr.length - 1; i >= 0; i--) {
-		if (predicate(arr[i])) return arr[i];
+		const item = arr[i];
+		if (item !== undefined && predicate(item)) return item;
 	}
 	return undefined;
 }

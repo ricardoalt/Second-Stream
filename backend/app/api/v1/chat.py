@@ -28,6 +28,7 @@ from app.services.chat_service import (
     ChatAttachmentInput,
     ChatAttachmentValidationError,
     create_attachment_for_message,
+    create_draft_attachment,
     create_thread,
     get_owned_thread,
     list_message_attachments,
@@ -127,6 +128,8 @@ async def get_chat_thread(
     )
     attachments_by_message: dict[UUID, list[ChatAttachmentResponse]] = {}
     for attachment in attachments:
+        if attachment.message_id is None:
+            continue
         attachments_by_message.setdefault(attachment.message_id, []).append(
             _attachment_to_response(attachment)
         )
@@ -176,6 +179,38 @@ async def upload_chat_attachment(
             organization_id=org.id,
             created_by_user_id=current_user.id,
             message_id=message_id,
+            attachment=attachment_input,
+        )
+    except ChatAttachmentValidationError as exc:
+        _raise_chat_error(exc)
+
+    return _attachment_to_response(attachment)
+
+
+@router.post("/attachments", response_model=ChatAttachmentResponse, status_code=201)
+async def upload_chat_attachment_draft(
+    current_user: CurrentUser,
+    org: OrganizationContext,
+    db: AsyncDB,
+    file: Annotated[UploadFile, File(...)],
+) -> ChatAttachmentResponse:
+    require_permission(current_user, permissions.CHAT_ATTACHMENT_UPLOAD)
+
+    content = await file.read()
+    attachment_input = ChatAttachmentInput(
+        storage_key=f"chat/{org.id}/{current_user.id}/{uuid.uuid4().hex}",
+        original_filename=file.filename or "attachment",
+        content_type=file.content_type,
+        size_bytes=len(content),
+        sha256=hashlib.sha256(content).hexdigest(),
+        extracted_text=None,
+    )
+
+    try:
+        attachment = await create_draft_attachment(
+            db=db,
+            organization_id=org.id,
+            uploaded_by_user_id=current_user.id,
             attachment=attachment_input,
         )
     except ChatAttachmentValidationError as exc:

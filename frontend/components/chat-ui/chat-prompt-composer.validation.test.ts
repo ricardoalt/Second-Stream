@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAttachmentValidationMessage } from "@/components/chat-prompt-composer";
+import { getAttachmentValidationMessage } from "@/components/chat-ui/chat-prompt-composer";
 
 describe("getAttachmentValidationMessage", () => {
 	it("returns an explicit size limit message", () => {

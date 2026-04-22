@@ -45,7 +45,7 @@ async def test_chat_v1_contract_uses_creator_org_visibility_and_message_owned_at
     assert "created_by_user_id" in thread_columns
 
     assert "message_id" in attachment_columns
-    assert attachment_columns["message_id"]["nullable"] is False
+    assert attachment_columns["message_id"]["nullable"] is True
     assert any(
         fk["referred_table"] == "chat_messages"
         and fk["constrained_columns"] == ["message_id"]
@@ -86,7 +86,7 @@ def test_chat_models_define_message_owned_attachment_relationship():
 
     assert ChatAttachment.__tablename__ == "chat_attachments"
     assert ChatMessage.__tablename__ == "chat_messages"
-    assert ChatAttachment.message_id.property.columns[0].nullable is False
+    assert ChatAttachment.message_id.property.columns[0].nullable is True
     assert ChatAttachment.message.property.mapper.class_ is ChatMessage
 
 

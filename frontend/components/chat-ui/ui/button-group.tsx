@@ -22,11 +22,10 @@ const buttonGroupVariants = cva(
 	},
 );
 
-function ButtonGroup({
-	className,
-	orientation,
-	...props
-}: React.ComponentProps<"div"> & VariantProps<typeof buttonGroupVariants>) {
+export type ButtonGroupProps = React.ComponentProps<"div"> &
+	VariantProps<typeof buttonGroupVariants>;
+
+function ButtonGroup({ className, orientation, ...props }: ButtonGroupProps) {
 	return (
 		<div
 			role="group"
@@ -38,11 +37,13 @@ function ButtonGroup({
 	);
 }
 
+export type ButtonGroupTextProps = useRender.ComponentProps<"div">;
+
 function ButtonGroupText({
 	className,
 	render,
 	...props
-}: useRender.ComponentProps<"div">) {
+}: ButtonGroupTextProps) {
 	return useRender({
 		defaultTagName: "div",
 		props: mergeProps<"div">(

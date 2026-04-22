@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import create_org, create_user
@@ -11,9 +11,12 @@ from app.models.chat_message import ChatMessage
 from app.models.chat_thread import ChatThread
 from app.models.user import UserRole
 from app.services.chat_service import (
+    CHAT_ORPHAN_DRAFT_RETENTION_DAYS,
     ChatAttachmentInput,
     ChatAttachmentValidationError,
+    create_draft_attachment,
     create_user_message_with_attachments,
+    find_cleanup_eligible_draft_attachments,
 )
 
 
@@ -58,7 +61,7 @@ async def _create_attachment(
     *,
     org_id: uuid.UUID,
     user_id: uuid.UUID,
-    message_id: uuid.UUID,
+    message_id: uuid.UUID | None,
     storage_key: str,
 ) -> ChatAttachment:
     attachment = ChatAttachment(
@@ -406,3 +409,287 @@ async def test_create_user_message_rolls_back_message_if_attachment_persistence_
 
     messages = await db_session.execute(select(ChatMessage).where(ChatMessage.thread_id == thread_id))
     assert messages.scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_create_draft_attachment_persists_unlinked_attachment(db_session):
+    org = await create_org(db_session, "Chat Draft Org", "chat-draft-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-draft-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    attachment = await create_draft_attachment(
+        db=db_session,
+        organization_id=org.id,
+        uploaded_by_user_id=owner.id,
+        attachment=ChatAttachmentInput(
+            storage_key=f"chat/{org.id}/{uuid.uuid4()}.txt",
+            original_filename="draft.txt",
+            content_type="text/plain",
+            size_bytes=128,
+        ),
+    )
+
+    assert attachment.id is not None
+    assert attachment.message_id is None
+    assert attachment.organization_id == org.id
+    assert attachment.uploaded_by_user_id == owner.id
+    assert attachment.original_filename == "draft.txt"
+
+
+@pytest.mark.asyncio
+async def test_create_draft_attachment_rejects_mime_outside_allowlist(db_session):
+    org = await create_org(db_session, "Chat Draft Mime Org", "chat-draft-mime")
+    owner = await create_user(
+        db_session,
+        email=f"chat-draft-mime-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    with pytest.raises(ChatAttachmentValidationError) as exc_info:
+        await create_draft_attachment(
+            db=db_session,
+            organization_id=org.id,
+            uploaded_by_user_id=owner.id,
+            attachment=ChatAttachmentInput(
+                storage_key=f"chat/{org.id}/{uuid.uuid4()}.zip",
+                original_filename="bad.zip",
+                content_type="application/zip",
+                size_bytes=128,
+            ),
+        )
+
+    assert exc_info.value.code == "ATTACHMENT_MIME_NOT_ALLOWED"
+
+
+@pytest.mark.asyncio
+async def test_create_draft_attachment_rejects_attachment_over_4mb(db_session):
+    org = await create_org(db_session, "Chat Draft Size Org", "chat-draft-size")
+    owner = await create_user(
+        db_session,
+        email=f"chat-draft-size-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    with pytest.raises(ChatAttachmentValidationError) as exc_info:
+        await create_draft_attachment(
+            db=db_session,
+            organization_id=org.id,
+            uploaded_by_user_id=owner.id,
+            attachment=ChatAttachmentInput(
+                storage_key=f"chat/{org.id}/{uuid.uuid4()}.pdf",
+                original_filename="large.pdf",
+                content_type="application/pdf",
+                size_bytes=(4 * 1024 * 1024) + 1,
+            ),
+        )
+
+    assert exc_info.value.code == "ATTACHMENT_TOO_LARGE"
+
+
+@pytest.mark.asyncio
+async def test_create_user_message_claims_existing_draft_attachment(db_session):
+    org = await create_org(db_session, "Chat Claim Draft Org", "chat-claim-draft")
+    user = await create_user(
+        db_session,
+        email=f"chat-claim-draft-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=user.id)
+    draft = await _create_attachment(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        message_id=None,
+        storage_key=f"chat/{org.id}/{uuid.uuid4()}.txt",
+    )
+
+    message = await create_user_message_with_attachments(
+        db=db_session,
+        organization_id=org.id,
+        created_by_user_id=user.id,
+        thread_id=thread.id,
+        content_text="Claim this draft",
+        run_id="run-claim-draft",
+        attachments=[],
+        existing_attachment_ids=[draft.id],
+    )
+
+    result = await db_session.execute(
+        select(ChatAttachment).where(ChatAttachment.id == draft.id)
+    )
+    claimed = result.scalar_one()
+    assert claimed.message_id == message.id
+
+
+@pytest.mark.asyncio
+async def test_create_user_message_rejects_claiming_foreign_org_draft(db_session):
+    caller_org = await create_org(db_session, "Chat Caller Draft Org", "chat-caller-draft")
+    foreign_org = await create_org(db_session, "Chat Foreign Draft Org", "chat-foreign-draft")
+
+    caller = await create_user(
+        db_session,
+        email=f"chat-caller-draft-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=caller_org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    foreign_owner = await create_user(
+        db_session,
+        email=f"chat-foreign-draft-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=foreign_org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    caller_thread = await _create_thread(db_session, org_id=caller_org.id, owner_id=caller.id)
+    foreign_draft = await _create_attachment(
+        db_session,
+        org_id=foreign_org.id,
+        user_id=foreign_owner.id,
+        message_id=None,
+        storage_key=f"chat/{foreign_org.id}/{uuid.uuid4()}.txt",
+    )
+
+    with pytest.raises(ChatAttachmentValidationError) as exc_info:
+        await create_user_message_with_attachments(
+            db=db_session,
+            organization_id=caller_org.id,
+            created_by_user_id=caller.id,
+            thread_id=caller_thread.id,
+            content_text="Use foreign draft",
+            run_id="run-foreign-draft",
+            attachments=[],
+            existing_attachment_ids=[foreign_draft.id],
+        )
+
+    assert exc_info.value.code == "ATTACHMENT_ORG_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_create_user_message_rolls_back_when_claim_commit_fails(db_session, monkeypatch):
+    org = await create_org(db_session, "Chat Claim Rollback Org", "chat-claim-rollback")
+    user = await create_user(
+        db_session,
+        email=f"chat-claim-rollback-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=user.id)
+    thread_id = thread.id
+    draft = await _create_attachment(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        message_id=None,
+        storage_key=f"chat/{org.id}/{uuid.uuid4()}.txt",
+    )
+    draft_id = draft.id
+
+    original_commit = db_session.commit
+    commit_calls = 0
+
+    async def fail_claim_commit_once():
+        nonlocal commit_calls
+        commit_calls += 1
+        if commit_calls == 1:
+            raise RuntimeError("Simulated claim commit failure")
+        await original_commit()
+
+    monkeypatch.setattr(db_session, "commit", fail_claim_commit_once)
+
+    with pytest.raises(RuntimeError, match="Simulated claim commit failure"):
+        await create_user_message_with_attachments(
+            db=db_session,
+            organization_id=org.id,
+            created_by_user_id=user.id,
+            thread_id=thread.id,
+            content_text="Claim should rollback",
+            run_id="run-claim-rollback",
+            attachments=[],
+            existing_attachment_ids=[draft.id],
+        )
+
+    result = await db_session.execute(
+        select(ChatMessage).where(ChatMessage.thread_id == thread_id)
+    )
+    assert result.scalars().all() == []
+
+    draft_result = await db_session.execute(
+        select(ChatAttachment).where(ChatAttachment.id == draft_id)
+    )
+    persisted_draft = draft_result.scalar_one()
+    assert persisted_draft.message_id is None
+
+
+@pytest.mark.asyncio
+async def test_find_cleanup_eligible_draft_attachments_returns_old_unclaimed_only(db_session):
+    org = await create_org(db_session, "Chat Draft Cleanup Org", "chat-draft-cleanup")
+    user = await create_user(
+        db_session,
+        email=f"chat-draft-cleanup-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=user.id)
+    message = await _create_message(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        thread_id=thread.id,
+        text="claimed message",
+    )
+
+    eligible_draft = await _create_attachment(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        message_id=None,
+        storage_key=f"chat/{org.id}/{uuid.uuid4()}.txt",
+    )
+    recent_draft = await _create_attachment(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        message_id=None,
+        storage_key=f"chat/{org.id}/{uuid.uuid4()}.txt",
+    )
+    claimed_attachment = await _create_attachment(
+        db_session,
+        org_id=org.id,
+        user_id=user.id,
+        message_id=message.id,
+        storage_key=f"chat/{org.id}/{uuid.uuid4()}.txt",
+    )
+
+    now = datetime.now(UTC)
+    eligible_draft.created_at = now.replace(microsecond=0)
+    recent_draft.created_at = now
+    claimed_attachment.created_at = now.replace(microsecond=0)
+
+    retention_cutoff = now - timedelta(days=CHAT_ORPHAN_DRAFT_RETENTION_DAYS + 1)
+    eligible_draft.created_at = retention_cutoff
+
+    await db_session.commit()
+
+    eligible = await find_cleanup_eligible_draft_attachments(
+        db=db_session,
+        now=now,
+    )
+
+    eligible_ids = {row.id for row in eligible}
+    assert eligible_draft.id in eligible_ids
+    assert recent_draft.id not in eligible_ids
+    assert claimed_attachment.id not in eligible_ids

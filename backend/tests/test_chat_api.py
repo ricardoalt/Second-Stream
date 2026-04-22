@@ -287,3 +287,38 @@ async def test_chat_phase1_unsupported_actions_are_unavailable_and_history_is_un
         )
     )
     assert message_count == 2
+
+
+@pytest.mark.asyncio
+async def test_chat_draft_attachment_upload_contract(client: AsyncClient, db_session, set_current_user):
+    org, user = await _create_authed_user(db_session, set_current_user)
+
+    upload_response = await client.post(
+        "/api/v1/chat/attachments",
+        files={"file": ("draft-report.txt", io.BytesIO(b"draft content"), "text/plain")},
+    )
+    assert upload_response.status_code == 201
+    attachment_payload = upload_response.json()
+    assert attachment_payload["messageId"] is None
+    assert attachment_payload["originalFilename"] == "draft-report.txt"
+    assert attachment_payload["contentType"] == "text/plain"
+    assert attachment_payload["sizeBytes"] == len(b"draft content")
+
+    from app.models.chat_attachment import ChatAttachment
+
+    saved = await db_session.get(ChatAttachment, uuid.UUID(attachment_payload["id"]))
+    assert saved is not None
+    assert saved.message_id is None
+    assert saved.organization_id == org.id
+    assert saved.uploaded_by_user_id == user.id
+
+
+@pytest.mark.asyncio
+async def test_chat_draft_attachment_upload_rejects_invalid_mime(client: AsyncClient, db_session, set_current_user):
+    await _create_authed_user(db_session, set_current_user)
+
+    upload_response = await client.post(
+        "/api/v1/chat/attachments",
+        files={"file": ("bad.exe", io.BytesIO(b"binary"), "application/octet-stream")},
+    )
+    _assert_error_contract(upload_response, 400, "ATTACHMENT_MIME_NOT_ALLOWED")

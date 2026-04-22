@@ -86,13 +86,31 @@ export {
 	ModelSelector,
 	ModelSelectorContent,
 	type ModelSelectorContentProps,
+	ModelSelectorDialog,
+	type ModelSelectorDialogProps,
+	ModelSelectorEmpty,
+	type ModelSelectorEmptyProps,
+	ModelSelectorGroup,
+	type ModelSelectorGroupProps,
+	ModelSelectorInput,
+	type ModelSelectorInputProps,
 	ModelSelectorItem,
 	type ModelSelectorItemProps,
+	ModelSelectorList,
+	type ModelSelectorListProps,
+	ModelSelectorLogo,
+	ModelSelectorLogoGroup,
+	type ModelSelectorLogoGroupProps,
+	type ModelSelectorLogoProps,
+	ModelSelectorName,
+	type ModelSelectorNameProps,
 	type ModelSelectorProps,
+	ModelSelectorSeparator,
+	type ModelSelectorSeparatorProps,
+	ModelSelectorShortcut,
+	type ModelSelectorShortcutProps,
 	ModelSelectorTrigger,
 	type ModelSelectorTriggerProps,
-	ModelSelectorValue,
-	type ModelSelectorValueProps,
 } from "./ai-elements/model-selector";
 export {
 	PromptInput,
@@ -147,7 +165,7 @@ export {
 export {
 	// Shimmer loading effect
 	Shimmer,
-	type ShimmerProps,
+	type TextShimmerProps as ShimmerProps,
 } from "./ai-elements/shimmer";
 export {
 	// Source citations
@@ -161,7 +179,6 @@ export {
 export {
 	// Working memory updates
 	WorkingMemoryUpdate,
-	type WorkingMemoryUpdateProps,
 } from "./ai-elements/working-memory-update";
 
 // ============================================================================
@@ -176,6 +193,7 @@ export { RegenerateButton } from "./regenerate-button";
 // UI Components (re-exported for convenience)
 // ============================================================================
 
+export { toast } from "sonner";
 export {
 	// Alert Dialog
 	AlertDialog,
@@ -188,14 +206,12 @@ export {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "./ui/alert-dialog";
-
 export {
 	// Button
 	Button,
 	type ButtonProps,
 	buttonVariants,
 } from "./ui/button";
-
 export {
 	// Button Group
 	ButtonGroup,
@@ -203,7 +219,6 @@ export {
 	ButtonGroupText,
 	type ButtonGroupTextProps,
 } from "./ui/button-group";
-
 export {
 	// Card
 	Card,
@@ -213,7 +228,6 @@ export {
 	CardHeader,
 	CardTitle,
 } from "./ui/card";
-
 export {
 	// Command Palette
 	Command,
@@ -226,7 +240,6 @@ export {
 	CommandSeparator,
 	CommandShortcut,
 } from "./ui/command";
-
 export {
 	// Dialog
 	Dialog,
@@ -238,7 +251,6 @@ export {
 	DialogTitle,
 	DialogTrigger,
 } from "./ui/dialog";
-
 export {
 	// Dropdown Menu
 	DropdownMenu,
@@ -246,20 +258,17 @@ export {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-
 export {
 	// Hover Card
 	HoverCard,
 	HoverCardContent,
 	HoverCardTrigger,
 } from "./ui/hover-card";
-
 export {
 	// Input
 	Input,
 	type InputProps,
 } from "./ui/input";
-
 export {
 	// Input Group
 	InputGroup,
@@ -271,12 +280,10 @@ export {
 	InputGroupTextarea,
 	type InputGroupTextareaProps,
 } from "./ui/input-group";
-
 export {
 	// Label
 	Label,
 } from "./ui/label";
-
 export {
 	// Select
 	Select,
@@ -285,12 +292,10 @@ export {
 	SelectTrigger,
 	SelectValue,
 } from "./ui/select";
-
 export {
 	// Separator
 	Separator,
 } from "./ui/separator";
-
 export {
 	// Sheet
 	Sheet,
@@ -300,7 +305,6 @@ export {
 	SheetTitle,
 	SheetTrigger,
 } from "./ui/sheet";
-
 export {
 	// Sidebar
 	Sidebar,
@@ -318,16 +322,13 @@ export {
 	SidebarTrigger,
 	useSidebar,
 } from "./ui/sidebar";
-
 export {
 	// Skeleton
 	Skeleton,
 } from "./ui/skeleton";
-
 export {
 	// Sonner (Toasts)
 	Toaster,
-	toast,
 } from "./ui/sonner";
 
 export {
@@ -349,7 +350,7 @@ export {
 // ============================================================================
 
 export { useDraftInput } from "@/hooks/use-draft-input";
-export { useMobile } from "@/hooks/use-mobile";
+export { useIsMobile as useMobile } from "@/hooks/use-mobile";
 
 // ============================================================================
 // Re-export from lib (copied utilities)

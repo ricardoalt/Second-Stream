@@ -1,7 +1,7 @@
 """Chat service helpers for v1 visibility and message-owned attachments."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import structlog
@@ -17,6 +17,7 @@ logger = structlog.get_logger(__name__)
 
 MAX_ATTACHMENTS_PER_MESSAGE = 5
 MAX_ATTACHMENT_SIZE_BYTES = 4 * 1024 * 1024
+CHAT_ORPHAN_DRAFT_RETENTION_DAYS = 7
 ALLOWED_EXACT_MIME_TYPES = {"application/pdf", "text/plain"}
 ALLOWED_MIME_PREFIXES = ("image/",)
 CHAT_MODEL_CONTEXT_WINDOW = 12
@@ -150,6 +151,33 @@ async def _validate_existing_attachments(
 
 def _build_last_message_preview(content_text: str) -> str:
     return content_text[:280]
+
+
+async def find_cleanup_eligible_draft_attachments(
+    *,
+    db: AsyncSession,
+    now: datetime | None = None,
+    retention_days: int = CHAT_ORPHAN_DRAFT_RETENTION_DAYS,
+    limit: int = 500,
+) -> list[ChatAttachment]:
+    """Return unclaimed drafts older than the retention window.
+
+    This helper is intentionally read-only: cleanup execution is deferred to
+    maintenance jobs/manual operations outside the chat send/upload path.
+    """
+    reference_time = now or datetime.now(UTC)
+    cutoff = reference_time - timedelta(days=retention_days)
+
+    rows = await db.execute(
+        select(ChatAttachment)
+        .where(
+            ChatAttachment.message_id.is_(None),
+            ChatAttachment.created_at < cutoff,
+        )
+        .order_by(ChatAttachment.created_at.asc())
+        .limit(limit)
+    )
+    return list(rows.scalars().all())
 
 
 async def create_user_message_with_attachments(
@@ -529,6 +557,33 @@ async def list_message_attachments(
         .order_by(ChatAttachment.created_at.asc(), ChatAttachment.id.asc())
     )
     return list(result.scalars().all())
+
+
+async def create_draft_attachment(
+    *,
+    db: AsyncSession,
+    organization_id: UUID,
+    uploaded_by_user_id: UUID,
+    attachment: ChatAttachmentInput,
+) -> ChatAttachment:
+    """Create one unlinked attachment draft scoped to org + user."""
+    _validate_attachment_inputs(attachments=[attachment], existing_attachment_ids=[])
+
+    attachment_row = ChatAttachment(
+        organization_id=organization_id,
+        uploaded_by_user_id=uploaded_by_user_id,
+        message_id=None,
+        storage_key=attachment.storage_key,
+        original_filename=attachment.original_filename,
+        content_type=_normalize_content_type(attachment.content_type) or None,
+        size_bytes=attachment.size_bytes,
+        sha256=attachment.sha256,
+        extracted_text=attachment.extracted_text,
+    )
+    db.add(attachment_row)
+    await db.commit()
+    await db.refresh(attachment_row)
+    return attachment_row
 
 
 async def create_attachment_for_message(

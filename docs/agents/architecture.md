@@ -59,6 +59,12 @@ User ──1:N──> Project ──1:N──> Proposal
 - Core stores: `frontend/lib/stores/project-store.ts`, `frontend/lib/stores/technical-data-store.ts`.
 - API pattern: `frontend/lib/api/*.ts` classes → store updates (see `ProjectsAPI` usage).
 
+### Chat attachment draft cleanup policy
+- Draft chat attachments are rows in `chat_attachments` with `message_id = NULL`.
+- Cleanup is intentionally **deferred** and kept out of send/upload runtime paths.
+- Retention window is `CHAT_ORPHAN_DRAFT_RETENTION_DAYS` (currently 7 days) in `backend/app/services/chat_service.py`.
+- Eligibility query is centralized in `find_cleanup_eligible_draft_attachments(...)` for later job/manual maintenance usage.
+
 ### Key files
 - **Backend**: `backend/app/core/config.py`, `backend/app/models/project.py`, `backend/app/agents/proposal_agent.py`, `backend/app/services/proposal_service.py`, `backend/app/api/v1/`
 - **Frontend**: `frontend/lib/api/client.ts`, `frontend/lib/stores/project-store.ts`, `frontend/lib/stores/technical-data-store.ts`, `frontend/app/`, `frontend/components/features/`

@@ -9,7 +9,7 @@ from app.models.base import BaseModel
 
 
 class ChatAttachment(BaseModel):
-    """Uploaded attachment linked to exactly one chat message."""
+    """Uploaded attachment linked to zero or one chat message (draft-first lifecycle)."""
 
     __tablename__ = "chat_attachments"
 
@@ -26,9 +26,9 @@ class ChatAttachment(BaseModel):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    message_id: Mapped[UUID] = mapped_column(
+    message_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("chat_messages.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
 
     storage_key: Mapped[str] = mapped_column(Text, nullable=False)

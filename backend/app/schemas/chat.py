@@ -27,7 +27,7 @@ class ChatThreadListResponse(BaseSchema):
 
 class ChatAttachmentResponse(BaseSchema):
     id: UUID
-    message_id: UUID
+    message_id: UUID | None
     original_filename: str
     content_type: str | None
     size_bytes: int
