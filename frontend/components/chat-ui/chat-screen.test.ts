@@ -8,6 +8,65 @@ async function loadChatScreenModule() {
 }
 
 describe("main chat screen behavior", () => {
+	it("shows landing state only for brand-new chats without history", async () => {
+		const { shouldShowMainChatLandingState } = await loadChatScreenModule();
+
+		expect(
+			shouldShowMainChatLandingState({
+				routeMode: "new",
+				messagesCount: 0,
+				historyLoading: false,
+			}),
+		).toBe(true);
+
+		expect(
+			shouldShowMainChatLandingState({
+				routeMode: "new",
+				messagesCount: 0,
+				historyLoading: true,
+			}),
+		).toBe(false);
+
+		expect(
+			shouldShowMainChatLandingState({
+				routeMode: "existing",
+				messagesCount: 0,
+				historyLoading: false,
+			}),
+		).toBe(false);
+	});
+
+	it("resolves first-turn feedback label before streaming starts", async () => {
+		const { resolveMainChatSubmitFeedbackLabel } = await loadChatScreenModule();
+
+		expect(
+			resolveMainChatSubmitFeedbackLabel({
+				routeMode: "new",
+				messagesCount: 0,
+				status: "ready",
+				isPreparingSubmit: true,
+			}),
+		).toBe("Creating your chat...");
+
+		expect(
+			resolveMainChatSubmitFeedbackLabel({
+				routeMode: "new",
+				messagesCount: 0,
+				status: "submitted",
+				isPreparingSubmit: false,
+			}),
+		).toBe("Sending your first message...");
+
+		expect(
+			resolveMainChatSubmitFeedbackLabel({
+				routeMode: "existing",
+				messagesCount: 2,
+				status: "ready",
+				isPreparingSubmit: false,
+			}),
+		).toBe(null);
+	});
+
 	it("uses only existing threads for transport/hydration", async () => {
 		const { canUseMainChatTransport } = await loadChatScreenModule();
 

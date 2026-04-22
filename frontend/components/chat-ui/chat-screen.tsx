@@ -7,8 +7,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	Conversation,
 	ConversationContent,
+	ConversationEmptyState,
 	ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
+import {
+	Attachment,
+	AttachmentInfo,
+	AttachmentPreview,
+	Attachments,
+} from "@/components/ai-elements/attachments";
 import {
 	Message,
 	MessageContent,
@@ -37,6 +44,43 @@ export function canUseMainChatTransport(threadId: string): boolean {
 
 export function shouldShowMainChatThinking(status: ChatStatus): boolean {
 	return status === "submitted" || status === "streaming";
+}
+
+export function shouldShowMainChatLandingState(options: {
+	routeMode: ChatRouteState["mode"];
+	messagesCount: number;
+	historyLoading: boolean;
+}): boolean {
+	return (
+		options.routeMode === "new" &&
+		options.messagesCount === 0 &&
+		!options.historyLoading
+	);
+}
+
+export function resolveMainChatSubmitFeedbackLabel(options: {
+	routeMode: ChatRouteState["mode"];
+	messagesCount: number;
+	status: ChatStatus;
+	isPreparingSubmit: boolean;
+}): string | null {
+	if (
+		options.isPreparingSubmit &&
+		options.routeMode === "new" &&
+		options.messagesCount === 0
+	) {
+		return "Creating your chat...";
+	}
+
+	if (
+		(options.status === "submitted" || options.status === "streaming") &&
+		options.routeMode === "new" &&
+		options.messagesCount === 0
+	) {
+		return "Sending your first message...";
+	}
+
+	return null;
 }
 
 export async function submitMainChatTurn(options: {
@@ -133,6 +177,8 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 	const [historyError, setHistoryError] = useState<string | null>(null);
 	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [historyLoading, setHistoryLoading] = useState(false);
+	const [isPreparingSubmit, setIsPreparingSubmit] = useState(false);
+	const isPreparingSubmitRef = useRef(false);
 
 	useEffect(() => {
 		setActiveThreadId(routeState.threadId);
@@ -202,28 +248,47 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 
 	const handleSubmitMessage = useCallback(
 		async (message: PromptInputMessage) => {
+			if (isPreparingSubmitRef.current) {
+				return;
+			}
+
+			isPreparingSubmitRef.current = true;
+			setIsPreparingSubmit(true);
 			setSubmitError(null);
 			pendingAttachmentIdsRef.current = [];
-			await submitMainChatTurn({
-				routeMode: routeState.mode,
-				currentThreadId: activeThreadId,
-				message,
-				sendMessage,
-				createThread: createChatThread,
-				uploadAttachment: uploadChatAttachment,
-				onAttachmentsPrepared: (attachmentIds) => {
-					pendingAttachmentIdsRef.current = attachmentIds;
-				},
-				onThreadCreated: (threadId) => {
-					activeThreadIdRef.current = threadId;
-					setActiveThreadId(threadId);
-					router.replace(buildChatThreadUrl(threadId));
-				},
-				onAccepted: () => {
-					pendingAttachmentIdsRef.current = [];
-					setSubmitError(null);
-				},
-			});
+
+			try {
+				await submitMainChatTurn({
+					routeMode: routeState.mode,
+					currentThreadId: activeThreadId,
+					message,
+					sendMessage,
+					createThread: createChatThread,
+					uploadAttachment: uploadChatAttachment,
+					onAttachmentsPrepared: (attachmentIds) => {
+						pendingAttachmentIdsRef.current = attachmentIds;
+					},
+					onThreadCreated: (threadId) => {
+						activeThreadIdRef.current = threadId;
+						setActiveThreadId(threadId);
+						router.replace(buildChatThreadUrl(threadId));
+					},
+					onAccepted: () => {
+						pendingAttachmentIdsRef.current = [];
+						setSubmitError(null);
+					},
+				});
+			} catch (submissionError) {
+				setSubmitError(
+					submissionError instanceof Error
+						? submissionError.message
+						: "Unable to send message.",
+				);
+				throw submissionError;
+			} finally {
+				setIsPreparingSubmit(false);
+				isPreparingSubmitRef.current = false;
+			}
 		},
 		[activeThreadId, routeState.mode, router, sendMessage],
 	);
@@ -239,17 +304,41 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 	}
 
 	const visibleError = submitError ?? error?.message ?? historyError;
+	const showLandingState = shouldShowMainChatLandingState({
+		routeMode: routeState.mode,
+		messagesCount: messages.length,
+		historyLoading,
+	});
+	const composerStatus: ChatStatus = isPreparingSubmit ? "submitted" : status;
+	const submitFeedbackLabel = resolveMainChatSubmitFeedbackLabel({
+		routeMode: routeState.mode,
+		messagesCount: messages.length,
+		status: composerStatus,
+		isPreparingSubmit,
+	});
+
+	if (showLandingState) {
+		return (
+			<div className="mx-auto flex h-full w-full max-w-[70ch] flex-1 flex-col items-center justify-center gap-8 px-6 pb-20">
+				<ConversationEmptyState className="gap-3 p-0" description="Start with a question or drop files to give context." title="What can I help with?" />
+				<ChatPromptComposer
+					className="w-full"
+					errorMessage={submitError ?? error?.message ?? null}
+					hintMessage={submitFeedbackLabel}
+					onInteract={() => setSubmitError(null)}
+					onSubmitMessage={handleSubmitMessage}
+					placeholder="Ask anything"
+					status={composerStatus}
+					textareaClassName="min-h-16 text-base"
+				/>
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex h-full flex-1 flex-col">
 			<Conversation className="min-h-0 flex-1">
 				<ConversationContent className="mx-auto w-full max-w-[70ch] gap-6 px-6 py-6">
-					{routeState.mode === "new" && messages.length === 0 ? (
-						<output className="text-muted-foreground text-sm">
-							Start a new chat by sending your first message.
-						</output>
-					) : null}
-
 					{historyLoading && messages.length === 0 ? (
 						<output className="text-muted-foreground text-sm">
 							Loading thread messages...
@@ -259,20 +348,29 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 					{messages.map((message) => (
 						<Message from={message.role} key={message.id}>
 							<MessageContent>
+								<Attachments className="w-full" variant="list">
+									{message.parts
+										.filter((part) => part.type === "file")
+										.map((part, index) => (
+											<Attachment
+												data={{
+													...part,
+													id: `${message.id}-attachment-${index}`,
+												}}
+												key={`${message.id}-attachment-${index}`}
+											>
+												<AttachmentPreview />
+												<AttachmentInfo showMediaType />
+											</Attachment>
+										))}
+								</Attachments>
+
 								{message.parts.map((part, index) => {
 									if (part.type === "text") {
 										return (
 											<MessageResponse key={`${message.id}-${index}`}>
 												{part.text}
 											</MessageResponse>
-										);
-									}
-
-									if (part.type === "file") {
-										return (
-											<div className="text-xs" key={`${message.id}-${index}`}>
-												Attachment: {part.filename ?? part.mediaType}
-											</div>
 										);
 									}
 
@@ -303,10 +401,11 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 				<ChatPromptComposer
 					className="w-full"
 					errorMessage={submitError ?? error?.message ?? null}
+					hintMessage={submitFeedbackLabel}
 					onInteract={() => setSubmitError(null)}
 					onSubmitMessage={handleSubmitMessage}
 					placeholder="Send a message"
-					status={status}
+					status={composerStatus}
 					textareaClassName="min-h-14"
 				/>
 			</div>

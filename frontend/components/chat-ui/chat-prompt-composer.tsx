@@ -35,6 +35,7 @@ import {
 type ChatPromptComposerProps = {
 	className: string;
 	errorMessage?: string | null;
+	hintMessage?: string | null;
 	onInteract?: () => void;
 	onSubmitMessage: (message: PromptInputMessage) => Promise<void>;
 	placeholder: string;
@@ -110,9 +111,18 @@ function PromptInputAttachmentsHeader(): React.JSX.Element | null {
 		return null;
 	}
 
+	const attachmentCount = attachments.files.length;
+	const attachmentLabel =
+		attachmentCount === 1
+			? "1 attachment ready"
+			: `${attachmentCount} attachments ready`;
+
 	return (
-		<PromptInputHeader>
-			<Attachments variant="inline">
+		<PromptInputHeader className="space-y-2">
+			<p className="px-1 text-muted-foreground text-xs" role="status">
+				{attachmentLabel}
+			</p>
+			<Attachments className="w-full" variant="list">
 				{attachments.files.map((attachment) => (
 					<Attachment
 						data={attachment}
@@ -120,7 +130,7 @@ function PromptInputAttachmentsHeader(): React.JSX.Element | null {
 						onRemove={() => attachments.remove(attachment.id)}
 					>
 						<AttachmentPreview />
-						<AttachmentInfo />
+						<AttachmentInfo showMediaType />
 						<AttachmentRemove />
 					</Attachment>
 				))}
@@ -189,6 +199,7 @@ function DraftSync({ onTextChange }: { onTextChange: (v: string) => void }) {
 export function ChatPromptComposer({
 	className,
 	errorMessage,
+	hintMessage,
 	onInteract,
 	onSubmitMessage,
 	placeholder,
@@ -264,6 +275,12 @@ export function ChatPromptComposer({
 				{!attachmentError && errorMessage ? (
 					<div className="px-3 pb-1 text-destructive text-xs" role="alert">
 						{errorMessage}
+					</div>
+				) : null}
+
+				{!attachmentError && !errorMessage && hintMessage ? (
+					<div className="px-3 pb-1 text-muted-foreground text-xs" role="status">
+						{hintMessage}
 					</div>
 				) : null}
 

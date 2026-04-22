@@ -17,8 +17,12 @@ describe("chat default cutover structure", () => {
 
 		expect(chatScreenSource).toContain("@/components/ai-elements/");
 		expect(composerSource).toContain("@/components/ai-elements/prompt-input");
+		expect(chatScreenSource).toContain("ConversationEmptyState");
+		expect(chatScreenSource).toContain("<Attachments");
+		expect(chatScreenSource).toContain("variant=\"list\"");
 		expect(chatScreenSource).not.toContain("./ai-elements/");
 		expect(composerSource).not.toContain("./ai-elements/");
+		expect(chatScreenSource).not.toContain("Start a new chat by sending your first message");
 	});
 
 	it("removes temporary bridge route from primary path", () => {
