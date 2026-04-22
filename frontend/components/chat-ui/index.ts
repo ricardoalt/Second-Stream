@@ -20,6 +20,7 @@
 // ============================================================================
 
 export { AppSidebar } from "./app-sidebar";
+export { ChatScreen } from "./chat-screen";
 export { ChatInterface } from "./chat-interface";
 export { ChatPromptComposer } from "./chat-prompt-composer";
 export { ChatSearch } from "./chat-search";

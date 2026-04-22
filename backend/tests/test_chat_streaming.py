@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from app.agents.chat_agent import ChatAgentError
 from app.models.chat_message import ChatMessage
+from app.models.chat_attachment import ChatAttachment
 from app.models.chat_thread import ChatThread
 from app.models.user import UserRole
 from app.services import chat_service
@@ -64,7 +65,7 @@ async def test_stream_chat_turn_emits_start_delta_completed_and_persists_assista
 
     observed_counts: dict[str, int] = {}
 
-    async def _fake_generate(*, prompt, deps):
+    async def _fake_stream_response(*, prompt, deps, attachments):
         observed_counts["user_before_generation"] = await db_session.scalar(
             select(func.count())
             .select_from(ChatMessage)
@@ -75,9 +76,11 @@ async def test_stream_chat_turn_emits_start_delta_completed_and_persists_assista
             .select_from(ChatMessage)
             .where(ChatMessage.thread_id == thread.id, ChatMessage.role == "assistant")
         )
-        return chat_service.ChatAgentOutput(response_text="First chunk. Second chunk.")
+        yield {"event": "delta", "delta": "First chunk"}
+        yield {"event": "delta", "delta": "Second chunk."}
+        yield {"event": "completed", "response_text": "First chunk. Second chunk."}
 
-    monkeypatch.setattr(chat_service, "generate_chat_response", _fake_generate)
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
 
     events = [
         event
@@ -125,10 +128,11 @@ async def test_stream_chat_turn_emits_error_and_does_not_persist_partial_assista
     thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
     thread_id = thread.id
 
-    async def _fail_generate(*, prompt, deps):
+    async def _fail_stream_response(*, prompt, deps, attachments):
         raise ChatAgentError("bedrock timeout")
+        yield {"event": "delta", "delta": "unreachable"}
 
-    monkeypatch.setattr(chat_service, "generate_chat_response", _fail_generate)
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fail_stream_response)
 
     events = [
         event
@@ -193,11 +197,12 @@ async def test_stream_chat_turn_prompt_includes_active_user_turn_only_once(db_se
 
     captured_prompt: dict[str, str] = {}
 
-    async def _fake_generate(*, prompt, deps):
+    async def _fake_stream_response(*, prompt, deps, attachments):
         captured_prompt["value"] = prompt
-        return chat_service.ChatAgentOutput(response_text="Done")
+        yield {"event": "delta", "delta": "Done"}
+        yield {"event": "completed", "response_text": "Done"}
 
-    monkeypatch.setattr(chat_service, "generate_chat_response", _fake_generate)
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
 
     _ = [
         event
@@ -230,11 +235,12 @@ async def test_stream_chat_turn_prompt_with_empty_history_includes_single_user_t
 
     captured_prompt: dict[str, str] = {}
 
-    async def _fake_generate(*, prompt, deps):
+    async def _fake_stream_response(*, prompt, deps, attachments):
         captured_prompt["value"] = prompt
-        return chat_service.ChatAgentOutput(response_text="Done")
+        yield {"event": "delta", "delta": "Done"}
+        yield {"event": "completed", "response_text": "Done"}
 
-    monkeypatch.setattr(chat_service, "generate_chat_response", _fake_generate)
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
 
     _ = [
         event
@@ -287,11 +293,12 @@ async def test_stream_chat_turn_persists_full_history_but_uses_recent_window_for
 
     captured_prompt: dict[str, str] = {}
 
-    async def _fake_generate(*, prompt, deps):
+    async def _fake_stream_response(*, prompt, deps, attachments):
         captured_prompt["value"] = prompt
-        return chat_service.ChatAgentOutput(response_text="Done")
+        yield {"event": "delta", "delta": "Done"}
+        yield {"event": "completed", "response_text": "Done"}
 
-    monkeypatch.setattr(chat_service, "generate_chat_response", _fake_generate)
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
 
     _ = [
         event
@@ -314,3 +321,106 @@ async def test_stream_chat_turn_persists_full_history_but_uses_recent_window_for
         select(func.count()).select_from(ChatMessage).where(ChatMessage.thread_id == thread.id)
     )
     assert total_count == CHAT_MODEL_CONTEXT_WINDOW + 4
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_turn_forwards_incremental_runtime_events_without_sentence_chunking(
+    db_session,
+    monkeypatch,
+):
+    org = await create_org(db_session, "Chat Runtime Stream Org", "chat-runtime-stream-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-runtime-stream-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "First "}
+        yield {"event": "delta", "delta": "chunk"}
+        yield {"event": "completed", "response_text": "First chunk"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response, raising=False)
+
+    events = [
+        event
+        async for event in stream_chat_turn(
+            db=db_session,
+            organization_id=org.id,
+            created_by_user_id=owner.id,
+            thread_id=thread.id,
+            content_text="Help me analyze",
+            run_id="run-runtime-stream",
+        )
+    ]
+
+    assert events[0] == {"event": "start", "run_id": "run-runtime-stream"}
+    assert events[1] == {"event": "delta", "delta": "First "}
+    assert events[2] == {"event": "delta", "delta": "chunk"}
+    assert events[3]["event"] == "completed"
+    assert uuid.UUID(events[3]["message_id"])
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_turn_resolves_existing_attachments_and_passes_agent_consumable_inputs(
+    db_session,
+    monkeypatch,
+):
+    org = await create_org(db_session, "Chat Attachments Stream Org", "chat-attachments-stream-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-attachments-stream-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    draft_attachment = ChatAttachment(
+        organization_id=org.id,
+        uploaded_by_user_id=owner.id,
+        message_id=None,
+        storage_key=f"chat/{org.id}/{owner.id}/att-1",
+        original_filename="evidence.txt",
+        content_type="text/plain",
+        size_bytes=128,
+        extracted_text="Extracted evidence body",
+    )
+    db_session.add(draft_attachment)
+    await db_session.commit()
+    await db_session.refresh(draft_attachment)
+
+    captured: dict[str, object] = {}
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        captured["attachments"] = attachments
+        yield {"event": "delta", "delta": "Used attachment"}
+        yield {"event": "completed", "response_text": "Used attachment"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response, raising=False)
+
+    events = [
+        event
+        async for event in stream_chat_turn(
+            db=db_session,
+            organization_id=org.id,
+            created_by_user_id=owner.id,
+            thread_id=thread.id,
+            content_text="Please use my attachment",
+            run_id="run-with-attachment",
+            existing_attachment_ids=[draft_attachment.id],
+        )
+    ]
+
+    assert events[0] == {"event": "start", "run_id": "run-with-attachment"}
+    assert events[1] == {"event": "delta", "delta": "Used attachment"}
+    assert events[2]["event"] == "completed"
+
+    resolved_inputs = captured["attachments"]
+    assert len(resolved_inputs) == 1
+    assert resolved_inputs[0].attachment_id == str(draft_attachment.id)
+    assert resolved_inputs[0].uploaded_file_ref == draft_attachment.storage_key
+    assert resolved_inputs[0].extracted_text == "Extracted evidence body"

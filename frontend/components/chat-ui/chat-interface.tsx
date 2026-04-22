@@ -1,11 +1,11 @@
 "use client";
 
 import { GlobeIcon } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { nanoid } from "nanoid";
 import Image from "next/image";
 import type * as React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	createChatThread,
 	reloadPersistedThreadHistory,
@@ -18,11 +18,16 @@ import {
 	updateUploadState,
 } from "@/lib/chat-attachment-utils";
 import {
-	streamAndReloadPersistedTurn,
-	uploadDraftAttachmentsForSend,
+	applyAssistantStreamEvent,
+	type DraftUploadResult,
+	runDraftAttachmentSendFlow,
 } from "@/lib/chat-send-flow";
 import {
 	canSubmitPromptMessage,
+	nextMessagesAfterHistoryReloadFailure,
+	nextClearedUploadStates,
+	rollbackMessagesAfterSendFailure,
+	shouldReloadThreadHistory,
 	shouldShowLoadingShimmer,
 } from "@/lib/chat-utils";
 import type { MyUIMessage } from "@/types/ui-message";
@@ -51,6 +56,19 @@ import { CopyButton } from "./copy-button";
 
 export { runDraftAttachmentSendFlow } from "@/lib/chat-send-flow";
 
+export function resolveAttachmentUploadResult(
+	uploadResult: DraftUploadResult,
+): string[] {
+	if (uploadResult.status === "error") {
+		throw uploadResult.error;
+	}
+
+	return uploadResult.attachmentIds;
+}
+
+const EMPTY_INITIAL_MESSAGES: MyUIMessage[] = [];
+const CHAT_SHELL_COMPOSER_BOUNDARY_ID = "chat-shell-composer";
+
 interface ChatInterfaceProps {
 	initialMessages?: MyUIMessage[];
 	threadId: string;
@@ -58,8 +76,18 @@ interface ChatInterfaceProps {
 	onThreadCreated?: (threadId: string) => void;
 }
 
+export function deriveChatShellState(messages: MyUIMessage[]): {
+	mode: "empty" | "conversation";
+	composerBoundaryId: string;
+} {
+	return {
+		mode: messages.length === 0 ? "empty" : "conversation",
+		composerBoundaryId: CHAT_SHELL_COMPOSER_BOUNDARY_ID,
+	};
+}
+
 export function ChatInterface({
-	initialMessages = [],
+	initialMessages = EMPTY_INITIAL_MESSAGES,
 	threadId,
 	onMessagesChange,
 	onThreadCreated,
@@ -69,11 +97,23 @@ export function ChatInterface({
 		"ready",
 	);
 	const [error, setError] = useState<Error | null>(null);
+	const [awaitingFirstChunk, setAwaitingFirstChunk] = useState(false);
 	const [attachmentUploadStates, setAttachmentUploadStates] = useState<
 		AttachmentUploadState[]
 	>([]);
+	const onMessagesChangeRef = useRef(onMessagesChange);
+	const onThreadCreatedRef = useRef(onThreadCreated);
+	const isSendInFlightRef = useRef(false);
+	const lastLoadedThreadIdRef = useRef<string | null>(null);
 
-	const isEmptyState = messages.length === 0;
+	useEffect(() => {
+		onMessagesChangeRef.current = onMessagesChange;
+	}, [onMessagesChange]);
+
+	useEffect(() => {
+		onThreadCreatedRef.current = onThreadCreated;
+	}, [onThreadCreated]);
+
 	const isUploading = attachmentUploadStates.some(
 		(s) => s.status === "uploading",
 	);
@@ -81,15 +121,31 @@ export function ChatInterface({
 
 	const clearError = useCallback(() => {
 		setError(null);
-		setAttachmentUploadStates([]);
+		setAwaitingFirstChunk(false);
+		setAttachmentUploadStates((previous) => nextClearedUploadStates(previous));
+	}, []);
+
+	const handleComposerInteract = useCallback(() => {
+		setError((previous) => (previous ? null : previous));
+		setAwaitingFirstChunk(false);
+		setAttachmentUploadStates((previous) => nextClearedUploadStates(previous));
 	}, []);
 
 	useEffect(() => {
 		let cancelled = false;
 
 		const loadThreadHistory = async () => {
-			if (threadId === "new") {
-				setMessages(initialMessages);
+			if (
+				!shouldReloadThreadHistory({
+					threadId,
+					lastLoadedThreadId: lastLoadedThreadIdRef.current,
+					isSendInFlight: isSendInFlightRef.current,
+				})
+			) {
+				if (threadId === "new") {
+					lastLoadedThreadIdRef.current = null;
+					setMessages(initialMessages);
+				}
 				setStatus("ready");
 				return;
 			}
@@ -99,11 +155,15 @@ export function ChatInterface({
 				const persistedMessages = await reloadPersistedThreadHistory(threadId);
 				if (cancelled) return;
 				setMessages(persistedMessages);
-				onMessagesChange?.(persistedMessages);
+				onMessagesChangeRef.current?.(persistedMessages);
+				lastLoadedThreadIdRef.current = threadId;
 				setStatus("ready");
 			} catch {
 				if (cancelled) return;
-				setMessages([]);
+				setMessages((previousMessages) =>
+					nextMessagesAfterHistoryReloadFailure(previousMessages),
+				);
+				lastLoadedThreadIdRef.current = threadId;
 				setStatus("ready");
 			}
 		};
@@ -113,38 +173,13 @@ export function ChatInterface({
 		return () => {
 			cancelled = true;
 		};
-	}, [initialMessages, onMessagesChange, threadId]);
+	}, [initialMessages, threadId]);
 
 	const sendMessage = useCallback(
 		async (message: PromptInputMessage) => {
-			const fileCount = message.files?.length ?? 0;
-			let existingAttachmentIds: string[] = [];
-
-			if (fileCount > 0) {
-				setAttachmentUploadStates(initializeUploadStates(fileCount));
-				const uploadResult = await uploadDraftAttachmentsForSend({
-					files: message.files ?? [],
-					uploadAttachment: uploadChatAttachment,
-					onUploadStateChange: (index, state) => {
-						setAttachmentUploadStates((previous) =>
-							updateUploadState(previous, index, state),
-						);
-					},
-				});
-
-				if (uploadResult.status === "error") {
-					setError(uploadResult.error);
-					setStatus("ready");
-					return;
-				}
-
-				existingAttachmentIds = uploadResult.attachmentIds;
-			}
-
-			setAttachmentUploadStates([]);
-
 			setStatus("submitted");
 			let resolvedThreadId = threadId;
+			let baselineBeforeOptimisticAppend: MyUIMessage[] = [];
 
 			if (threadId === "new") {
 				const candidateTitle = message.text.trim().slice(0, 80);
@@ -152,7 +187,7 @@ export function ChatInterface({
 					candidateTitle.length > 0 ? candidateTitle : undefined,
 				);
 				resolvedThreadId = createdThread.id;
-				onThreadCreated?.(resolvedThreadId);
+				onThreadCreatedRef.current?.(resolvedThreadId);
 			}
 
 			// Create user message
@@ -174,57 +209,81 @@ export function ChatInterface({
 			};
 
 			setMessages((previousMessages) => {
+				baselineBeforeOptimisticAppend = previousMessages;
 				const updatedMessages = [...previousMessages, userMessage];
-				onMessagesChange?.(updatedMessages);
+				onMessagesChangeRef.current?.(updatedMessages);
 				return updatedMessages;
 			});
 
 			setStatus("streaming");
 			const assistantMessageDraftId = nanoid();
-			setMessages((previousMessages) => [
-				...previousMessages,
-				{
-					id: assistantMessageDraftId,
-					role: "assistant",
-					content: "",
-					parts: [{ type: "text", text: "" }],
-				},
-			]);
+			setAwaitingFirstChunk(true);
 
-			const persistedMessages = await streamAndReloadPersistedTurn({
-				threadId: resolvedThreadId,
-				contentText: message.text,
-				attachmentIds: existingAttachmentIds,
-				streamTurn: streamPersistedChatTurn,
-				reloadHistory: reloadPersistedThreadHistory,
-				onStreamEvent: (event) => {
-					if (event.event === "delta") {
-						setMessages((previousMessages) =>
-							previousMessages.map((chatMessage) => {
-								if (chatMessage.id !== assistantMessageDraftId) {
-									return chatMessage;
-								}
-
-								const currentTextPart = chatMessage.parts.find(
-									(part) => part.type === "text",
-								);
-								const currentText =
-									currentTextPart?.type === "text" ? currentTextPart.text : "";
-								const nextText = currentText + event.delta;
-								return {
-									...chatMessage,
-									parts: [{ type: "text", text: nextText }],
-								};
-							}),
+			try {
+				const sendResult = await runDraftAttachmentSendFlow({
+					threadId: resolvedThreadId,
+					contentText: message.text,
+					files: message.files ?? [],
+					uploadAttachment: uploadChatAttachment,
+					streamTurn: streamPersistedChatTurn,
+					reloadHistory: reloadPersistedThreadHistory,
+					onUploadStateChange: (index, state) => {
+						setAttachmentUploadStates((previous) =>
+							updateUploadState(
+								previous.length === 0
+									? initializeUploadStates(message.files?.length ?? 0)
+									: previous,
+								index,
+								state,
+							),
 						);
-					}
-				},
-			});
-			setMessages(persistedMessages);
-			onMessagesChange?.(persistedMessages);
-			setStatus("ready");
+					},
+					onStreamEvent: (event) => {
+						if (event.event === "text-delta") {
+							setAwaitingFirstChunk(false);
+							setMessages((previousMessages) =>
+								applyAssistantStreamEvent(
+									previousMessages,
+									assistantMessageDraftId,
+									event,
+								),
+							);
+						}
+
+						if (
+							event.event === "finish" ||
+							event.event === "error" ||
+							event.event === "done"
+						) {
+							setAwaitingFirstChunk(false);
+						}
+					},
+				});
+
+				if (sendResult.status === "blocked") {
+					throw sendResult.error;
+				}
+
+				setAttachmentUploadStates([]);
+				setMessages(sendResult.persistedMessages);
+				onMessagesChangeRef.current?.(sendResult.persistedMessages);
+				lastLoadedThreadIdRef.current = resolvedThreadId;
+				setAwaitingFirstChunk(false);
+				setStatus("ready");
+			} catch (sendError) {
+				setMessages((currentMessages) => {
+					const rollbackMessages = rollbackMessagesAfterSendFailure({
+						threadId,
+						baselineBeforeOptimisticAppend,
+						currentMessages,
+					});
+					onMessagesChangeRef.current?.(rollbackMessages);
+					return rollbackMessages;
+				});
+				throw sendError;
+			}
 		},
-		[onMessagesChange, onThreadCreated, threadId],
+		[threadId],
 	);
 
 	const handleSubmitMessage = useCallback(
@@ -233,10 +292,12 @@ export function ChatInterface({
 				return;
 			}
 
+			isSendInFlightRef.current = true;
 			clearError();
 			try {
 				await sendMessage(message);
 			} catch (sendError) {
+				setAwaitingFirstChunk(false);
 				setError(
 					sendError instanceof Error
 						? sendError
@@ -249,46 +310,40 @@ export function ChatInterface({
 					).catch(() => null);
 					if (persistedMessages) {
 						setMessages(persistedMessages);
-						onMessagesChange?.(persistedMessages);
+						onMessagesChangeRef.current?.(persistedMessages);
+						lastLoadedThreadIdRef.current = threadId;
 					}
 				}
+			} finally {
+				isSendInFlightRef.current = false;
 			}
 		},
-		[clearError, onMessagesChange, sendMessage, threadId],
+		[clearError, sendMessage, threadId],
 	);
+
+	const shellState = deriveChatShellState(messages);
+	const isEmptyState = shellState.mode === "empty";
+	const composerPlaceholder = isEmptyState ? "Ask anything" : "Say something...";
+	const composerTextareaClassName = isEmptyState
+		? "min-h-16 text-lg"
+		: "min-h-14";
 
 	return (
 		<div className="flex h-full flex-1 flex-col">
-			<AnimatePresence mode="wait" initial={false}>
+			<div className="flex min-h-0 flex-1 flex-col">
 				{isEmptyState ? (
 					<motion.div
-						key="empty"
 						initial={{ opacity: 0, scale: 0.98 }}
 						animate={{ opacity: 1, scale: 1 }}
-						exit={{ opacity: 0, scale: 0.98 }}
 						transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
-						className="mx-auto flex w-full max-w-[70ch] flex-1 flex-col items-center justify-center gap-14 px-6 pb-24"
+						className="mx-auto flex w-full max-w-[70ch] min-h-0 flex-1 flex-col items-center justify-center gap-14 px-6"
 					>
 						<h1 className="text-foreground text-5xl font-medium tracking-tight">
 							What can I help with?
 						</h1>
-						<ChatPromptComposer
-							className="w-full"
-							errorMessage={error?.message ?? null}
-							onInteract={() => {
-								if (error) {
-									clearError();
-								}
-							}}
-							onSubmitMessage={handleSubmitMessage}
-							placeholder="Ask anything"
-							status={composerStatus}
-							textareaClassName="min-h-16 text-lg"
-						/>
 					</motion.div>
 				) : (
 					<motion.div
-						key="conversation"
 						initial={{ opacity: 0, y: 8 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
@@ -430,7 +485,7 @@ export function ChatInterface({
 									),
 								)}
 
-								{shouldShowLoadingShimmer(status, messages) && (
+								{shouldShowLoadingShimmer(status, messages, { awaitingFirstChunk }) && (
 									<motion.div
 										initial={{ opacity: 0, y: 4 }}
 										animate={{ opacity: 1, y: 0 }}
@@ -451,25 +506,24 @@ export function ChatInterface({
 							</ConversationContent>
 							<ConversationScrollButton />
 						</Conversation>
-
-						<div className="mx-auto w-full max-w-[70ch] px-6 pb-8 pt-4">
-							<ChatPromptComposer
-								className="w-full"
-								errorMessage={error?.message ?? null}
-								onInteract={() => {
-									if (error) {
-										clearError();
-									}
-								}}
-								onSubmitMessage={handleSubmitMessage}
-								placeholder="Say something..."
-								status={composerStatus}
-								textareaClassName="min-h-14"
-							/>
-						</div>
 					</motion.div>
 				)}
-			</AnimatePresence>
+
+				<div
+					className="mx-auto w-full max-w-[70ch] px-6 pb-8 pt-4"
+					data-composer-boundary-id={shellState.composerBoundaryId}
+				>
+					<ChatPromptComposer
+						className="w-full"
+						errorMessage={error?.message ?? null}
+						onInteract={handleComposerInteract}
+						onSubmitMessage={handleSubmitMessage}
+						placeholder={composerPlaceholder}
+						status={composerStatus}
+						textareaClassName={composerTextareaClassName}
+					/>
+				</div>
+			</div>
 		</div>
 	);
 }

@@ -141,6 +141,7 @@ export async function streamAndReloadPersistedTurn(options: {
 		options.attachmentIds.length > 0 ? options.attachmentIds : undefined;
 
 	let streamErrorCode: string | null = null;
+	let streamFinished = false;
 	const streamArgs = {
 		threadId: options.threadId,
 		contentText: options.contentText,
@@ -149,6 +150,11 @@ export async function streamAndReloadPersistedTurn(options: {
 			if (event.event === "error") {
 				streamErrorCode = event.code ?? "CHAT_STREAM_FAILED";
 			}
+
+			if (event.event === "finish") {
+				streamFinished = true;
+			}
+
 			options.onStreamEvent?.(event);
 		},
 	};
@@ -158,5 +164,54 @@ export async function streamAndReloadPersistedTurn(options: {
 		throw new Error(`Stream failed (${streamErrorCode})`);
 	}
 
+	if (!streamFinished) {
+		throw new Error("Stream ended before finish event");
+	}
+
 	return options.reloadHistory(options.threadId);
+}
+
+export function applyAssistantStreamEvent(
+	messages: MyUIMessage[],
+	assistantMessageDraftId: string,
+	event: ChatStreamEvent,
+): MyUIMessage[] {
+	if (event.event !== "text-delta") {
+		return messages;
+	}
+
+	const delta = event.delta;
+	if (!delta) {
+		return messages;
+	}
+
+	let found = false;
+	const updatedMessages = messages.map((message) => {
+		if (message.id !== assistantMessageDraftId) {
+			return message;
+		}
+
+		found = true;
+		const currentTextPart = message.parts.find((part) => part.type === "text");
+		const currentText =
+			currentTextPart?.type === "text" ? currentTextPart.text : "";
+
+		return {
+			...message,
+			parts: [{ type: "text", text: `${currentText}${delta}` }],
+		};
+	});
+
+	if (found) {
+		return updatedMessages;
+	}
+
+	return [
+		...messages,
+		{
+			id: assistantMessageDraftId,
+			role: "assistant",
+			parts: [{ type: "text", text: delta }],
+		},
+	];
 }

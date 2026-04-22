@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Header, HTTPException, UploadFile, status
 
 from app.api.dependencies import AsyncDB, CurrentUser, OrganizationContext
 from app.authz import permissions
@@ -23,6 +23,7 @@ from app.schemas.chat import (
     ChatThreadDetailResponse,
     ChatThreadListResponse,
     ChatThreadSummaryResponse,
+    StreamFormat,
 )
 from app.services.chat_service import (
     ChatAttachmentInput,
@@ -35,6 +36,12 @@ from app.services.chat_service import (
     list_owned_threads,
     list_thread_messages,
     stream_chat_turn,
+)
+from app.services.chat_stream_protocol import (
+    PROTOCOL_HEADER,
+    PROTOCOL_VERSION,
+    adapt_stream_to_legacy_protocol,
+    adapt_stream_to_official_protocol,
 )
 
 router = APIRouter(prefix="/chat")
@@ -226,13 +233,24 @@ async def stream_chat_message(
     current_user: CurrentUser,
     org: OrganizationContext,
     db: AsyncDB,
+    x_vercel_ai_ui_message_stream: Annotated[str | None, Header()] = None,
 ):
+    """Stream a chat turn using the negotiated protocol format.
+
+    Protocol negotiation (priority order):
+    1. Request body ``stream_format`` field (``official`` | ``legacy``)
+    2. Header ``x-vercel-ai-ui-message-stream: v1`` → official
+    3. Default → official (canonical product target)
+    """
     require_permission(current_user, permissions.CHAT_WRITE)
     run_id = f"run-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
 
+    # Resolve negotiated format: body field > header > default
+    use_official = _resolve_stream_format(payload.stream_format, x_vercel_ai_ui_message_stream)
+
     async def _event_generator():
         try:
-            async for event in stream_chat_turn(
+            internal_stream = stream_chat_turn(
                 db=db,
                 organization_id=org.id,
                 created_by_user_id=current_user.id,
@@ -240,11 +258,50 @@ async def stream_chat_message(
                 content_text=payload.content_text,
                 run_id=run_id,
                 existing_attachment_ids=payload.existing_attachment_ids,
-            ):
-                yield _sse_encode(event)
+            )
+            if use_official:
+                async for frame in adapt_stream_to_official_protocol(internal_stream):
+                    yield frame
+            else:
+                async for frame in adapt_stream_to_legacy_protocol(internal_stream):
+                    yield frame
         except ChatAttachmentValidationError as exc:
-            yield _sse_encode({"event": "error", "code": exc.code})
+            # Attachment validation errors bypass the stream adapter —
+            # they are emitted directly in the negotiated format.
+            if use_official:
+                from app.services.chat_stream_protocol import encode_official_sse
+
+                yield encode_official_sse("error", {"errorText": exc.code})
+                yield "data: [DONE]\n\n"
+            else:
+                yield _sse_encode({"event": "error", "code": exc.code})
 
     from fastapi.responses import StreamingResponse
 
-    return StreamingResponse(_event_generator(), media_type="text/event-stream")
+    headers = {}
+    if use_official:
+        headers[PROTOCOL_HEADER] = PROTOCOL_VERSION
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers=headers,
+    )
+
+
+def _resolve_stream_format(
+    body_format: StreamFormat,
+    header_value: str | None,
+) -> bool:
+    """Return True for official protocol, False for legacy.
+
+    Priority: body field > header > default (official).
+    """
+    if body_format == StreamFormat.LEGACY:
+        return False
+    if body_format == StreamFormat.OFFICIAL:
+        return True
+    # Body was default (official) but check header for explicit opt-in
+    if header_value and header_value.strip().lower() == PROTOCOL_VERSION:
+        return True
+    return True  # Default to official

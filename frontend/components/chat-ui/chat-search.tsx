@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import type { ComponentProps } from "react";
-import { useEffect, useState } from "react";
+import type { ChatThreadSummaryDTO } from "@/lib/api/chat";
+import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
 import { groupByDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import {
@@ -15,36 +16,24 @@ import {
 } from "./ui/command";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "./ui/dialog";
 
-// Mock Thread type
-interface Thread {
-	id: string;
-	title: string | null;
-	createdAt: string;
-	updatedAt: string;
-}
-
-// Load threads from localStorage
-const getStoredThreads = (): Thread[] => {
-	if (typeof window === "undefined") return [];
-	const stored = localStorage.getItem("secondstream_chat_threads");
-	return stored ? JSON.parse(stored) : [];
+export type ChatSearchProps = ComponentProps<typeof Dialog> & {
+	threads?: ChatThreadSummaryDTO[];
 };
 
-export type ChatSearchProps = ComponentProps<typeof Dialog>;
-
-export function ChatSearch({ onOpenChange, ...props }: ChatSearchProps) {
+export function ChatSearch({
+	onOpenChange,
+	threads = [],
+	...props
+}: ChatSearchProps) {
 	const router = useRouter();
-	const [threads, setThreads] = useState<Thread[]>([]);
-
-	useEffect(() => {
-		setThreads(getStoredThreads());
-	}, []);
 
 	const groupedThreads = groupByDate(threads, (t) => t.updatedAt);
 
 	const handleSelect = (threadId: string) => {
-		onOpenChange?.(false);
-		router.push(`/chat/${threadId}`);
+		if (onOpenChange) {
+			(onOpenChange as (...args: unknown[]) => void)(false);
+		}
+		router.push(buildChatThreadUrl(threadId));
 	};
 
 	return (

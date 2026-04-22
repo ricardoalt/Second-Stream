@@ -1,43 +1,23 @@
-"use client";
+import { AppSidebar } from "@/components/chat-ui/app-sidebar";
+import { ChatScreen } from "@/components/chat-ui/chat-screen";
+import { resolveChatRouteState } from "@/lib/chat-runtime/routing";
+import { SidebarProvider } from "@/components/chat-ui/ui/sidebar";
 
-/**
- * Chat Page Example
- *
- * Demo page using the copied ChatInterface and AppSidebar components.
- * Backend-persisted chat with SSE streaming.
- */
-
-import { useState } from "react";
-import {
-	AppSidebar,
-	ChatInterface,
-	SidebarProvider,
-} from "@/components/chat-ui";
-
-export default function ChatPage() {
-	const [activeThreadId, setActiveThreadId] = useState<string>("new");
-
-	const handleNewChat = () => {
-		setActiveThreadId("new");
+interface ChatPageProps {
+	searchParams?: {
+		threadId?: string;
 	};
+}
 
-	const handleThreadSelect = (threadId: string) => {
-		setActiveThreadId(threadId);
-	};
+export default function ChatPage({ searchParams }: ChatPageProps) {
+	const routeState = resolveChatRouteState(searchParams?.threadId);
 
 	return (
 		<SidebarProvider defaultOpen={true}>
 			<div className="flex h-screen w-full bg-background">
-				<AppSidebar
-					activeThreadId={activeThreadId}
-					onThreadSelect={handleThreadSelect}
-					onNewChat={handleNewChat}
-				/>
+				<AppSidebar activeThreadId={routeState.threadId} />
 				<div className="flex flex-1 flex-col h-full overflow-hidden">
-					<ChatInterface
-						threadId={activeThreadId}
-						onThreadCreated={setActiveThreadId}
-					/>
+					<ChatScreen routeState={routeState} />
 				</div>
 			</div>
 		</SidebarProvider>

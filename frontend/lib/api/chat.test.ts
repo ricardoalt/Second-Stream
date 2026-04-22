@@ -4,6 +4,7 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000/api/v1";
 
 const { apiClient } = await import("@/lib/api/client");
 const {
+	listChatThreads,
 	parseChatSSEBuffer,
 	reloadPersistedThreadHistory,
 	uploadChatAttachment,
@@ -30,22 +31,38 @@ describe("chat api", () => {
 
 	it("parses ordered SSE events across chunk boundaries", () => {
 		const firstChunk =
-			'event: start\ndata: {"runId":"run-1","threadId":"thread-1"}\n\nevent: delta\ndata: {"delta":"Hello"}\n\n';
+			'data: {"type":"start","messageId":"run-1"}\n\ndata: {"type":"text-start","id":"text-1"}\n\n';
 		const secondChunk =
-			'event: delta\ndata: {"delta":" world"}\n\nevent: completed\ndata: {"messageId":"assistant-1"}\n\n';
+			'data: {"type":"text-delta","id":"text-1","delta":"Hello"}\n\ndata: {"type":"text-end","id":"text-1"}\n\ndata: {"type":"finish"}\n\ndata: [DONE]\n\n';
 
 		const firstPass = parseChatSSEBuffer(firstChunk);
 		expect(firstPass.rest).toBe("");
 		expect(firstPass.events).toEqual([
-			{ event: "start", runId: "run-1", threadId: "thread-1" },
-			{ event: "delta", delta: "Hello" },
+			{ event: "start", runId: "run-1" },
+			{ event: "text-start", textId: "text-1" },
 		]);
 
 		const secondPass = parseChatSSEBuffer(firstPass.rest + secondChunk);
 		expect(secondPass.rest).toBe("");
 		expect(secondPass.events).toEqual([
-			{ event: "delta", delta: " world" },
-			{ event: "completed", messageId: "assistant-1" },
+			{ event: "text-delta", textId: "text-1", delta: "Hello" },
+			{ event: "text-end", textId: "text-1" },
+			{ event: "finish" },
+			{ event: "done" },
+		]);
+	});
+
+	it("falls back to legacy SSE event format as temporary compatibility", () => {
+		const chunk =
+			'event: start\ndata: {"run_id":"run-legacy"}\n\nevent: delta\ndata: {"delta":"Legacy chunk"}\n\nevent: completed\ndata: {}\n\n';
+
+		const parsed = parseChatSSEBuffer(chunk);
+
+		expect(parsed.rest).toBe("");
+		expect(parsed.events).toEqual([
+			{ event: "start", runId: "run-legacy" },
+			{ event: "text-delta", delta: "Legacy chunk" },
+			{ event: "finish" },
 		]);
 	});
 
@@ -112,6 +129,45 @@ describe("chat api", () => {
 		});
 	});
 
+	it("lists chat threads from paginated backend response", async () => {
+		const getSpy = mock(async () => ({
+			items: [
+				{
+					id: "thread-1",
+					title: "First",
+					lastMessagePreview: "hola",
+					lastMessageAt: "2026-04-21T00:00:00.000Z",
+					createdAt: "2026-04-21T00:00:00.000Z",
+					updatedAt: "2026-04-21T00:00:00.000Z",
+				},
+			],
+		}));
+
+		apiClient.get = getSpy as typeof apiClient.get;
+
+		const threads = await listChatThreads();
+
+		expect(getSpy).toHaveBeenCalledWith("/chat/threads");
+		expect(threads).toEqual([
+			{
+				id: "thread-1",
+				title: "First",
+				lastMessagePreview: "hola",
+				lastMessageAt: "2026-04-21T00:00:00.000Z",
+				createdAt: "2026-04-21T00:00:00.000Z",
+				updatedAt: "2026-04-21T00:00:00.000Z",
+			},
+		]);
+	});
+
+	it("returns empty list when backend response has no items", async () => {
+		apiClient.get = mock(async () => ({})) as typeof apiClient.get;
+
+		const threads = await listChatThreads();
+
+		expect(threads).toEqual([]);
+	});
+
 	it("uploads a draft attachment and returns the attachment id", async () => {
 		const uploadSpy = mock(async () => ({
 			id: "attachment-draft-1",
@@ -149,7 +205,7 @@ describe("chat api", () => {
 				start(controller) {
 					controller.enqueue(
 						new TextEncoder().encode(
-							'event: completed\ndata: {"messageId":"msg-1"}\n\n',
+							'data: {"type":"finish"}\n\ndata: [DONE]\n\n',
 						),
 					);
 					controller.close();
@@ -185,7 +241,7 @@ describe("chat api", () => {
 				start(controller) {
 					controller.enqueue(
 						new TextEncoder().encode(
-							'event: completed\ndata: {"messageId":"msg-1"}\n\n',
+							'data: {"type":"finish"}\n\ndata: [DONE]\n\n',
 						),
 					);
 					controller.close();
@@ -211,5 +267,55 @@ describe("chat api", () => {
 		const body = JSON.parse(init.body);
 		expect(body.contentText).toBe("Hello without attachments");
 		expect(body).not.toHaveProperty("existingAttachmentIds");
+	});
+
+	it("streams incremental official text-delta events to onEvent in order", async () => {
+		const streamedEvents: Array<Record<string, string>> = [];
+		const fetchSpy = mock(async () => ({
+			ok: true,
+			body: new ReadableStream({
+				start(controller) {
+					controller.enqueue(
+						new TextEncoder().encode(
+							'data: {"type":"start","messageId":"run-1"}\n\ndata: {"type":"text-start","id":"text-1"}\n\n',
+						),
+					);
+					controller.enqueue(
+						new TextEncoder().encode(
+							'data: {"type":"text-delta","id":"text-1","delta":"Hello"}\n\ndata: {"type":"text-delta","id":"text-1","delta":" world"}\n\n',
+						),
+					);
+					controller.enqueue(
+						new TextEncoder().encode(
+							'data: {"type":"text-end","id":"text-1"}\n\ndata: {"type":"finish"}\n\ndata: [DONE]\n\n',
+						),
+					);
+					controller.close();
+				},
+			}),
+			status: 200,
+			statusText: "OK",
+			headers: new Headers({ "content-type": "text/event-stream" }),
+		})) as unknown as typeof globalThis.fetch;
+
+		globalThis.fetch = fetchSpy;
+
+		await streamPersistedChatTurn({
+			threadId: "thread-1",
+			contentText: "Hello",
+			onEvent: (event) => {
+				streamedEvents.push(event as unknown as Record<string, string>);
+			},
+		});
+
+		expect(streamedEvents).toEqual([
+			{ event: "start", runId: "run-1" },
+			{ event: "text-start", textId: "text-1" },
+			{ event: "text-delta", textId: "text-1", delta: "Hello" },
+			{ event: "text-delta", textId: "text-1", delta: " world" },
+			{ event: "text-end", textId: "text-1" },
+			{ event: "finish" },
+			{ event: "done" },
+		]);
 	});
 });

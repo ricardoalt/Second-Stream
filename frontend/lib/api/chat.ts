@@ -11,6 +11,10 @@ export interface ChatThreadSummaryDTO {
 	updatedAt: string;
 }
 
+interface ChatThreadListResponseDTO {
+	items?: ChatThreadSummaryDTO[];
+}
+
 interface ChatAttachmentDTO {
 	id: string;
 	messageId: string | null;
@@ -39,9 +43,12 @@ interface ChatThreadDetailDTO {
 
 export type ChatStreamEvent =
 	| { event: "start"; runId?: string; threadId?: string }
-	| { event: "delta"; delta: string }
-	| { event: "completed"; messageId?: string }
-	| { event: "error"; code?: string };
+	| { event: "text-start"; textId?: string }
+	| { event: "text-delta"; textId?: string; delta: string }
+	| { event: "text-end"; textId?: string }
+	| { event: "finish" }
+	| { event: "error"; code?: string }
+	| { event: "done" };
 
 export function parseChatSSEBuffer(buffer: string): {
 	events: ChatStreamEvent[];
@@ -68,11 +75,16 @@ export function parseChatSSEBuffer(buffer: string): {
 			}
 		}
 
+		const rawData = dataLines.join("\n");
+
 		if (eventName.length === 0) {
+			const dataEvent = parseOfficialDataEvent(rawData);
+			if (dataEvent) {
+				events.push(dataEvent);
+			}
 			continue;
 		}
 
-		const rawData = dataLines.join("\n");
 		const payload = rawData.length > 0 ? safeJsonParse(rawData) : {};
 		const normalizedPayload = normalizePayload(payload);
 
@@ -88,19 +100,17 @@ export function parseChatSSEBuffer(buffer: string): {
 		}
 
 		if (eventName === "delta") {
+			const textId = stringOrUndefined(normalizedPayload.id);
 			events.push({
-				event: "delta",
+				event: "text-delta",
+				...(textId ? { textId } : {}),
 				delta: stringOrUndefined(normalizedPayload.delta) ?? "",
 			});
 			continue;
 		}
 
 		if (eventName === "completed") {
-			const messageId = stringOrUndefined(normalizedPayload.messageId);
-			events.push({
-				event: "completed",
-				...(messageId ? { messageId } : {}),
-			});
+			events.push({ event: "finish" });
 			continue;
 		}
 
@@ -120,6 +130,16 @@ export async function createChatThread(
 	title?: string,
 ): Promise<ChatThreadSummaryDTO> {
 	return apiClient.post<ChatThreadSummaryDTO>("/chat/threads", { title });
+}
+
+export async function listChatThreads(): Promise<ChatThreadSummaryDTO[]> {
+	const response =
+		await apiClient.get<ChatThreadListResponseDTO>("/chat/threads");
+	if (!response.items || !Array.isArray(response.items)) {
+		return [];
+	}
+
+	return response.items;
 }
 
 export async function fetchChatThreadDetail(
@@ -234,6 +254,7 @@ function resolveStreamingHeaders(): Record<string, string> {
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
 		Accept: "text/event-stream",
+		"x-vercel-ai-ui-message-stream": "v1",
 	};
 
 	if (typeof window === "undefined") {
@@ -279,4 +300,68 @@ function normalizePayload(
 
 function stringOrUndefined(value: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined;
+}
+
+function parseOfficialDataEvent(rawData: string): ChatStreamEvent | null {
+	const trimmed = rawData.trim();
+	if (trimmed.length === 0) {
+		return null;
+	}
+
+	if (trimmed === "[DONE]") {
+		return { event: "done" };
+	}
+
+	const payload = safeJsonParse(trimmed);
+	const type = stringOrUndefined(payload.type);
+	if (!type) {
+		return null;
+	}
+
+	if (type === "start") {
+		const runId = stringOrUndefined(payload.messageId);
+		return {
+			event: "start",
+			...(runId ? { runId } : {}),
+		};
+	}
+
+	if (type === "text-start") {
+		const textId = stringOrUndefined(payload.id);
+		return {
+			event: "text-start",
+			...(textId ? { textId } : {}),
+		};
+	}
+
+	if (type === "text-delta") {
+		const textId = stringOrUndefined(payload.id);
+		return {
+			event: "text-delta",
+			...(textId ? { textId } : {}),
+			delta: stringOrUndefined(payload.delta) ?? "",
+		};
+	}
+
+	if (type === "text-end") {
+		const textId = stringOrUndefined(payload.id);
+		return {
+			event: "text-end",
+			...(textId ? { textId } : {}),
+		};
+	}
+
+	if (type === "finish") {
+		return { event: "finish" };
+	}
+
+	if (type === "error") {
+		const code = stringOrUndefined(payload.errorText);
+		return {
+			event: "error",
+			...(code ? { code } : {}),
+		};
+	}
+
+	return null;
 }

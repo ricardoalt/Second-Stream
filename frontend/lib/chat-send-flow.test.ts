@@ -1,5 +1,9 @@
 import { describe, expect, it, mock } from "bun:test";
-import { runDraftAttachmentSendFlow } from "@/lib/chat-send-flow";
+import {
+	applyAssistantStreamEvent,
+	runDraftAttachmentSendFlow,
+	streamAndReloadPersistedTurn,
+} from "@/lib/chat-send-flow";
 import type { MyUIMessage } from "@/types/ui-message";
 
 const attachmentFailureMessage =
@@ -13,7 +17,11 @@ describe("runDraftAttachmentSendFlow", () => {
 			}
 			return "draft-ok-1";
 		});
-		const streamTurn = mock(async () => {});
+		const streamTurn = mock(
+			async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+				onEvent({ event: "finish" });
+			},
+		);
 		const reloadHistory = mock(async (): Promise<MyUIMessage[]> => []);
 
 		const updates: Array<{ index: number; status: string }> = [];
@@ -57,7 +65,11 @@ describe("runDraftAttachmentSendFlow", () => {
 
 	it("rehydrates persisted history after successful send", async () => {
 		const uploadAttachment = mock(async () => "draft-1");
-		const streamTurn = mock(async () => {});
+		const streamTurn = mock(
+			async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+				onEvent({ event: "finish" });
+			},
+		);
 		const persistedMessages: MyUIMessage[] = [
 			{
 				id: "msg-user-1",
@@ -105,5 +117,119 @@ describe("runDraftAttachmentSendFlow", () => {
 			}),
 		);
 		expect(reloadHistory).toHaveBeenCalledWith("thread-1");
+	});
+
+	it("fails send flow when official protocol emits error event", async () => {
+		const streamTurn = mock(async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+			onEvent({ event: "start", runId: "run-1" });
+			onEvent({ event: "error", code: "CHAT_STREAM_FAILED" });
+			onEvent({ event: "done" });
+		});
+		const reloadHistory = mock(async (): Promise<MyUIMessage[]> => [
+			{
+				id: "msg-1",
+				role: "assistant",
+				parts: [{ type: "text", text: "should not reload" }],
+			},
+		]);
+
+		await expect(
+			streamAndReloadPersistedTurn({
+				threadId: "thread-1",
+				contentText: "Hello",
+				attachmentIds: [],
+				streamTurn: streamTurn as unknown as (options: {
+					threadId: string;
+					contentText: string;
+					existingAttachmentIds?: string[];
+					onEvent: (event: unknown) => void;
+				}) => Promise<void>,
+				reloadHistory,
+			}),
+		).rejects.toThrow("Stream failed (CHAT_STREAM_FAILED)");
+
+		expect(reloadHistory).not.toHaveBeenCalled();
+	});
+
+	it("does not treat transport [DONE] as semantic completion without finish", async () => {
+		const streamTurn = mock(async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+			onEvent({ event: "text-delta", delta: "partial" });
+			onEvent({ event: "done" });
+		});
+		const reloadHistory = mock(async (): Promise<MyUIMessage[]> => []);
+
+		await expect(
+			streamAndReloadPersistedTurn({
+				threadId: "thread-1",
+				contentText: "Hello",
+				attachmentIds: [],
+				streamTurn: streamTurn as unknown as (options: {
+					threadId: string;
+					contentText: string;
+					existingAttachmentIds?: string[];
+					onEvent: (event: unknown) => void;
+				}) => Promise<void>,
+				reloadHistory,
+			}),
+		).rejects.toThrow("Stream ended before finish event");
+
+		expect(reloadHistory).not.toHaveBeenCalled();
+	});
+
+	it("keeps finish as semantic completion even when done arrives after", async () => {
+		const persistedMessages: MyUIMessage[] = [
+			{
+				id: "assistant-1",
+				role: "assistant",
+				parts: [{ type: "text", text: "final" }],
+			},
+		];
+		const streamTurn = mock(async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+			onEvent({ event: "text-delta", delta: "final" });
+			onEvent({ event: "finish" });
+			onEvent({ event: "done" });
+		});
+		const reloadHistory = mock(async () => persistedMessages);
+
+		await expect(
+			streamAndReloadPersistedTurn({
+				threadId: "thread-1",
+				contentText: "Hello",
+				attachmentIds: [],
+				streamTurn: streamTurn as unknown as (options: {
+					threadId: string;
+					contentText: string;
+					existingAttachmentIds?: string[];
+					onEvent: (event: unknown) => void;
+				}) => Promise<void>,
+				reloadHistory,
+			}),
+		).resolves.toEqual(persistedMessages);
+
+		expect(reloadHistory).toHaveBeenCalledWith("thread-1");
+	});
+
+	it("builds assistant text incrementally from text-delta events", () => {
+		const assistantId = "assistant-draft-1";
+
+		const afterFirstDelta = applyAssistantStreamEvent([], assistantId, {
+			event: "text-delta",
+			delta: "Hello",
+		});
+		expect(afterFirstDelta).toEqual([
+			{
+				id: assistantId,
+				role: "assistant",
+				parts: [{ type: "text", text: "Hello" }],
+			},
+		]);
+
+		const afterSecondDelta = applyAssistantStreamEvent(afterFirstDelta, assistantId, {
+			event: "text-delta",
+			delta: " world",
+		});
+		expect(afterSecondDelta[0]?.parts).toEqual([
+			{ type: "text", text: "Hello world" },
+		]);
 	});
 });

@@ -34,6 +34,7 @@ def _assert_error_contract(response, expected_status: int, expected_code: str) -
 
 
 def _parse_sse_events(payload: str) -> list[dict[str, object]]:
+    """Parse legacy SSE format: event: name\\ndata: json."""
     events: list[dict[str, object]] = []
     for raw_event in payload.strip().split("\n\n"):
         if not raw_event:
@@ -42,6 +43,19 @@ def _parse_sse_events(payload: str) -> list[dict[str, object]]:
         event_name = lines[0].removeprefix("event: ")
         data = json.loads(lines[1].removeprefix("data: "))
         events.append({"event": event_name, "data": data})
+    return events
+
+
+def _parse_official_sse_events(payload: str) -> list[dict[str, object]]:
+    """Parse official AI SDK UI/Data Stream Protocol format: data: {json}\\n\\n."""
+    events: list[dict[str, object]] = []
+    for line in payload.strip().split("\n"):
+        line = line.strip()
+        if line == "data: [DONE]":
+            events.append({"type": "DONE"})
+            continue
+        if line.startswith("data: "):
+            events.append(json.loads(line.removeprefix("data: ")))
     return events
 
 
@@ -107,11 +121,12 @@ async def test_chat_message_owned_attachment_upload_contract(client: AsyncClient
     create_thread = await client.post("/api/v1/chat/threads", json={"title": "Attachment Thread"})
     thread_id = create_thread.json()["id"]
 
-    async def _fake_generate(*, prompt, deps):
-        return chat_service.ChatAgentOutput(response_text="Attachment upload turn response")
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "Attachment upload turn response"}
+        yield {"event": "completed", "response_text": "Attachment upload turn response"}
 
     monkeypatch = pytest.MonkeyPatch()
-    monkeypatch.setattr(chat_service, "generate_chat_response", _fake_generate)
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
     try:
         stream_response = await client.post(
             f"/api/v1/chat/threads/{thread_id}/messages/stream",
@@ -156,14 +171,16 @@ async def test_chat_stream_success_contract(client: AsyncClient, db_session, set
     create_thread = await client.post("/api/v1/chat/threads", json={"title": "Stream Success"})
     thread_id = create_thread.json()["id"]
 
-    async def _fake_generate(*, prompt, deps):
-        return chat_service.ChatAgentOutput(response_text="First chunk. Second chunk.")
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "First chunk"}
+        yield {"event": "delta", "delta": "Second chunk."}
+        yield {"event": "completed", "response_text": "First chunk. Second chunk."}
 
-    monkeypatch.setattr(chat_service, "generate_chat_response", _fake_generate)
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
 
     response = await client.post(
         f"/api/v1/chat/threads/{thread_id}/messages/stream",
-        json={"contentText": "Stream me"},
+        json={"contentText": "Stream me", "streamFormat": "legacy"},
     )
     events = _parse_sse_events(response.text)
 
@@ -200,14 +217,15 @@ async def test_chat_stream_error_contract_without_partial_assistant(
     create_thread = await client.post("/api/v1/chat/threads", json={"title": "Stream Error"})
     thread_id = create_thread.json()["id"]
 
-    async def _fail_generate(*, prompt, deps):
+    async def _fail_stream_response(*, prompt, deps, attachments):
         raise ChatAgentError("forced model failure")
+        yield {"event": "delta", "delta": "unreachable"}
 
-    monkeypatch.setattr(chat_service, "generate_chat_response", _fail_generate)
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fail_stream_response)
 
     response = await client.post(
         f"/api/v1/chat/threads/{thread_id}/messages/stream",
-        json={"contentText": "This should fail"},
+        json={"contentText": "This should fail", "streamFormat": "legacy"},
     )
     events = _parse_sse_events(response.text)
 
@@ -250,10 +268,11 @@ async def test_chat_phase1_unsupported_actions_are_unavailable_and_history_is_un
     create_thread = await client.post("/api/v1/chat/threads", json={"title": "Unsupported actions"})
     thread_id = create_thread.json()["id"]
 
-    async def _fake_generate(*, prompt, deps):
-        return chat_service.ChatAgentOutput(response_text="Persisted assistant response")
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "Persisted assistant response"}
+        yield {"event": "completed", "response_text": "Persisted assistant response"}
 
-    monkeypatch.setattr(chat_service, "generate_chat_response", _fake_generate)
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
 
     stream_response = await client.post(
         f"/api/v1/chat/threads/{thread_id}/messages/stream",
@@ -322,3 +341,132 @@ async def test_chat_draft_attachment_upload_rejects_invalid_mime(client: AsyncCl
         files={"file": ("bad.exe", io.BytesIO(b"binary"), "application/octet-stream")},
     )
     _assert_error_contract(upload_response, 400, "ATTACHMENT_MIME_NOT_ALLOWED")
+
+
+# ---------------------------------------------------------------------------
+# Official AI SDK UI/Data Stream Protocol tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_official_protocol_success_contract(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
+):
+    """Official protocol: default stream emits start→text-start→text-delta→text-end→finish→[DONE]."""
+    org, user = await _create_authed_user(db_session, set_current_user)
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Official Stream"})
+    thread_id = create_thread.json()["id"]
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "First chunk"}
+        yield {"event": "delta", "delta": "Second chunk."}
+        yield {"event": "completed", "response_text": "First chunk. Second chunk."}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
+
+    response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={"contentText": "Stream official"},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert response.headers.get("x-vercel-ai-ui-message-stream") == "v1"
+
+    events = _parse_official_sse_events(response.text)
+    types = [e["type"] for e in events]
+
+    assert types[0] == "start"
+    assert "messageId" in events[0]
+    assert types[1] == "text-start"
+    text_id = events[1]["id"]
+
+    # text deltas with consistent id
+    assert types[2] == "text-delta"
+    assert events[2]["id"] == text_id
+    assert events[2]["delta"] == "First chunk"
+    assert types[3] == "text-delta"
+    assert events[3]["id"] == text_id
+    assert events[3]["delta"] == "Second chunk."
+
+    assert types[4] == "text-end"
+    assert events[4]["id"] == text_id
+    assert types[5] == "finish"
+    assert types[6] == "DONE"
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_official_protocol_error_contract(
+    client: AsyncClient, db_session, set_current_user, monkeypatch
+):
+    """Official protocol: error stream emits start→error→[DONE] with no finish."""
+    org, user = await _create_authed_user(db_session, set_current_user)
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Official Error"})
+    thread_id = create_thread.json()["id"]
+
+    async def _fail_stream_response(*, prompt, deps, attachments):
+        raise ChatAgentError("forced model failure")
+        yield {"event": "delta", "delta": "unreachable"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fail_stream_response)
+
+    response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={"contentText": "This should fail"},
+    )
+    assert response.status_code == 200
+    events = _parse_official_sse_events(response.text)
+    types = [e["type"] for e in events]
+
+    assert types[0] == "start"
+    assert types[1] == "error"
+    assert events[1]["errorText"] == "CHAT_STREAM_FAILED"
+    assert types[2] == "DONE"
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_official_protocol_header_override(client: AsyncClient, db_session, set_current_user, monkeypatch):
+    """Official protocol: x-vercel-ai-ui-message-stream header triggers official format even without body."""
+    org, user = await _create_authed_user(db_session, set_current_user)
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Header Override"})
+    thread_id = create_thread.json()["id"]
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "Header test"}
+        yield {"event": "completed", "response_text": "Header test"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
+
+    response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={"contentText": "Header test"},
+        headers={"x-vercel-ai-ui-message-stream": "v1"},
+    )
+    events = _parse_official_sse_events(response.text)
+    types = [e["type"] for e in events]
+    assert "start" in types
+    assert "finish" in types
+    assert "DONE" in types
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_legacy_explicit_request(client: AsyncClient, db_session, set_current_user, monkeypatch):
+    """Legacy format: explicit streamFormat=legacy produces legacy SSE events."""
+    org, user = await _create_authed_user(db_session, set_current_user)
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Legacy Explicit"})
+    thread_id = create_thread.json()["id"]
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "Legacy response"}
+        yield {"event": "completed", "response_text": "Legacy response"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
+
+    response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={"contentText": "Legacy format", "streamFormat": "legacy"},
+    )
+    assert response.status_code == 200
+    # Legacy format does NOT include the protocol header
+    assert "x-vercel-ai-ui-message-stream" not in response.headers
+    events = _parse_sse_events(response.text)
+    assert [e["event"] for e in events] == ["start", "delta", "completed"]

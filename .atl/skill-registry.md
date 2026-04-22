@@ -1,161 +1,147 @@
 # Skill Registry
 
-**Delegator use only.** Any agent that launches sub-agents reads this registry to resolve compact rules, then injects them directly into sub-agent prompts. Sub-agents do NOT read this registry or individual SKILL.md files.
+**Delegator use only.** Sub-agents receive resolved skill rules; they do not read SKILL.md files directly.
 
 ## User Skills
 
 | Trigger | Skill | Path |
 |---------|-------|------|
-| Go tests, Bubbletea TUI testing | go-testing | /Users/ricardoaltamirano/.config/opencode/skills/go-testing/SKILL.md |
-| Creating new AI skills | skill-creator | /Users/ricardoaltamirano/.config/opencode/skills/skill-creator/SKILL.md |
-| creating a pull request, opening a PR, preparing changes for review | branch-pr | /Users/ricardoaltamirano/.config/opencode/skills/branch-pr/SKILL.md |
-| creating a GitHub issue, reporting a bug, requesting a feature | issue-creation | /Users/ricardoaltamirano/.config/opencode/skills/issue-creation/SKILL.md |
-| “judgment day”, “dual review”, adversarial review keywords | judgment-day | /Users/ricardoaltamirano/.config/opencode/skills/judgment-day/SKILL.md |
-| AI SDK, generateText, streamText, useChat, tool calling | ai-sdk | /Users/ricardoaltamirano/.agents/skills/ai-sdk/SKILL.md |
-| mentions Pydantic AI, `pydantic_ai`, tools/capabilities/testing | building-pydantic-ai-agents | /Users/ricardoaltamirano/.agents/skills/building-pydantic-ai-agents/SKILL.md |
-| build AI agents with Pydantic AI (Python) and Claude SDK (Node.js) | agentic-development | /Users/ricardoaltamirano/.agents/skills/agentic-development/SKILL.md |
-| designing/building autonomous AI agents and orchestration | ai-agents-architect | /Users/ricardoaltamirano/.agents/skills/ai-agents-architect/SKILL.md |
-| AI chat interfaces with ai-elements components | ai-elements | /Users/ricardoaltamirano/.agents/skills/ai-elements/SKILL.md |
-| prompt engineering for production LLMs | ai-prompt-engineering | /Users/ricardoaltamirano/.agents/skills/ai-prompt-engineering/SKILL.md |
-| code quality assessment before merge | code-review | /Users/ricardoaltamirano/.agents/skills/code-review/SKILL.md |
-| refactor for clarity without behavior changes | code-simplification | /Users/ricardoaltamirano/.agents/skills/code-simplification/SKILL.md |
-| improve architecture/testability/deepen modules | improve-codebase-architecture | /Users/ricardoaltamirano/.agents/skills/improve-codebase-architecture/SKILL.md |
-| build/modify production-quality user-facing interfaces | frontend-ui-engineering | /Users/ricardoaltamirano/.agents/skills/frontend-ui-engineering/SKILL.md |
-| React/Next.js performance refactors | vercel-react-best-practices | /Users/ricardoaltamirano/.agents/skills/vercel-react-best-practices/SKILL.md |
-| work with shadcn/ui components/registries/presets | shadcn | /Users/ricardoaltamirano/.agents/skills/shadcn/SKILL.md |
-| styling with Tailwind v4 patterns | tailwind-4 | /Users/ricardoaltamirano/.claude/skills/tailwind-4/SKILL.md |
-| setup Tailwind CSS v4 in Expo/NativeWind | tailwind-setup | /Users/ricardoaltamirano/.claude/skills/tailwind-setup/SKILL.md |
-| optimize Postgres queries/schema/config | supabase-postgres-best-practices | /Users/ricardoaltamirano/.agents/skills/supabase-postgres-best-practices/SKILL.md |
-| implement logs in medium/large production systems | Logging Best Practices | /Users/ricardoaltamirano/.agents/skills/logging-best-practices/SKILL.md |
-| prepare production launch/rollout/rollback | shipping-and-launch | /Users/ricardoaltamirano/.agents/skills/shipping-and-launch/SKILL.md |
-| review UI against Web Interface Guidelines | web-design-guidelines | /Users/ricardoaltamirano/.agents/skills/web-design-guidelines/SKILL.md |
-| create PRD through interview + exploration | write-a-prd | /Users/ricardoaltamirano/.agents/skills/write-a-prd/SKILL.md |
-| stress-test plan against project domain model | domain-model | /Users/ricardoaltamirano/.agents/skills/domain-model/SKILL.md |
-| “grill me” design interrogation | grill-me | /Users/ricardoaltamirano/.agents/skills/grill-me/SKILL.md |
-| structured ideation and idea refinement | idea-refine | /Users/ricardoaltamirano/.agents/skills/idea-refine/SKILL.md |
-| interface design for dashboards/apps/tools | interface-design | /Users/ricardoaltamirano/.agents/skills/interface-design/SKILL.md |
-| redesign existing projects to premium quality | redesign-existing-projects | /Users/ricardoaltamirano/.agents/skills/redesign-existing-projects/SKILL.md |
-| editorial minimalist UI style system | minimalist-ui | /Users/ricardoaltamirano/.agents/skills/minimalist-ui/SKILL.md |
-| premium anti-generic frontend design standards | design-taste-frontend | /Users/ricardoaltamirano/.agents/skills/design-taste-frontend/SKILL.md |
-| semantic design system creation for Stitch | stitch-design-taste | /Users/ricardoaltamirano/.agents/skills/stitch-design-taste/SKILL.md |
-| optimize agent action spaces/tools/observations | agent-harness-construction | /Users/ricardoaltamirano/.agents/skills/agent-harness-construction/SKILL.md |
-| detailed plan interview workflow | interview-me-plan | /Users/ricardoaltamirano/.claude/skills/interview-me-plan.md/SKILL.md |
+| review code before merge | code-review | /Users/ricardoaltamirano/.agents/skills/code-review/SKILL.md |
+| simplify code without behavior change | code-simplification | /Users/ricardoaltamirano/.agents/skills/code-simplification/SKILL.md |
+| build or modify user-facing React UIs | frontend-ui-engineering | /Users/ricardoaltamirano/.agents/skills/frontend-ui-engineering/SKILL.md |
+| React/Next.js performance patterns | vercel-react-best-practices | /Users/ricardoaltamirano/.agents/skills/vercel-react-best-practices/SKILL.md |
+| Tailwind CSS 4 patterns | tailwind-4 | /Users/ricardoaltamirano/.claude/skills/tailwind-4/SKILL.md |
+| shadcn/ui components | shadcn | /Users/ricardoaltamirano/.agents/skills/shadcn/SKILL.md |
+| premium frontend design systems | design-taste-frontend | /Users/ricardoaltamirano/.agents/skills/design-taste-frontend/SKILL.md |
+| redesign existing product UI | redesign-existing-projects | /Users/ricardoaltamirano/.agents/skills/redesign-existing-projects/SKILL.md |
+| clean editorial-style interfaces | minimalist-ui | /Users/ricardoaltamirano/.agents/skills/minimalist-ui/SKILL.md |
+| logging in production systems | Logging Best Practices | /Users/ricardoaltamirano/.agents/skills/logging-best-practices/SKILL.md |
+| Postgres query/schema optimization | supabase-postgres-best-practices | /Users/ricardoaltamirano/.agents/skills/supabase-postgres-best-practices/SKILL.md |
+| AI SDK questions and implementation | ai-sdk | /Users/ricardoaltamirano/.agents/skills/ai-sdk/SKILL.md |
+| AI chat interfaces | ai-elements | /Users/ricardoaltamirano/.agents/skills/ai-elements/SKILL.md |
+| build AI agents with Claude SDK or Pydantic AI | agentic-development | /Users/ricardoaltamirano/.agents/skills/agentic-development/SKILL.md |
+| build Pydantic AI agents | building-pydantic-ai-agents | /Users/ricardoaltamirano/.claude/skills/building-pydantic-ai-agents/SKILL.md |
+| architecture and domain language alignment | domain-model | /Users/ricardoaltamirano/.agents/skills/domain-model/SKILL.md |
+| improve architecture and testability | improve-codebase-architecture | /Users/ricardoaltamirano/.agents/skills/improve-codebase-architecture/SKILL.md |
+| interface design for dashboards and tools | interface-design | /Users/ricardoaltamirano/.agents/skills/interface-design/SKILL.md |
+| create or update AI skills | skill-creator | /Users/ricardoaltamirano/.agents/skills/skill-creator/SKILL.md |
 
 ## Compact Rules
 
-### ai-sdk
-- Use AI SDK primitives (`generateText`, `streamText`, tools, embeddings) instead of ad-hoc wrappers.
-- Prefer structured output contracts for deterministic downstream logic.
-- Keep provider wiring isolated from business modules.
-- Stream responses for chat/long outputs; avoid blocking UX.
-- Validate tool I/O schemas and fail fast on invalid calls.
-
-### building-pydantic-ai-agents
-- Define explicit agent model, tools, and result schema up front.
-- Keep tools small, side-effect aware, and separately testable.
-- Use typed dependencies/context, not global mutable state.
-- Add tests for tool behavior + agent orchestration paths.
-- Prefer deterministic validation over prompt-only guarantees.
-
-### frontend-ui-engineering
-- Build production-ready UI: clear structure, robust states, accessible semantics.
-- Favor composable components over monolithic JSX blocks.
-- Model loading/empty/error/success states explicitly.
-- Keep visual and interaction consistency across similar surfaces.
-- Protect runtime paths with type-safe props and guards.
-
-### vercel-react-best-practices
-- Minimize client boundaries; keep logic server-side where feasible.
-- Avoid unnecessary effects and re-renders.
-- Optimize data fetching and caching strategy by route needs.
-- Watch bundle size and avoid heavy client-only imports in hot paths.
-- Preserve streaming/Suspense-friendly component boundaries.
-
-### shadcn
-- Reuse existing shadcn primitives before introducing custom widgets.
-- Keep variants centralized and predictable.
-- Maintain design token consistency across components.
-- Prefer composition of primitives over deep prop branching.
-- Validate accessibility states when customizing primitives.
-
-### tailwind-4
-- Use Tailwind v4 token/convention patterns consistently.
-- Prefer utility composition helpers (`cn`) for readable class logic.
-- Avoid invalid dynamic class patterns; keep class names statically discoverable.
-- Keep spacing/typography scale consistent with design tokens.
-- Do not introduce style patterns that bypass project conventions.
-
-### supabase-postgres-best-practices
-- Design queries for index usage and predictable plans.
-- Avoid N+1 patterns; batch or join intentionally.
-- Prefer explicit constraints and clear schema semantics.
-- Verify transactional boundaries for multi-step mutations.
-- Optimize with measured evidence, not assumptions.
-
-### Logging Best Practices
-- Log for observability goals, not noise.
-- Use structured logs with stable field names.
-- Never log secrets/PII.
-- Align log levels with operational impact.
-- Include correlation/context IDs for traceability.
-
 ### code-review
-- Review correctness, reliability, security, performance, and maintainability.
-- Flag missing tests for risky behavior changes.
-- Require clear failure handling and edge-case coverage.
-- Prioritize high-impact issues with actionable fixes.
-- Keep feedback concrete and verifiable.
+- Review across correctness, security, performance, maintainability, and tests.
+- Prefer evidence from code/docs; do not guess.
+- Call out concrete risks and missing coverage.
 
 ### code-simplification
-- Reduce cognitive load without changing behavior.
-- Remove indirection not providing real abstraction value.
-- Consolidate duplicated logic into clear shared paths.
-- Prefer explicit naming over comments-as-explanation.
-- Keep interfaces small and intention-revealing.
+- Remove indirection; keep behavior unchanged.
+- Prefer smaller functions and clearer names over comments.
+- Preserve tests; simplify one responsibility at a time.
 
-### go-testing
-- Follow repository test conventions before adding new patterns.
-- Use table-driven tests for behavior matrices.
-- Keep tests deterministic and isolated from shared mutable state.
-- Use proper Bubbletea/teatest patterns for TUI flows.
-- Assert behavior, not incidental implementation details.
+### frontend-ui-engineering
+- Build production-quality React UIs with strong component boundaries.
+- Optimize rendering and keep state close to usage.
+- Use accessible, composable primitives; avoid monolith JSX.
 
-### issue-creation
-- Create issue-first artifacts with clear scope and acceptance criteria.
-- Capture user impact, constraints, and expected outcomes.
-- Keep issue body actionable for implementation planning.
-- Align labels/metadata with project workflow.
-- Avoid ambiguous TODO-only issue descriptions.
+### vercel-react-best-practices
+- Prefer server components and minimal client boundaries.
+- Avoid unnecessary effects/memoization; let the compiler work.
+- Keep data fetching and state transitions explicit.
 
-### branch-pr
-- Validate branch diff/state before creating PR.
-- Summarize complete change set (not just latest commit).
-- Ensure branch is pushed/tracking remote before PR creation.
-- Use consistent PR format with concise summary bullets.
-- Return PR URL and highlight review-critical risks.
+### tailwind-4
+- Use `cn()` for class composition.
+- Prefer theme tokens and utility classes; avoid raw `var()` in className.
+- Keep styles declarative and consistent.
+
+### shadcn
+- Compose existing primitives before introducing custom UI.
+- Keep components registry-friendly and accessible.
+- Match local conventions for `cn`, slots, and variants.
+
+### design-taste-frontend
+- Reject generic AI layouts; use intentional hierarchy and spacing.
+- Keep motion restrained, hardware-accelerated, and purposeful.
+- Calibrate color, contrast, and rhythm with precision.
+
+### redesign-existing-projects
+- Upgrade the current UI without breaking behavior.
+- Identify generic patterns, then replace with premium, coherent design.
+- Preserve product structure; improve polish, spacing, and hierarchy.
+
+### minimalist-ui
+- Use warm monochrome, typographic contrast, and flat layouts.
+- Avoid gradients and heavy shadows.
+- Favor clean editorial composition and restraint.
+
+### Logging Best Practices
+- Log structure, not prose; include context and correlation fields.
+- Avoid noisy logs and sensitive data.
+- Capture root cause signals, not just symptoms.
+
+### supabase-postgres-best-practices
+- Prefer sargable queries and indexed access paths.
+- Keep JSONB/relational tradeoffs explicit.
+- Avoid unnecessary round trips and N+1 patterns.
+
+### ai-sdk
+- Use the SDK’s stream/tool/structured-output primitives as intended.
+- Keep provider-specific behavior isolated.
+- Favor typed schemas and explicit tool contracts.
+
+### ai-elements
+- Compose conversation/message/tool display primitives.
+- Keep chat UI state and rendering separated.
+- Preserve accessibility and streaming feedback states.
+
+### agentic-development
+- Build agents with typed tools, structured output, and streaming.
+- Keep tool boundaries small and testable.
+- Prefer explicit orchestration over hidden prompt magic.
+
+### building-pydantic-ai-agents
+- Define agents with typed dependencies and structured outputs.
+- Test tool behavior and streaming paths.
+- Keep agent prompts and business rules separated.
+
+### domain-model
+- Align terms with repo docs and canonical names.
+- Challenge ambiguous naming before coding.
+- Update docs when concepts or boundaries change.
+
+### improve-codebase-architecture
+- Deepen shallow modules and separate orchestration from policy.
+- Improve testability by reducing coupling.
+- Prefer explicit seams over incidental complexity.
+
+### interface-design
+- Design for operational clarity first, aesthetics second.
+- Structure information by hierarchy and task flow.
+- Keep controls obvious, states visible, and density intentional.
 
 ### skill-creator
-- Define precise trigger conditions for new skills.
-- Keep rules explicit, testable, and implementation-oriented.
-- Include anti-patterns and hard constraints where relevant.
-- Avoid vague guidance that cannot drive execution.
-- Ensure skill docs are reusable across sessions.
+- Write skills as actionable rules, not essays.
+- Keep triggers precise and behavior focused.
+- Document only what an agent must apply.
 
 ## Project Conventions
 
 | File | Path | Notes |
 |------|------|-------|
-| AGENTS.md | /Users/ricardoaltamirano/Developer/SecondStream/AGENTS.md | Index — references files below |
-| README.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/README.md | Referenced by AGENTS.md |
-| development-commands.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/development-commands.md | Referenced by AGENTS.md |
-| workflows.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/workflows.md | Referenced by AGENTS.md |
-| architecture.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/architecture.md | Referenced by AGENTS.md |
-| code-style.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/code-style.md | Referenced by AGENTS.md |
-| debugging.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/debugging.md | Referenced by AGENTS.md |
-| environment-setup.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/environment-setup.md | Referenced by AGENTS.md |
-| deployment.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/deployment.md | Referenced by AGENTS.md |
-| performance.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/performance.md | Referenced by AGENTS.md |
-| archive/README.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/archive/README.md | Referenced by AGENTS.md |
-| CLAUDE.md | /Users/ricardoaltamirano/Developer/SecondStream/CLAUDE.md | Project-level agent conventions |
+| AGENTS.md | /Users/ricardoaltamirano/Developer/SecondStream/AGENTS.md | Index — repo-wide policy and doc precedence |
+| CLAUDE.md | /Users/ricardoaltamirano/Developer/SecondStream/CLAUDE.md | Project guidance for Claude Code |
+| docs/agents/README.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/README.md | Index — references canonical agent docs |
+| docs/agents/development-commands.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/development-commands.md | Local commands and checks |
+| docs/agents/workflows.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/workflows.md | Feature/endpoint/migration workflows |
+| docs/agents/architecture.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/architecture.md | Architecture, request flow, key files |
+| docs/agents/code-style.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/code-style.md | Style and default code principles |
+| docs/agents/debugging.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/debugging.md | Debugging playbook |
+| docs/agents/environment-setup.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/environment-setup.md | Environment variables and setup |
+| docs/agents/deployment.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/deployment.md | Deployment notes and constraints |
+| docs/agents/performance.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/performance.md | Performance defaults and watchouts |
+| docs/agents/aws-credentials-setup.md | /Users/ricardoaltamirano/Developer/SecondStream/docs/agents/aws-credentials-setup.md | Local AWS credential flow |
+| .gitignore | /Users/ricardoaltamirano/Developer/SecondStream/.gitignore | Excludes .atl and build/test artifacts |
 
-Read the convention files listed above for project-specific patterns and rules.
+## Notes
+
+- Skip `sdd-*`, `_shared`, and `skill-registry` when resolving skills.
+- Project-level conventions are the repo docs above; keep one fact in one home.

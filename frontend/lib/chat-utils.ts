@@ -1,5 +1,6 @@
 import type { ChatStatus } from "ai";
-import type { PromptInputMessage } from "@/components/chat-ui/ai-elements/prompt-input";
+import type { AttachmentUploadState } from "@/lib/chat-attachment-utils";
+import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import type { MyUIMessage } from "@/types/ui-message";
 
 export const canSubmitPromptMessage = (
@@ -9,6 +10,54 @@ export const canSubmitPromptMessage = (
 	const hasAttachments = Boolean(message.files?.length);
 	return hasText || hasAttachments;
 };
+
+export function nextClearedUploadStates(
+	states: AttachmentUploadState[],
+): AttachmentUploadState[] {
+	if (states.length === 0) {
+		return states;
+	}
+
+	return [];
+}
+
+export function shouldReloadThreadHistory(options: {
+	threadId: string;
+	lastLoadedThreadId: string | null;
+	isSendInFlight: boolean;
+}): boolean {
+	if (options.threadId === "new") {
+		return false;
+	}
+
+	if (options.isSendInFlight) {
+		return false;
+	}
+
+	return options.threadId !== options.lastLoadedThreadId;
+}
+
+export function nextMessagesAfterHistoryReloadFailure(
+	currentMessages: MyUIMessage[],
+): MyUIMessage[] {
+	if (currentMessages.length === 0) {
+		return currentMessages;
+	}
+
+	return [];
+}
+
+export function rollbackMessagesAfterSendFailure(options: {
+	threadId: string;
+	baselineBeforeOptimisticAppend: MyUIMessage[];
+	currentMessages: MyUIMessage[];
+}): MyUIMessage[] {
+	if (options.threadId === "new") {
+		return options.baselineBeforeOptimisticAppend;
+	}
+
+	return options.currentMessages;
+}
 
 /**
  * Returns true when a loading shimmer should be displayed for the assistant.
@@ -22,10 +71,15 @@ export const canSubmitPromptMessage = (
 export function shouldShowLoadingShimmer(
 	status: ChatStatus,
 	messages: MyUIMessage[],
+	options?: { awaitingFirstChunk?: boolean },
 ): boolean {
 	if (status === "submitted") return true;
 
 	if (status === "streaming") {
+		if (options?.awaitingFirstChunk) {
+			return true;
+		}
+
 		const lastAssistant = findLast(messages, (m) => m.role === "assistant");
 		if (!lastAssistant) return true;
 

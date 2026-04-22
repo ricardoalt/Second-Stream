@@ -7,7 +7,11 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 
 async function loadAttachmentFlow() {
 	const module = await import("./chat-interface");
-	return module.runDraftAttachmentSendFlow;
+	return {
+		deriveChatShellState: module.deriveChatShellState,
+		runDraftAttachmentSendFlow: module.runDraftAttachmentSendFlow,
+		resolveAttachmentUploadResult: module.resolveAttachmentUploadResult,
+	};
 }
 
 describe("canSubmitPromptMessage", () => {
@@ -47,8 +51,32 @@ describe("canSubmitPromptMessage", () => {
 });
 
 describe("chat-interface attachment send flow", () => {
+	it("throws on failed attachment upload so submit cannot resolve as success", async () => {
+		const { resolveAttachmentUploadResult } = await loadAttachmentFlow();
+
+		expect(() =>
+			resolveAttachmentUploadResult({
+				status: "error",
+				error: new Error(ATTACHMENT_UPLOAD_FAILURE_MESSAGE),
+			}),
+		).toThrow(ATTACHMENT_UPLOAD_FAILURE_MESSAGE);
+	});
+
+	it("returns uploaded attachment ids on successful upload result", async () => {
+		const { resolveAttachmentUploadResult } = await loadAttachmentFlow();
+
+		expect(
+			resolveAttachmentUploadResult({
+				status: "ok",
+				attachmentIds: ["draft-1", "draft-2"],
+			}),
+		).toEqual(["draft-1", "draft-2"]);
+	});
+
 	it("cubre el flujo runtime de adjuntos: fallo visible, resolución y rehidratación persistida", async () => {
-		const runDraftAttachmentSendFlow = await loadAttachmentFlow();
+		const { deriveChatShellState, runDraftAttachmentSendFlow } =
+			await loadAttachmentFlow();
+		const shellAtEmptyState = deriveChatShellState([]);
 		const uploadStatesFirstAttempt: Array<{
 			index: number;
 			status: string;
@@ -59,7 +87,11 @@ describe("chat-interface attachment send flow", () => {
 			}
 			return "draft-ok";
 		});
-		const streamTurn = mock(async () => {});
+		const streamTurn = mock(
+			async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+				onEvent({ event: "finish" });
+			},
+		);
 		const persistedMessages: MyUIMessage[] = [
 			{
 				id: "persisted-user-1",
@@ -123,6 +155,13 @@ describe("chat-interface attachment send flow", () => {
 			attachmentIds: ["draft-ok"],
 			persistedMessages,
 		});
+		if (resolvedResult.status === "sent") {
+			const shellAfterSend = deriveChatShellState(resolvedResult.persistedMessages);
+			expect(shellAfterSend.mode).toBe("conversation");
+			expect(shellAfterSend.composerBoundaryId).toBe(
+				shellAtEmptyState.composerBoundaryId,
+			);
+		}
 		expect(streamTurn).toHaveBeenCalledWith(
 			expect.objectContaining({
 				threadId: "thread-1",
@@ -133,15 +172,49 @@ describe("chat-interface attachment send flow", () => {
 		expect(reloadHistory).toHaveBeenCalledWith("thread-1");
 	});
 
+	it("keeps composer boundary stable when send is blocked from empty state", async () => {
+		const { deriveChatShellState, runDraftAttachmentSendFlow } =
+			await loadAttachmentFlow();
+		const shellAtEmptyState = deriveChatShellState([]);
+
+		const uploadAttachment = mock(async () => {
+			throw new Error("upload failed");
+		});
+		const streamTurn = mock(async () => undefined);
+		const reloadHistory = mock(async (): Promise<MyUIMessage[]> => []);
+
+		const blockedResult = await runDraftAttachmentSendFlow({
+			threadId: "thread-1",
+			contentText: "hola",
+			files: [{ url: "data:text/plain;base64,b2s=", filename: "ok.txt" }],
+			uploadAttachment,
+			streamTurn,
+			reloadHistory,
+		});
+
+		expect(blockedResult.status).toBe("blocked");
+		const shellAfterBlockedSend = deriveChatShellState([]);
+		expect(shellAfterBlockedSend.mode).toBe("empty");
+		expect(shellAfterBlockedSend.composerBoundaryId).toBe(
+			shellAtEmptyState.composerBoundaryId,
+		);
+		expect(streamTurn).not.toHaveBeenCalled();
+		expect(reloadHistory).not.toHaveBeenCalled();
+	});
+
 	it("bloquea el envío cuando falla un upload y no inicia stream", async () => {
-		const runDraftAttachmentSendFlow = await loadAttachmentFlow();
+		const { runDraftAttachmentSendFlow } = await loadAttachmentFlow();
 		const uploadAttachment = mock(async (file: File): Promise<string> => {
 			if (file.name === "bad.txt") {
 				throw new Error("Upload failed for bad.txt");
 			}
 			return "draft-ok";
 		});
-		const streamTurn = mock(async () => {});
+		const streamTurn = mock(
+			async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+				onEvent({ event: "finish" });
+			},
+		);
 		const reloadHistory = mock(async (): Promise<MyUIMessage[]> => []);
 
 		const result = await runDraftAttachmentSendFlow({
@@ -162,9 +235,13 @@ describe("chat-interface attachment send flow", () => {
 	});
 
 	it("rehidrata historial persistido cuando el flujo completa", async () => {
-		const runDraftAttachmentSendFlow = await loadAttachmentFlow();
+		const { runDraftAttachmentSendFlow } = await loadAttachmentFlow();
 		const uploadAttachment = mock(async (): Promise<string> => "draft-1");
-		const streamTurn = mock(async () => {});
+		const streamTurn = mock(
+			async ({ onEvent }: { onEvent: (event: unknown) => void }) => {
+				onEvent({ event: "finish" });
+			},
+		);
 		const persistedMessages: MyUIMessage[] = [
 			{
 				id: "msg-user-1",

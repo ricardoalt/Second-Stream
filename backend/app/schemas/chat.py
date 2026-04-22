@@ -1,11 +1,23 @@
 """Chat API schemas for v1 thread/message contracts."""
 
 from datetime import datetime
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import Field
 
 from app.schemas.common import BaseSchema
+
+
+class StreamFormat(StrEnum):
+    """Protocol format for chat stream responses.
+
+    - ``official``: AI SDK UI/Data Stream Protocol (canonical, product target)
+    - ``legacy``: Temporary backward-compat SSE format (will be removed)
+    """
+
+    OFFICIAL = "official"
+    LEGACY = "legacy"
 
 
 class ChatThreadCreateRequest(BaseSchema):
@@ -54,3 +66,7 @@ class ChatThreadDetailResponse(BaseSchema):
 class ChatStreamRequest(BaseSchema):
     content_text: str = Field(..., min_length=1)
     existing_attachment_ids: list[UUID] = Field(default_factory=list)
+    stream_format: StreamFormat = Field(
+        default=StreamFormat.OFFICIAL,
+        description="Protocol format for the SSE stream. 'official' = AI SDK UI/Data Stream Protocol (default), 'legacy' = temporary backward-compat format.",
+    )

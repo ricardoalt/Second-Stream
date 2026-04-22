@@ -8,10 +8,11 @@ import structlog
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.chat_agent import ChatAgentDeps, ChatAgentOutput, generate_chat_response
+from app.agents.chat_agent import ChatAgentDeps, ChatAgentError, stream_chat_response
 from app.models.chat_attachment import ChatAttachment
 from app.models.chat_message import ChatMessage
 from app.models.chat_thread import ChatThread
+from app.services.chat_stream_protocol import resolve_attachments_to_agent_input
 
 logger = structlog.get_logger(__name__)
 
@@ -327,13 +328,6 @@ def _build_agent_prompt(*, history: list[ChatHistoryItem], user_message: str) ->
     )
 
 
-def _chunk_text_for_sse(content_text: str) -> list[str]:
-    chunks = [chunk.strip() for chunk in content_text.split(". ") if chunk.strip()]
-    if not chunks and content_text.strip():
-        return [content_text.strip()]
-    return chunks
-
-
 async def _persist_assistant_terminal_message(
     *,
     db: AsyncSession,
@@ -367,6 +361,23 @@ async def _persist_assistant_terminal_message(
         user_id=str(created_by_user_id),
     )
     return message
+
+
+async def _load_message_attachments_for_agent(
+    *,
+    db: AsyncSession,
+    organization_id: UUID,
+    message_id: UUID,
+) -> list[ChatAttachment]:
+    rows = await db.execute(
+        select(ChatAttachment)
+        .where(
+            ChatAttachment.organization_id == organization_id,
+            ChatAttachment.message_id == message_id,
+        )
+        .order_by(ChatAttachment.created_at.asc(), ChatAttachment.id.asc())
+    )
+    return list(rows.scalars().all())
 
 
 async def stream_chat_turn(
@@ -405,11 +416,40 @@ async def stream_chat_turn(
         run_id=run_id,
     )
 
+    message_attachments = await _load_message_attachments_for_agent(
+        db=db,
+        organization_id=organization_id,
+        message_id=user_message.id,
+    )
+    agent_attachments = resolve_attachments_to_agent_input(message_attachments)
+
     yield {"event": "start", "run_id": run_id}
     try:
-        output: ChatAgentOutput = await generate_chat_response(prompt=agent_prompt, deps=deps)
-        for chunk in _chunk_text_for_sse(output.response_text):
-            yield {"event": "delta", "delta": chunk}
+        delta_chunks: list[str] = []
+        runtime_terminal_text: str | None = None
+
+        async for runtime_event in stream_chat_response(
+            prompt=agent_prompt,
+            deps=deps,
+            attachments=agent_attachments,
+        ):
+            event_type = runtime_event.get("event")
+            if event_type == "delta":
+                delta = str(runtime_event.get("delta", ""))
+                if not delta:
+                    continue
+                delta_chunks.append(delta)
+                yield {"event": "delta", "delta": delta}
+                continue
+
+            if event_type == "completed":
+                candidate = str(runtime_event.get("response_text", "")).strip()
+                if candidate:
+                    runtime_terminal_text = candidate
+
+        response_text = runtime_terminal_text or "".join(delta_chunks).strip()
+        if not response_text:
+            raise ChatAgentError("Chat agent returned empty streamed response")
 
         thread = await _load_owned_active_thread(
             db=db,
@@ -422,7 +462,7 @@ async def stream_chat_turn(
             thread=thread,
             organization_id=organization_id,
             created_by_user_id=created_by_user_id,
-            content_text=output.response_text,
+            content_text=response_text,
             run_id=run_id,
         )
         yield {

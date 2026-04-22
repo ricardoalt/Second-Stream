@@ -1,30 +1,14 @@
 "use client";
 
-import {
-	ChevronsUpDown,
-	GitBranch,
-	Search,
-	Settings,
-	SquarePen,
-	X,
-} from "lucide-react";
-import { nanoid } from "nanoid";
+import { ChevronsUpDown, Search, Settings, SquarePen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type * as React from "react";
 import { useEffect, useState } from "react";
+import { type ChatThreadSummaryDTO, listChatThreads } from "@/lib/api/chat";
+import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
 import { groupByDate } from "@/lib/date-utils";
 import { ChatSearch } from "./chat-search";
 import { SettingsDialog } from "./settings-dialog";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "./ui/alert-dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -39,21 +23,11 @@ import {
 	SidebarGroupLabel,
 	SidebarHeader,
 	SidebarMenu,
-	SidebarMenuAction,
 	SidebarMenuButton,
 	SidebarMenuItem,
 	SidebarRail,
 	SidebarTrigger,
 } from "./ui/sidebar";
-
-// Local Thread type
-interface Thread {
-	id: string;
-	title: string | null;
-	resourceId: string;
-	createdAt: string;
-	updatedAt: string;
-}
 
 type SidebarActionItem = {
 	id: "new-chat" | "search-chats";
@@ -74,18 +48,6 @@ const SIDEBAR_ACTIONS: ReadonlyArray<SidebarActionItem> = [
 	},
 ];
 
-// Local storage helpers
-const getStoredThreads = (): Thread[] => {
-	if (typeof window === "undefined") return [];
-	const stored = localStorage.getItem("secondstream_chat_threads");
-	return stored ? JSON.parse(stored) : [];
-};
-
-const setStoredThreads = (threads: Thread[]) => {
-	if (typeof window === "undefined") return;
-	localStorage.setItem("secondstream_chat_threads", JSON.stringify(threads));
-};
-
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	activeThreadId?: string;
 	onThreadSelect?: (threadId: string) => void;
@@ -101,93 +63,62 @@ export function AppSidebar({
 	const router = useRouter();
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
-	const [threadToDelete, setThreadToDelete] = useState<Thread | null>(null);
-	const [threads, setThreads] = useState<Thread[]>([]);
+	const [threads, setThreads] = useState<ChatThreadSummaryDTO[]>([]);
+	const [threadsError, setThreadsError] = useState<string | null>(null);
 
-	// Load threads on mount
 	useEffect(() => {
-		setThreads(getStoredThreads());
-	}, []);
+		let cancelled = false;
 
-	// Subscribe to storage changes
-	useEffect(() => {
-		const handleStorage = () => {
-			setThreads(getStoredThreads());
+		void listChatThreads()
+			.then((listedThreads) => {
+				if (cancelled) {
+					return;
+				}
+
+				setThreads(listedThreads);
+				setThreadsError(null);
+			})
+			.catch((loadError: unknown) => {
+				if (cancelled) {
+					return;
+				}
+
+				setThreadsError(
+					loadError instanceof Error
+						? loadError.message
+						: "Unable to load threads.",
+				);
+				setThreads([]);
+			});
+
+		return () => {
+			cancelled = true;
 		};
-		window.addEventListener("storage", handleStorage);
-		return () => window.removeEventListener("storage", handleStorage);
 	}, []);
 
 	const groupedThreads = groupByDate(threads, (t) => t.updatedAt);
 
-	const handleDeleteConfirm = () => {
-		if (!threadToDelete) return;
-
-		const isActive = threadToDelete.id === activeThreadId;
-		const updatedThreads = threads.filter((t) => t.id !== threadToDelete.id);
-		setThreads(updatedThreads);
-		setStoredThreads(updatedThreads);
-
-		// Clean up messages
-		localStorage.removeItem(`secondstream_chat_messages_${threadToDelete.id}`);
-
-		setThreadToDelete(null);
-
-		if (isActive) {
-			router.push("/chat");
-			onNewChat?.();
-		}
-	};
-
 	const handleAction = (actionId: SidebarActionItem["id"]) => {
 		if (actionId === "new-chat") {
 			onNewChat?.();
-			router.push("/chat");
+			router.push(buildChatThreadUrl("new"));
 		} else if (actionId === "search-chats") {
 			setSearchOpen(true);
 		}
 	};
 
-	const handleBranch = (threadId: string) => {
-		const sourceThread = threads.find((t) => t.id === threadId);
-		if (!sourceThread) return;
-
-		// Clone thread
-		const newThread: Thread = {
-			id: nanoid(),
-			title: `${sourceThread.title || "Untitled"} (Copy)`,
-			resourceId: sourceThread.resourceId,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		};
-
-		const updatedThreads = [newThread, ...threads];
-		setThreads(updatedThreads);
-		setStoredThreads(updatedThreads);
-
-		// Clone messages
-		const sourceMessages = localStorage.getItem(
-			`secondstream_chat_messages_${threadId}`,
-		);
-		if (sourceMessages) {
-			localStorage.setItem(
-				`secondstream_chat_messages_${newThread.id}`,
-				sourceMessages,
-			);
-		}
-
-		router.push(`/chat/${newThread.id}`);
-		onThreadSelect?.(newThread.id);
-	};
-
 	const handleSelectThread = (threadId: string) => {
-		router.push(`/chat/${threadId}`);
+		router.push(buildChatThreadUrl(threadId));
 		onThreadSelect?.(threadId);
 	};
 
 	return (
 		<>
-			<ChatSearch open={searchOpen} onOpenChange={setSearchOpen} />
+			<ChatSearch
+				open={searchOpen}
+				onOpenChange={setSearchOpen}
+				threads={threads}
+			/>
 			<SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 			<Sidebar collapsible="icon" {...props}>
 				<SidebarHeader className="px-3 pt-3 group-data-[collapsible=icon]:px-0">
@@ -223,6 +154,16 @@ export function AppSidebar({
 				</SidebarGroup>
 
 				<SidebarContent>
+					{threadsError ? (
+						<SidebarGroup className="group-data-[collapsible=icon]:hidden">
+							<SidebarMenu>
+								<p className="text-destructive px-2 py-1 text-xs" role="alert">
+									{threadsError}
+								</p>
+							</SidebarMenu>
+						</SidebarGroup>
+					) : null}
+
 					{groupedThreads.length > 0 ? (
 						groupedThreads.map((group) => (
 							<SidebarGroup
@@ -240,27 +181,6 @@ export function AppSidebar({
 											>
 												<span>{thread.title ?? "Untitled chat"}</span>
 											</SidebarMenuButton>
-											<SidebarMenuAction
-												showOnHover
-												className="right-6"
-												aria-label="Branch chat"
-												onClick={(e) => {
-													e.preventDefault();
-													handleBranch(thread.id);
-												}}
-											>
-												<GitBranch className="size-4" />
-											</SidebarMenuAction>
-											<SidebarMenuAction
-												showOnHover
-												aria-label="Delete chat"
-												onClick={(e) => {
-													e.preventDefault();
-													setThreadToDelete(thread);
-												}}
-											>
-												<X className="size-4" />
-											</SidebarMenuAction>
 										</SidebarMenuItem>
 									))}
 								</SidebarMenu>
@@ -318,31 +238,6 @@ export function AppSidebar({
 
 				<SidebarRail />
 			</Sidebar>
-			<AlertDialog
-				open={threadToDelete !== null}
-				onOpenChange={(open) => {
-					if (!open) setThreadToDelete(null);
-				}}
-			>
-				<AlertDialogContent size="sm">
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete chat</AlertDialogTitle>
-						<AlertDialogDescription>
-							This will permanently delete this chat and all its messages. This
-							action cannot be undone.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							variant="destructive"
-							onClick={handleDeleteConfirm}
-						>
-							Delete
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
 		</>
 	);
 }
