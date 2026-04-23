@@ -228,11 +228,86 @@ describe("main chat screen behavior", () => {
 
 	it("drives thinking state from AI SDK status", async () => {
 		const { shouldShowMainChatThinking } = await loadChatScreenModule();
+
 		const statuses: ChatStatus[] = ["ready", "submitted", "streaming", "error"];
 
 		expect(shouldShowMainChatThinking(statuses[0])).toBe(false);
 		expect(shouldShowMainChatThinking(statuses[1])).toBe(true);
 		expect(shouldShowMainChatThinking(statuses[2])).toBe(true);
 		expect(shouldShowMainChatThinking(statuses[3])).toBe(false);
+	});
+
+	it("builds optimistic user message for immediate display", async () => {
+		const { buildOptimisticUserMessage } = await loadChatScreenModule();
+
+		const message = buildOptimisticUserMessage("Hello, how are you?");
+		expect(message.role).toBe("user");
+		expect(message.parts).toEqual([
+			{ type: "text", text: "Hello, how are you?" },
+		]);
+		expect(message.id).toBeTruthy();
+		expect(message.id.startsWith("optimistic-")).toBe(true);
+	});
+
+	it("builds optimistic user message with trimmed text", async () => {
+		const { buildOptimisticUserMessage } = await loadChatScreenModule();
+
+		const message = buildOptimisticUserMessage("  spaced text  ");
+		expect(message.parts).toEqual([{ type: "text", text: "spaced text" }]);
+	});
+
+	it("merges optimistic message with chat messages for display", async () => {
+		const { resolveVisibleMessages } = await loadChatScreenModule();
+
+		const chatMessages = [
+			{ id: "msg-1", role: "user" as const, parts: [{ type: "text" as const, text: "first" }] },
+			{ id: "msg-2", role: "assistant" as const, parts: [{ type: "text" as const, text: "response" }] },
+		];
+
+		// When optimistic message is present, it appears last
+		const optimistic = { id: "optimistic-user-1", role: "user" as const, parts: [{ type: "text" as const, text: "second question" }] };
+		const result = resolveVisibleMessages(chatMessages, optimistic);
+		expect(result).toHaveLength(3);
+		expect(result[2]).toBe(optimistic);
+	});
+
+	it("returns chat messages unchanged when no optimistic message", async () => {
+		const { resolveVisibleMessages } = await loadChatScreenModule();
+
+		const chatMessages = [
+			{ id: "msg-1", role: "user" as const, parts: [{ type: "text" as const, text: "hello" }] },
+		];
+
+		const result = resolveVisibleMessages(chatMessages, null);
+		expect(result).toEqual(chatMessages);
+	});
+
+	it("does not duplicate optimistic message when chat already has a user message with matching content", async () => {
+		const { resolveVisibleMessages, buildOptimisticUserMessage } = await loadChatScreenModule();
+
+		const optimistic = buildOptimisticUserMessage("my question");
+		const chatMessages = [
+			{ id: "real-msg-1", role: "user" as const, parts: [{ type: "text" as const, text: "my question" }] },
+		];
+
+		// When chat already has the message (e.g., sendMessage completed),
+		// the optimistic message should NOT be appended
+		const result = resolveVisibleMessages(chatMessages, optimistic);
+		expect(result).toHaveLength(1);
+		expect(result[0].id).toBe("real-msg-1");
+	});
+
+	it("does not merge optimistic when chat messages already cover the content", async () => {
+		const { resolveVisibleMessages, buildOptimisticUserMessage } = await loadChatScreenModule();
+
+		const optimistic = buildOptimisticUserMessage("question");
+		// Simulate: useChat has now populated messages that include the optimistic msg's content
+		const chatMessages = [
+			{ id: "real-msg-1", role: "user" as const, parts: [{ type: "text" as const, text: "question" }] },
+			{ id: "real-msg-2", role: "assistant" as const, parts: [{ type: "text" as const, text: "answer" }] },
+		];
+
+		const result = resolveVisibleMessages(chatMessages, optimistic);
+		expect(result).toHaveLength(2);
 	});
 });

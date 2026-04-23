@@ -223,6 +223,49 @@ export async function uploadMainChatAttachments(options: {
 	return attachmentIds;
 }
 
+export function buildOptimisticUserMessage(text: string): MyUIMessage {
+	const trimmed = text.trim();
+	return {
+		id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+		role: "user",
+		parts: [{ type: "text", text: trimmed }],
+	};
+}
+
+export function resolveVisibleMessages(
+	chatMessages: MyUIMessage[],
+	optimisticMessage: MyUIMessage | null,
+): MyUIMessage[] {
+	if (!optimisticMessage) {
+		return chatMessages;
+	}
+
+	// If chat already has a user message whose text content matches
+	// the optimistic message's text, the real message has arrived —
+	// skip the optimistic duplicate.
+	const optimisticText = optimisticMessage.parts
+		.filter((p): p is { type: "text"; text: string } => p.type === "text")
+		.map((p) => p.text)
+		.join("")
+		.trim();
+
+	const chatAlreadyHasContent = chatMessages.some((msg) => {
+		if (msg.role !== "user") return false;
+		const msgText = msg.parts
+			.filter((p): p is { type: "text"; text: string } => p.type === "text")
+			.map((p) => p.text)
+			.join("")
+			.trim();
+		return msgText === optimisticText;
+	});
+
+	if (chatAlreadyHasContent) {
+		return chatMessages;
+	}
+
+	return [...chatMessages, optimisticMessage];
+}
+
 export function ChatScreen({ routeState }: ChatScreenProps) {
 	const router = useRouter();
 	const [activeThreadId, setActiveThreadId] = useState(routeState.threadId);
@@ -233,6 +276,7 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 	const [historyLoading, setHistoryLoading] = useState(false);
 	const [isPreparingSubmit, setIsPreparingSubmit] = useState(false);
 	const isPreparingSubmitRef = useRef(false);
+	const [optimisticUserMessage, setOptimisticUserMessage] = useState<MyUIMessage | null>(null);
 
 	useEffect(() => {
 		setActiveThreadId(routeState.threadId);
@@ -300,6 +344,32 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 		};
 	}, [activeThreadId, canUseChat, setMessages]);
 
+	// Clear optimistic message once useChat delivers real messages that
+	// supersede it. resolveVisibleMessages handles deduplication, but we
+	// clear the state to avoid keeping stale optimistic data around.
+	useEffect(() => {
+		if (
+			optimisticUserMessage &&
+			messages.length > 0 &&
+			messages.some((msg) => {
+				if (msg.role !== "user") return false;
+				const msgText = msg.parts
+					.filter((p): p is { type: "text"; text: string } => p.type === "text")
+					.map((p) => p.text)
+					.join("")
+					.trim();
+				const optimisticText = optimisticUserMessage.parts
+					.filter((p): p is { type: "text"; text: string } => p.type === "text")
+					.map((p) => p.text)
+					.join("")
+					.trim();
+				return msgText === optimisticText;
+			})
+		) {
+			setOptimisticUserMessage(null);
+		}
+	}, [messages, optimisticUserMessage]);
+
 	const handleSubmitMessage = useCallback(
 		async (message: PromptInputMessage) => {
 			if (isPreparingSubmitRef.current) {
@@ -310,6 +380,12 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 			setIsPreparingSubmit(true);
 			setSubmitError(null);
 			pendingAttachmentIdsRef.current = [];
+
+			// Show the user's message immediately before the async round-trip
+			// to create/upload/send. Cleared once useChat delivers the real
+			// message back from the backend.
+			const optimistic = buildOptimisticUserMessage(message.text);
+			setOptimisticUserMessage(optimistic);
 
 			try {
 				await submitMainChatTurn({
@@ -333,6 +409,7 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 					},
 				});
 			} catch (submissionError) {
+				setOptimisticUserMessage(null);
 				setSubmitError(
 					submissionError instanceof Error
 						? submissionError.message
@@ -358,37 +435,46 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 	}
 
 	const visibleError = submitError ?? error?.message ?? historyError;
+	const visibleMessages = resolveVisibleMessages(messages, optimisticUserMessage);
 	const showLandingState = shouldShowMainChatLandingState({
 		routeMode: routeState.mode,
-		messagesCount: messages.length,
+		messagesCount: visibleMessages.length,
 		historyLoading,
 	});
 	const composerStatus: ChatStatus = isPreparingSubmit ? "submitted" : status;
 	const submitFeedbackLabel = resolveMainChatSubmitFeedbackLabel({
 		routeMode: routeState.mode,
-		messagesCount: messages.length,
+		messagesCount: visibleMessages.length,
 		status: composerStatus,
 		isPreparingSubmit,
 	});
 
 	if (showLandingState) {
 		return (
-			<div className="mx-auto flex h-full w-full max-w-[70ch] flex-1 flex-col items-center justify-center gap-8 px-6 pb-20">
-				<ConversationEmptyState
-					className="gap-3 p-0"
-					description="Start with a question or drop files to give context."
-					title="What can I help with?"
-				/>
-				<ChatPromptComposer
-					className="w-full"
-					errorMessage={submitError ?? error?.message ?? null}
-					hintMessage={submitFeedbackLabel}
-					onInteract={() => setSubmitError(null)}
-					onSubmitMessage={handleSubmitMessage}
-					placeholder="Ask anything"
-					status={composerStatus}
-					textareaClassName="min-h-16 text-base"
-				/>
+			<div className="flex h-full flex-1 flex-col">
+				<Conversation className="min-h-0 flex-1">
+					<ConversationContent className="mx-auto flex w-full max-w-[70ch] flex-1 flex-col items-center justify-center gap-6 px-6 py-6">
+						<ConversationEmptyState
+							className="gap-3 p-0"
+							description="Start with a question or drop files to give context."
+							title="What can I help with?"
+						/>
+					</ConversationContent>
+					<ConversationScrollButton />
+				</Conversation>
+
+				<div className="mx-auto w-full max-w-[70ch] px-6 pb-8 pt-4">
+					<ChatPromptComposer
+						className="w-full"
+						errorMessage={submitError ?? error?.message ?? null}
+						hintMessage={submitFeedbackLabel}
+						onInteract={() => setSubmitError(null)}
+						onSubmitMessage={handleSubmitMessage}
+						placeholder="Ask anything"
+						status={composerStatus}
+						textareaClassName="min-h-16 text-base"
+					/>
+				</div>
 			</div>
 		);
 	}
@@ -397,13 +483,13 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 		<div className="flex h-full flex-1 flex-col">
 			<Conversation className="min-h-0 flex-1">
 				<ConversationContent className="mx-auto w-full max-w-[70ch] gap-6 px-6 py-6">
-					{historyLoading && messages.length === 0 ? (
+					{historyLoading && visibleMessages.length === 0 ? (
 						<output className="text-muted-foreground text-sm">
 							Loading thread messages...
 						</output>
 					) : null}
 
-					{messages.map((message) => (
+					{visibleMessages.map((message) => (
 						<Message from={message.role} key={message.id}>
 							<MessageContent>
 								{message.parts.map((part, index) => {

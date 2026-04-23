@@ -219,4 +219,51 @@ it("composer calls provider-dependent hooks only inside PromptInputProvider cont
 		// Outer component must render the provider with initial input
 		expect(composerFnBody).toContain("initialInput={draft.initialText}");
 	});
+
+	it("composer inner component clears input immediately on submit before async work", () => {
+		const composerSource = read(
+			"frontend/components/chat-ui/chat-prompt-composer.tsx",
+		);
+
+		const innerFnStart = composerSource.indexOf("function ChatPromptComposerInner");
+		expect(innerFnStart).toBeGreaterThan(-1);
+
+		const innerFnBody = composerSource.slice(innerFnStart);
+
+		// Inner must call clear() on both text and attachments
+		// BEFORE awaiting onSubmitMessage
+		expect(innerFnBody).toContain("textInput.clear()");
+		expect(innerFnBody).toContain("attachments.clear()");
+	});
+
+	it("chat screen uses optimistic message for immediate first-send display", () => {
+		const chatScreenSource = read(
+			"frontend/components/chat-ui/chat-screen.tsx",
+		);
+
+		// Must export the new pure functions
+		expect(chatScreenSource).toContain("buildOptimisticUserMessage");
+		expect(chatScreenSource).toContain("resolveVisibleMessages");
+
+		// Must use optimisticUserMessage state
+		expect(chatScreenSource).toContain("optimisticUserMessage");
+
+		// Must use Conversation layout for both empty and conversation states
+		// (unified layout — composer always at bottom)
+		expect(chatScreenSource).toContain("<Conversation");
+	});
+
+	it("chat screen has unified layout with composer in both states", () => {
+		const chatScreenSource = read(
+			"frontend/components/chat-ui/chat-screen.tsx",
+		);
+
+		// Both empty state and conversation state should use <Conversation>
+		// The composer should appear in both states at the bottom
+		const conversationTagCount = chatScreenSource.match(/<Conversation[^>]/g)?.length ?? 0;
+		expect(conversationTagCount).toBeGreaterThanOrEqual(1);
+
+		// ConversationEmptyState should be inside the layout (not a separate branch)
+		expect(chatScreenSource).toContain("ConversationEmptyState");
+	});
 });

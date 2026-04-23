@@ -180,6 +180,17 @@ function ChatPromptComposerInner({
 	const attachments = usePromptInputAttachments();
 	const prevTextValueRef = useRef(textInput.value);
 
+	// Clear text and attachments immediately on submit, before async work,
+	// so the user gets responsive feedback that their message was accepted.
+	const handleSubmitInner = useCallback(
+		(message: PromptInputMessage): void => {
+			textInput.clear();
+			attachments.clear();
+			void onSubmitMessage(message);
+		},
+		[textInput, attachments, onSubmitMessage],
+	);
+
 	// Sync draft text to localStorage when value changes.
 	useEffect(() => {
 		if (textInput.value !== prevTextValueRef.current) {
@@ -219,7 +230,7 @@ function ChatPromptComposerInner({
 			onError={({ code }) => {
 				setAttachmentError(getAttachmentValidationMessage(code));
 			}}
-			onSubmit={onSubmitMessage}
+			onSubmit={handleSubmitInner}
 		>
 			<PromptInputAttachmentsHeader />
 
