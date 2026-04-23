@@ -2,12 +2,6 @@ import type { ChatStatus } from "ai";
 import type * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-	MAX_ATTACHMENT_BYTES,
-	MAX_ATTACHMENTS_PER_REQUEST,
-	SUPPORTED_ATTACHMENT_MIME_PATTERNS,
-} from "@/config/models";
-import { useDraftInput } from "@/hooks/use-draft-input";
-import {
 	Attachment,
 	AttachmentInfo,
 	AttachmentPreview,
@@ -31,6 +25,12 @@ import {
 	usePromptInputAttachments,
 	usePromptInputController,
 } from "@/components/ai-elements/prompt-input";
+import {
+	MAX_ATTACHMENT_BYTES,
+	MAX_ATTACHMENTS_PER_REQUEST,
+	SUPPORTED_ATTACHMENT_MIME_PATTERNS,
+} from "@/config/models";
+import { useDraftInput } from "@/hooks/use-draft-input";
 
 type ChatPromptComposerProps = {
 	className: string;
@@ -56,6 +56,7 @@ type ChatPromptComposerInnerProps = {
 	textareaClassName: string;
 	textareaRef: (el: HTMLTextAreaElement | null) => void;
 	draftSetText: (text: string) => void;
+	draftClear: () => void;
 	didUserInteractRef: React.RefObject<boolean>;
 	onInteract?: () => void;
 };
@@ -173,6 +174,7 @@ function ChatPromptComposerInner({
 	textareaClassName,
 	textareaRef,
 	draftSetText,
+	draftClear,
 	didUserInteractRef,
 	onInteract,
 }: ChatPromptComposerInnerProps): React.JSX.Element {
@@ -182,13 +184,19 @@ function ChatPromptComposerInner({
 
 	// Clear text and attachments immediately on submit, before async work,
 	// so the user gets responsive feedback that their message was accepted.
+	//
+	// CRITICAL: also call draftClear() to flush localStorage synchronously.
+	// Without it, AnimatePresence remount on isEmptyState→conversation
+	// transition reads stale localStorage (the debounced "" write hasn't
+	// fired yet) and the remounted composer rehydrates the sent text.
 	const handleSubmitInner = useCallback(
 		(message: PromptInputMessage): void => {
 			textInput.clear();
 			attachments.clear();
+			draftClear();
 			void onSubmitMessage(message);
 		},
-		[textInput, attachments, onSubmitMessage],
+		[textInput, attachments, draftClear, onSubmitMessage],
 	);
 
 	// Sync draft text to localStorage when value changes.
@@ -201,7 +209,10 @@ function ChatPromptComposerInner({
 
 	// Clear attachment error and resolve submit error when inputs change.
 	useEffect(() => {
-		if (attachments.files.length === 0 && prevTextValueRef.current === textInput.value) {
+		if (
+			attachments.files.length === 0 &&
+			prevTextValueRef.current === textInput.value
+		) {
 			return;
 		}
 
@@ -335,6 +346,7 @@ export function ChatPromptComposer({
 				textareaClassName={textareaClassName}
 				textareaRef={textareaRef}
 				draftSetText={draft.setText}
+				draftClear={draft.clear}
 				didUserInteractRef={didUserInteractRef}
 				onInteract={onInteract}
 			/>

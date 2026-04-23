@@ -6,6 +6,7 @@ from uuid import UUID
 
 import structlog
 from sqlalchemy import Select, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.chat_agent import ChatAgentDeps, ChatAgentError, stream_chat_response
@@ -58,6 +59,74 @@ def _is_allowed_content_type(content_type: str) -> bool:
     if content_type in ALLOWED_EXACT_MIME_TYPES:
         return True
     return any(content_type.startswith(prefix) for prefix in ALLOWED_MIME_PREFIXES)
+
+
+async def ensure_thread_exists(
+    *,
+    db: AsyncSession,
+    organization_id: UUID,
+    created_by_user_id: UUID,
+    thread_id: UUID,
+) -> tuple[ChatThread, bool]:
+    """Ensure a thread exists for the given org and creator.
+
+    If the thread already exists under this org/user, return (thread, False).
+    If it doesn't exist anywhere, create it and return (thread, True).
+    If it exists under a different org, raise ChatAttachmentValidationError (404).
+
+    Handles race conditions via INSERT … ON CONFLICT (upsert).
+    """
+    # Check if thread exists under this org/user
+    result = await db.execute(
+        select(ChatThread).where(
+            ChatThread.id == thread_id,
+            ChatThread.organization_id == organization_id,
+            ChatThread.created_by_user_id == created_by_user_id,
+            ChatThread.archived_at.is_(None),
+        )
+    )
+    thread = result.scalar_one_or_none()
+    if thread is not None:
+        return (thread, False)
+
+    # Check if thread exists under a different org (cross-tenant UUID collision)
+    cross_org = await db.execute(select(ChatThread.id).where(ChatThread.id == thread_id))
+    if cross_org.scalar_one_or_none() is not None:
+        raise ChatAttachmentValidationError("THREAD_NOT_FOUND", "Thread not found")
+
+    # Thread doesn't exist anywhere — create it
+    stmt = (
+        pg_insert(ChatThread)
+        .values(
+            id=thread_id,
+            organization_id=organization_id,
+            created_by_user_id=created_by_user_id,
+            title=None,
+            last_message_preview=None,
+            last_message_at=None,
+            archived_at=None,
+        )
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+
+    await db.execute(stmt)
+    await db.commit()
+
+    # Re-fetch after upsert to handle race condition
+    result = await db.execute(
+        select(ChatThread).where(
+            ChatThread.id == thread_id,
+            ChatThread.organization_id == organization_id,
+            ChatThread.created_by_user_id == created_by_user_id,
+            ChatThread.archived_at.is_(None),
+        )
+    )
+    thread = result.scalar_one_or_none()
+    if thread is None:
+        # Race: another org claimed this UUID between our checks
+        raise ChatAttachmentValidationError("THREAD_NOT_FOUND", "Thread not found")
+
+    return (thread, True)
 
 
 async def _load_owned_active_thread(
@@ -120,9 +189,7 @@ async def _validate_existing_attachments(
         return []
 
     rows = await db.execute(
-        select(ChatAttachment)
-        .where(ChatAttachment.id.in_(attachment_ids))
-        .with_for_update()
+        select(ChatAttachment).where(ChatAttachment.id.in_(attachment_ids)).with_for_update()
     )
     attachments = list(rows.scalars().all())
     if len(attachments) != len(set(attachment_ids)):
@@ -308,8 +375,7 @@ async def _load_recent_thread_history(
         .limit(limit)
     )
     latest_first = [
-        ChatHistoryItem(role=role, content_text=content_text)
-        for role, content_text in rows.all()
+        ChatHistoryItem(role=role, content_text=content_text) for role, content_text in rows.all()
     ]
     latest_first.reverse()
     return latest_first
@@ -392,6 +458,24 @@ async def stream_chat_turn(
     existing_attachment_ids: list[UUID] | None = None,
 ):
     """Stream one chat turn as ordered events and persist terminal success only."""
+    # First operation: ensure the thread exists (upsert if needed).
+    # Emit data-new-thread-created event if the thread was newly created.
+    thread, was_created = await ensure_thread_exists(
+        db=db,
+        organization_id=organization_id,
+        created_by_user_id=created_by_user_id,
+        thread_id=thread_id,
+    )
+
+    if was_created:
+        yield {
+            "event": "data-new-thread-created",
+            "thread_id": str(thread.id),
+            "title": thread.title,
+            "created_at": thread.created_at.isoformat(),
+            "updated_at": thread.updated_at.isoformat(),
+        }
+
     user_message = await create_user_message_with_attachments(
         db=db,
         organization_id=organization_id,

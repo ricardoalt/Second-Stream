@@ -1,23 +1,28 @@
 import { AppSidebar } from "@/components/chat-ui/app-sidebar";
-import { ChatScreen } from "@/components/chat-ui/chat-screen";
 import { SidebarProvider } from "@/components/chat-ui/ui/sidebar";
-import { resolveChatRouteState } from "@/lib/chat-runtime/routing";
+import { ChatPageClient } from "./chat-page-client";
 
-interface ChatPageProps {
-	searchParams?: {
-		threadId?: string;
-	};
-}
-
-export default function ChatPage({ searchParams }: ChatPageProps) {
-	const routeState = resolveChatRouteState(searchParams?.threadId);
+export default function ChatPage({
+	searchParams,
+}: {
+	searchParams?: { threadId?: string };
+}) {
+	const initialThreadId = searchParams?.threadId ?? null;
 
 	return (
 		<SidebarProvider defaultOpen={true}>
 			<div className="flex h-screen w-full bg-background">
-				<AppSidebar activeThreadId={routeState.threadId} />
+				<AppSidebar activeThreadId={initialThreadId ?? undefined} />
 				<div className="flex flex-1 flex-col h-full overflow-hidden">
-					<ChatScreen routeState={routeState} />
+					{/* key forces a fresh mount per URL. Without it, navigating
+					    from /chat?threadId=abc to /chat (new chat) would leave
+					    ChatPageClient mounted and its useState-frozen threadId
+					    stale. key="new" on fresh chats, key=<threadId> on
+					    existing threads. */}
+					<ChatPageClient
+						key={initialThreadId ?? "new"}
+						initialThreadId={initialThreadId}
+					/>
 				</div>
 			</div>
 		</SidebarProvider>

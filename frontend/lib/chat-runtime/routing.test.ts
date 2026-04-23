@@ -1,30 +1,22 @@
 import { describe, expect, it } from "bun:test";
-import { buildChatThreadUrl, resolveChatRouteState } from "./routing";
+import { buildChatThreadUrl } from "./routing";
 
 describe("chat runtime routing", () => {
-	it("resolves existing thread route state from query value", () => {
-		expect(resolveChatRouteState("thread-123")).toEqual({
-			mode: "existing",
-			threadId: "thread-123",
-		});
-	});
-
-	it("resolves explicit new thread route state", () => {
-		expect(resolveChatRouteState("new")).toEqual({
-			mode: "new",
-			threadId: "new",
-		});
-	});
-
-	it("resolves unavailable state for blank thread ids", () => {
-		expect(resolveChatRouteState("   ")).toEqual({
-			mode: "unavailable",
-			threadId: "",
-		});
-	});
-
 	it("builds canonical query url for a thread", () => {
 		expect(buildChatThreadUrl("thread-42")).toBe("/chat?threadId=thread-42");
-		expect(buildChatThreadUrl("new")).toBe("/chat?threadId=new");
+	});
+
+	it("builds url for a new thread id", () => {
+		expect(buildChatThreadUrl("abc-123")).toBe("/chat?threadId=abc-123");
+	});
+
+	it("encodes special characters in thread id", () => {
+		expect(buildChatThreadUrl("thread with spaces")).toBe(
+			"/chat?threadId=thread%20with%20spaces",
+		);
+	});
+
+	it("trims whitespace from thread id", () => {
+		expect(buildChatThreadUrl("  thread-1  ")).toBe("/chat?threadId=thread-1");
 	});
 });

@@ -19,8 +19,6 @@ interface PrepareBridgeSendRequestOptions {
 
 interface CreateChatBridgeTransportOptions {
 	threadId: string;
-	getThreadId?: () => string;
-	getAttachmentIds?: () => string[];
 	baseUrl?: string;
 	getAccessToken?: () => string | null;
 	getOrganizationId?: () => string | null;
@@ -121,20 +119,17 @@ export function createChatBridgeTransport(
 
 	return new DefaultChatTransport<MyUIMessage>({
 		api: `${resolvedBaseUrl}/chat/threads/${options.threadId}/messages/stream`,
-		prepareSendMessagesRequest: ({ headers, messages }) => {
-			const resolvedThreadId =
-				options.getThreadId?.().trim() || options.threadId.trim();
-
+		prepareSendMessagesRequest: ({ headers, messages, body }) => {
 			const prepared = prepareBridgeSendRequest({
 				baseUrl: resolvedBaseUrl,
-				threadId: resolvedThreadId,
+				threadId: options.threadId,
 				accessToken: (options.getAccessToken ?? getAccessTokenFromStorage)(),
 				organizationId: (
 					options.getOrganizationId ?? getOrganizationIdFromStorage
 				)(),
 				existingAttachmentIds:
-					options.getAttachmentIds?.().filter((id) => id.trim().length > 0) ??
-					[],
+					(body as { existingAttachmentIds?: string[] })
+						?.existingAttachmentIds ?? [],
 				messages,
 				headers,
 			});

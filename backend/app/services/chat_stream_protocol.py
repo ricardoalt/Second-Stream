@@ -93,6 +93,7 @@ async def adapt_stream_to_official_protocol(
     - ``delta``   → ``text-start`` / ``text-delta`` / ``text-end`` envelope
     - ``completed`` → ``{"type":"finish"}``
     - ``error``  → ``{"type":"error","errorText":"..."}``
+    - ``data-new-thread-created`` → ``{"type":"data-new-thread-created","data":{...}}``
 
     Stream terminates with ``data: [DONE]\\n\\n``.
     Does NOT emit synthetic reasoning events — only real text deltas.
@@ -126,6 +127,19 @@ async def adapt_stream_to_official_protocol(
         elif event_type == "error":
             error_text = event.get("code", "UNKNOWN_ERROR")
             yield encode_official_sse("error", {"errorText": error_text})
+
+        elif event_type == "data-new-thread-created":
+            yield encode_official_sse(
+                "data-new-thread-created",
+                {
+                    "data": {
+                        "threadId": event.get("thread_id", ""),
+                        "title": event.get("title"),
+                        "createdAt": event.get("created_at", ""),
+                        "updatedAt": event.get("updated_at", ""),
+                    },
+                },
+            )
 
     # Stream termination marker per the official protocol
     yield "data: [DONE]\n\n"

@@ -1,11 +1,23 @@
 "use client";
 
-import { ChevronsUpDown, Search, Settings, SquarePen } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import {
+	ChevronsUpDown,
+	LogOut,
+	Search,
+	Settings,
+	SquarePen,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import type * as React from "react";
-import { useEffect, useState } from "react";
-import { type ChatThreadSummaryDTO, listChatThreads } from "@/lib/api/chat";
+import { useState } from "react";
+import {
+	CHAT_THREADS_QUERY_KEY,
+	type ChatThreadSummaryDTO,
+	listChatThreads,
+} from "@/lib/api/chat";
 import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
+import { useAuth } from "@/lib/contexts";
 import { groupByDate } from "@/lib/date-utils";
 import { ChatSearch } from "./chat-search";
 import { SettingsDialog } from "./settings-dialog";
@@ -13,6 +25,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import {
@@ -48,6 +61,15 @@ const SIDEBAR_ACTIONS: ReadonlyArray<SidebarActionItem> = [
 	},
 ];
 
+function getInitials(name: string): string {
+	const parts = name.split(" ").filter(Boolean);
+	const first = parts[0] ?? "";
+	const second = parts[1] ?? "";
+	if (!first) return "";
+	if (parts.length === 1) return first.slice(0, 2).toUpperCase();
+	return `${first[0]}${second[0] ?? ""}`.toUpperCase();
+}
+
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	activeThreadId?: string;
 	onThreadSelect?: (threadId: string) => void;
@@ -61,47 +83,30 @@ export function AppSidebar({
 	...props
 }: AppSidebarProps): React.JSX.Element {
 	const router = useRouter();
+	const { user, logout } = useAuth();
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
-	const [threads, setThreads] = useState<ChatThreadSummaryDTO[]>([]);
-	const [threadsError, setThreadsError] = useState<string | null>(null);
 
-	useEffect(() => {
-		let cancelled = false;
-
-		void listChatThreads()
-			.then((listedThreads) => {
-				if (cancelled) {
-					return;
-				}
-
-				setThreads(listedThreads);
-				setThreadsError(null);
-			})
-			.catch((loadError: unknown) => {
-				if (cancelled) {
-					return;
-				}
-
-				setThreadsError(
-					loadError instanceof Error
-						? loadError.message
-						: "Unable to load threads.",
-				);
-				setThreads([]);
-			});
-
-		return () => {
-			cancelled = true;
-		};
-	}, []);
+	const { data: threads = [], error: threadsError } = useQuery({
+		queryKey: CHAT_THREADS_QUERY_KEY,
+		queryFn: listChatThreads,
+	});
 
 	const groupedThreads = groupByDate(threads, (t) => t.updatedAt);
+
+	const fullName = user
+		? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email
+		: "";
+	const email = user?.email ?? "";
+	const initials = fullName ? getInitials(fullName) : "";
 
 	const handleAction = (actionId: SidebarActionItem["id"]) => {
 		if (actionId === "new-chat") {
 			onNewChat?.();
-			router.push(buildChatThreadUrl("new"));
+			// Navigate to /chat without threadId — ChatPageClient will mint a
+			// fresh UUID on mount. Backend upserts it when the first stream
+			// lands, so no "new" sentinel is needed anymore.
+			router.push("/chat");
 		} else if (actionId === "search-chats") {
 			setSearchOpen(true);
 		}
@@ -158,7 +163,9 @@ export function AppSidebar({
 						<SidebarGroup className="group-data-[collapsible=icon]:hidden">
 							<SidebarMenu>
 								<p className="text-destructive px-2 py-1 text-xs" role="alert">
-									{threadsError}
+									{threadsError instanceof Error
+										? threadsError.message
+										: "Unable to load threads."}
 								</p>
 							</SidebarMenu>
 						</SidebarGroup>
@@ -209,14 +216,18 @@ export function AppSidebar({
 										/>
 									}
 								>
-									<div className="bg-orange-500 text-white flex size-9 shrink-0 aspect-square items-center justify-center rounded-full text-lg font-medium group-data-[collapsible=icon]:size-7 group-data-[collapsible=icon]:text-base">
-										GU
+									<div className="bg-primary text-primary-foreground flex size-9 shrink-0 aspect-square items-center justify-center rounded-full text-sm font-medium group-data-[collapsible=icon]:size-7 group-data-[collapsible=icon]:text-xs">
+										{initials || "?"}
 									</div>
 									<div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-										<span className="truncate font-medium">Guest User</span>
-										<span className="text-muted-foreground truncate text-xs">
-											Plus
+										<span className="truncate font-medium">
+											{fullName || "Loading..."}
 										</span>
+										{email ? (
+											<span className="text-muted-foreground truncate text-xs">
+												{email}
+											</span>
+										) : null}
 									</div>
 									<ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
 								</DropdownMenuTrigger>
@@ -229,6 +240,11 @@ export function AppSidebar({
 									<DropdownMenuItem onClick={() => setSettingsOpen(true)}>
 										<Settings />
 										Settings
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem onClick={() => logout()}>
+										<LogOut />
+										Sign out
 									</DropdownMenuItem>
 								</DropdownMenuContent>
 							</DropdownMenu>

@@ -1,11 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
-process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
-
 import {
 	type ClassifiedPart,
 	classifyMessagePart,
-} from "@/components/chat-ui/chat-screen";
+} from "@/lib/chat-runtime/chat-utils";
 
 describe("classifyMessagePart", () => {
 	it("classifies text parts", () => {
