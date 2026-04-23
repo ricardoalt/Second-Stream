@@ -389,55 +389,55 @@ describe("main chat screen behavior", () => {
 		it("skips reload when useChat status is submitted", async () => {
 			const { shouldSkipHistoryReload } = await loadChatScreenModule();
 
-			expect(shouldSkipHistoryReload({ chatStatus: "submitted", firstTurnActive: false })).toBe(true);
+			expect(shouldSkipHistoryReload({ chatStatus: "submitted", hasMessages: false, hasHistoryError: false })).toBe(true);
 		});
 
 		it("skips reload when useChat status is streaming", async () => {
 			const { shouldSkipHistoryReload } = await loadChatScreenModule();
 
-			expect(shouldSkipHistoryReload({ chatStatus: "streaming", firstTurnActive: false })).toBe(true);
+			expect(shouldSkipHistoryReload({ chatStatus: "streaming", hasMessages: false, hasHistoryError: false })).toBe(true);
 		});
 
-		it("skips reload when first-turn creation is active", async () => {
+		it("skips reload when messages already exist (from streaming or initial load)", async () => {
 			const { shouldSkipHistoryReload } = await loadChatScreenModule();
 
-			expect(shouldSkipHistoryReload({ chatStatus: "ready", firstTurnActive: true })).toBe(true);
+			expect(shouldSkipHistoryReload({ chatStatus: "ready", hasMessages: true, hasHistoryError: false })).toBe(true);
 		});
 
-		it("does NOT skip reload when status is ready and no first turn active", async () => {
+		it("skips reload when history load error exists (prevents retry loop)", async () => {
 			const { shouldSkipHistoryReload } = await loadChatScreenModule();
 
-			expect(shouldSkipHistoryReload({ chatStatus: "ready", firstTurnActive: false })).toBe(false);
+			expect(shouldSkipHistoryReload({ chatStatus: "ready", hasMessages: false, hasHistoryError: true })).toBe(true);
 		});
 
-		it("does NOT skip reload when status is error and no first turn active", async () => {
+		it("does NOT skip reload when status is ready, no messages, and no error", async () => {
 			const { shouldSkipHistoryReload } = await loadChatScreenModule();
 
-			expect(shouldSkipHistoryReload({ chatStatus: "error", firstTurnActive: false })).toBe(false);
+			expect(shouldSkipHistoryReload({ chatStatus: "ready", hasMessages: false, hasHistoryError: false })).toBe(false);
 		});
 
-		it("skips reload when both streaming AND first-turn active", async () => {
+		it("does NOT skip reload when status is error, no messages, and no error", async () => {
 			const { shouldSkipHistoryReload } = await loadChatScreenModule();
 
-			expect(shouldSkipHistoryReload({ chatStatus: "streaming", firstTurnActive: true })).toBe(true);
+			expect(shouldSkipHistoryReload({ chatStatus: "error", hasMessages: false, hasHistoryError: false })).toBe(false);
 		});
 
-		it("allows reload after stream completes and first turn is no longer active", async () => {
+		it("skips reload when both streaming AND messages exist", async () => {
 			const { shouldSkipHistoryReload } = await loadChatScreenModule();
 
-			expect(shouldSkipHistoryReload({ chatStatus: "ready", firstTurnActive: false })).toBe(false);
+			expect(shouldSkipHistoryReload({ chatStatus: "streaming", hasMessages: true, hasHistoryError: false })).toBe(true);
 		});
 
-		it("skips reload with awaitin-message status during first turn", async () => {
+		it("allows reload for awaiting-message when no messages and no error", async () => {
 			const { shouldSkipHistoryReload } = await loadChatScreenModule();
 
-			expect(shouldSkipHistoryReload({ chatStatus: "awaiting-message", firstTurnActive: true })).toBe(true);
+			expect(shouldSkipHistoryReload({ chatStatus: "awaiting-message", hasMessages: false, hasHistoryError: false })).toBe(false);
 		});
 
-		it("allows reload for awaiting-message when no first turn active", async () => {
+		it("skips reload for awaiting-message when messages exist", async () => {
 			const { shouldSkipHistoryReload } = await loadChatScreenModule();
 
-			expect(shouldSkipHistoryReload({ chatStatus: "awaiting-message", firstTurnActive: false })).toBe(false);
+			expect(shouldSkipHistoryReload({ chatStatus: "awaiting-message", hasMessages: true, hasHistoryError: false })).toBe(true);
 		});
 	});
 

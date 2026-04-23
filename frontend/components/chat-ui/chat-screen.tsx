@@ -3,7 +3,6 @@
 import { useChat } from "@ai-sdk/react";
 import type { ChatStatus, UIMessage } from "ai";
 import { AnimatePresence, motion } from "motion/react";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	Attachment,
@@ -67,15 +66,33 @@ export function resolveChatSessionKey(
 	return "main-chat-unavailable";
 }
 
+/**
+ * Determines whether the history-reload effect should be skipped.
+ *
+ * Follows secondstreamAI's pattern: the live stream is the source of
+ * truth during an active session. History should only be loaded on
+ * initial mount or thread switch — never to overwrite messages that
+ * useChat has already received via streaming.
+ */
 export function shouldSkipHistoryReload(options: {
 	chatStatus: ChatStatus;
-	firstTurnActive: boolean;
+	hasMessages: boolean;
+	hasHistoryError: boolean;
 }): boolean {
-	if (options.firstTurnActive) {
+	// Skip during active streaming — the live stream IS the source of truth.
+	if (options.chatStatus === "submitted" || options.chatStatus === "streaming") {
 		return true;
 	}
 
-	if (options.chatStatus === "submitted" || options.chatStatus === "streaming") {
+	// Skip if messages already exist (from streaming or initial load).
+	// useChat manages messages internally; overwriting them would
+	// cause visible state resets (the "blank flash" bug).
+	if (options.hasMessages) {
+		return true;
+	}
+
+	// Skip if a previous load failed — avoid infinite retry loops.
+	if (options.hasHistoryError) {
 		return true;
 	}
 
@@ -115,7 +132,7 @@ export function shouldShowLoadingShimmer(
 
 function findLast<T>(arr: T[], predicate: (item: T) => boolean): T | undefined {
 	for (let i = arr.length - 1; i >= 0; i -= 1) {
-		if (predicate(arr[i])) return arr[i];
+		if (predicate(arr[i]!)) return arr[i];
 	}
 	return undefined;
 }
@@ -138,13 +155,56 @@ export type ClassifiedPart =
 	| { kind: "reasoning"; text: string; isStreaming: boolean }
 	| {
 			kind: "source";
-			part: UIMessage["parts"][number] & { type: "source-document" };
+			/** AI SDK v6 source-document part (url or document). */
+			part: UIMessage["parts"][number] & {
+				type: "source-document";
+				sourceId?: string;
+				url?: string;
+				mediaType?: string;
+				title?: string;
+				filename?: string;
+				providerMetadata?: unknown;
+				/** Legacy v4 fields (may appear from older backends). */
+				state?: string;
+				output?: unknown;
+			};
 	  }
 	| {
 			kind: "tool-invocation";
-			part: UIMessage["parts"][number] & { type: "tool-invocation" };
+			/** AI SDK v6 tool-invocation part with dynamic tool type prefix. */
+			part: UIMessage["parts"][number] & {
+				type: string;
+				toolCallId: string;
+				toolName?: string;
+				state: string;
+				input?: unknown;
+				output?: unknown;
+				errorText?: string;
+			};
 	  }
 	| { kind: "unknown" };
+
+/**
+ * Extracts the tool name from a tool-invocation part.
+ *
+ * In AI SDK v6, tool-invocation parts have a `type` field formatted as
+ * `tool-invocation` (the canonical part type) plus a `toolCallId`.
+ * The actual tool name is stored in the `toolName` field for typed tools.
+ */
+function extractToolName(
+	part: UIMessage["parts"][number] & { toolName?: string; type?: string },
+): string {
+	// AI SDK v6 typed tools provide `toolName` directly.
+	if ("toolName" in part && typeof part.toolName === "string") {
+		return part.toolName;
+	}
+	// Fallback: strip the `tool-` prefix from a dynamic type like `tool-webSearch`.
+	const partType = part.type ?? "";
+	if (partType.startsWith("tool-")) {
+		return partType.slice(5);
+	}
+	return "";
+}
 
 export function classifyMessagePart(
 	part: UIMessage["parts"][number],
@@ -166,14 +226,17 @@ export function classifyMessagePart(
 		case "source-document":
 			return {
 				kind: "source",
-				part: part as UIMessage["parts"][number] & { type: "source-document" },
-			};
-		case "tool-invocation":
-			return {
-				kind: "tool-invocation",
-				part: part as UIMessage["parts"][number] & { type: "tool-invocation" },
+				part: part as ClassifiedPart & { kind: "source" } extends { part: infer P } ? P : never,
 			};
 		default:
+			// In AI SDK v6, tool-invocation parts have a dynamic `type` field
+			// starting with `tool-` (e.g., type: "tool-webSearch", type: "tool-invocation").
+			if (part.type.startsWith("tool-") || part.type === "tool-invocation") {
+				return {
+					kind: "tool-invocation",
+					part: part as ClassifiedPart & { kind: "tool-invocation" } extends { part: infer P } ? P : never,
+				};
+			}
 			return { kind: "unknown" };
 	}
 }
@@ -266,7 +329,7 @@ export async function resolveUploadFileFromPromptPart(
 
 export async function uploadMainChatAttachments(options: {
 	files: PromptInputMessage["files"];
-	uploadAttachment?: (file: File) => Promise<string>;
+	uploadAttachment?: ((file: File) => Promise<string>) | undefined;
 	resolveUploadFile: (
 		part: PromptInputMessage["files"][number],
 	) => Promise<File>;
@@ -332,7 +395,6 @@ export function resolveVisibleMessages(
 }
 
 export function ChatScreen({ routeState }: ChatScreenProps) {
-	const router = useRouter();
 	const [activeThreadId, setActiveThreadId] = useState(routeState.threadId);
 	const activeThreadIdRef = useRef(routeState.threadId);
 	const pendingAttachmentIdsRef = useRef<string[]>([]);
@@ -354,14 +416,17 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 
 	// Tracks the thread ID created during a first-turn submission.
 	// Set in onThreadCreated, cleared after the stream completes.
-	// Prevents: (1) useChat re-key, (2) history reload overwriting stream,
-	// (3) router.replace triggering premature routeState update.
+	// Prevents: (1) useChat re-key, (2) history reload overwriting stream.
+	// NOTE: We intentionally avoid router.replace after stream completion
+	// — it would trigger a server re-render that re-keys useChat and
+	// destroys the in-flight conversation (the "blank flash" bug).
 	const firstTurnThreadIdRef = useRef<string | null>(null);
 
 	useEffect(() => {
 		// If the incoming route matches the thread we just created in a
-		// first-turn flow, the route is catching up after the deferred
-		// router.replace.  Don't re-key useChat — just sync activeThreadId.
+		// first-turn flow, just sync activeThreadId without re-keying
+		// useChat. This can happen if the browser URL is refreshed during
+		// or immediately after a first-turn stream.
 		if (firstTurnThreadIdRef.current === routeState.threadId) {
 			setActiveThreadId(routeState.threadId);
 			activeThreadIdRef.current = routeState.threadId;
@@ -395,19 +460,19 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 			transport,
 		});
 
-	// After a first-turn stream completes (or errors), sync the server
-	// route so sidebar highlighting and refresh behave correctly.
+	// After a first-turn stream completes (or errors), clear the
+	// first-turn tracking ref. Do NOT call router.replace — it
+	// triggers a Next.js server re-render that changes routeState,
+	// which re-keys useChat and destroys the in-flight conversation.
+	// The browser URL was already updated via window.history.replaceState
+	// in onThreadCreated, which is sufficient for bookmarking and refresh.
+	// Sidebar thread highlighting is updated via the onThreadCreated
+	// callback pattern, following secondstreamAI's approach.
 	useEffect(() => {
-		const firstTurnId = firstTurnThreadIdRef.current;
-		if (firstTurnId && (status === "ready" || status === "error")) {
+		if (firstTurnThreadIdRef.current && (status === "ready" || status === "error")) {
 			firstTurnThreadIdRef.current = null;
-			// Now that the stream is done, the route can safely sync.
-			// router.replace triggers a server re-render → routeState
-			// change → the effect above runs, sees no firstTurn match,
-			// and (re-)confirms chatSessionKey with the real thread ID.
-			router.replace(buildChatThreadUrl(firstTurnId));
 		}
-	}, [status, router]);
+	}, [status]);
 
 	useEffect(() => {
 		if (!canUseChat) {
@@ -417,12 +482,16 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 			return;
 		}
 
-		// Skip history reload while a stream or first-turn creation
-		// is active — reloading would overwrite the live stream with
-		// stale backend data and cause the blank-state flash.
+		// Skip history reload when the live stream is the source of truth.
+		// Following secondstreamAI: load history ONCE on mount or thread
+		// switch, never to overwrite messages that useChat has received
+		// via streaming. Overwriting would cause the "blank flash" bug
+		// where persisted messages replace (or fail to replace) streamed
+		// messages, resulting in a visible state reset.
 		if (shouldSkipHistoryReload({
 			chatStatus: status,
-			firstTurnActive: firstTurnThreadIdRef.current !== null,
+			hasMessages: messages.length > 0,
+			hasHistoryError: historyError !== null,
 		})) {
 			return;
 		}
@@ -458,7 +527,7 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 		return () => {
 			cancelled = true;
 		};
-	}, [activeThreadId, canUseChat, setMessages, status]);
+	}, [activeThreadId, canUseChat, historyError, messages.length, setMessages, status]);
 
 	// Clear optimistic message once useChat delivers real messages that
 	// supersede it. resolveVisibleMessages handles deduplication, but we
@@ -522,10 +591,11 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 						activeThreadIdRef.current = threadId;
 						setActiveThreadId(threadId);
 						// Update URL for bookmarking without triggering a
-						// server re-render that would change routeState and
-						// re-key useChat mid-stream.  After the stream
-						// completes, the post-stream effect calls
-						// router.replace to sync server state.
+						// server re-render. window.history.replaceState
+						// changes the browser URL only — no routeState
+						// change, no useChat re-key, no stream disruption.
+						// This follows secondstreamAI's pattern where the
+						// URL is a reflection of state, not a driver of it.
 						window.history.replaceState(
 							null,
 							"",
@@ -550,7 +620,7 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 				isPreparingSubmitRef.current = false;
 			}
 		},
-		[activeThreadId, routeState.mode, router, sendMessage],
+		[activeThreadId, routeState.mode, sendMessage],
 	);
 
 	if (routeState.mode === "unavailable") {
@@ -673,7 +743,27 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 															);
 														case "source": {
 															const sourcePart = classified.part;
-															if (sourcePart.state !== "output-available") {
+															// AI SDK v6 source-url parts (web search results).
+															// These arrive as url-based source documents with direct URLs.
+															if (sourcePart.url) {
+																return (
+																	<div
+																		className="not-prose mb-4 flex flex-wrap gap-2"
+																		key={`${message.id}-${index}`}
+																	>
+																		<Source href={sourcePart.url}>
+																			<SourceTrigger showFavicon label={1} />
+																			<SourceContent
+																				title={sourcePart.title ?? sourcePart.url}
+																				description=""
+																			/>
+																		</Source>
+																	</div>
+																);
+															}
+
+															// Legacy v4 format: state/output based rendering.
+															if (sourcePart.state && sourcePart.state !== "output-available") {
 																return (
 																	<div
 																		className="flex items-center gap-1.5"
@@ -691,43 +781,48 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 															)
 																? sourcePart.output
 																: [];
-															return (
-																<div
-																	className="not-prose mb-4 flex flex-wrap gap-2"
-																	key={`${message.id}-${index}`}
-																>
-																	{outputEntries.map(
-																		(
-																			source: {
-																				url: string;
-																				title?: string | null;
-																				content?: string;
-																			},
-																			sourceIndex: number,
-																		) => (
-																			<Source
-																				key={source.url}
-																				href={source.url}
-																			>
-																				<SourceTrigger
-																					showFavicon
-																					label={sourceIndex + 1}
-																				/>
-																				<SourceContent
-																					title={
-																						source.title ?? source.url
-																					}
-																					description={source.content}
-																				/>
-																			</Source>
-																		),
-																	)}
-																</div>
-															);
+															if (outputEntries.length > 0) {
+																return (
+																	<div
+																		className="not-prose mb-4 flex flex-wrap gap-2"
+																		key={`${message.id}-${index}`}
+																	>
+																		{outputEntries.map(
+																			(
+																				source: {
+																					url: string;
+																					title?: string | null;
+																					content?: string;
+																				},
+																				sourceIndex: number,
+																			) => (
+																				<Source
+																					key={source.url}
+																					href={source.url}
+																				>
+																					<SourceTrigger
+																						showFavicon
+																						label={sourceIndex + 1}
+																					/>
+<SourceContent
+																						title={
+																							source.title ?? source.url
+																						}
+																						description={source.content ?? ""}
+																					/>
+																				</Source>
+																			),
+																		)}
+																	</div>
+																);
+															}
+
+															// Fallback: source document without URL or output.
+															return null;
 														}
 														case "tool-invocation": {
 															const toolPart = classified.part;
-															const toolName = toolPart.toolName;
+															const toolName = extractToolName(toolPart);
 															if (toolName === "webSearch") {
 																if (toolPart.state === "output-available") {
 																	const results = Array.isArray(
@@ -756,16 +851,16 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 																						<SourceTrigger
 																							showFavicon
 																							label={sourceIndex + 1}
-																						/>
-																						<SourceContent
-																							title={
-																								source.title ??
-																								source.url
-																							}
-																							description={
-																								source.content
-																							}
-																						/>
+/>
+																					<SourceContent
+																						title={
+																							source.title ??
+																							source.url
+																						}
+																						description={
+																							source.content ?? ""
+																						}
+																					/>
 																					</Source>
 																				),
 																			)}

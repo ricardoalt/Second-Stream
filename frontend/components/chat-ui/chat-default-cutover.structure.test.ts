@@ -313,14 +313,15 @@ it("composer calls provider-dependent hooks only inside PromptInputProvider cont
 		expect(chatScreenSource).toContain("resolveChatSessionKey(routeState)");
 	});
 
-	it("first-turn stream continuity: history reload skips during active streams", () => {
+	it("first-turn stream continuity: history reload skips during active streams and when messages exist", () => {
 		const chatScreenSource = read(
 			CHAT_SCREEN,
 		);
 
 		// Must use shouldSkipHistoryReload to guard the history effect
 		expect(chatScreenSource).toContain("shouldSkipHistoryReload");
-		expect(chatScreenSource).toContain("firstTurnActive: firstTurnThreadIdRef.current !== null");
+		expect(chatScreenSource).toContain("hasMessages: messages.length > 0");
+		expect(chatScreenSource).toContain("hasHistoryError: historyError !== null");
 		expect(chatScreenSource).toContain("chatStatus: status");
 
 		// Must export shouldSkipHistoryReload for testing
@@ -330,7 +331,7 @@ it("composer calls provider-dependent hooks only inside PromptInputProvider cont
 		expect(chatScreenSource).toContain("firstTurnThreadIdRef");
 	});
 
-	it("first-turn stream continuity: URL update uses replaceState, router.replace deferred", () => {
+	it("first-turn stream continuity: URL update uses replaceState only, no router.replace", () => {
 		const chatScreenSource = read(
 			CHAT_SCREEN,
 		);
@@ -341,12 +342,13 @@ it("composer calls provider-dependent hooks only inside PromptInputProvider cont
 		expect(chatScreenSource).toContain("buildChatThreadUrl(threadId)");
 
 		// Must NOT call router.replace inside onThreadCreated
-		// (router.replace is deferred to the post-stream effect)
 		const onThreadCreatedBlock = extractFunctionBlock(chatScreenSource, "onThreadCreated:");
 		expect(onThreadCreatedBlock).not.toContain("router.replace");
 
-		// Post-stream effect must call router.replace after first-turn completes
-		expect(chatScreenSource).toContain("router.replace(buildChatThreadUrl(firstTurnId))");
+		// Must NOT have router.replace in the file (removed to prevent
+		// server re-render that re-keys useChat and destroys the stream)
+		expect(chatScreenSource).not.toContain("router.replace(buildChatThreadUrl");
+		expect(chatScreenSource).not.toContain("import { useRouter }");
 	});
 });
 
