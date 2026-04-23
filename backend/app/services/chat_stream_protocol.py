@@ -94,6 +94,7 @@ async def adapt_stream_to_official_protocol(
     - ``completed`` → ``{"type":"finish"}``
     - ``error``  → ``{"type":"error","errorText":"..."}``
     - ``data-new-thread-created`` → ``{"type":"data-new-thread-created","data":{...}}``
+    - ``data-conversation-title`` → ``{"type":"data-conversation-title","data":{...}}``
 
     Stream terminates with ``data: [DONE]\\n\\n``.
     Does NOT emit synthetic reasoning events — only real text deltas.
@@ -137,6 +138,17 @@ async def adapt_stream_to_official_protocol(
                         "title": event.get("title"),
                         "createdAt": event.get("created_at", ""),
                         "updatedAt": event.get("updated_at", ""),
+                    },
+                },
+            )
+
+        elif event_type == "data-conversation-title":
+            yield encode_official_sse(
+                "data-conversation-title",
+                {
+                    "data": {
+                        "threadId": event.get("thread_id", ""),
+                        "title": event.get("title", ""),
                     },
                 },
             )

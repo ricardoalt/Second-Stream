@@ -1,3 +1,3 @@
 export function buildChatThreadUrl(threadId: string): string {
-	return `/chat?threadId=${encodeURIComponent(threadId.trim())}`;
+	return `/chat/${encodeURIComponent(threadId.trim())}`;
 }

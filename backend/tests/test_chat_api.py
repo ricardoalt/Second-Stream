@@ -207,6 +207,42 @@ async def test_chat_stream_success_contract(client: AsyncClient, db_session, set
 
 
 @pytest.mark.asyncio
+async def test_chat_stream_persists_derived_title_for_thread_list(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+    monkeypatch,
+):
+    _org, _user = await _create_authed_user(db_session, set_current_user)
+    thread_id = str(uuid.uuid4())
+    first_prompt = "   Necesito ayuda con propuesta para ahorro energético   "
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "Respuesta"}
+        yield {"event": "completed", "response_text": "Respuesta"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
+
+    stream_response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={"contentText": first_prompt},
+    )
+    assert stream_response.status_code == 200
+    events = _parse_official_sse_events(stream_response.text)
+    assert events[-1]["type"] == "DONE"
+
+    list_response = await client.get("/api/v1/chat/threads")
+    assert list_response.status_code == 200
+
+    listed_thread = next(
+        (row for row in list_response.json()["items"] if row["id"] == thread_id),
+        None,
+    )
+    assert listed_thread is not None
+    assert listed_thread["title"] == "Necesito ayuda con propuesta para ahorro energético"
+
+
+@pytest.mark.asyncio
 async def test_chat_stream_error_contract_without_partial_assistant(
     client: AsyncClient,
     db_session,
@@ -353,7 +389,7 @@ async def test_chat_stream_official_protocol_success_contract(
     client: AsyncClient, db_session, set_current_user, monkeypatch
 ):
     """Official protocol: default stream emits start→text-start→text-delta→text-end→finish→[DONE]."""
-    org, user = await _create_authed_user(db_session, set_current_user)
+    _org, _user = await _create_authed_user(db_session, set_current_user)
     create_thread = await client.post("/api/v1/chat/threads", json={"title": "Official Stream"})
     thread_id = create_thread.json()["id"]
 
@@ -371,6 +407,8 @@ async def test_chat_stream_official_protocol_success_contract(
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert response.headers.get("x-vercel-ai-ui-message-stream") == "v1"
+    assert response.headers.get("cache-control") == "no-cache"
+    assert response.headers.get("x-accel-buffering") == "no"
 
     events = _parse_official_sse_events(response.text)
     types = [e["type"] for e in events]
@@ -399,7 +437,7 @@ async def test_chat_stream_official_protocol_error_contract(
     client: AsyncClient, db_session, set_current_user, monkeypatch
 ):
     """Official protocol: error stream emits start→error→[DONE] with no finish."""
-    org, user = await _create_authed_user(db_session, set_current_user)
+    _org, _user = await _create_authed_user(db_session, set_current_user)
     create_thread = await client.post("/api/v1/chat/threads", json={"title": "Official Error"})
     thread_id = create_thread.json()["id"]
 
@@ -426,7 +464,7 @@ async def test_chat_stream_official_protocol_error_contract(
 @pytest.mark.asyncio
 async def test_chat_stream_official_protocol_header_override(client: AsyncClient, db_session, set_current_user, monkeypatch):
     """Official protocol: x-vercel-ai-ui-message-stream header triggers official format even without body."""
-    org, user = await _create_authed_user(db_session, set_current_user)
+    _org, _user = await _create_authed_user(db_session, set_current_user)
     create_thread = await client.post("/api/v1/chat/threads", json={"title": "Header Override"})
     thread_id = create_thread.json()["id"]
 
@@ -451,7 +489,7 @@ async def test_chat_stream_official_protocol_header_override(client: AsyncClient
 @pytest.mark.asyncio
 async def test_chat_stream_legacy_explicit_request(client: AsyncClient, db_session, set_current_user, monkeypatch):
     """Legacy format: explicit streamFormat=legacy produces legacy SSE events."""
-    org, user = await _create_authed_user(db_session, set_current_user)
+    _org, _user = await _create_authed_user(db_session, set_current_user)
     create_thread = await client.post("/api/v1/chat/threads", json={"title": "Legacy Explicit"})
     thread_id = create_thread.json()["id"]
 

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { ComponentProps } from "react";
 import type { ChatThreadSummaryDTO } from "@/lib/api/chat";
 import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
+import { sortThreadsByRecency } from "@/lib/chat-runtime/thread-order";
 import { groupByDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import {
@@ -27,7 +28,11 @@ export function ChatSearch({
 }: ChatSearchProps) {
 	const router = useRouter();
 
-	const groupedThreads = groupByDate(threads, (t) => t.updatedAt);
+	const sortedThreads = sortThreadsByRecency(threads);
+	const groupedThreads = groupByDate(
+		sortedThreads,
+		(thread) => thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt,
+	);
 
 	const handleSelect = (threadId: string) => {
 		if (onOpenChange) {

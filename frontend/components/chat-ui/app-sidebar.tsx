@@ -11,14 +11,13 @@ import {
 import { useRouter } from "next/navigation";
 import type * as React from "react";
 import { useState } from "react";
-import {
-	CHAT_THREADS_QUERY_KEY,
-	type ChatThreadSummaryDTO,
-	listChatThreads,
-} from "@/lib/api/chat";
+import { buildChatThreadsQueryKey, listChatThreads } from "@/lib/api/chat";
 import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
+import { sortThreadsByRecency } from "@/lib/chat-runtime/thread-order";
+import { resolveChatThreadScope } from "@/lib/chat-runtime/thread-scope";
 import { useAuth } from "@/lib/contexts";
 import { groupByDate } from "@/lib/date-utils";
+import { useOrganizationStore } from "@/lib/stores/organization-store";
 import { ChatSearch } from "./chat-search";
 import { SettingsDialog } from "./settings-dialog";
 import {
@@ -84,15 +83,35 @@ export function AppSidebar({
 }: AppSidebarProps): React.JSX.Element {
 	const router = useRouter();
 	const { user, logout } = useAuth();
+	const selectedOrgId = useOrganizationStore((state) => state.selectedOrgId);
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const threadScope = resolveChatThreadScope({
+		selectedOrgId,
+		fallbackOrganizationId: user?.organizationId ?? null,
+		userId: user?.id ?? null,
+		isSuperuser: user?.isSuperuser ?? false,
+	});
+	const listThreadsOptions = threadScope.organizationId
+		? { organizationId: threadScope.organizationId }
+		: {};
+	const threadsQueryKey = buildChatThreadsQueryKey(threadScope);
 
-	const { data: threads = [], error: threadsError } = useQuery({
-		queryKey: CHAT_THREADS_QUERY_KEY,
-		queryFn: listChatThreads,
+	const {
+		data: threads = [],
+		error: threadsError,
+		isPending: threadsPending,
+	} = useQuery({
+		queryKey: threadsQueryKey,
+		queryFn: () => listChatThreads(listThreadsOptions),
+		placeholderData: (previousThreads) => previousThreads,
 	});
 
-	const groupedThreads = groupByDate(threads, (t) => t.updatedAt);
+	const sortedThreads = sortThreadsByRecency(threads);
+	const groupedThreads = groupByDate(
+		sortedThreads,
+		(thread) => thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt,
+	);
 
 	const fullName = user
 		? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email
@@ -122,7 +141,7 @@ export function AppSidebar({
 			<ChatSearch
 				open={searchOpen}
 				onOpenChange={setSearchOpen}
-				threads={threads}
+				threads={sortedThreads}
 			/>
 			<SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 			<Sidebar collapsible="icon" {...props}>
@@ -193,6 +212,14 @@ export function AppSidebar({
 								</SidebarMenu>
 							</SidebarGroup>
 						))
+					) : threadsPending ? (
+						<SidebarGroup className="group-data-[collapsible=icon]:hidden">
+							<SidebarMenu>
+								<p className="text-muted-foreground px-2 py-1 text-xs">
+									Loading chats...
+								</p>
+							</SidebarMenu>
+						</SidebarGroup>
 					) : (
 						<SidebarGroup className="group-data-[collapsible=icon]:hidden">
 							<SidebarMenu>

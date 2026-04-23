@@ -278,7 +278,10 @@ async def stream_chat_message(
 
     from fastapi.responses import StreamingResponse
 
-    headers = {}
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    }
     if use_official:
         headers[PROTOCOL_HEADER] = PROTOCOL_VERSION
 

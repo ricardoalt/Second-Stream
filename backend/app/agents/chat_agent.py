@@ -35,7 +35,7 @@ class ChatAgentOutput(BaseSchema):
 
 
 def _load_prompt_file(filename: str) -> str:
-    path = Path(__file__).parent.parent / "prompts" / "skills" / "chat" / filename
+    path = Path(__file__).parent.parent / "prompts" / filename
     content = path.read_text(encoding="utf-8").strip()
     if not content:
         raise ValueError(f"Prompt file is empty: {path}")
@@ -43,17 +43,7 @@ def _load_prompt_file(filename: str) -> str:
 
 
 def load_chat_system_prompt() -> str:
-    return _load_prompt_file("system.md")
-
-
-def load_chat_attachment_policy_prompt() -> str:
-    return _load_prompt_file("attachment-policy.md")
-
-
-def build_chat_system_prompt() -> str:
-    system_prompt = load_chat_system_prompt()
-    attachment_policy = load_chat_attachment_policy_prompt()
-    return f"{system_prompt}\n\n{attachment_policy}"
+    return _load_prompt_file("chat-agent-prompt.md")
 
 
 _BEDROCK_MODEL_NAME = settings.AI_TEXT_MODEL.replace("bedrock:", "")
@@ -67,7 +57,7 @@ chat_agent = Agent(
     output_type=ChatAgentOutput,
     model_settings=ModelSettings(temperature=0.2),
     retries=2,
-    system_prompt=build_chat_system_prompt(),
+    system_prompt=load_chat_system_prompt(),
 )
 
 

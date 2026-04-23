@@ -3,6 +3,10 @@ import { DEFAULT_MODEL_ID, MODEL_ID_SET } from "@/config/models";
 
 const STORAGE_KEY = "draft-composer";
 
+export function buildDraftStorageKey(scopeKey: string): string {
+	return `${STORAGE_KEY}:${scopeKey}`;
+}
+
 type DraftState = {
 	text: string;
 	modelId: string;
@@ -17,9 +21,9 @@ const DEFAULT_DRAFT: DraftState = {
 
 // --- Helpers ---
 
-function readDraft(): DraftState {
+function readDraft(storageKey: string): DraftState {
 	try {
-		const raw = localStorage.getItem(STORAGE_KEY);
+		const raw = localStorage.getItem(storageKey);
 		if (raw) {
 			const parsed = JSON.parse(raw) as DraftState;
 			return {
@@ -40,10 +44,10 @@ function readDraft(): DraftState {
 	return DEFAULT_DRAFT;
 }
 
-function persistDraft(partial: Partial<DraftState>) {
-	const current = readDraft();
+function persistDraft(storageKey: string, partial: Partial<DraftState>) {
+	const current = readDraft(storageKey);
 	const next = { ...current, ...partial };
-	localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+	localStorage.setItem(storageKey, JSON.stringify(next));
 	return next;
 }
 
@@ -73,9 +77,12 @@ function subscribeSettings(listener: () => void) {
 	};
 }
 
-function getSettingsSnapshot(): SettingsState {
-	if (settingsCache) return settingsCache;
-	const draft = readDraft();
+function getSettingsSnapshotForKey(storageKey: string): SettingsState {
+	if (settingsCache) {
+		return settingsCache;
+	}
+
+	const draft = readDraft(storageKey);
 	settingsCache = {
 		modelId: draft.modelId,
 		webSearchEnabled: draft.webSearchEnabled,
@@ -100,12 +107,12 @@ let textDebounceTimer: ReturnType<typeof setTimeout> | null = null;
  * Write text to localStorage with debounce. Does NOT trigger any React
  * re-renders — the text value is "fire and forget" into storage.
  */
-function debouncedSetText(text: string, delayMs = 300) {
+function debouncedSetText(storageKey: string, text: string, delayMs = 300) {
 	if (textDebounceTimer) {
 		clearTimeout(textDebounceTimer);
 	}
 	textDebounceTimer = setTimeout(() => {
-		persistDraft({ text });
+		persistDraft(storageKey, { text });
 		textDebounceTimer = null;
 	}, delayMs);
 }
@@ -120,38 +127,48 @@ function flushText() {
 
 // --- Hook ---
 
-export function useDraftInput() {
+export function useDraftInput(scopeKey: string) {
+	const storageKey = buildDraftStorageKey(scopeKey);
 	const settings = useSyncExternalStore(
 		subscribeSettings,
-		getSettingsSnapshot,
+		() => getSettingsSnapshotForKey(storageKey),
 		getSettingsServerSnapshot,
 	);
 
 	// Read initial text once on first render (not reactive).
 	const initialTextRef = useRef<string | null>(null);
 	if (initialTextRef.current === null) {
-		initialTextRef.current = readDraft().text;
+		initialTextRef.current = readDraft(storageKey).text;
 	}
 
-	const setText = useCallback((text: string) => {
-		debouncedSetText(text);
-	}, []);
+	const setText = useCallback(
+		(text: string) => {
+			debouncedSetText(storageKey, text);
+		},
+		[storageKey],
+	);
 
-	const setModelId = useCallback((modelId: string) => {
-		persistDraft({ modelId });
-		emitSettingsChange();
-	}, []);
+	const setModelId = useCallback(
+		(modelId: string) => {
+			persistDraft(storageKey, { modelId });
+			emitSettingsChange();
+		},
+		[storageKey],
+	);
 
-	const setWebSearchEnabled = useCallback((webSearchEnabled: boolean) => {
-		persistDraft({ webSearchEnabled });
-		emitSettingsChange();
-	}, []);
+	const setWebSearchEnabled = useCallback(
+		(webSearchEnabled: boolean) => {
+			persistDraft(storageKey, { webSearchEnabled });
+			emitSettingsChange();
+		},
+		[storageKey],
+	);
 
 	const clear = useCallback(() => {
 		flushText();
-		persistDraft({ text: "" });
+		persistDraft(storageKey, { text: "" });
 		// No emitSettingsChange — text is not part of the reactive store.
-	}, []);
+	}, [storageKey]);
 
 	return {
 		/** Initial text value — read once, not reactive. Use as initialInput. */

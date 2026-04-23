@@ -1,5 +1,5 @@
 import { DefaultChatTransport } from "ai";
-import { SELECTED_ORG_STORAGE_KEY } from "@/lib/constants/storage";
+import { resolveChatThreadOrganizationId } from "@/lib/chat-runtime/thread-scope";
 import type { MyUIMessage } from "@/types/ui-message";
 
 interface BridgeHeaderOptions {
@@ -67,7 +67,10 @@ export function prepareBridgeSendRequest(
 	options: PrepareBridgeSendRequestOptions,
 ): {
 	api: string;
-	body: { contentText: string; existingAttachmentIds?: string[] };
+	body: {
+		contentText: string;
+		existingAttachmentIds?: string[];
+	};
 	headers: Record<string, string>;
 } {
 	const streamHeaders = buildBridgeHeaders({
@@ -75,7 +78,10 @@ export function prepareBridgeSendRequest(
 		organizationId: options.organizationId,
 	});
 
-	const body: { contentText: string; existingAttachmentIds?: string[] } = {
+	const body: {
+		contentText: string;
+		existingAttachmentIds?: string[];
+	} = {
 		contentText: resolveLatestUserText(options.messages),
 	};
 
@@ -120,6 +126,10 @@ export function createChatBridgeTransport(
 	return new DefaultChatTransport<MyUIMessage>({
 		api: `${resolvedBaseUrl}/chat/threads/${options.threadId}/messages/stream`,
 		prepareSendMessagesRequest: ({ headers, messages, body }) => {
+			const requestBody = (body ?? {}) as {
+				existingAttachmentIds?: string[];
+			};
+
 			const prepared = prepareBridgeSendRequest({
 				baseUrl: resolvedBaseUrl,
 				threadId: options.threadId,
@@ -127,9 +137,7 @@ export function createChatBridgeTransport(
 				organizationId: (
 					options.getOrganizationId ?? getOrganizationIdFromStorage
 				)(),
-				existingAttachmentIds:
-					(body as { existingAttachmentIds?: string[] })
-						?.existingAttachmentIds ?? [],
+				existingAttachmentIds: requestBody.existingAttachmentIds ?? [],
 				messages,
 				headers,
 			});
@@ -161,9 +169,8 @@ function getAccessTokenFromStorage(): string | null {
 }
 
 function getOrganizationIdFromStorage(): string | null {
-	if (typeof window === "undefined") {
-		return null;
-	}
-
-	return localStorage.getItem(SELECTED_ORG_STORAGE_KEY);
+	return resolveChatThreadOrganizationId({
+		selectedOrgId: null,
+		fallbackOrganizationId: null,
+	});
 }

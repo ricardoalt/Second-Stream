@@ -23,6 +23,7 @@ CHAT_ORPHAN_DRAFT_RETENTION_DAYS = 7
 ALLOWED_EXACT_MIME_TYPES = {"application/pdf", "text/plain"}
 ALLOWED_MIME_PREFIXES = ("image/",)
 CHAT_MODEL_CONTEXT_WINDOW = 12
+CHAT_TITLE_MAX_CHARS = 80
 
 
 @dataclass(slots=True, frozen=True)
@@ -221,6 +222,15 @@ def _build_last_message_preview(content_text: str) -> str:
     return content_text[:280]
 
 
+def _derive_conversation_title(content_text: str) -> str | None:
+    normalized = " ".join(content_text.split()).strip()
+    if not normalized:
+        return None
+    if len(normalized) <= CHAT_TITLE_MAX_CHARS:
+        return normalized
+    return f"{normalized[: CHAT_TITLE_MAX_CHARS - 1]}…"
+
+
 async def find_cleanup_eligible_draft_attachments(
     *,
     db: AsyncSession,
@@ -312,6 +322,10 @@ async def create_user_message_with_attachments(
 
         for attachment in existing_attachments:
             attachment.message_id = message.id
+
+        derived_title = _derive_conversation_title(content_text)
+        if thread.title is None and derived_title is not None:
+            thread.title = derived_title
 
         now = datetime.now(UTC)
         thread.last_message_at = now
@@ -476,6 +490,8 @@ async def stream_chat_turn(
             "updated_at": thread.updated_at.isoformat(),
         }
 
+    had_existing_title = bool(thread.title and thread.title.strip())
+
     user_message = await create_user_message_with_attachments(
         db=db,
         organization_id=organization_id,
@@ -486,6 +502,14 @@ async def stream_chat_turn(
         attachments=attachments,
         existing_attachment_ids=existing_attachment_ids,
     )
+
+    if not had_existing_title and thread.title:
+        yield {
+            "event": "data-conversation-title",
+            "thread_id": str(thread.id),
+            "title": thread.title,
+        }
+
     history = await _load_recent_thread_history(
         db=db,
         thread_id=thread_id,

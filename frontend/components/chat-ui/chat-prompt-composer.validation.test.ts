@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	getAttachmentValidationMessage,
-	shouldClearSubmitErrorOnComposerChange,
-} from "@/components/chat-ui/chat-prompt-composer";
+import { getAttachmentValidationMessage } from "@/components/chat-ui/chat-prompt-composer";
 
 describe("getAttachmentValidationMessage", () => {
 	it("returns an explicit size limit message", () => {
@@ -21,34 +18,5 @@ describe("getAttachmentValidationMessage", () => {
 		expect(getAttachmentValidationMessage("read_failed")).toContain(
 			"Remove them and try again",
 		);
-	});
-});
-
-describe("shouldClearSubmitErrorOnComposerChange", () => {
-	it("keeps submit error visible when no user interaction occurred", () => {
-		expect(
-			shouldClearSubmitErrorOnComposerChange({
-				errorMessage: "Some attachments failed to upload",
-				hadUserInteraction: false,
-			}),
-		).toBe(false);
-	});
-
-	it("clears submit error after explicit user interaction", () => {
-		expect(
-			shouldClearSubmitErrorOnComposerChange({
-				errorMessage: "Some attachments failed to upload",
-				hadUserInteraction: true,
-			}),
-		).toBe(true);
-	});
-
-	it("allows interaction callback when no submit error exists", () => {
-		expect(
-			shouldClearSubmitErrorOnComposerChange({
-				errorMessage: null,
-				hadUserInteraction: false,
-			}),
-		).toBe(true);
 	});
 });

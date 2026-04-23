@@ -116,6 +116,44 @@ async def test_stream_chat_turn_emits_start_delta_completed_and_persists_assista
 
 
 @pytest.mark.asyncio
+async def test_stream_chat_turn_emits_conversation_title_once_for_untitled_thread(db_session, monkeypatch):
+    org = await create_org(db_session, "Chat Title Org", "chat-title-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-title-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+    thread.title = None
+    await db_session.commit()
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "Respuesta"}
+        yield {"event": "completed", "response_text": "Respuesta"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
+
+    events = [
+        event
+        async for event in stream_chat_turn(
+            db=db_session,
+            organization_id=org.id,
+            created_by_user_id=owner.id,
+            thread_id=thread.id,
+            content_text="Necesito analizar oportunidades de valorización",
+            run_id="run-title-event",
+        )
+    ]
+
+    assert events[0]["event"] == "data-conversation-title"
+    assert events[0]["thread_id"] == str(thread.id)
+    assert events[0]["title"] == "Necesito analizar oportunidades de valorización"
+    assert events[1] == {"event": "start", "run_id": "run-title-event"}
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_turn_emits_error_and_does_not_persist_partial_assistant(db_session, monkeypatch):
     org = await create_org(db_session, "Chat Stream Error Org", "chat-stream-error-org")
     owner = await create_user(

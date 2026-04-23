@@ -245,6 +245,29 @@ class TestOfficialProtocolStreamAdapter:
         assert "finish" in types
         assert "DONE" in types
 
+    @pytest.mark.asyncio
+    async def test_data_conversation_title_event_maps_to_official_data_part(self):
+        """Official protocol: data-conversation-title must be emitted as a data part."""
+        internal_events = [
+            {
+                "event": "data-conversation-title",
+                "thread_id": "thread-42",
+                "title": "Propuesta de clarificación",
+            }
+        ]
+        stream = adapt_stream_to_official_protocol(_stream_events_gen(internal_events))
+        output = await _collect(stream)
+        parsed = _parse_official_output(output)
+
+        assert parsed[0] == {
+            "type": "data-conversation-title",
+            "data": {
+                "threadId": "thread-42",
+                "title": "Propuesta de clarificación",
+            },
+        }
+        assert parsed[1]["type"] == "DONE"
+
 
 # ---------------------------------------------------------------------------
 # 3. Protocol stream adapter — legacy protocol

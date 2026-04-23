@@ -1,7 +1,13 @@
 import type { MyUIMessage } from "@/types/ui-message";
 import { apiClient } from "./client";
 
-export const CHAT_THREADS_QUERY_KEY = ["chat-threads"] as const;
+export {
+	buildChatThreadHistoryQueryKey,
+	buildChatThreadsQueryKey,
+	CHAT_THREAD_HISTORY_QUERY_KEY,
+	CHAT_THREADS_QUERY_KEY,
+	type ChatThreadsQueryScope,
+} from "@/lib/chat-runtime/query-keys";
 
 export interface ChatThreadSummaryDTO {
 	id: string;
@@ -14,6 +20,10 @@ export interface ChatThreadSummaryDTO {
 
 interface ChatThreadListResponseDTO {
 	items?: ChatThreadSummaryDTO[];
+}
+
+interface ListChatThreadsOptions {
+	organizationId?: string | null;
 }
 
 interface ChatAttachmentDTO {
@@ -42,9 +52,17 @@ interface ChatThreadDetailDTO {
 	messages: ChatMessageDTO[];
 }
 
-export async function listChatThreads(): Promise<ChatThreadSummaryDTO[]> {
-	const response =
-		await apiClient.get<ChatThreadListResponseDTO>("/chat/threads");
+export async function listChatThreads(
+	options: ListChatThreadsOptions = {},
+): Promise<ChatThreadSummaryDTO[]> {
+	const response = await apiClient.get<ChatThreadListResponseDTO>(
+		"/chat/threads",
+		options.organizationId
+			? {
+					"X-Organization-Id": options.organizationId,
+				}
+			: undefined,
+	);
 	if (!response.items || !Array.isArray(response.items)) {
 		return [];
 	}
@@ -54,14 +72,23 @@ export async function listChatThreads(): Promise<ChatThreadSummaryDTO[]> {
 
 export async function fetchChatThreadDetail(
 	threadId: string,
+	options: ListChatThreadsOptions = {},
 ): Promise<ChatThreadDetailDTO> {
-	return apiClient.get<ChatThreadDetailDTO>(`/chat/threads/${threadId}`);
+	return apiClient.get<ChatThreadDetailDTO>(
+		`/chat/threads/${threadId}`,
+		options.organizationId
+			? {
+					"X-Organization-Id": options.organizationId,
+			  }
+			: undefined,
+	);
 }
 
 export async function reloadPersistedThreadHistory(
 	threadId: string,
+	options: ListChatThreadsOptions = {},
 ): Promise<MyUIMessage[]> {
-	const detail = await fetchChatThreadDetail(threadId);
+	const detail = await fetchChatThreadDetail(threadId, options);
 	return detail.messages.map((message) => ({
 		id: message.id,
 		role: message.role,
