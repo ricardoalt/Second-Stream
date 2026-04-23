@@ -2,19 +2,26 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+// Tests run from the frontend/ directory, so paths are relative to it
+// (not to the monorepo root).
 const ROOT = process.cwd();
 
 function read(relativePath: string): string {
 	return readFileSync(join(ROOT, relativePath), "utf8");
 }
 
+// Make paths relative to the frontend/ working directory
+const CHAT_SCREEN = "components/chat-ui/chat-screen.tsx";
+const COMPOSER = "components/chat-ui/chat-prompt-composer.tsx";
+const BARREL = "components/chat-ui/index.ts";
+
 describe("chat default cutover structure", () => {
 	it("uses official ai-elements imports for core primitives in main chat path", () => {
 		const chatScreenSource = read(
-			"frontend/components/chat-ui/chat-screen.tsx",
+			CHAT_SCREEN,
 		);
 		const composerSource = read(
-			"frontend/components/chat-ui/chat-prompt-composer.tsx",
+			COMPOSER,
 		);
 
 		// Core AI Elements primitives MUST come from canonical path
@@ -31,7 +38,7 @@ describe("chat default cutover structure", () => {
 
 	it("uses local ai-elements for extras not in canonical package", () => {
 		const chatScreenSource = read(
-			"frontend/components/chat-ui/chat-screen.tsx",
+			CHAT_SCREEN,
 		);
 
 		// These extras only exist locally, so local imports are correct
@@ -43,7 +50,7 @@ describe("chat default cutover structure", () => {
 
 	it("does NOT import core primitives from local copies", () => {
 		const chatScreenSource = read(
-			"frontend/components/chat-ui/chat-screen.tsx",
+			CHAT_SCREEN,
 		);
 
 		// Core conversation/message/attachments/prompt-input MUST use canonical
@@ -62,7 +69,7 @@ describe("chat default cutover structure", () => {
 
 	it("adopts official ai-elements canonical part rendering pattern", () => {
 		const chatScreenSource = read(
-			"frontend/components/chat-ui/chat-screen.tsx",
+			CHAT_SCREEN,
 		);
 
 		// Must use classifyMessagePart for part rendering
@@ -78,12 +85,12 @@ describe("chat default cutover structure", () => {
 	});
 
 	it("removes temporary bridge route from primary path", () => {
-		expect(existsSync(join(ROOT, "frontend/app/chat/bridge/page.tsx"))).toBe(
+		expect(existsSync(join(ROOT, "app/chat/bridge/page.tsx"))).toBe(
 			false,
 		);
 		expect(
 			existsSync(
-				join(ROOT, "frontend/components/chat-ui/chat-bridge-screen.tsx"),
+				join(ROOT, "components/chat-ui/chat-bridge-screen.tsx"),
 			),
 		).toBe(false);
 	});
@@ -91,38 +98,38 @@ describe("chat default cutover structure", () => {
 	it("removes legacy ChatInterface and send-flow from primary path", () => {
 		// ChatInterface component is removed — no file, no barrel export
 		expect(
-			existsSync(join(ROOT, "frontend/components/chat-ui/chat-interface.tsx")),
+			existsSync(join(ROOT, "components/chat-ui/chat-interface.tsx")),
 		).toBe(false);
 		expect(
 			existsSync(
-				join(ROOT, "frontend/components/chat-ui/chat-interface.test.ts"),
+				join(ROOT, "components/chat-ui/chat-interface.test.ts"),
 			),
 		).toBe(false);
 
 		// Legacy send-flow module is removed
-		expect(existsSync(join(ROOT, "frontend/lib/chat-send-flow.ts"))).toBe(
+		expect(existsSync(join(ROOT, "lib/chat-send-flow.ts"))).toBe(
 			false,
 		);
-		expect(existsSync(join(ROOT, "frontend/lib/chat-send-flow.test.ts"))).toBe(
+		expect(existsSync(join(ROOT, "lib/chat-send-flow.test.ts"))).toBe(
 			false,
 		);
 
 		// Legacy chat-utils module with ChatInterface-only helpers is removed
-		expect(existsSync(join(ROOT, "frontend/lib/chat-utils.ts"))).toBe(false);
-		expect(existsSync(join(ROOT, "frontend/lib/chat-utils.test.ts"))).toBe(
+		expect(existsSync(join(ROOT, "lib/chat-utils.ts"))).toBe(false);
+		expect(existsSync(join(ROOT, "lib/chat-utils.test.ts"))).toBe(
 			false,
 		);
 
 		// Legacy chat-attachment-utils module is removed
 		expect(
-			existsSync(join(ROOT, "frontend/lib/chat-attachment-utils.ts")),
+			existsSync(join(ROOT, "lib/chat-attachment-utils.ts")),
 		).toBe(false);
 		expect(
-			existsSync(join(ROOT, "frontend/lib/chat-attachment-utils.test.ts")),
+			existsSync(join(ROOT, "lib/chat-attachment-utils.test.ts")),
 		).toBe(false);
 
 		// Barrel export must NOT reference ChatInterface
-		const barrelSource = read("frontend/components/chat-ui/index.ts");
+		const barrelSource = read(BARREL);
 		expect(barrelSource).not.toContain("ChatInterface");
 		expect(barrelSource).not.toContain("chat-interface");
 		expect(barrelSource).not.toContain("chat-send-flow");
@@ -132,7 +139,7 @@ describe("chat default cutover structure", () => {
 
 	it("composer has no extraneous renderless sub-components after simplification", () => {
 		const composerSource = read(
-			"frontend/components/chat-ui/chat-prompt-composer.tsx",
+			COMPOSER,
 		);
 
 		// DraftSync and PromptComposerStateWatcher were inlined as useEffects
@@ -145,7 +152,7 @@ describe("chat default cutover structure", () => {
 
 it("composer calls provider-dependent hooks only inside PromptInputProvider context", () => {
 		const composerSource = read(
-			"frontend/components/chat-ui/chat-prompt-composer.tsx",
+			COMPOSER,
 		);
 
 		// The outer ChatPromptComposer must NOT call usePromptInputController
@@ -187,7 +194,7 @@ it("composer calls provider-dependent hooks only inside PromptInputProvider cont
 
 	it("composer inner component uses provider hooks correctly inside PromptInputProvider", () => {
 		const composerSource = read(
-			"frontend/components/chat-ui/chat-prompt-composer.tsx",
+			COMPOSER,
 		);
 
 		// The inner component (ChatPromptComposerInner) is the one that
@@ -204,7 +211,7 @@ it("composer calls provider-dependent hooks only inside PromptInputProvider cont
 
 	it("composer outer component passes draft and interaction state to inner component", () => {
 		const composerSource = read(
-			"frontend/components/chat-ui/chat-prompt-composer.tsx",
+			COMPOSER,
 		);
 
 		const composerFnStart = composerSource.indexOf("export function ChatPromptComposer");
@@ -222,7 +229,7 @@ it("composer calls provider-dependent hooks only inside PromptInputProvider cont
 
 	it("composer inner component clears input immediately on submit before async work", () => {
 		const composerSource = read(
-			"frontend/components/chat-ui/chat-prompt-composer.tsx",
+			COMPOSER,
 		);
 
 		const innerFnStart = composerSource.indexOf("function ChatPromptComposerInner");
@@ -238,7 +245,7 @@ it("composer calls provider-dependent hooks only inside PromptInputProvider cont
 
 	it("chat screen uses optimistic message for immediate first-send display", () => {
 		const chatScreenSource = read(
-			"frontend/components/chat-ui/chat-screen.tsx",
+			CHAT_SCREEN,
 		);
 
 		// Must export the new pure functions
@@ -248,22 +255,116 @@ it("composer calls provider-dependent hooks only inside PromptInputProvider cont
 		// Must use optimisticUserMessage state
 		expect(chatScreenSource).toContain("optimisticUserMessage");
 
-		// Must use Conversation layout for both empty and conversation states
-		// (unified layout — composer always at bottom)
+		// Must use Conversation layout for conversation state
 		expect(chatScreenSource).toContain("<Conversation");
 	});
 
-	it("chat screen has unified layout with composer in both states", () => {
+	it("chat screen has AnimatePresence transition between empty and conversation states", () => {
 		const chatScreenSource = read(
-			"frontend/components/chat-ui/chat-screen.tsx",
+			CHAT_SCREEN,
 		);
 
-		// Both empty state and conversation state should use <Conversation>
-		// The composer should appear in both states at the bottom
-		const conversationTagCount = chatScreenSource.match(/<Conversation[^>]/g)?.length ?? 0;
-		expect(conversationTagCount).toBeGreaterThanOrEqual(1);
+		// Must use AnimatePresence for empty→conversation transition
+		expect(chatScreenSource).toContain("AnimatePresence");
+		expect(chatScreenSource).toContain("motion.div");
 
-		// ConversationEmptyState should be inside the layout (not a separate branch)
-		expect(chatScreenSource).toContain("ConversationEmptyState");
+		// Must have key-based switching between empty and conversation
+		expect(chatScreenSource).toContain('key="empty"');
+		expect(chatScreenSource).toContain('key="conversation"');
+	});
+
+	it("chat screen uses shouldShowLoadingShimmer for thinking indicator", () => {
+		const chatScreenSource = read(
+			CHAT_SCREEN,
+		);
+
+		// Must use shouldShowLoadingShimmer (smarter than bare status check)
+		expect(chatScreenSource).toContain("shouldShowLoadingShimmer");
+		expect(chatScreenSource).toContain("export function shouldShowLoadingShimmer");
+
+		// Must NOT use the old shouldShowMainChatThinking
+		expect(chatScreenSource).not.toContain("shouldShowMainChatThinking");
+	});
+
+	it("chat screen uses isEmptyState for landing/conversation switch", () => {
+		const chatScreenSource = read(
+			CHAT_SCREEN,
+		);
+
+		// isEmptyState is computed inline in the component
+		expect(chatScreenSource).toContain("isEmptyState");
+	});
+
+	it("first-turn stream continuity: useChat uses stable session key, not activeThreadId", () => {
+		const chatScreenSource = read(
+			CHAT_SCREEN,
+		);
+
+		// useChat.id must use chatSessionKey, NOT activeThreadId
+		// (activeThreadId changes on thread creation, which re-keys useChat)
+		expect(chatScreenSource).toContain("id: chatSessionKey");
+		expect(chatScreenSource).not.toContain("id: `main-chat-${activeThreadId}`");
+		expect(chatScreenSource).not.toContain("id: `main-chat-${activeThreadIdRef.current}`");
+
+		// Must export resolveChatSessionKey for testing
+		expect(chatScreenSource).toContain("export function resolveChatSessionKey");
+
+		// Must have chatSessionKey state initialized from routeState
+		expect(chatScreenSource).toContain("resolveChatSessionKey(routeState)");
+	});
+
+	it("first-turn stream continuity: history reload skips during active streams", () => {
+		const chatScreenSource = read(
+			CHAT_SCREEN,
+		);
+
+		// Must use shouldSkipHistoryReload to guard the history effect
+		expect(chatScreenSource).toContain("shouldSkipHistoryReload");
+		expect(chatScreenSource).toContain("firstTurnActive: firstTurnThreadIdRef.current !== null");
+		expect(chatScreenSource).toContain("chatStatus: status");
+
+		// Must export shouldSkipHistoryReload for testing
+		expect(chatScreenSource).toContain("export function shouldSkipHistoryReload");
+
+		// Must have firstTurnThreadIdRef for first-turn tracking
+		expect(chatScreenSource).toContain("firstTurnThreadIdRef");
+	});
+
+	it("first-turn stream continuity: URL update uses replaceState, router.replace deferred", () => {
+		const chatScreenSource = read(
+			CHAT_SCREEN,
+		);
+
+		// onThreadCreated must use window.history.replaceState (not router.replace)
+		// for immediate URL update without server re-render
+		expect(chatScreenSource).toContain("window.history.replaceState");
+		expect(chatScreenSource).toContain("buildChatThreadUrl(threadId)");
+
+		// Must NOT call router.replace inside onThreadCreated
+		// (router.replace is deferred to the post-stream effect)
+		const onThreadCreatedBlock = extractFunctionBlock(chatScreenSource, "onThreadCreated:");
+		expect(onThreadCreatedBlock).not.toContain("router.replace");
+
+		// Post-stream effect must call router.replace after first-turn completes
+		expect(chatScreenSource).toContain("router.replace(buildChatThreadUrl(firstTurnId))");
 	});
 });
+
+function extractFunctionBlock(source: string, startMarker: string): string {
+	const startIndex = source.indexOf(startMarker);
+	if (startIndex === -1) return "";
+
+	const braceStart = source.indexOf("{", startIndex);
+	if (braceStart === -1) return "";
+
+	let depth = 0;
+	let i = braceStart;
+	while (i < source.length) {
+		if (source[i] === "{") depth++;
+		if (source[i] === "}") depth--;
+		if (depth === 0) return source.slice(braceStart, i + 1);
+		i++;
+	}
+
+	return source.slice(braceStart);
+}

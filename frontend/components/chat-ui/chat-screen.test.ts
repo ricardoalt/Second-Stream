@@ -226,15 +226,61 @@ describe("main chat screen behavior", () => {
 		expect(await file.text()).toBe("hello");
 	});
 
-	it("drives thinking state from AI SDK status", async () => {
-		const { shouldShowMainChatThinking } = await loadChatScreenModule();
+	it("shows loading shimmer when status is submitted", async () => {
+		const { shouldShowLoadingShimmer } = await loadChatScreenModule();
 
-		const statuses: ChatStatus[] = ["ready", "submitted", "streaming", "error"];
+		expect(shouldShowLoadingShimmer("submitted", [])).toBe(true);
+	});
 
-		expect(shouldShowMainChatThinking(statuses[0])).toBe(false);
-		expect(shouldShowMainChatThinking(statuses[1])).toBe(true);
-		expect(shouldShowMainChatThinking(statuses[2])).toBe(true);
-		expect(shouldShowMainChatThinking(statuses[3])).toBe(false);
+	it("shows loading shimmer when streaming with no assistant message", async () => {
+		const { shouldShowLoadingShimmer } = await loadChatScreenModule();
+
+		expect(shouldShowLoadingShimmer("streaming", [])).toBe(true);
+	});
+
+	it("shows loading shimmer when streaming and last assistant has no content yet", async () => {
+		const { shouldShowLoadingShimmer } = await loadChatScreenModule();
+
+		const messages = [
+			{ id: "1", role: "user" as const, parts: [{ type: "text" as const, text: "hello" }] },
+			{ id: "2", role: "assistant" as const, parts: [{ type: "text" as const, text: "" }] },
+		];
+
+		expect(shouldShowLoadingShimmer("streaming", messages)).toBe(true);
+	});
+
+	it("hides loading shimmer when streaming and last assistant has content", async () => {
+		const { shouldShowLoadingShimmer } = await loadChatScreenModule();
+
+		const messages = [
+			{ id: "1", role: "user" as const, parts: [{ type: "text" as const, text: "hello" }] },
+			{ id: "2", role: "assistant" as const, parts: [{ type: "text" as const, text: "response" }] },
+		];
+
+		expect(shouldShowLoadingShimmer("streaming", messages)).toBe(false);
+	});
+
+	it("hides loading shimmer when streaming and last assistant has reasoning content", async () => {
+		const { shouldShowLoadingShimmer } = await loadChatScreenModule();
+
+		const messages = [
+			{ id: "1", role: "user" as const, parts: [{ type: "text" as const, text: "hello" }] },
+			{ id: "2", role: "assistant" as const, parts: [{ type: "reasoning" as const, text: "thinking...", state: "streaming" as const }] },
+		];
+
+		expect(shouldShowLoadingShimmer("streaming", messages)).toBe(false);
+	});
+
+	it("hides loading shimmer when status is ready", async () => {
+		const { shouldShowLoadingShimmer } = await loadChatScreenModule();
+
+		expect(shouldShowLoadingShimmer("ready", [])).toBe(false);
+	});
+
+	it("hides loading shimmer when status is error", async () => {
+		const { shouldShowLoadingShimmer } = await loadChatScreenModule();
+
+		expect(shouldShowLoadingShimmer("error", [])).toBe(false);
 	});
 
 	it("builds optimistic user message for immediate display", async () => {
@@ -309,5 +355,115 @@ describe("main chat screen behavior", () => {
 
 		const result = resolveVisibleMessages(chatMessages, optimistic);
 		expect(result).toHaveLength(2);
+	});
+
+	describe("resolveChatSessionKey", () => {
+		it("returns thread-based key for existing threads", async () => {
+			const { resolveChatSessionKey } = await loadChatScreenModule();
+
+			expect(resolveChatSessionKey({ mode: "existing", threadId: "thread-42" })).toBe("main-chat-thread-42");
+		});
+
+		it("returns stable new-chat key for new mode", async () => {
+			const { resolveChatSessionKey } = await loadChatScreenModule();
+
+			expect(resolveChatSessionKey({ mode: "new", threadId: "new" })).toBe("main-chat-new");
+		});
+
+		it("returns unavailable key for unavailable threads", async () => {
+			const { resolveChatSessionKey } = await loadChatScreenModule();
+
+			expect(resolveChatSessionKey({ mode: "unavailable", threadId: "" })).toBe("main-chat-unavailable");
+		});
+
+		it("returns consistent key regardless of call order — no re-key on same route", async () => {
+			const { resolveChatSessionKey } = await loadChatScreenModule();
+
+			const key1 = resolveChatSessionKey({ mode: "existing", threadId: "thread-99" });
+			const key2 = resolveChatSessionKey({ mode: "existing", threadId: "thread-99" });
+			expect(key1).toBe(key2);
+		});
+	});
+
+	describe("shouldSkipHistoryReload", () => {
+		it("skips reload when useChat status is submitted", async () => {
+			const { shouldSkipHistoryReload } = await loadChatScreenModule();
+
+			expect(shouldSkipHistoryReload({ chatStatus: "submitted", firstTurnActive: false })).toBe(true);
+		});
+
+		it("skips reload when useChat status is streaming", async () => {
+			const { shouldSkipHistoryReload } = await loadChatScreenModule();
+
+			expect(shouldSkipHistoryReload({ chatStatus: "streaming", firstTurnActive: false })).toBe(true);
+		});
+
+		it("skips reload when first-turn creation is active", async () => {
+			const { shouldSkipHistoryReload } = await loadChatScreenModule();
+
+			expect(shouldSkipHistoryReload({ chatStatus: "ready", firstTurnActive: true })).toBe(true);
+		});
+
+		it("does NOT skip reload when status is ready and no first turn active", async () => {
+			const { shouldSkipHistoryReload } = await loadChatScreenModule();
+
+			expect(shouldSkipHistoryReload({ chatStatus: "ready", firstTurnActive: false })).toBe(false);
+		});
+
+		it("does NOT skip reload when status is error and no first turn active", async () => {
+			const { shouldSkipHistoryReload } = await loadChatScreenModule();
+
+			expect(shouldSkipHistoryReload({ chatStatus: "error", firstTurnActive: false })).toBe(false);
+		});
+
+		it("skips reload when both streaming AND first-turn active", async () => {
+			const { shouldSkipHistoryReload } = await loadChatScreenModule();
+
+			expect(shouldSkipHistoryReload({ chatStatus: "streaming", firstTurnActive: true })).toBe(true);
+		});
+
+		it("allows reload after stream completes and first turn is no longer active", async () => {
+			const { shouldSkipHistoryReload } = await loadChatScreenModule();
+
+			expect(shouldSkipHistoryReload({ chatStatus: "ready", firstTurnActive: false })).toBe(false);
+		});
+
+		it("skips reload with awaitin-message status during first turn", async () => {
+			const { shouldSkipHistoryReload } = await loadChatScreenModule();
+
+			expect(shouldSkipHistoryReload({ chatStatus: "awaiting-message", firstTurnActive: true })).toBe(true);
+		});
+
+		it("allows reload for awaiting-message when no first turn active", async () => {
+			const { shouldSkipHistoryReload } = await loadChatScreenModule();
+
+			expect(shouldSkipHistoryReload({ chatStatus: "awaiting-message", firstTurnActive: false })).toBe(false);
+		});
+	});
+
+	describe("resolveChatSessionKey stability", () => {
+		it("produces different keys for different existing threads", async () => {
+			const { resolveChatSessionKey } = await loadChatScreenModule();
+
+			const key1 = resolveChatSessionKey({ mode: "existing", threadId: "thread-a" });
+			const key2 = resolveChatSessionKey({ mode: "existing", threadId: "thread-b" });
+			expect(key1).not.toBe(key2);
+		});
+
+		it("produces the same new-chat key for multiple calls", async () => {
+			const { resolveChatSessionKey } = await loadChatScreenModule();
+
+			const key1 = resolveChatSessionKey({ mode: "new", threadId: "new" });
+			const key2 = resolveChatSessionKey({ mode: "new", threadId: "new" });
+			expect(key1).toBe(key2);
+		});
+
+		it("never produces a thread-based key for new mode even if threadId looks valid", async () => {
+			const { resolveChatSessionKey } = await loadChatScreenModule();
+
+			const key = resolveChatSessionKey({ mode: "new", threadId: "new" });
+			expect(key).toBe("main-chat-new");
+			expect(key).not.toContain("thread");
+		});
 	});
 });
