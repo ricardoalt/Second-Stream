@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatScreen } from "@/components/chat-ui/chat-screen";
+import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
 
 /**
  * Bridges the Server Component URL state (`initialThreadId` from
@@ -24,21 +26,20 @@ export function ChatPageClient({
 }: {
 	initialThreadId: string | null;
 }) {
+	const router = useRouter();
 	const [threadId, setThreadId] = useState(
 		() => initialThreadId ?? crypto.randomUUID(),
 	);
 	const [loadHistory, setLoadHistory] = useState(initialThreadId !== null);
+	const previousInitialThreadIdRef = useRef<string | null>(initialThreadId);
 
 	useEffect(() => {
+		const previousInitialThreadId = previousInitialThreadIdRef.current;
+		previousInitialThreadIdRef.current = initialThreadId;
+
 		if (initialThreadId === null) {
-			// Server sees no threadId. Two cases:
-			//  (a) User clicked "New chat" → we need a fresh session.
-			//  (b) We just mounted on /chat → already initialized above.
-			// Distinguishing: if current threadId matches the URL after
-			// first-send router.replace, initialThreadId would be that
-			// UUID (not null). So `null` here always means genuine new
-			// chat navigation. Reset unconditionally.
-			if (loadHistory || !threadId) {
+			// Only reset on explicit route change from persisted thread -> /chat.
+			if (previousInitialThreadId !== null) {
 				setThreadId(crypto.randomUUID());
 				setLoadHistory(false);
 			}
@@ -50,15 +51,21 @@ export function ChatPageClient({
 			setThreadId(initialThreadId);
 			setLoadHistory(true);
 		}
-		// else: initialThreadId === threadId (our own replaceState after
+		// else: initialThreadId === threadId (our own replace after
 		// first-send). No-op, keep useChat state alive.
-	}, [initialThreadId, threadId, loadHistory]);
+	}, [initialThreadId, threadId]);
+
+	const handleFirstMessage = useCallback(() => {
+		if (initialThreadId !== null) return;
+		router.replace(buildChatThreadUrl(threadId), { scroll: false });
+	}, [initialThreadId, router, threadId]);
 
 	return (
 		<ChatScreen
 			threadId={threadId}
 			initialMessages={[]}
 			loadHistory={loadHistory}
+			onFirstMessage={handleFirstMessage}
 		/>
 	);
 }

@@ -3,8 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	Conversation,
 	ConversationContent,
@@ -21,7 +20,11 @@ import {
 	canSubmitPromptMessage,
 	shouldShowLoadingShimmer,
 } from "@/lib/chat-runtime/chat-utils";
-import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
+import {
+	mergeHydratedHistoryWithLocalMessages,
+	shouldHydrateHistory,
+	upsertThreadSummary,
+} from "@/lib/chat-runtime/thread-screen-state";
 import { uploadAttachmentsFromPromptMessage } from "@/lib/chat-runtime/upload";
 import type { MyUIMessage } from "@/types/ui-message";
 import { ChatPromptComposer } from "./chat-prompt-composer";
@@ -31,16 +34,20 @@ interface ChatScreenProps {
 	threadId: string;
 	initialMessages: MyUIMessage[];
 	loadHistory: boolean;
+	onFirstMessage?: () => void;
 }
 
 export function ChatScreen({
 	threadId,
 	initialMessages,
 	loadHistory,
+	onFirstMessage,
 }: ChatScreenProps) {
 	const queryClient = useQueryClient();
-	const router = useRouter();
 	const [historyError, setHistoryError] = useState<string | null>(null);
+	const [isHydratingHistory, setIsHydratingHistory] = useState(false);
+	const hydratedThreadIdRef = useRef<string | null>(null);
+	const lastSeenThreadIdRef = useRef<string | null>(threadId);
 
 	// Memoize transport so useChat doesn't see a new reference on every
 	// render (which would reset its internal state mid-stream).
@@ -55,23 +62,7 @@ export function ChatScreen({
 			messages: initialMessages,
 			transport,
 			onFinish: () => {
-				// Surgical update: bump lastMessageAt/updatedAt for this thread
-				// so the sidebar re-orders it without a full refetch. A blind
-				// invalidateQueries here would cause a visible repaint of the
-				// sidebar exactly when the stream finishes, perceived as a
-				// "page refresh" by the user.
-				queryClient.setQueryData<ChatThreadSummaryDTO[]>(
-					CHAT_THREADS_QUERY_KEY,
-					(old) => {
-						if (!old) return old;
-						const now = new Date().toISOString();
-						return old.map((t) =>
-							t.id === threadId
-								? { ...t, lastMessageAt: now, updatedAt: now }
-								: t,
-						);
-					},
-				);
+				queryClient.invalidateQueries({ queryKey: CHAT_THREADS_QUERY_KEY });
 			},
 			onData: (part) => {
 				if (part.type === "data-new-thread-created") {
@@ -96,31 +87,69 @@ export function ChatScreen({
 								createdAt: data.createdAt,
 								updatedAt: data.updatedAt,
 							};
-							return old ? [next, ...old] : [next];
+							return upsertThreadSummary(old, next);
 						},
 					);
 				}
 			},
 		});
 
-	// One-shot hydration for existing threads.
+	// One-shot hydration for persisted threads only when idle.
 	useEffect(() => {
-		if (!loadHistory) return;
+		if (lastSeenThreadIdRef.current !== threadId) {
+			lastSeenThreadIdRef.current = threadId;
+			hydratedThreadIdRef.current = null;
+			setHistoryError(null);
+			setIsHydratingHistory(false);
+		}
+
+		const shouldHydrate = shouldHydrateHistory({
+			loadHistory,
+			status,
+			currentMessageCount: messages.length,
+			hasHydratedThread: hydratedThreadIdRef.current === threadId,
+			isHydratingHistory,
+		});
+		if (!shouldHydrate) {
+			if (!loadHistory) setIsHydratingHistory(false);
+			return;
+		}
+
 		let cancelled = false;
+		setIsHydratingHistory(true);
+
 		reloadPersistedThreadHistory(threadId)
 			.then((msgs) => {
-				if (!cancelled) setMessages(msgs);
+				if (cancelled) return;
+				setMessages((current) =>
+					mergeHydratedHistoryWithLocalMessages({
+						hydratedMessages: msgs,
+						localMessages: current,
+					}),
+				);
+				hydratedThreadIdRef.current = threadId;
+				setHistoryError(null);
 			})
 			.catch((e) => {
 				if (!cancelled)
 					setHistoryError(
 						e instanceof Error ? e.message : "Unable to load thread history.",
 					);
+			})
+			.finally(() => {
+				if (!cancelled) setIsHydratingHistory(false);
 			});
 		return () => {
 			cancelled = true;
 		};
-	}, [threadId, loadHistory, setMessages]);
+	}, [
+		isHydratingHistory,
+		loadHistory,
+		messages.length,
+		setMessages,
+		status,
+		threadId,
+	]);
 
 	const handleSubmitMessage = useCallback(
 		async (message: PromptInputMessage) => {
@@ -128,19 +157,7 @@ export function ChatScreen({
 			clearError();
 			const attachmentIds = await uploadAttachmentsFromPromptMessage(message);
 			const wasEmpty = messages.length === 0;
-
-			// Sync URL with Next's router BEFORE awaiting sendMessage.
-			// `sendMessage` resolves at stream END (not start), so doing this
-			// after the await would fire router.replace exactly when the
-			// assistant response arrives — perceived as a "page refresh".
-			// Firing it up front makes the URL update coincide with the user
-			// message appearing in the conversation, which is invisible.
-			// Safe: threadId and transport are memoized/stable, so the
-			// Server Component re-render triggered by router.replace does
-			// NOT reset useChat.
-			if (wasEmpty) {
-				router.replace(buildChatThreadUrl(threadId), { scroll: false });
-			}
+			if (wasEmpty) onFirstMessage?.();
 
 			await sendMessage(
 				{ text: message.text, files: message.files },
@@ -152,10 +169,10 @@ export function ChatScreen({
 				},
 			);
 		},
-		[clearError, sendMessage, threadId, messages.length, router],
+		[clearError, sendMessage, messages.length, onFirstMessage],
 	);
 
-	const isEmptyState = messages.length === 0;
+	const isEmptyState = messages.length === 0 && !isHydratingHistory;
 	const visibleError = error?.message ?? historyError;
 	const showShimmer = shouldShowLoadingShimmer(status, messages);
 

@@ -143,26 +143,23 @@ describe("chat default cutover structure", () => {
 		expect(chatScreenSource).toContain("invalidateQueries");
 	});
 
-	it("uses router.replace to keep Next.js in sync on first-send URL update", () => {
+	it("keeps ChatScreen free of router lifecycle and syncs URL in page client", () => {
 		const chatScreenSource = read(CHAT_SCREEN);
+		const pageClientSource = read("app/chat/chat-page-client.tsx");
 
-		// Must sync URL via Next's router so subsequent sidebar navigation
-		// (e.g. "New chat" → /chat) is detected as a real route change.
-		// window.history.replaceState alone leaves Next's router state
-		// desynced and router.push("/chat") can no-op.
-		expect(chatScreenSource).toContain("buildChatThreadUrl");
-		expect(chatScreenSource).toContain("router.replace");
-		expect(chatScreenSource).toContain("useRouter");
+		// ChatScreen should not own router URL synchronization because
+		// it can cause lifecycle coupling with useChat.
+		expect(chatScreenSource).not.toContain("router.replace");
+		expect(chatScreenSource).not.toContain("useRouter");
 
 		// Transport must be memoized so the inevitable re-render after
-		// router.replace doesn't reset useChat mid-stream.
+		// URL sync doesn't reset useChat mid-stream.
 		expect(chatScreenSource).toContain("useMemo");
 		expect(chatScreenSource).toContain("[threadId]");
 
-		// Must NOT use window.history.replaceState (that path bypassed
-		// Next.js router and caused the "New chat after first-send" dead
-		// button bug).
-		expect(chatScreenSource).not.toContain("window.history.replaceState");
+		// URL sync is owned by ChatPageClient.
+		expect(pageClientSource).toContain("router.replace");
+		expect(pageClientSource).toContain("buildChatThreadUrl");
 	});
 
 	it("uses canonical CHAT_THREADS_QUERY_KEY from lib/api/chat", () => {
@@ -176,11 +173,13 @@ describe("chat default cutover structure", () => {
 
 	it("page.tsx uses crypto.randomUUID for new thread IDs", () => {
 		const pageClientSource = read("app/chat/chat-page-client.tsx");
+		const pageSource = read("app/chat/page.tsx");
 
 		expect(pageClientSource).toContain("crypto.randomUUID");
 		expect(pageClientSource).toContain("ChatPageClient");
 		expect(pageClientSource).toContain("loadHistory");
 		expect(pageClientSource).toContain("initialThreadId");
+		expect(pageSource).not.toContain('key={initialThreadId ?? "new"}');
 	});
 
 	it("routing.ts only exports buildChatThreadUrl (no ChatRouteState)", () => {
