@@ -20,9 +20,8 @@
 // ============================================================================
 
 export { AppSidebar } from "./app-sidebar";
-export { ChatScreen } from "./chat-screen";
-export { ChatInterface } from "./chat-interface";
 export { ChatPromptComposer } from "./chat-prompt-composer";
+export { ChatScreen } from "./chat-screen";
 export { ChatSearch } from "./chat-search";
 export { SettingsDialog } from "./settings-dialog";
 
@@ -356,11 +355,6 @@ export { useIsMobile as useMobile } from "@/hooks/use-mobile";
 // ============================================================================
 // Re-export from lib (copied utilities)
 // ============================================================================
-
-export {
-	canSubmitPromptMessage,
-	shouldShowLoadingShimmer,
-} from "@/lib/chat-utils";
 
 export { groupByDate } from "@/lib/date-utils";
 

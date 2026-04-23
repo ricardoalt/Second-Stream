@@ -1,15 +1,9 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import type { ChatStatus } from "ai";
+import type { ChatStatus, UIMessage } from "ai";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	Conversation,
-	ConversationContent,
-	ConversationEmptyState,
-	ConversationScrollButton,
-} from "@/components/ai-elements/conversation";
 import {
 	Attachment,
 	AttachmentInfo,
@@ -17,11 +11,18 @@ import {
 	Attachments,
 } from "@/components/ai-elements/attachments";
 import {
+	Conversation,
+	ConversationContent,
+	ConversationEmptyState,
+	ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import {
 	Message,
 	MessageContent,
 	MessageResponse,
 } from "@/components/ai-elements/message";
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
+import type { WorkingMemory } from "@/config/working-memory";
 import {
 	createChatThread,
 	reloadPersistedThreadHistory,
@@ -31,6 +32,14 @@ import { createChatBridgeTransport } from "@/lib/chat-bridge/transport";
 import type { ChatRouteState } from "@/lib/chat-runtime/routing";
 import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
 import type { MyUIMessage } from "@/types/ui-message";
+import {
+	Reasoning,
+	ReasoningContent,
+	ReasoningTrigger,
+} from "./ai-elements/reasoning";
+import { Shimmer } from "./ai-elements/shimmer";
+import { Source, SourceContent, SourceTrigger } from "./ai-elements/sources";
+import { WorkingMemoryUpdate } from "./ai-elements/working-memory-update";
 import { ChatPromptComposer } from "./chat-prompt-composer";
 
 interface ChatScreenProps {
@@ -56,6 +65,52 @@ export function shouldShowMainChatLandingState(options: {
 		options.messagesCount === 0 &&
 		!options.historyLoading
 	);
+}
+
+export type ClassifiedPart =
+	| { kind: "text"; text: string }
+	| { kind: "file"; part: UIMessage["parts"][number] & { type: "file" } }
+	| { kind: "reasoning"; text: string; isStreaming: boolean }
+	| {
+			kind: "source";
+			part: UIMessage["parts"][number] & { type: "source-document" };
+	  }
+	| {
+			kind: "tool-invocation";
+			part: UIMessage["parts"][number] & { type: "tool-invocation" };
+	  }
+	| { kind: "unknown" };
+
+export function classifyMessagePart(
+	part: UIMessage["parts"][number],
+): ClassifiedPart {
+	switch (part.type) {
+		case "text":
+			return { kind: "text", text: part.text };
+		case "file":
+			return {
+				kind: "file",
+				part: part as UIMessage["parts"][number] & { type: "file" },
+			};
+		case "reasoning":
+			return {
+				kind: "reasoning",
+				text: part.text,
+				isStreaming: part.state === "streaming",
+			};
+		case "source-document":
+			return {
+				kind: "source",
+				part: part as UIMessage["parts"][number] & { type: "source-document" },
+			};
+		case "tool-invocation":
+			return {
+				kind: "tool-invocation",
+				part: part as UIMessage["parts"][number] & { type: "tool-invocation" },
+			};
+		default:
+			return { kind: "unknown" };
+	}
 }
 
 export function resolveMainChatSubmitFeedbackLabel(options: {
@@ -139,8 +194,7 @@ export async function resolveUploadFileFromPromptPart(
 
 	const blob = await response.blob();
 	const filename = part.filename ?? "attachment";
-	const mediaType =
-		part.mediaType || blob.type || "application/octet-stream";
+	const mediaType = part.mediaType || blob.type || "application/octet-stream";
 
 	return new File([blob], filename, { type: mediaType });
 }
@@ -320,7 +374,11 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 	if (showLandingState) {
 		return (
 			<div className="mx-auto flex h-full w-full max-w-[70ch] flex-1 flex-col items-center justify-center gap-8 px-6 pb-20">
-				<ConversationEmptyState className="gap-3 p-0" description="Start with a question or drop files to give context." title="What can I help with?" />
+				<ConversationEmptyState
+					className="gap-3 p-0"
+					description="Start with a question or drop files to give context."
+					title="What can I help with?"
+				/>
 				<ChatPromptComposer
 					className="w-full"
 					errorMessage={submitError ?? error?.message ?? null}
@@ -348,33 +406,165 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 					{messages.map((message) => (
 						<Message from={message.role} key={message.id}>
 							<MessageContent>
-								<Attachments className="w-full" variant="list">
-									{message.parts
-										.filter((part) => part.type === "file")
-										.map((part, index) => (
-											<Attachment
-												data={{
-													...part,
-													id: `${message.id}-attachment-${index}`,
-												}}
-												key={`${message.id}-attachment-${index}`}
-											>
-												<AttachmentPreview />
-												<AttachmentInfo showMediaType />
-											</Attachment>
-										))}
-								</Attachments>
-
 								{message.parts.map((part, index) => {
-									if (part.type === "text") {
-										return (
-											<MessageResponse key={`${message.id}-${index}`}>
-												{part.text}
-											</MessageResponse>
-										);
-									}
+									const classified = classifyMessagePart(part);
 
-									return null;
+									switch (classified.kind) {
+										case "file":
+											return (
+												<Attachments
+													className="w-full"
+													key={`${message.id}-attachment-${index}`}
+													variant="list"
+												>
+													<Attachment
+														data={{
+															...classified.part,
+															id: `${message.id}-attachment-${index}`,
+														}}
+													>
+														<AttachmentPreview />
+														<AttachmentInfo showMediaType />
+													</Attachment>
+												</Attachments>
+											);
+										case "text":
+											return (
+												<MessageResponse key={`${message.id}-${index}`}>
+													{classified.text}
+												</MessageResponse>
+											);
+										case "reasoning":
+											return (
+												<Reasoning
+													key={`${message.id}-${index}`}
+													isStreaming={classified.isStreaming}
+												>
+													<ReasoningTrigger />
+													<ReasoningContent>{classified.text}</ReasoningContent>
+												</Reasoning>
+											);
+										case "source": {
+											const sourcePart = classified.part;
+											if (sourcePart.state !== "output-available") {
+												return (
+													<div
+														className="flex items-center gap-1.5"
+														key={`${message.id}-${index}`}
+													>
+														<Shimmer as="p" className="text-sm">
+															Looking up sources...
+														</Shimmer>
+													</div>
+												);
+											}
+
+											const outputEntries = Array.isArray(sourcePart.output)
+												? sourcePart.output
+												: [];
+											return (
+												<div
+													className="not-prose mb-4 flex flex-wrap gap-2"
+													key={`${message.id}-${index}`}
+												>
+													{outputEntries.map(
+														(
+															source: {
+																url: string;
+																title?: string | null;
+																content?: string;
+															},
+															sourceIndex: number,
+														) => (
+															<Source key={source.url} href={source.url}>
+																<SourceTrigger
+																	showFavicon
+																	label={sourceIndex + 1}
+																/>
+																<SourceContent
+																	title={source.title ?? source.url}
+																	description={source.content}
+																/>
+															</Source>
+														),
+													)}
+												</div>
+											);
+										}
+										case "tool-invocation": {
+											const toolPart = classified.part;
+											const toolName = toolPart.toolName;
+											if (toolName === "webSearch") {
+												if (toolPart.state === "output-available") {
+													const results = Array.isArray(toolPart.output)
+														? toolPart.output
+														: [];
+													return (
+														<div
+															className="not-prose mb-4 flex flex-wrap gap-2"
+															key={`${message.id}-${index}`}
+														>
+															{results.map(
+																(
+																	source: {
+																		url: string;
+																		title?: string | null;
+																		content?: string;
+																	},
+																	sourceIndex: number,
+																) => (
+																	<Source key={source.url} href={source.url}>
+																		<SourceTrigger
+																			showFavicon
+																			label={sourceIndex + 1}
+																		/>
+																		<SourceContent
+																			title={source.title ?? source.url}
+																			description={source.content}
+																		/>
+																	</Source>
+																),
+															)}
+														</div>
+													);
+												}
+												return (
+													<div
+														className="flex items-center gap-1.5"
+														key={`${message.id}-${index}`}
+													>
+														<Shimmer as="p" className="text-sm">
+															{toolPart.state === "input-available" &&
+															toolPart.input &&
+															typeof toolPart.input === "object" &&
+															"query" in toolPart.input
+																? `Searching for: ${(toolPart.input as { query: string }).query}`
+																: "Searching..."}
+														</Shimmer>
+													</div>
+												);
+											}
+											if (toolName === "updateWorkingMemory") {
+												return (
+													<WorkingMemoryUpdate
+														key={`${message.id}-${index}`}
+														state={toolPart.state}
+														{...(toolPart.state !== "input-streaming" &&
+														toolPart.input
+															? {
+																	input: toolPart.input as {
+																		memory: WorkingMemory;
+																	},
+																}
+															: {})}
+													/>
+												);
+											}
+											return null;
+										}
+										default:
+											return null;
+									}
 								})}
 							</MessageContent>
 						</Message>
@@ -383,7 +573,9 @@ export function ChatScreen({ routeState }: ChatScreenProps) {
 					{shouldShowMainChatThinking(status) ? (
 						<Message from="assistant">
 							<MessageContent>
-								<p className="text-muted-foreground text-sm">Thinking...</p>
+								<Shimmer as="p" className="text-sm">
+									Thinking...
+								</Shimmer>
 							</MessageContent>
 						</Message>
 					) : null}

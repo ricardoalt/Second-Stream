@@ -6,8 +6,8 @@ from conftest import create_org, create_user
 from sqlalchemy import func, select
 
 from app.agents.chat_agent import ChatAgentError
-from app.models.chat_message import ChatMessage
 from app.models.chat_attachment import ChatAttachment
+from app.models.chat_message import ChatMessage
 from app.models.chat_thread import ChatThread
 from app.models.user import UserRole
 from app.services import chat_service

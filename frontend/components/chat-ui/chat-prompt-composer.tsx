@@ -43,11 +43,22 @@ type ChatPromptComposerProps = {
 	textareaClassName: string;
 };
 
-type PromptInputErrorCode =
-	| "max_files"
-	| "max_file_size"
-	| "accept"
-	| "read_failed";
+type ChatPromptComposerInnerProps = {
+	className: string;
+	attachmentError: string | null;
+	errorMessage?: string | null;
+	hintMessage?: string | null;
+	markUserInteraction: () => void;
+	onSubmitMessage: (message: PromptInputMessage) => Promise<void>;
+	placeholder: string;
+	setAttachmentError: React.Dispatch<React.SetStateAction<string | null>>;
+	status: ChatStatus;
+	textareaClassName: string;
+	textareaRef: (el: HTMLTextAreaElement | null) => void;
+	draftSetText: (text: string) => void;
+	didUserInteractRef: React.RefObject<boolean>;
+	onInteract?: () => void;
+};
 
 export const getAttachmentValidationMessage = (
 	code: PromptInputErrorCode,
@@ -66,18 +77,6 @@ export const getAttachmentValidationMessage = (
 	}
 };
 
-export async function submitChatPromptMessage(
-	message: PromptInputMessage,
-	selectedModelId: string,
-	onSubmitMessage: (message: PromptInputMessage) => Promise<void>,
-): Promise<void> {
-	await onSubmitMessage({
-		...message,
-		modelId: selectedModelId,
-		webSearchEnabled: false,
-	});
-}
-
 export function shouldClearSubmitErrorOnComposerChange(options: {
 	errorMessage?: string | null;
 	hadUserInteraction: boolean;
@@ -87,21 +86,6 @@ export function shouldClearSubmitErrorOnComposerChange(options: {
 	}
 
 	return options.hadUserInteraction;
-}
-
-function PromptComposerStateWatcher({
-	onComposerChange,
-}: {
-	onComposerChange: () => void;
-}): React.JSX.Element | null {
-	const attachments = usePromptInputAttachments();
-	const { textInput } = usePromptInputController();
-
-	useEffect(() => {
-		onComposerChange();
-	}, [attachments.files.length, onComposerChange, textInput.value]);
-
-	return null;
 }
 
 function PromptInputAttachmentsHeader(): React.JSX.Element | null {
@@ -176,24 +160,112 @@ function PromptSubmitButton({
 	return <PromptInputSubmit disabled={requiresInstruction} status={status} />;
 }
 
-/**
- * Syncs the PromptInputProvider's internal text state to localStorage (debounced).
- * Must be rendered inside <PromptInputProvider>.
- * Does NOT cause parent re-renders — writes are fire-and-forget into storage.
- */
-function DraftSync({ onTextChange }: { onTextChange: (v: string) => void }) {
+function ChatPromptComposerInner({
+	className,
+	attachmentError,
+	errorMessage,
+	hintMessage,
+	markUserInteraction,
+	onSubmitMessage,
+	placeholder,
+	setAttachmentError,
+	status,
+	textareaClassName,
+	textareaRef,
+	draftSetText,
+	didUserInteractRef,
+	onInteract,
+}: ChatPromptComposerInnerProps): React.JSX.Element {
 	const { textInput } = usePromptInputController();
-	const prevValueRef = useRef(textInput.value);
+	const attachments = usePromptInputAttachments();
+	const prevTextValueRef = useRef(textInput.value);
 
+	// Sync draft text to localStorage when value changes.
 	useEffect(() => {
-		// Only sync when value actually changed (skip initial mount value).
-		if (textInput.value !== prevValueRef.current) {
-			prevValueRef.current = textInput.value;
-			onTextChange(textInput.value);
+		if (textInput.value !== prevTextValueRef.current) {
+			prevTextValueRef.current = textInput.value;
+			draftSetText(textInput.value);
 		}
-	}, [textInput.value, onTextChange]);
+	}, [textInput.value, draftSetText]);
 
-	return null;
+	// Clear attachment error and resolve submit error when inputs change.
+	useEffect(() => {
+		if (attachments.files.length === 0 && prevTextValueRef.current === textInput.value) {
+			return;
+		}
+
+		setAttachmentError((previous) => (previous ? null : previous));
+
+		const shouldClear = shouldClearSubmitErrorOnComposerChange({
+			errorMessage,
+			hadUserInteraction: didUserInteractRef.current,
+		});
+
+		didUserInteractRef.current = false;
+
+		if (shouldClear) {
+			onInteract?.();
+		}
+	}, [attachments.files.length, textInput.value, errorMessage, onInteract]);
+
+	return (
+		<PromptInput
+			accept={SUPPORTED_ATTACHMENT_MIME_PATTERNS.join(",")}
+			className={className}
+			maxFileSize={MAX_ATTACHMENT_BYTES}
+			maxFiles={MAX_ATTACHMENTS_PER_REQUEST}
+			multiple
+			onPointerDownCapture={markUserInteraction}
+			onError={({ code }) => {
+				setAttachmentError(getAttachmentValidationMessage(code));
+			}}
+			onSubmit={onSubmitMessage}
+		>
+			<PromptInputAttachmentsHeader />
+
+			{attachmentError ? (
+				<div className="px-3 pb-1 text-destructive text-xs" role="alert">
+					{attachmentError}
+				</div>
+			) : null}
+
+			{!attachmentError && errorMessage ? (
+				<div className="px-3 pb-1 text-destructive text-xs" role="alert">
+					{errorMessage}
+				</div>
+			) : null}
+
+			{!attachmentError && !errorMessage && hintMessage ? (
+				<div className="px-3 pb-1 text-muted-foreground text-xs" role="status">
+					{hintMessage}
+				</div>
+			) : null}
+
+			<PdfInstructionHint />
+
+			<PromptInputBody>
+				<PromptInputTextarea
+					ref={textareaRef}
+					className={textareaClassName}
+					onChange={markUserInteraction}
+					placeholder={placeholder}
+				/>
+			</PromptInputBody>
+
+			<PromptInputFooter>
+				<PromptInputTools>
+					<PromptInputActionMenu>
+						<PromptInputActionMenuTrigger />
+						<PromptInputActionMenuContent className="min-w-48 w-auto">
+							<PromptInputActionAddAttachments />
+						</PromptInputActionMenuContent>
+					</PromptInputActionMenu>
+				</PromptInputTools>
+
+				<PromptSubmitButton status={status} />
+			</PromptInputFooter>
+		</PromptInput>
+	);
 }
 
 export function ChatPromptComposer({
@@ -209,31 +281,20 @@ export function ChatPromptComposer({
 	const draft = useDraftInput();
 	const [attachmentError, setAttachmentError] = useState<string | null>(null);
 	const didUserInteractRef = useRef(false);
-
 	const selectedModelId = draft.modelId;
+
 	const markUserInteraction = useCallback(() => {
 		didUserInteractRef.current = true;
 	}, []);
 
-	const handleComposerChange = useCallback(() => {
-		setAttachmentError((previous) => (previous ? null : previous));
-
-		const shouldClearSubmitError = shouldClearSubmitErrorOnComposerChange({
-			errorMessage,
-			hadUserInteraction: didUserInteractRef.current,
-		});
-
-		didUserInteractRef.current = false;
-
-		if (shouldClearSubmitError) {
-			onInteract?.();
-		}
-	}, [errorMessage, onInteract]);
-
 	const handleSubmit = useCallback(
 		async (message: PromptInputMessage): Promise<void> => {
 			setAttachmentError(null);
-			await submitChatPromptMessage(message, selectedModelId, onSubmitMessage);
+			await onSubmitMessage({
+				...message,
+				modelId: selectedModelId,
+				webSearchEnabled: false,
+			});
 		},
 		[onSubmitMessage, selectedModelId],
 	);
@@ -250,64 +311,22 @@ export function ChatPromptComposer({
 
 	return (
 		<PromptInputProvider initialInput={draft.initialText}>
-			<DraftSync onTextChange={draft.setText} />
-			<PromptComposerStateWatcher onComposerChange={handleComposerChange} />
-			<PromptInput
-				accept={SUPPORTED_ATTACHMENT_MIME_PATTERNS.join(",")}
+			<ChatPromptComposerInner
 				className={className}
-				maxFileSize={MAX_ATTACHMENT_BYTES}
-				maxFiles={MAX_ATTACHMENTS_PER_REQUEST}
-				multiple
-				onPointerDownCapture={markUserInteraction}
-				onError={({ code }) => {
-					setAttachmentError(getAttachmentValidationMessage(code));
-				}}
-				onSubmit={handleSubmit}
-			>
-				<PromptInputAttachmentsHeader />
-
-				{attachmentError ? (
-					<div className="px-3 pb-1 text-destructive text-xs" role="alert">
-						{attachmentError}
-					</div>
-				) : null}
-
-				{!attachmentError && errorMessage ? (
-					<div className="px-3 pb-1 text-destructive text-xs" role="alert">
-						{errorMessage}
-					</div>
-				) : null}
-
-				{!attachmentError && !errorMessage && hintMessage ? (
-					<div className="px-3 pb-1 text-muted-foreground text-xs" role="status">
-						{hintMessage}
-					</div>
-				) : null}
-
-				<PdfInstructionHint />
-
-				<PromptInputBody>
-					<PromptInputTextarea
-						ref={textareaRef}
-						className={textareaClassName}
-						onChange={markUserInteraction}
-						placeholder={placeholder}
-					/>
-				</PromptInputBody>
-
-				<PromptInputFooter>
-					<PromptInputTools>
-						<PromptInputActionMenu>
-							<PromptInputActionMenuTrigger />
-							<PromptInputActionMenuContent className="min-w-48 w-auto">
-								<PromptInputActionAddAttachments />
-							</PromptInputActionMenuContent>
-						</PromptInputActionMenu>
-					</PromptInputTools>
-
-					<PromptSubmitButton status={status} />
-				</PromptInputFooter>
-			</PromptInput>
+				attachmentError={attachmentError}
+				errorMessage={errorMessage}
+				hintMessage={hintMessage}
+				markUserInteraction={markUserInteraction}
+				onSubmitMessage={handleSubmit}
+				placeholder={placeholder}
+				setAttachmentError={setAttachmentError}
+				status={status}
+				textareaClassName={textareaClassName}
+				textareaRef={textareaRef}
+				draftSetText={draft.setText}
+				didUserInteractRef={didUserInteractRef}
+				onInteract={onInteract}
+			/>
 		</PromptInputProvider>
 	);
 }

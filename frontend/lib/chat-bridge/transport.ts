@@ -133,7 +133,8 @@ export function createChatBridgeTransport(
 					options.getOrganizationId ?? getOrganizationIdFromStorage
 				)(),
 				existingAttachmentIds:
-					options.getAttachmentIds?.().filter((id) => id.trim().length > 0) ?? [],
+					options.getAttachmentIds?.().filter((id) => id.trim().length > 0) ??
+					[],
 				messages,
 				headers,
 			});

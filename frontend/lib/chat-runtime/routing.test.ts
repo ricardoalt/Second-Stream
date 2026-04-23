@@ -1,8 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	buildChatThreadUrl,
-	resolveChatRouteState,
-} from "./routing";
+import { buildChatThreadUrl, resolveChatRouteState } from "./routing";
 
 describe("chat runtime routing", () => {
 	it("resolves existing thread route state from query value", () => {

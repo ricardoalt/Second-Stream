@@ -1,7 +1,7 @@
 import { AppSidebar } from "@/components/chat-ui/app-sidebar";
 import { ChatScreen } from "@/components/chat-ui/chat-screen";
-import { resolveChatRouteState } from "@/lib/chat-runtime/routing";
 import { SidebarProvider } from "@/components/chat-ui/ui/sidebar";
+import { resolveChatRouteState } from "@/lib/chat-runtime/routing";
 
 interface ChatPageProps {
 	searchParams?: {

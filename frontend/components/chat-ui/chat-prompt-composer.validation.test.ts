@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
 	getAttachmentValidationMessage,
 	shouldClearSubmitErrorOnComposerChange,
-	submitChatPromptMessage,
 } from "@/components/chat-ui/chat-prompt-composer";
 
 describe("getAttachmentValidationMessage", () => {
@@ -22,38 +21,6 @@ describe("getAttachmentValidationMessage", () => {
 		expect(getAttachmentValidationMessage("read_failed")).toContain(
 			"Remove them and try again",
 		);
-	});
-});
-
-describe("submitChatPromptMessage", () => {
-	it("preserves submit failure by rejecting the promise", async () => {
-		const submitFailure = new Error("send failed");
-
-		await expect(
-			submitChatPromptMessage(
-				{
-					text: "Hola",
-					files: [],
-				},
-				"model-id",
-				async () => {
-					throw submitFailure;
-				},
-			),
-		).rejects.toThrow("send failed");
-	});
-
-	it("resolves successfully so PromptInput can clear draft", async () => {
-		await expect(
-			submitChatPromptMessage(
-				{
-					text: "Hola",
-					files: [],
-				},
-				"model-id",
-				async () => undefined,
-			),
-		).resolves.toBeUndefined();
 	});
 });
 
