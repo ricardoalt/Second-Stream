@@ -107,8 +107,15 @@ const Theme = ({
 
 			enable?.();
 		},
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[],
+		[
+			attribute,
+			attrs,
+			defaultTheme,
+			disableTransitionOnChange,
+			enableColorScheme,
+			enableSystem,
+			value,
+		],
 	);
 
 	const setTheme = React.useCallback(
@@ -150,13 +157,11 @@ const Theme = ({
 
 		window.addEventListener("storage", handleStorage);
 		return () => window.removeEventListener("storage", handleStorage);
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [setTheme]);
+	}, [setTheme, storageKey, defaultTheme]);
 
 	React.useEffect(() => {
 		applyTheme(forcedTheme ?? theme);
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [forcedTheme, theme]);
+	}, [applyTheme, forcedTheme, theme]);
 
 	const providerValue = React.useMemo(
 		() => ({
@@ -258,8 +263,16 @@ const getSystemTheme = (e?: MediaQueryList | MediaQueryListEvent) => {
 	return isDark ? "dark" : "light";
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const script: (...args: any[]) => void = (
+export const script: (
+	attribute: Attribute | Attribute[],
+	storageKey: string,
+	defaultTheme: string,
+	forcedTheme: string | undefined,
+	themes: string[],
+	value: ValueObject | undefined,
+	enableSystem: boolean,
+	enableColorScheme: boolean,
+) => void = (
 	attribute,
 	storageKey,
 	defaultTheme,
@@ -271,18 +284,18 @@ export const script: (...args: any[]) => void = (
 ) => {
 	const el = document.documentElement;
 	const systemThemes = ["light", "dark"];
-	const isClass = attribute === "class";
-	const classes =
-		isClass && value
-			? themes.map((t: string | number) => value[t] || t)
-			: themes;
+	const attr =
+		(Array.isArray(attribute) ? attribute[0] : attribute) ?? "data-theme";
+	const isClass = attr === "class";
+	const classes: string[] =
+		isClass && value ? themes.map((t) => String(value[t] || t)) : themes;
 
 	function updateDOM(theme: string) {
 		if (isClass) {
 			el.classList.remove(...classes);
 			el.classList.add(theme);
 		} else {
-			el.setAttribute(attribute, theme);
+			el.setAttribute(attr, theme);
 		}
 		setColorScheme(theme);
 	}

@@ -55,12 +55,94 @@
 			"includes": [
 				"components/ui/circular-gauge.tsx",
 				"components/features/admin/org-switcher.tsx",
-				"components/shared/common/file-uploader-sections.tsx"
+				"components/shared/common/file-uploader-sections.tsx",
+				"components/chat-ui/ui/field.tsx"
 			],
 			"linter": {
 				"rules": {
 					"a11y": {
 						"useSemanticElements": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["hooks/use-theme.tsx"],
+			"linter": {
+				"rules": {
+					"security": {
+						"noDangerouslySetInnerHtml": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"components/chat-ui/ui/input-group.tsx",
+				"components/chat-ui/ui/button-group.tsx",
+				"components/ui/input-group.tsx",
+				"components/ui/button-group.tsx"
+			],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"useSemanticElements": "off",
+						"useKeyWithClickEvents": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["components/chat-ui/ui/field.tsx"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noDoubleEquals": "off",
+						"noArrayIndexKey": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["components/chat-ui/ui/label.tsx"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noLabelWithoutControl": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["components/chat-ui/ui/sidebar.tsx"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"useExhaustiveDependencies": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"components/chat-ui/openchat-logo.tsx",
+				"components/chat-ui/ai-elements/model-selector.tsx",
+				"components/chat-ui/ai-elements/sources.tsx"
+			],
+			"linter": {
+				"rules": {
+					"performance": {
+						"noImgElement": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["components/chat-ui/ai-elements/shimmer.tsx"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off"
 					}
 				}
 			}

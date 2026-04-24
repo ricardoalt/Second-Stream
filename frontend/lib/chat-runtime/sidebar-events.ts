@@ -46,7 +46,7 @@ export function applyProvisionalThreadFromPrompt(
 					lastMessagePreview: nextPreview,
 					lastMessageAt: nowIsoString,
 					updatedAt: nowIsoString,
-			  }
+				}
 			: thread,
 	);
 }
@@ -59,18 +59,27 @@ export function upsertThreadFromEvent(
 		(thread) => thread.id === part.data.threadId,
 	);
 	const title =
-		part.data.title?.trim() || existingThread?.title?.trim() || EMPTY_CHAT_TITLE;
+		part.data.title?.trim() ||
+		existingThread?.title?.trim() ||
+		EMPTY_CHAT_TITLE;
 	const nextThread: ChatThreadSummaryDTO = {
 		id: part.data.threadId,
 		title,
 		lastMessagePreview: existingThread?.lastMessagePreview ?? null,
 		lastMessageAt: existingThread?.lastMessageAt ?? null,
-		createdAt: part.data.createdAt || existingThread?.createdAt,
-		updatedAt: part.data.updatedAt || existingThread?.updatedAt,
+		createdAt:
+			(part.data.createdAt || existingThread?.createdAt) ??
+			new Date().toISOString(),
+		updatedAt:
+			(part.data.updatedAt || existingThread?.updatedAt) ??
+			new Date().toISOString(),
 	};
 
 	const current = threads ?? [];
-	return [nextThread, ...current.filter((thread) => thread.id !== nextThread.id)];
+	return [
+		nextThread,
+		...current.filter((thread) => thread.id !== nextThread.id),
+	];
 }
 
 export function applyConversationTitleFromEvent(
@@ -88,7 +97,7 @@ export function applyConversationTitleFromEvent(
 					...thread,
 					title: nextTitle,
 					updatedAt: new Date().toISOString(),
-			  }
+				}
 			: thread,
 	);
 }
@@ -105,7 +114,9 @@ export function preserveValidTitlesOnRefetch(
 		return nextThreads;
 	}
 
-	const previousById = new Map(previousThreads.map((thread) => [thread.id, thread]));
+	const previousById = new Map(
+		previousThreads.map((thread) => [thread.id, thread]),
+	);
 
 	return nextThreads.map((thread) => {
 		const prev = previousById.get(thread.id);

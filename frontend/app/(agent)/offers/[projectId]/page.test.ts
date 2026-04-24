@@ -201,7 +201,7 @@ describe("offer detail runtime behavior", () => {
 	});
 
 	it("prefers human-readable display title for detail header", async () => {
-		const pageModule = await import("./page");
+		const pageModule = await import("./offer-detail-utils");
 		expect(
 			pageModule.resolveOfferDetailHeaderTitle({
 				displayTitle: "Manual Offer - Q2",
@@ -218,7 +218,7 @@ describe("offer detail runtime behavior", () => {
 	});
 
 	it("falls back to generic Offer header when display title is missing", async () => {
-		const pageModule = await import("./page");
+		const pageModule = await import("./offer-detail-utils");
 		expect(
 			pageModule.resolveOfferDetailHeaderTitle({
 				displayTitle: null,

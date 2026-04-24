@@ -249,7 +249,9 @@ export function resolveCandidatesAfterFieldChange(params: {
 					...candidate,
 					locationId: value,
 					aiSuggestedLocationAccepted: false,
-					locationResolutionHint: value ? "none" : "missing",
+					locationResolutionHint: (value ? "none" : "missing") as
+						| "none"
+						| "missing",
 				};
 
 				if (
@@ -286,7 +288,7 @@ export function resolveCandidatesAfterFieldChange(params: {
 					aiSuggestedClientAccepted: true,
 					locationId: null,
 					aiSuggestedLocationAccepted: false,
-					locationResolutionHint: "missing",
+					locationResolutionHint: "missing" as const,
 					locationSuggestionLabel: null,
 				};
 
@@ -347,7 +349,7 @@ export function resolveCandidatesAfterFieldChange(params: {
 					aiSuggestedClientAccepted: false,
 					locationId: null,
 					aiSuggestedLocationAccepted: false,
-					locationResolutionHint: "missing",
+					locationResolutionHint: "missing" as const,
 					locationSuggestionLabel: null,
 				};
 

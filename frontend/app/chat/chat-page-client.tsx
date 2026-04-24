@@ -56,7 +56,10 @@ export function ChatPageClient({
 		queryKey: historyQueryKey,
 		enabled: shouldLoadPersistedHistory,
 		queryFn: () =>
-			reloadPersistedThreadHistory(routeThreadId as string, historyRequestOptions),
+			reloadPersistedThreadHistory(
+				routeThreadId as string,
+				historyRequestOptions,
+			),
 	});
 
 	useEffect(() => {

@@ -351,7 +351,7 @@ export const PromptInputAttachments = ({
 	children,
 	variant = "inline",
 	...props
-}: PromptInputAttachmentsProps): JSX.Element | null => {
+}: PromptInputAttachmentsProps): ReactNode => {
 	const attachments = usePromptInputAttachments();
 
 	if (attachments.files.length === 0) {
@@ -379,7 +379,7 @@ export const PromptInputAttachment = ({
 	data,
 	onRemove,
 	...props
-}: PromptInputAttachmentProps): JSX.Element => {
+}: PromptInputAttachmentProps): ReactNode => {
 	const attachments = usePromptInputAttachments();
 
 	const handleRemove = useCallback((): void => {
@@ -399,7 +399,7 @@ export type PromptInputAttachmentPreviewProps = ComponentProps<
 
 export const PromptInputAttachmentPreview = (
 	props: PromptInputAttachmentPreviewProps,
-): JSX.Element => <AttachmentItemPreview {...props} />;
+): ReactNode => <AttachmentItemPreview {...props} />;
 
 export type PromptInputAttachmentRemoveProps = ComponentProps<
 	typeof AttachmentItemRemove
@@ -407,7 +407,7 @@ export type PromptInputAttachmentRemoveProps = ComponentProps<
 
 export const PromptInputAttachmentRemove = (
 	props: PromptInputAttachmentRemoveProps,
-): JSX.Element => <AttachmentItemRemove {...props} />;
+): ReactNode => <AttachmentItemRemove {...props} />;
 
 export const PromptInputActionAddAttachments = ({
 	label = "Add photos or files",
@@ -420,7 +420,7 @@ export const PromptInputActionAddAttachments = ({
 	}, [attachments]);
 
 	const handleSelect = useCallback(
-		(e: Event) => {
+		(e: { preventDefault: () => void }) => {
 			openDialog();
 			e.preventDefault();
 		},
@@ -440,7 +440,7 @@ export const PromptInputActionAddAttachments = ({
 			{...props}
 			className={cn("whitespace-nowrap", props.className)}
 			onClick={handleClick}
-			onSelect={handleSelect}
+			onSelect={handleSelect as never}
 		>
 			<ImageIcon className="mr-2 size-4" /> {label}
 		</DropdownMenuItem>
@@ -1219,7 +1219,7 @@ export const PromptInputSubmit = ({
 				onStop();
 				return;
 			}
-			onClick?.(e);
+			onClick?.(e as never);
 		},
 		[isGenerating, onStop, onClick],
 	);
@@ -1228,7 +1228,7 @@ export const PromptInputSubmit = ({
 		<InputGroupButton
 			aria-label={isGenerating ? "Stop" : "Submit"}
 			className={cn(className)}
-			onClick={handleClick}
+			onClick={handleClick as never}
 			size={size}
 			type={isGenerating && onStop ? "button" : "submit"}
 			variant={variant}
@@ -1294,12 +1294,8 @@ export const PromptInputSelectValue = ({
 
 export type PromptInputHoverCardProps = ComponentProps<typeof HoverCard>;
 
-export const PromptInputHoverCard = ({
-	openDelay = 0,
-	closeDelay = 0,
-	...props
-}: PromptInputHoverCardProps) => (
-	<HoverCard closeDelay={closeDelay} openDelay={openDelay} {...props} />
+export const PromptInputHoverCard = (props: PromptInputHoverCardProps) => (
+	<HoverCard {...props} />
 );
 
 export type PromptInputHoverCardTriggerProps = ComponentProps<

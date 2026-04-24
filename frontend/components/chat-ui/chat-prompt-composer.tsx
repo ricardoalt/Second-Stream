@@ -42,9 +42,15 @@ type ChatPromptComposerProps = {
 	textareaClassName: string;
 };
 
-type PromptInputErrorCode = "max_files" | "max_file_size" | "accept" | "read_failed";
+type PromptInputErrorCode =
+	| "max_files"
+	| "max_file_size"
+	| "accept"
+	| "read_failed";
 
-export const getAttachmentValidationMessage = (code: PromptInputErrorCode): string => {
+export const getAttachmentValidationMessage = (
+	code: PromptInputErrorCode,
+): string => {
 	switch (code) {
 		case "max_file_size":
 			return "Each file must be 4MB or smaller.";
@@ -67,6 +73,7 @@ function PromptComposerStateWatcher({
 	const attachments = usePromptInputAttachments();
 	const { textInput } = usePromptInputController();
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: attachments.files.length and textInput.value are intentional trigger deps — effect fires onComposerChange when either changes
 	useEffect(() => {
 		onComposerChange();
 	}, [attachments.files.length, onComposerChange, textInput.value]);
@@ -99,12 +106,25 @@ function PromptInputAttachmentsHeader(): React.JSX.Element | null {
 	);
 }
 
-function PromptSubmitButton({ status }: { status: ChatStatus }): React.JSX.Element {
+function PromptSubmitButton({
+	status,
+}: {
+	status: ChatStatus;
+}): React.JSX.Element {
 	const { textInput } = usePromptInputController();
-	return <PromptInputSubmit disabled={textInput.value.trim().length === 0} status={status} />;
+	return (
+		<PromptInputSubmit
+			disabled={textInput.value.trim().length === 0}
+			status={status}
+		/>
+	);
 }
 
-function DraftSync({ onTextChange }: { onTextChange: (value: string) => void }) {
+function DraftSync({
+	onTextChange,
+}: {
+	onTextChange: (value: string) => void;
+}) {
 	const { textInput } = usePromptInputController();
 	const previousValueRef = useRef(textInput.value);
 
@@ -135,11 +155,7 @@ export function ChatPromptComposer({
 		async (message: PromptInputMessage): Promise<void> => {
 			setAttachmentError(null);
 			draft.clear();
-			await onSubmitMessage({
-				...message,
-				modelId: draft.modelId,
-				webSearchEnabled: false,
-			});
+			await onSubmitMessage(message);
 		},
 		[draft, onSubmitMessage],
 	);

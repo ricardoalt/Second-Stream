@@ -18,7 +18,7 @@ describe("chat thread scope resolver", () => {
 	});
 
 	it("usa fallback explícito cuando no hay selected org en storage", () => {
-			expect(
+		expect(
 			resolveChatThreadOrganizationId({
 				storageOrganizationId: null,
 				selectedOrgId: null,

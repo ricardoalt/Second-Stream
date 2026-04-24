@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const PROMPTS = [
@@ -109,9 +109,7 @@ export function ChatEmptyGreeting() {
 				aria-live="polite"
 				aria-label="Example prompts"
 			>
-				<span className="text-base text-muted-foreground">
-					{displayText}
-				</span>
+				<span className="text-base text-muted-foreground">{displayText}</span>
 				<span
 					className="ml-px inline-block h-[1.1em] w-[2px] translate-y-[1px] rounded-full bg-primary"
 					style={{ opacity: showCursor ? 1 : 0 }}

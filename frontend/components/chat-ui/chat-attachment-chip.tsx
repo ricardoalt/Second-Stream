@@ -119,7 +119,7 @@ export function ChatAttachmentChip({
 					data={{
 						id: attachmentId ?? url,
 						type: "file",
-						filename,
+						filename: filename ?? "unnamed",
 						mediaType,
 						url,
 					}}

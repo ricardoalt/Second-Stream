@@ -14,7 +14,7 @@ interface PrepareBridgeSendRequestOptions {
 	organizationId: string | null;
 	messages: MyUIMessage[];
 	existingAttachmentIds?: string[];
-	headers?: HeadersInit;
+	headers?: HeadersInit | undefined;
 }
 
 interface CreateChatBridgeTransportOptions {
@@ -69,7 +69,7 @@ export function prepareBridgeSendRequest(
 	api: string;
 	body: {
 		messages: MyUIMessage[];
-		existingAttachmentIds?: string[];
+		existingAttachmentIds?: string[] | undefined;
 	};
 	headers: Record<string, string>;
 } {
@@ -80,7 +80,7 @@ export function prepareBridgeSendRequest(
 
 	const body: {
 		messages: MyUIMessage[];
-		existingAttachmentIds?: string[];
+		existingAttachmentIds?: string[] | undefined;
 	} = {
 		messages: options.messages,
 	};

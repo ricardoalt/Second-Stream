@@ -49,12 +49,15 @@ export function groupByDate<T>(
 			buckets.set(key, []);
 			orderedKeys.push(key);
 		}
-		buckets.get(key)!.push(item);
+		const bucket = buckets.get(key);
+		if (bucket) {
+			bucket.push(item);
+		}
 	}
 
 	return orderedKeys.map((key) => ({
 		label: key,
-		items: buckets.get(key)!,
+		items: buckets.get(key) ?? [],
 	}));
 }
 

@@ -590,7 +590,7 @@ export function StreamDetailPageContent({ id }: { id: string }) {
 		try {
 			const response = await workspaceAPI.completeDiscovery(id);
 			const href = buildOfferDetailHandoffHref({
-				offerId: response.offer.offerId,
+				offerId: response.offer.projectId,
 				insightsRefreshFailed: response.insightsRefreshFailed,
 			});
 			setCompleteDiscoveryModalOpen(false);

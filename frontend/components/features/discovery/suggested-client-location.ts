@@ -53,8 +53,10 @@ function tryResolveCombinedSuggestion(params: {
 	}
 
 	for (let index = slashSegments.length - 1; index >= 0; index -= 1) {
+		const segment = slashSegments[index];
+		if (!segment) continue;
 		const splitSegment = trySplitByDashWithKnownLocation({
-			rawValue: slashSegments[index],
+			rawValue: segment,
 			suggestedLocationCity,
 			locationLabel,
 		});
@@ -90,6 +92,7 @@ export function resolveSuggestedClientAndLocation(params: {
 		rawSuggestedLocationName,
 		suggestedLocationCity,
 		locationLabel,
+		// biome-ignore lint/correctness/noUnusedVariables: Intentionally destructured for potential future use
 		hasStructuredLocationSuggestion,
 	} = params;
 

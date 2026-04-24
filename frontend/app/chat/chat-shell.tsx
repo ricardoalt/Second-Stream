@@ -4,11 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AppSidebar } from "@/components/chat-ui/app-sidebar";
 import { ChatPageClient } from "./chat-page-client";
 
-export function ChatShell({
-	routeThreadId,
-}: {
-	routeThreadId: string | null;
-}) {
+export function ChatShell({ routeThreadId }: { routeThreadId: string | null }) {
 	const [activeThreadId, setActiveThreadId] = useState<string | undefined>(
 		routeThreadId ?? undefined,
 	);

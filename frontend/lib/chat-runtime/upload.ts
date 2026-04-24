@@ -32,8 +32,12 @@ export async function uploadAttachmentsFromPromptMessage(
 	}
 
 	if (totalBytes > MAX_TOTAL_ATTACHMENT_BYTES_PER_REQUEST) {
-		const maxMb = Math.floor(MAX_TOTAL_ATTACHMENT_BYTES_PER_REQUEST / (1024 * 1024));
-		throw new Error(`Total attachments must be ${maxMb}MB or smaller per message.`);
+		const maxMb = Math.floor(
+			MAX_TOTAL_ATTACHMENT_BYTES_PER_REQUEST / (1024 * 1024),
+		);
+		throw new Error(
+			`Total attachments must be ${maxMb}MB or smaller per message.`,
+		);
 	}
 
 	const attachmentIds: string[] = [];

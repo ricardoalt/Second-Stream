@@ -91,6 +91,7 @@ const renderAttachmentImage = (
 	isGrid: boolean,
 ) =>
 	isGrid ? (
+		// biome-ignore lint/performance/noImgElement: Attachment images use dynamic/external URLs, not suitable for Next.js Image optimization
 		<img
 			alt={filename || "Image"}
 			className="size-full object-cover"
@@ -99,6 +100,7 @@ const renderAttachmentImage = (
 			width={96}
 		/>
 	) : (
+		// biome-ignore lint/performance/noImgElement: Attachment images use dynamic/external URLs, not suitable for Next.js Image optimization
 		<img
 			alt={filename || "Image"}
 			className="size-full rounded object-cover"
@@ -121,7 +123,7 @@ const AttachmentsContext = createContext<AttachmentsContextValue | null>(null);
 interface AttachmentContextValue {
 	data: AttachmentData;
 	mediaCategory: AttachmentMediaCategory;
-	onRemove?: () => void;
+	onRemove?: (() => void) | undefined;
 	variant: AttachmentVariant;
 }
 
@@ -371,12 +373,8 @@ export const AttachmentRemove = ({
 
 export type AttachmentHoverCardProps = ComponentProps<typeof HoverCard>;
 
-export const AttachmentHoverCard = ({
-	openDelay = 0,
-	closeDelay = 0,
-	...props
-}: AttachmentHoverCardProps) => (
-	<HoverCard closeDelay={closeDelay} openDelay={openDelay} {...props} />
+export const AttachmentHoverCard = (props: AttachmentHoverCardProps) => (
+	<HoverCard {...props} />
 );
 
 export type AttachmentHoverCardTriggerProps = ComponentProps<

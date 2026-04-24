@@ -237,7 +237,10 @@ export function AppSidebar({
 		queryFn: () => listChatThreads(listThreadsOptions),
 		placeholderData: (previousThreads) => previousThreads,
 		structuralSharing: (oldData, newData) =>
-			preserveValidTitlesOnRefetch(oldData, newData),
+			preserveValidTitlesOnRefetch(
+				oldData as ChatThreadSummaryDTO[] | undefined,
+				newData as ChatThreadSummaryDTO[] | undefined,
+			),
 	});
 
 	const sortedThreads = sortThreadsByRecency(threads);

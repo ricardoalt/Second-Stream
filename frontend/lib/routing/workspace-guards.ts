@@ -4,11 +4,8 @@ type MinimalUser = {
 };
 
 export function getPostAuthLandingPath(user: MinimalUser | null): string {
-	if (user?.isSuperuser) {
-		return "/dashboard";
-	}
-
-	return "/dashboard";
+	void user;
+	return "/chat";
 }
 
 export function getAdminRedirectPath(user: MinimalUser | null): string | null {

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 
-const offerDetailPageModule = await import("./page");
+const offerDetailPageModule = await import("./offer-detail-utils");
 
 describe("offer detail handoff degraded-success notice", () => {
 	it("shows notice only when insightsRefreshFailed query param equals 1", () => {

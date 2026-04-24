@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import type { ChatThreadSummaryDTO } from "@/lib/api/chat";
 import {
-	applyProvisionalThreadFromPrompt,
 	applyConversationTitleFromEvent,
+	applyProvisionalThreadFromPrompt,
 	deriveProvisionalThreadTitleFromPrompt,
 	preserveValidTitlesOnRefetch,
 	upsertThreadFromEvent,

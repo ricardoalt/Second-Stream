@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:3000";
 
-const offersPageModule = await import("./page");
+const offersPageModule = await import("./offers-page-utils");
 
 describe("offers page manual create validation", () => {
 	it("returns validation errors for each required field when empty", () => {

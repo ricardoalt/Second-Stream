@@ -1,21 +1,23 @@
 "use client";
 
-import { BrainIcon, CheckIcon, LoaderIcon, XIcon } from "lucide-react";
+import { BrainIcon, CheckIcon, XIcon } from "lucide-react";
 import type { WorkingMemory } from "@/config/working-memory";
 import { cn } from "@/lib/utils";
 import { Shimmer } from "./shimmer";
 
 type WorkingMemoryUpdateProps = {
 	state: string;
-	input?: { memory: WorkingMemory };
+	input?: { memory: WorkingMemory } | undefined;
 	className?: string;
 };
 
 function formatMemorySummary(memory: WorkingMemory): string {
 	const parts: string[] = [];
-	if (memory.name) parts.push(`name: ${memory.name}`);
-	if (memory.traits?.length) parts.push(`traits: ${memory.traits.join(", ")}`);
-	if (memory.anythingElse) parts.push("notes updated");
+	if (memory.summary) parts.push(memory.summary);
+	if (memory.keyFacts?.length)
+		parts.push(`${memory.keyFacts.length} key facts`);
+	if (memory.preferences?.length)
+		parts.push(`${memory.preferences.length} preferences`);
 	return parts.length > 0 ? parts.join(" · ") : "memory updated";
 }
 

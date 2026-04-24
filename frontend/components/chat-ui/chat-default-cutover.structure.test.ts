@@ -31,9 +31,15 @@ describe("chat baseline simplificado", () => {
 	});
 
 	it("elimina wrappers viejos de runtime/presentación", () => {
-		expect(existsSync(join(ROOT, "components/chat-ui/message-parts.tsx"))).toBe(false);
-		expect(existsSync(join(ROOT, "lib/chat-runtime/first-turn-routing.ts"))).toBe(false);
-		expect(existsSync(join(ROOT, "lib/chat-runtime/thread-screen-state.ts"))).toBe(false);
+		expect(existsSync(join(ROOT, "components/chat-ui/message-parts.tsx"))).toBe(
+			false,
+		);
+		expect(
+			existsSync(join(ROOT, "lib/chat-runtime/first-turn-routing.ts")),
+		).toBe(false);
+		expect(
+			existsSync(join(ROOT, "lib/chat-runtime/thread-screen-state.ts")),
+		).toBe(false);
 
 		const chatInterface = read("components/chat-ui/chat-interface.tsx");
 		expect(chatInterface).not.toContain("thread-screen-state");

@@ -72,7 +72,7 @@ function UpdatedBadge({ change }: { change?: BriefChange | undefined }) {
 	}
 
 	return (
-		<HoverCard openDelay={200} closeDelay={100}>
+		<HoverCard openDelay={200}>
 			<HoverCardTrigger asChild>
 				<Badge
 					variant="primary-subtle"

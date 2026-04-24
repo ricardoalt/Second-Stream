@@ -150,14 +150,14 @@ describe("shared admin guard behavior", () => {
 
 	it("routes post-auth landing by role", () => {
 		expect(getPostAuthLandingPath({ role: "admin", isSuperuser: true })).toBe(
-			"/dashboard",
+			"/chat",
 		);
 		expect(
 			getPostAuthLandingPath({ role: "org_admin", isSuperuser: false }),
-		).toBe("/dashboard");
+		).toBe("/chat");
 		expect(
 			getPostAuthLandingPath({ role: "field_agent", isSuperuser: false }),
-		).toBe("/dashboard");
+		).toBe("/chat");
 	});
 });
 

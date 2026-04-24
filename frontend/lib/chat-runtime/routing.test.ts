@@ -11,7 +11,9 @@ describe("chat runtime routing", () => {
 	});
 
 	it("encodes special characters in thread id", () => {
-		expect(buildChatThreadUrl("thread with spaces")).toBe("/chat/thread%20with%20spaces");
+		expect(buildChatThreadUrl("thread with spaces")).toBe(
+			"/chat/thread%20with%20spaces",
+		);
 	});
 
 	it("trims whitespace from thread id", () => {
