@@ -516,11 +516,16 @@ class TestResolveAttachmentsToAgentInputForModel:
     """Tests for model-ready attachment materialization (S3 URI vs binary bytes)."""
 
     @pytest.mark.asyncio
-    async def test_pdf_prefers_s3_uri_when_s3_enabled(self, monkeypatch):
+    async def test_pdf_resolves_to_binary_content_even_when_s3_enabled(self, monkeypatch):
         from app.models.chat_attachment import ChatAttachment
 
-        monkeypatch.setattr("app.services.chat_stream_protocol.USE_S3", True)
-        monkeypatch.setattr("app.services.chat_stream_protocol.S3_BUCKET", "chat-bucket")
+        async def _fake_download(_key: str) -> bytes:
+            return b"%PDF-1.7"
+
+        monkeypatch.setattr(
+            "app.services.chat_stream_protocol.download_file_content",
+            _fake_download,
+        )
 
         attachment = ChatAttachment(
             organization_id=uuid.uuid4(),
@@ -535,8 +540,8 @@ class TestResolveAttachmentsToAgentInputForModel:
 
         result = await resolve_attachments_to_agent_input_for_model([attachment])
 
-        assert result[0].document_url == "s3://chat-bucket/chat/org/user/report.pdf"
-        assert result[0].binary_content is None
+        assert result[0].binary_content == b"%PDF-1.7"
+        assert result[0].document_url is None
 
     @pytest.mark.asyncio
     async def test_image_falls_back_to_binary_content_without_s3(self, monkeypatch):
@@ -612,6 +617,39 @@ class TestExtractLatestUserTextWithVercelAdapter:
         ]
 
         assert extract_latest_user_text_with_vercel_adapter(messages) == "último mensaje"
+
+    def test_falls_back_to_raw_user_text_when_adapter_cannot_parse_custom_parts(self):
+        messages = [
+            {
+                "id": "m1",
+                "role": "user",
+                "parts": [{"type": "text", "text": "primer mensaje"}],
+            },
+            {
+                "id": "m2",
+                "role": "assistant",
+                "parts": [
+                    {
+                        "type": "tool-webSearch",
+                        "state": "output-available",
+                        "output": [
+                            {
+                                "title": "Fuente",
+                                "url": "https://example.com",
+                                "content": "detalle",
+                            }
+                        ],
+                    }
+                ],
+            },
+            {
+                "id": "m3",
+                "role": "user",
+                "parts": [{"type": "text", "text": "segundo mensaje"}],
+            },
+        ]
+
+        assert extract_latest_user_text_with_vercel_adapter(messages) == "segundo mensaje"
 
 
 # ---------------------------------------------------------------------------

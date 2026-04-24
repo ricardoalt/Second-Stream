@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import structlog
 from pydantic import Field, ValidationError
@@ -55,18 +54,22 @@ chat_agent = Agent(
         provider=BedrockProvider(region_name=settings.AWS_REGION),
     ),
     deps_type=ChatAgentDeps,
-    output_type=ChatAgentOutput,
+    output_type=str,
     model_settings=ModelSettings(temperature=0.2),
     retries=2,
     system_prompt=load_chat_system_prompt(),
 )
 
 
-async def generate_chat_response(*, prompt: str, deps: ChatAgentDeps) -> ChatAgentOutput:
+async def generate_chat_response(
+    *,
+    prompt: str | list[str | UserContent],
+    deps: ChatAgentDeps,
+) -> ChatAgentOutput:
     """Run the chat agent with typed dependencies and validated output."""
     try:
         result = await chat_agent.run(prompt, deps=deps)
-        return ChatAgentOutput.model_validate(result.output)
+        return ChatAgentOutput(response_text=result.output.strip())
     except ValidationError as exc:
         logger.error(
             "chat_agent_result_validation_failed",
@@ -167,18 +170,35 @@ async def stream_chat_response(
 
     try:
         async with chat_agent.run_stream(runtime_input, deps=deps) as streamed_result:
-            accumulated_chunks: list[str] = []
-            async for delta in streamed_result.stream_text(delta=True):
+            accumulated_text = ""
+            async for streamed_text in streamed_result.stream_text(delta=True, debounce_by=None):
+                if not streamed_text:
+                    continue
+
+                # Compatibility path:
+                # - Preferred mode (delta=True): providers emit incremental chunks.
+                # - Fallback mode: some providers still emit cumulative snapshots.
+                # Normalize both to incremental deltas for the UI stream.
+                if accumulated_text and streamed_text.startswith(accumulated_text):
+                    delta = streamed_text[len(accumulated_text):]
+                    accumulated_text = streamed_text
+                else:
+                    delta = streamed_text
+                    accumulated_text = f"{accumulated_text}{streamed_text}"
+
                 if not delta:
                     continue
+
                 emitted_delta = True
-                accumulated_chunks.append(delta)
                 yield {"event": "delta", "delta": delta}
 
-            response_text = "".join(accumulated_chunks).strip()
+            response_text = accumulated_text.strip()
             if not response_text:
-                output: Any = streamed_result.get_output()
-                response_text = ChatAgentOutput.model_validate(output).response_text
+                output = streamed_result.get_output()
+                response_text = str(output).strip()
+                if response_text:
+                    emitted_delta = True
+                    yield {"event": "delta", "delta": response_text}
 
             yield {"event": "completed", "response_text": response_text}
             return
@@ -203,7 +223,6 @@ async def stream_chat_response(
             error=str(exc),
         )
 
-    fallback_prompt = _build_runtime_prompt(prompt=prompt, attachments=attachments)
-    fallback_output = await generate_chat_response(prompt=fallback_prompt, deps=deps)
+    fallback_output = await generate_chat_response(prompt=runtime_input, deps=deps)
     yield {"event": "delta", "delta": fallback_output.response_text}
     yield {"event": "completed", "response_text": fallback_output.response_text}

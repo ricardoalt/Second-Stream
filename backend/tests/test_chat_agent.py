@@ -24,7 +24,7 @@ async def test_generate_chat_response_uses_typed_deps_and_validates_output(monke
     async def _fake_run(prompt, *, deps):
         captured["prompt"] = prompt
         captured["deps"] = deps
-        return SimpleNamespace(output={"response_text": "Here is the answer."})
+        return SimpleNamespace(output="Here is the answer.")
 
     monkeypatch.setattr(chat_agent_module.chat_agent, "run", _fake_run)
 
@@ -47,7 +47,7 @@ async def test_generate_chat_response_uses_typed_deps_and_validates_output(monke
 @pytest.mark.asyncio
 async def test_generate_chat_response_wraps_result_schema_validation_errors(monkeypatch):
     async def _fake_run(*_args, **_kwargs):
-        return SimpleNamespace(output={"response_text": ""})
+        return SimpleNamespace(output="")
 
     monkeypatch.setattr(chat_agent_module.chat_agent, "run", _fake_run)
 
@@ -89,11 +89,12 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
     class _FakeStreamResult:
         async def stream_text(self, *, delta: bool, debounce_by: float | None = 0.1):
             assert delta is True
+            assert debounce_by is None
             yield "First "
-            yield "chunk"
+            yield "First chunk"
 
         def get_output(self):
-            return ChatAgentOutput(response_text="First chunk")
+            return "First chunk"
 
     class _FakeRunStream:
         async def __aenter__(self):
@@ -145,14 +146,68 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
 
 @pytest.mark.asyncio
 async def test_stream_chat_response_falls_back_to_non_stream_run_when_streaming_unavailable(monkeypatch):
+    captured: dict[str, object] = {}
+
     def _broken_run_stream(*_args, **_kwargs):
         raise RuntimeError("stream unavailable")
 
     async def _fallback_run(prompt, *, deps):
-        return SimpleNamespace(output={"response_text": "Fallback answer"})
+        captured["prompt"] = prompt
+        captured["deps"] = deps
+        return SimpleNamespace(output="Fallback answer")
 
     monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream", _broken_run_stream)
     monkeypatch.setattr(chat_agent_module.chat_agent, "run", _fallback_run)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[
+                ChatAgentAttachmentInput(
+                    attachment_id="att-pdf",
+                    media_type="application/pdf",
+                    filename="report.pdf",
+                    binary_content=b"%PDF-1.7",
+                )
+            ],
+        )
+    ]
+
+    assert events == [
+        {"event": "delta", "delta": "Fallback answer"},
+        {"event": "completed", "response_text": "Fallback answer"},
+    ]
+    assert isinstance(captured["prompt"], list)
+    assert isinstance(captured["prompt"][1], BinaryContent)
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_emits_delta_when_stream_returns_only_terminal_output(monkeypatch):
+    class _FakeStreamResult:
+        async def stream_text(self, *, delta: bool, debounce_by: float | None = 0.1):
+            if False:
+                yield ""
+
+        def get_output(self):
+            return "Respuesta completa"
+
+    class _FakeRunStream:
+        async def __aenter__(self):
+            return _FakeStreamResult()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream", lambda *_args, **_kwargs: _FakeRunStream())
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -171,8 +226,8 @@ async def test_stream_chat_response_falls_back_to_non_stream_run_when_streaming_
     ]
 
     assert events == [
-        {"event": "delta", "delta": "Fallback answer"},
-        {"event": "completed", "response_text": "Fallback answer"},
+        {"event": "delta", "delta": "Respuesta completa"},
+        {"event": "completed", "response_text": "Respuesta completa"},
     ]
 
 
@@ -185,6 +240,23 @@ def test_build_runtime_user_content_uses_binary_for_local_image_attachment():
                 media_type="image/png",
                 filename="image.png",
                 binary_content=b"PNG",
+            )
+        ],
+    )
+
+    assert isinstance(runtime_input, list)
+    assert isinstance(runtime_input[1], BinaryContent)
+
+
+def test_build_runtime_user_content_uses_binary_for_pdf_attachment_when_bytes_available():
+    runtime_input = _build_runtime_user_content(
+        prompt="Analiza el PDF",
+        attachments=[
+            ChatAgentAttachmentInput(
+                attachment_id="att-pdf",
+                media_type="application/pdf",
+                filename="report.pdf",
+                binary_content=b"%PDF-1.7",
             )
         ],
     )

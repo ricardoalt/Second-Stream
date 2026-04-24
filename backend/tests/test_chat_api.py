@@ -632,3 +632,62 @@ async def test_chat_stream_derives_content_text_from_ai_sdk_messages_payload(
 
     assert response.status_code == 200
     assert "texto desde messages" in captured["prompt"]
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_derives_content_text_on_second_turn_with_custom_assistant_parts(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+    monkeypatch,
+):
+    _org, _user = await _create_authed_user(db_session, set_current_user)
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Second Turn Messages"})
+    thread_id = create_thread.json()["id"]
+
+    captured: dict[str, str] = {}
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        captured["prompt"] = prompt
+        yield {"event": "delta", "delta": "ok"}
+        yield {"event": "completed", "response_text": "ok"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
+
+    response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={
+            "messages": [
+                {
+                    "id": "m-user-1",
+                    "role": "user",
+                    "parts": [{"type": "text", "text": "primer turno"}],
+                },
+                {
+                    "id": "m-assistant-1",
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool-webSearch",
+                            "state": "output-available",
+                            "output": [
+                                {
+                                    "title": "Fuente",
+                                    "url": "https://example.com",
+                                    "content": "contenido",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "id": "m-user-2",
+                    "role": "user",
+                    "parts": [{"type": "text", "text": "segundo turno"}],
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert "segundo turno" in captured["prompt"]

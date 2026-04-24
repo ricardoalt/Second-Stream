@@ -17,7 +17,7 @@ from typing import Any
 
 import structlog
 
-from app.services.s3_service import S3_BUCKET, USE_S3, download_file_content
+from app.services.s3_service import download_file_content
 
 logger = structlog.get_logger(__name__)
 
@@ -209,15 +209,6 @@ def _normalize_media_type(media_type: str | None) -> str:
     return media_type.split(";", 1)[0].strip().lower()
 
 
-def _build_s3_uri(storage_key: str | None) -> str | None:
-    if not USE_S3 or not storage_key:
-        return None
-    bucket = (S3_BUCKET or "").strip()
-    if not bucket:
-        return None
-    return f"s3://{bucket}/{storage_key}"
-
-
 def _decode_text_attachment(content: bytes) -> str | None:
     decoded = content.decode("utf-8", errors="replace").strip()
     return decoded or None
@@ -230,10 +221,14 @@ async def resolve_attachments_to_agent_input_for_model(
 
     Strategy:
     - `text/*`: use extracted text when available; otherwise decode downloaded bytes.
-    - `application/pdf` and `image/*`:
-      - S3 mode: prefer remote `s3://bucket/key` reference as `document_url`.
-      - Local/dev mode: download bytes and expose `binary_content`.
+    - `application/pdf` and `image/*`: download bytes and expose `binary_content`
+      as the primary path (most reliable Bedrock/Pydantic input).
     - Other media types: keep metadata only.
+
+    Note:
+    - We intentionally do not default to `document_url=s3://...` because runtime
+      analysis reliability depends on provider-side S3 access configuration.
+      For P0 correctness, direct bytes in request is the default.
     """
 
     resolved: list[ChatAgentAttachmentInput] = []
@@ -285,20 +280,6 @@ async def resolve_attachments_to_agent_input_for_model(
             continue
 
         if is_binary_doc:
-            s3_uri = _build_s3_uri(storage_key)
-            if s3_uri:
-                resolved.append(
-                    ChatAgentAttachmentInput(
-                        attachment_id=base.attachment_id,
-                        media_type=base.media_type,
-                        filename=base.filename,
-                        document_url=s3_uri,
-                        uploaded_file_ref=s3_uri,
-                        extracted_text=base.extracted_text,
-                    )
-                )
-                continue
-
             if storage_key:
                 try:
                     binary_content = await download_file_content(storage_key)
@@ -323,7 +304,7 @@ async def resolve_attachments_to_agent_input_for_model(
                     )
                     continue
 
-        resolved.append(base)
+            resolved.append(base)
 
     return resolved
 
@@ -338,6 +319,35 @@ def extract_latest_user_text_with_vercel_adapter(messages: list[dict[str, Any]])
     if not messages:
         return None
 
+    def _extract_from_raw_ui_messages(raw_messages: list[dict[str, Any]]) -> str | None:
+        for raw_message in reversed(raw_messages):
+            if raw_message.get("role") != "user":
+                continue
+
+            parts = raw_message.get("parts")
+            if not isinstance(parts, list):
+                continue
+
+            text_segments: list[str] = []
+            for part in parts:
+                if not isinstance(part, dict):
+                    continue
+                if part.get("type") != "text":
+                    continue
+
+                text_value = part.get("text")
+                if isinstance(text_value, str) and text_value.strip():
+                    text_segments.append(text_value)
+
+            if not text_segments:
+                continue
+
+            normalized = "\n".join(segment.strip() for segment in text_segments if segment.strip()).strip()
+            if normalized:
+                return normalized
+
+        return None
+
     try:
         from pydantic import TypeAdapter
         from pydantic_ai.messages import ModelRequest, UserPromptPart
@@ -347,7 +357,7 @@ def extract_latest_user_text_with_vercel_adapter(messages: list[dict[str, Any]])
         ui_messages = TypeAdapter(list[UIMessage]).validate_python(messages)
         model_messages = VercelAIAdapter.load_messages(ui_messages)
     except Exception:
-        return None
+        return _extract_from_raw_ui_messages(messages)
 
     for model_message in reversed(model_messages):
         if not isinstance(model_message, ModelRequest):
@@ -370,4 +380,4 @@ def extract_latest_user_text_with_vercel_adapter(messages: list[dict[str, Any]])
             if normalized:
                 return normalized
 
-    return None
+    return _extract_from_raw_ui_messages(messages)
