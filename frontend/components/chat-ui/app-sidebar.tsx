@@ -20,6 +20,7 @@ import { useAuth } from "@/lib/contexts";
 import { groupByDate } from "@/lib/date-utils";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
 import { ChatSearch } from "./chat-search";
+import { OpenChatLogo } from "./openchat-logo";
 import { SettingsDialog } from "./settings-dialog";
 import {
 	DropdownMenu,
@@ -150,9 +151,7 @@ export function AppSidebar({
 			<Sidebar collapsible="icon" {...props}>
 				<SidebarHeader className="px-3 pt-3 group-data-[collapsible=icon]:px-0">
 					<div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
-						<div className="size-9 shrink-0 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold group-data-[collapsible=icon]:size-8">
-							S
-						</div>
+						<OpenChatLogo className="h-8 w-auto max-w-[160px] shrink-0 group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:max-w-[120px]" />
 						<SidebarTrigger className="group-data-[collapsible=icon]:hidden" />
 					</div>
 				</SidebarHeader>
