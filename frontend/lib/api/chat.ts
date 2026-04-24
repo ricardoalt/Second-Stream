@@ -22,6 +22,10 @@ interface ChatThreadListResponseDTO {
 	items?: ChatThreadSummaryDTO[];
 }
 
+interface RenameChatThreadRequestDTO {
+	title: string;
+}
+
 interface ListChatThreadsOptions {
 	organizationId?: string | null;
 }
@@ -33,6 +37,64 @@ interface ChatAttachmentDTO {
 	contentType: string | null;
 	sizeBytes: number;
 	createdAt: string;
+}
+
+const CHAT_API_BASE_URL = (
+	process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8001/api/v1"
+).replace(/\/$/, "");
+
+const CHAT_ATTACHMENT_DOWNLOAD_PATH_REGEX =
+	/\/chat\/attachments\/([^/]+)\/download\/?$/;
+
+function buildChatAttachmentDownloadPath(attachmentId: string): string {
+	return `/chat/attachments/${attachmentId}/download`;
+}
+
+export function buildChatAttachmentDownloadUrl(attachmentId: string): string {
+	return `${CHAT_API_BASE_URL}${buildChatAttachmentDownloadPath(attachmentId)}`;
+}
+
+export function getChatAttachmentIdFromDownloadUrl(
+	downloadUrl: string,
+): string | null {
+	try {
+		const parsed = new URL(downloadUrl, CHAT_API_BASE_URL);
+		const pathMatch = parsed.pathname.match(
+			CHAT_ATTACHMENT_DOWNLOAD_PATH_REGEX,
+		);
+		if (!pathMatch) {
+			return null;
+		}
+
+		const rawAttachmentId = pathMatch[1];
+		if (!rawAttachmentId) {
+			return null;
+		}
+
+		return decodeURIComponent(rawAttachmentId);
+	} catch {
+		return null;
+	}
+}
+
+interface DownloadChatAttachmentOptions {
+	organizationId?: string | null;
+}
+
+export async function downloadChatAttachment(
+	attachmentId: string,
+	options: DownloadChatAttachmentOptions = {},
+): Promise<Blob> {
+	return apiClient.downloadBlob(
+		buildChatAttachmentDownloadPath(attachmentId),
+		options.organizationId
+			? {
+					headers: {
+						"X-Organization-Id": options.organizationId,
+					},
+				}
+			: undefined,
+	);
 }
 
 interface ChatMessageDTO {
@@ -79,7 +141,23 @@ export async function fetchChatThreadDetail(
 		options.organizationId
 			? {
 					"X-Organization-Id": options.organizationId,
-			  }
+				}
+			: undefined,
+	);
+}
+
+export async function renameChatThread(
+	threadId: string,
+	title: string,
+	options: ListChatThreadsOptions = {},
+): Promise<ChatThreadSummaryDTO> {
+	return apiClient.patch<ChatThreadSummaryDTO>(
+		`/chat/threads/${threadId}`,
+		{ title } satisfies RenameChatThreadRequestDTO,
+		options.organizationId
+			? {
+					"X-Organization-Id": options.organizationId,
+				}
 			: undefined,
 	);
 }
@@ -99,7 +177,7 @@ export async function reloadPersistedThreadHistory(
 				type: "file" as const,
 				filename: attachment.originalFilename,
 				mediaType: attachment.contentType ?? "application/octet-stream",
-				url: `attachment://${attachment.id}`,
+				url: buildChatAttachmentDownloadUrl(attachment.id),
 			})),
 		],
 		createdAt: message.createdAt,

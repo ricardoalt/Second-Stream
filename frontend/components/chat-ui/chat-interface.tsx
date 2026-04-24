@@ -3,6 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
+import Image from "next/image";
 import { useCallback, useMemo, useState } from "react";
 import {
 	Conversation,
@@ -11,14 +12,17 @@ import {
 } from "@/components/ai-elements/conversation";
 import {
 	Message,
+	MessageActions,
 	MessageContent,
 	MessageResponse,
+	MessageToolbar,
 } from "@/components/ai-elements/message";
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { WorkingMemoryUpdate } from "@/components/chat-ui/ai-elements/working-memory-update";
 import {
 	buildChatThreadsQueryKey,
 	type ChatThreadSummaryDTO,
+	getChatAttachmentIdFromDownloadUrl,
 } from "@/lib/api/chat";
 import { createChatBridgeTransport } from "@/lib/chat-bridge/transport";
 import {
@@ -26,8 +30,8 @@ import {
 	shouldShowLoadingShimmer,
 } from "@/lib/chat-runtime/chat-utils";
 import {
-	applyProvisionalThreadFromPrompt,
 	applyConversationTitleFromEvent,
+	applyProvisionalThreadFromPrompt,
 	deriveProvisionalThreadTitleFromPrompt,
 	upsertThreadFromEvent,
 } from "@/lib/chat-runtime/sidebar-events";
@@ -51,7 +55,11 @@ import {
 } from "./ai-elements/reasoning";
 import { Shimmer } from "./ai-elements/shimmer";
 import { Source, SourceContent, SourceTrigger } from "./ai-elements/sources";
+import { ChatAttachmentChip } from "./chat-attachment-chip";
 import { ChatPromptComposer } from "./chat-prompt-composer";
+import { CopyButton } from "./copy-button";
+import { RegenerateButton } from "./regenerate-button";
+import { Button } from "./ui/button";
 
 export interface ChatInterfaceProps {
 	threadId: string;
@@ -94,42 +102,50 @@ export function ChatInterface({
 		[chatThreadScope.organizationId, threadId],
 	);
 
-	const { messages, sendMessage, status, error, clearError } =
-		useChat<MyUIMessage>({
-			id: threadId,
-			messages: initialMessages,
-			transport,
-			onFinish: () => {
-				void queryClient.refetchQueries({
-					queryKey: chatThreadsQueryKey,
-					exact: true,
-				});
-			},
-			onData: (part) => {
-				if (part.type === DATA_NEW_THREAD_CREATED_PART) {
-					const eventPart = part as NewThreadCreatedDataPart;
-					if (eventPart.data.threadId !== threadId) {
-						return;
-					}
-
-					queryClient.setQueryData<ChatThreadSummaryDTO[]>(
-						chatThreadsQueryKey,
-						(old) => upsertThreadFromEvent(old, eventPart),
-					);
-
-					onThreadCreated?.(eventPart.data.threadId);
+	const {
+		messages,
+		sendMessage,
+		stop,
+		regenerate,
+		setMessages,
+		status,
+		error,
+		clearError,
+	} = useChat<MyUIMessage>({
+		id: threadId,
+		messages: initialMessages,
+		transport,
+		onFinish: () => {
+			void queryClient.refetchQueries({
+				queryKey: chatThreadsQueryKey,
+				exact: true,
+			});
+		},
+		onData: (part) => {
+			if (part.type === DATA_NEW_THREAD_CREATED_PART) {
+				const eventPart = part as NewThreadCreatedDataPart;
+				if (eventPart.data.threadId !== threadId) {
 					return;
 				}
 
-				if (part.type === DATA_CONVERSATION_TITLE_PART) {
-					const eventPart = part as ConversationTitleDataPart;
-					queryClient.setQueryData<ChatThreadSummaryDTO[]>(
-						chatThreadsQueryKey,
-						(old) => applyConversationTitleFromEvent(old, eventPart),
-					);
-				}
-			},
-		});
+				queryClient.setQueryData<ChatThreadSummaryDTO[]>(
+					chatThreadsQueryKey,
+					(old) => upsertThreadFromEvent(old, eventPart),
+				);
+
+				onThreadCreated?.(eventPart.data.threadId);
+				return;
+			}
+
+			if (part.type === DATA_CONVERSATION_TITLE_PART) {
+				const eventPart = part as ConversationTitleDataPart;
+				queryClient.setQueryData<ChatThreadSummaryDTO[]>(
+					chatThreadsQueryKey,
+					(old) => applyConversationTitleFromEvent(old, eventPart),
+				);
+			}
+		},
+	});
 
 	const handleSubmitMessage = useCallback(
 		async (message: PromptInputMessage) => {
@@ -140,7 +156,8 @@ export function ChatInterface({
 
 			const promptText = message.text.trim();
 			const nowIsoString = new Date().toISOString();
-			const provisionalTitle = deriveProvisionalThreadTitleFromPrompt(promptText);
+			const provisionalTitle =
+				deriveProvisionalThreadTitleFromPrompt(promptText);
 
 			queryClient.setQueryData<ChatThreadSummaryDTO[]>(
 				chatThreadsQueryKey,
@@ -190,16 +207,12 @@ export function ChatInterface({
 				);
 			}
 		},
-		[
-			chatThreadsQueryKey,
-			clearError,
-			queryClient,
-			sendMessage,
-			threadId,
-		],
+		[chatThreadsQueryKey, clearError, queryClient, sendMessage, threadId],
 	);
 
 	const isEmptyState = messages.length === 0;
+	const isStreamingOrSubmitted =
+		status === "submitted" || status === "streaming";
 	const showShimmer = shouldShowLoadingShimmer(status, messages);
 	const visibleError = submitError ?? error?.message ?? null;
 
@@ -262,32 +275,34 @@ export function ChatInterface({
 														case "file": {
 															const isImage =
 																part.mediaType.startsWith("image/");
+															const persistedAttachmentId =
+																getChatAttachmentIdFromDownloadUrl(part.url);
 
-															if (isImage) {
+															if (isImage && !persistedAttachmentId) {
 																return (
 																	<div
 																		key={`${message.id}-${partIndex}`}
 																		className="mb-2"
 																	>
-																		<img
+																		<Image
 																			alt={part.filename ?? "Uploaded image"}
 																			className="max-h-80 rounded-lg border object-contain"
 																			src={part.url}
+																			width={1280}
+																			height={960}
+																			unoptimized
 																		/>
 																	</div>
 																);
 															}
 
 															return (
-																<div
+																<ChatAttachmentChip
 																	key={`${message.id}-${partIndex}`}
-																	className="mb-2 inline-flex items-center gap-2 rounded-md border px-2 py-1 text-sm"
-																>
-																	<span className="font-medium">
-																		Attachment:
-																	</span>
-																	<span>{part.filename ?? part.mediaType}</span>
-																</div>
+																	filename={part.filename}
+																	mediaType={part.mediaType}
+																	url={part.url}
+																/>
 															);
 														}
 														case "reasoning":
@@ -356,6 +371,31 @@ export function ChatInterface({
 													}
 												})}
 											</MessageContent>
+											{message.role === "assistant" ? (
+												<MessageToolbar className="mt-1">
+													<MessageActions>
+														{message.parts.some(
+															(part) => part.type === "text",
+														) ? (
+															<CopyButton
+																text={message.parts
+																	.filter((part) => part.type === "text")
+																	.map((part) => part.text)
+																	.join("\n")}
+															/>
+														) : null}
+														{index === messages.length - 1 &&
+														!isStreamingOrSubmitted ? (
+															<RegenerateButton
+																message={message}
+																messages={messages}
+																setMessages={setMessages}
+																regenerate={regenerate}
+															/>
+														) : null}
+													</MessageActions>
+												</MessageToolbar>
+											) : null}
 										</Message>
 									</motion.div>
 								))}
@@ -386,15 +426,27 @@ export function ChatInterface({
 						</Conversation>
 
 						<div className="mx-auto w-full max-w-[70ch] px-6 pb-8 pt-4">
-									<ChatPromptComposer
+							{isStreamingOrSubmitted ? (
+								<div className="mb-2 flex justify-end">
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={stop}
+									>
+										Stop
+									</Button>
+								</div>
+							) : null}
+							<ChatPromptComposer
 								className="w-full"
 								draftScopeKey={threadId}
 								errorMessage={visibleError}
-									onInteract={() => {
-										setSubmitError(null);
-										if (error) {
-											clearError();
-										}
+								onInteract={() => {
+									setSubmitError(null);
+									if (error) {
+										clearError();
+									}
 								}}
 								onSubmitMessage={handleSubmitMessage}
 								placeholder="Send a message"

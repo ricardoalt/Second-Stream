@@ -718,6 +718,37 @@ async def create_thread(
     return thread
 
 
+async def rename_thread(
+    *,
+    db: AsyncSession,
+    organization_id: UUID,
+    created_by_user_id: UUID,
+    thread_id: UUID,
+    title: str,
+) -> ChatThread:
+    """Rename one owned active thread with normalized title validation."""
+    normalized_title = title.strip()
+    if not normalized_title:
+        raise ChatAttachmentValidationError("THREAD_TITLE_REQUIRED", "Thread title cannot be empty")
+    if len(normalized_title) > CHAT_TITLE_MAX_CHARS:
+        raise ChatAttachmentValidationError(
+            "THREAD_TITLE_TOO_LONG",
+            f"Thread title exceeds maximum length of {CHAT_TITLE_MAX_CHARS}",
+        )
+
+    thread = await _load_owned_active_thread(
+        db=db,
+        thread_id=thread_id,
+        organization_id=organization_id,
+        created_by_user_id=created_by_user_id,
+    )
+    thread.title = normalized_title
+    thread.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(thread)
+    return thread
+
+
 async def get_owned_thread(
     *,
     db: AsyncSession,
@@ -738,6 +769,27 @@ async def get_owned_thread(
     if thread is None:
         raise ChatAttachmentValidationError("THREAD_NOT_FOUND", "Thread not found")
     return thread
+
+
+async def get_owned_attachment(
+    *,
+    db: AsyncSession,
+    organization_id: UUID,
+    uploaded_by_user_id: UUID,
+    attachment_id: UUID,
+) -> ChatAttachment:
+    """Fetch one attachment by org+uploader scope or fail with not-found."""
+    result = await db.execute(
+        select(ChatAttachment).where(
+            ChatAttachment.id == attachment_id,
+            ChatAttachment.organization_id == organization_id,
+            ChatAttachment.uploaded_by_user_id == uploaded_by_user_id,
+        )
+    )
+    attachment = result.scalar_one_or_none()
+    if attachment is None:
+        raise ChatAttachmentValidationError("ATTACHMENT_NOT_FOUND", "Attachment not found")
+    return attachment
 
 
 async def list_thread_messages(

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, File, Header, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Header, HTTPException, Response, UploadFile, status
 
 from app.api.dependencies import AsyncDB, CurrentUser, OrganizationContext
 from app.authz import permissions
@@ -25,6 +25,7 @@ from app.schemas.chat import (
     ChatThreadDetailResponse,
     ChatThreadListResponse,
     ChatThreadSummaryResponse,
+    ChatThreadUpdateRequest,
     StreamFormat,
 )
 from app.services.chat_service import (
@@ -34,10 +35,12 @@ from app.services.chat_service import (
     create_attachment_for_message,
     create_draft_attachment,
     create_thread,
+    get_owned_attachment,
     get_owned_thread,
     list_message_attachments,
     list_owned_threads,
     list_thread_messages,
+    rename_thread,
     stream_chat_turn,
 )
 from app.services.chat_stream_protocol import (
@@ -47,7 +50,7 @@ from app.services.chat_stream_protocol import (
     adapt_stream_to_official_protocol,
     extract_latest_user_text_with_vercel_adapter,
 )
-from app.services.s3_service import upload_file_to_s3
+from app.services.s3_service import download_file_content, upload_file_to_s3
 
 router = APIRouter(prefix="/chat")
 
@@ -236,6 +239,31 @@ async def get_chat_thread(
     )
 
 
+@router.patch("/threads/{thread_id}", response_model=ChatThreadSummaryResponse)
+async def rename_chat_thread(
+    thread_id: UUID,
+    payload: ChatThreadUpdateRequest,
+    current_user: CurrentUser,
+    org: OrganizationContext,
+    db: AsyncDB,
+) -> ChatThreadSummaryResponse:
+    require_permission(current_user, permissions.CHAT_WRITE)
+    try:
+        thread = await rename_thread(
+            db=db,
+            organization_id=org.id,
+            created_by_user_id=current_user.id,
+            thread_id=thread_id,
+            title=payload.title,
+        )
+    except ChatAttachmentValidationError as exc:
+        if exc.code == "THREAD_NOT_FOUND":
+            raise_resource_not_found("Chat thread not found", details={"thread_id": str(thread_id)})
+        _raise_chat_error(exc)
+
+    return ChatThreadSummaryResponse.model_validate(thread)
+
+
 @router.post("/messages/{message_id}/attachments", response_model=ChatAttachmentResponse, status_code=201)
 async def upload_chat_attachment(
     message_id: UUID,
@@ -273,6 +301,41 @@ async def upload_chat_attachment(
         _raise_chat_error(exc)
 
     return _attachment_to_response(attachment)
+
+
+@router.get("/attachments/{attachment_id}/download")
+async def download_chat_attachment(
+    attachment_id: UUID,
+    current_user: CurrentUser,
+    org: OrganizationContext,
+    db: AsyncDB,
+) -> Response:
+    require_permission(current_user, permissions.CHAT_READ)
+
+    try:
+        attachment = await get_owned_attachment(
+            db=db,
+            organization_id=org.id,
+            uploaded_by_user_id=current_user.id,
+            attachment_id=attachment_id,
+        )
+        content = await download_file_content(attachment.storage_key)
+    except ChatAttachmentValidationError as exc:
+        _raise_chat_error(exc)
+    except FileNotFoundError:
+        _raise_chat_error(
+            ChatAttachmentValidationError("ATTACHMENT_NOT_FOUND", "Attachment file not found")
+        )
+
+    filename = Path(attachment.original_filename).name.replace('"', "") or "attachment"
+    headers = {
+        "Content-Disposition": f'inline; filename="{filename}"',
+    }
+    return Response(
+        content=content,
+        media_type=attachment.content_type or "application/octet-stream",
+        headers=headers,
+    )
 
 
 @router.post("/attachments", response_model=ChatAttachmentResponse, status_code=201)

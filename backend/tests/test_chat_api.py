@@ -115,6 +115,90 @@ async def test_chat_detail_denies_cross_user_visibility(client: AsyncClient, db_
 
 
 @pytest.mark.asyncio
+async def test_chat_thread_rename_contract(client: AsyncClient, db_session, set_current_user):
+    _org, _user = await _create_authed_user(db_session, set_current_user)
+    create_response = await client.post("/api/v1/chat/threads", json={"title": "Original"})
+    thread_id = create_response.json()["id"]
+
+    rename_response = await client.patch(
+        f"/api/v1/chat/threads/{thread_id}",
+        json={"title": "  Renamed thread  "},
+    )
+
+    assert rename_response.status_code == 200
+    assert rename_response.json()["title"] == "Renamed thread"
+
+    detail_response = await client.get(f"/api/v1/chat/threads/{thread_id}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["title"] == "Renamed thread"
+
+
+@pytest.mark.asyncio
+async def test_chat_thread_rename_rejects_blank_title(client: AsyncClient, db_session, set_current_user):
+    _org, _user = await _create_authed_user(db_session, set_current_user)
+    create_response = await client.post("/api/v1/chat/threads", json={"title": "Original"})
+    thread_id = create_response.json()["id"]
+
+    rename_response = await client.patch(
+        f"/api/v1/chat/threads/{thread_id}",
+        json={"title": "   "},
+    )
+
+    _assert_error_contract(rename_response, 400, "THREAD_TITLE_REQUIRED")
+
+
+@pytest.mark.asyncio
+async def test_chat_thread_rename_returns_not_found_for_non_owned_thread(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    org = await create_org(db_session, "Chat Rename Org", "chat-rename-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-rename-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    other_user = await create_user(
+        db_session,
+        email=f"chat-rename-other-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    set_current_user(owner)
+    create_response = await client.post("/api/v1/chat/threads", json={"title": "Owner"})
+    thread_id = create_response.json()["id"]
+
+    set_current_user(other_user)
+    rename_response = await client.patch(
+        f"/api/v1/chat/threads/{thread_id}",
+        json={"title": "No access"},
+    )
+
+    _assert_error_contract(rename_response, 404, "RESOURCE_NOT_FOUND")
+
+
+@pytest.mark.asyncio
+async def test_chat_thread_rename_returns_not_found_for_missing_thread(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    await _create_authed_user(db_session, set_current_user)
+
+    rename_response = await client.patch(
+        f"/api/v1/chat/threads/{uuid.uuid4()}",
+        json={"title": "Renamed"},
+    )
+
+    _assert_error_contract(rename_response, 404, "RESOURCE_NOT_FOUND")
+
+
+@pytest.mark.asyncio
 async def test_chat_message_owned_attachment_upload_contract(client: AsyncClient, db_session, set_current_user):
     org, user = await _create_authed_user(db_session, set_current_user)
 
@@ -464,6 +548,58 @@ async def test_chat_draft_attachment_upload_rejects_invalid_mime(client: AsyncCl
         files={"file": ("bad.exe", io.BytesIO(b"binary"), "application/octet-stream")},
     )
     _assert_error_contract(upload_response, 400, "ATTACHMENT_MIME_NOT_ALLOWED")
+
+
+@pytest.mark.asyncio
+async def test_chat_attachment_download_contract(client: AsyncClient, db_session, set_current_user):
+    await _create_authed_user(db_session, set_current_user)
+
+    upload_response = await client.post(
+        "/api/v1/chat/attachments",
+        files={"file": ("evidence.txt", io.BytesIO(b"download me"), "text/plain")},
+    )
+    assert upload_response.status_code == 201
+    attachment_id = upload_response.json()["id"]
+
+    download_response = await client.get(f"/api/v1/chat/attachments/{attachment_id}/download")
+    assert download_response.status_code == 200
+    assert download_response.content == b"download me"
+    assert download_response.headers["content-type"].startswith("text/plain")
+    assert download_response.headers["content-disposition"] == 'inline; filename="evidence.txt"'
+
+
+@pytest.mark.asyncio
+async def test_chat_attachment_download_denies_cross_user_scope(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    org = await create_org(db_session, "Chat Attach Download Org", "chat-attach-download-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-attach-download-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    other_user = await create_user(
+        db_session,
+        email=f"chat-attach-download-other-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    set_current_user(owner)
+    upload_response = await client.post(
+        "/api/v1/chat/attachments",
+        files={"file": ("evidence.txt", io.BytesIO(b"download me"), "text/plain")},
+    )
+    attachment_id = upload_response.json()["id"]
+
+    set_current_user(other_user)
+    download_response = await client.get(f"/api/v1/chat/attachments/{attachment_id}/download")
+    _assert_error_contract(download_response, 404, "ATTACHMENT_NOT_FOUND")
 
 
 # ---------------------------------------------------------------------------

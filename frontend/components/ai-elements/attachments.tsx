@@ -91,6 +91,7 @@ const renderAttachmentImage = (
 	isGrid: boolean,
 ) =>
 	isGrid ? (
+		// biome-ignore lint/performance/noImgElement: AI Elements attachment previews intentionally use raw images.
 		<img
 			alt={filename || "Image"}
 			className="size-full object-cover"
@@ -99,6 +100,7 @@ const renderAttachmentImage = (
 			width={96}
 		/>
 	) : (
+		// biome-ignore lint/performance/noImgElement: AI Elements attachment previews intentionally use raw images.
 		<img
 			alt={filename || "Image"}
 			className="size-full rounded object-cover"
@@ -231,10 +233,12 @@ export const Attachment = ({
 
 export type AttachmentPreviewProps = HTMLAttributes<HTMLDivElement> & {
 	fallbackIcon?: ReactNode;
+	allowMediaPreview?: boolean;
 };
 
 export const AttachmentPreview = ({
 	fallbackIcon,
+	allowMediaPreview = true,
 	className,
 	...props
 }: AttachmentPreviewProps) => {
@@ -247,6 +251,11 @@ export const AttachmentPreview = ({
 	);
 
 	const renderContent = () => {
+		if (!allowMediaPreview) {
+			const Icon = mediaCategoryIcons[mediaCategory];
+			return fallbackIcon ?? renderIcon(Icon);
+		}
+
 		if (mediaCategory === "image" && data.type === "file" && data.url) {
 			return renderAttachmentImage(data.url, data.filename, variant === "grid");
 		}

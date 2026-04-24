@@ -1,9 +1,11 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	ChevronsUpDown,
 	LogOut,
+	MoreHorizontal,
+	Pencil,
 	Search,
 	Settings,
 	SquarePen,
@@ -11,7 +13,12 @@ import {
 import { useRouter } from "next/navigation";
 import type * as React from "react";
 import { useState } from "react";
-import { buildChatThreadsQueryKey, listChatThreads } from "@/lib/api/chat";
+import {
+	buildChatThreadsQueryKey,
+	type ChatThreadSummaryDTO,
+	listChatThreads,
+	renameChatThread,
+} from "@/lib/api/chat";
 import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
 import { preserveValidTitlesOnRefetch } from "@/lib/chat-runtime/sidebar-events";
 import { sortThreadsByRecency } from "@/lib/chat-runtime/thread-order";
@@ -22,6 +29,15 @@ import { useOrganizationStore } from "@/lib/stores/organization-store";
 import { ChatSearch } from "./chat-search";
 import { OpenChatLogo } from "./openchat-logo";
 import { SettingsDialog } from "./settings-dialog";
+import { Button } from "./ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "./ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -29,6 +45,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { Input } from "./ui/input";
 import {
 	Sidebar,
 	SidebarContent,
@@ -37,6 +54,7 @@ import {
 	SidebarGroupLabel,
 	SidebarHeader,
 	SidebarMenu,
+	SidebarMenuAction,
 	SidebarMenuButton,
 	SidebarMenuItem,
 	SidebarRail,
@@ -84,10 +102,15 @@ export function AppSidebar({
 	...props
 }: AppSidebarProps): React.JSX.Element {
 	const router = useRouter();
+	const queryClient = useQueryClient();
 	const { user, logout } = useAuth();
 	const selectedOrgId = useOrganizationStore((state) => state.selectedOrgId);
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+	const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
+	const [renameTitle, setRenameTitle] = useState("");
+	const [renameError, setRenameError] = useState<string | null>(null);
 	const threadScope = resolveChatThreadScope({
 		selectedOrgId,
 		fallbackOrganizationId: user?.organizationId ?? null,
@@ -98,6 +121,55 @@ export function AppSidebar({
 		? { organizationId: threadScope.organizationId }
 		: {};
 	const threadsQueryKey = buildChatThreadsQueryKey(threadScope);
+
+	type RenameMutationContext = {
+		previousThreads: ChatThreadSummaryDTO[] | undefined;
+	};
+
+	const renameThreadMutation = useMutation<
+		ChatThreadSummaryDTO,
+		Error,
+		{ threadId: string; title: string },
+		RenameMutationContext
+	>({
+		mutationFn: ({ threadId, title }) =>
+			renameChatThread(threadId, title, listThreadsOptions),
+		onMutate: async ({ threadId, title }) => {
+			await queryClient.cancelQueries({
+				queryKey: threadsQueryKey,
+				exact: true,
+			});
+			const previousThreads =
+				queryClient.getQueryData<ChatThreadSummaryDTO[]>(threadsQueryKey);
+
+			queryClient.setQueryData<ChatThreadSummaryDTO[]>(
+				threadsQueryKey,
+				(current) =>
+					(current ?? []).map((thread) =>
+						thread.id === threadId
+							? { ...thread, title, updatedAt: new Date().toISOString() }
+							: thread,
+					),
+			);
+
+			return { previousThreads };
+		},
+		onError: (error, _variables, context) => {
+			if (context?.previousThreads) {
+				queryClient.setQueryData(threadsQueryKey, context.previousThreads);
+			}
+			setRenameError(error.message || "Unable to rename chat.");
+		},
+		onSuccess: (updatedThread) => {
+			queryClient.setQueryData<ChatThreadSummaryDTO[]>(
+				threadsQueryKey,
+				(current) =>
+					(current ?? []).map((thread) =>
+						thread.id === updatedThread.id ? updatedThread : thread,
+					),
+			);
+		},
+	});
 
 	const {
 		data: threads = [],
@@ -140,8 +212,84 @@ export function AppSidebar({
 		onThreadSelect?.(threadId);
 	};
 
+	const handleOpenRenameDialog = (thread: ChatThreadSummaryDTO) => {
+		setRenameError(null);
+		setRenamingThreadId(thread.id);
+		setRenameTitle((thread.title ?? "").trim());
+		setRenameDialogOpen(true);
+	};
+
+	const handleRenameSubmit = async () => {
+		const trimmedTitle = renameTitle.trim();
+		if (!renamingThreadId) {
+			return;
+		}
+		if (!trimmedTitle) {
+			setRenameError("Title cannot be empty.");
+			return;
+		}
+
+		setRenameError(null);
+		try {
+			await renameThreadMutation.mutateAsync({
+				threadId: renamingThreadId,
+				title: trimmedTitle,
+			});
+			setRenameDialogOpen(false);
+		} catch {
+			// Error is handled by mutation onError.
+		}
+	};
+
 	return (
 		<>
+			<Dialog
+				open={renameDialogOpen}
+				onOpenChange={(open) => {
+					setRenameDialogOpen(open);
+					if (!open) {
+						setRenameError(null);
+						setRenamingThreadId(null);
+					}
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Rename chat</DialogTitle>
+						<DialogDescription>
+							Update the thread title shown in your sidebar.
+						</DialogDescription>
+					</DialogHeader>
+					<Input
+						autoFocus
+						maxLength={80}
+						placeholder="Thread title"
+						value={renameTitle}
+						onChange={(event) => setRenameTitle(event.target.value)}
+					/>
+					{renameError ? (
+						<p className="text-destructive text-xs" role="alert">
+							{renameError}
+						</p>
+					) : null}
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setRenameDialogOpen(false)}
+						>
+							Cancel
+						</Button>
+						<Button
+							type="button"
+							disabled={renameThreadMutation.isPending}
+							onClick={() => void handleRenameSubmit()}
+						>
+							Save
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 			<ChatSearch
 				open={searchOpen}
 				onOpenChange={setSearchOpen}
@@ -209,6 +357,26 @@ export function AppSidebar({
 											>
 												<span>{thread.title ?? "Untitled chat"}</span>
 											</SidebarMenuButton>
+											<DropdownMenu>
+												<DropdownMenuTrigger
+													render={
+														<SidebarMenuAction
+															showOnHover
+															aria-label={`Open actions for ${thread.title ?? "chat"}`}
+														/>
+													}
+												>
+													<MoreHorizontal className="size-4" />
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end" className="w-40">
+													<DropdownMenuItem
+														onClick={() => handleOpenRenameDialog(thread)}
+													>
+														<Pencil className="size-4" />
+														Rename
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
 										</SidebarMenuItem>
 									))}
 								</SidebarMenu>
