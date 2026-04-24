@@ -17,6 +17,8 @@ from typing import Any
 
 import structlog
 
+from app.services.s3_service import S3_BUCKET, USE_S3, download_file_content
+
 logger = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -199,3 +201,173 @@ def resolve_attachments_to_agent_input(
         )
         for att in attachments
     ]
+
+
+def _normalize_media_type(media_type: str | None) -> str:
+    if media_type is None:
+        return ""
+    return media_type.split(";", 1)[0].strip().lower()
+
+
+def _build_s3_uri(storage_key: str | None) -> str | None:
+    if not USE_S3 or not storage_key:
+        return None
+    bucket = (S3_BUCKET or "").strip()
+    if not bucket:
+        return None
+    return f"s3://{bucket}/{storage_key}"
+
+
+def _decode_text_attachment(content: bytes) -> str | None:
+    decoded = content.decode("utf-8", errors="replace").strip()
+    return decoded or None
+
+
+async def resolve_attachments_to_agent_input_for_model(
+    attachments: list,
+) -> list[ChatAgentAttachmentInput]:
+    """Resolve persisted attachments into Bedrock/Pydantic-ready inputs.
+
+    Strategy:
+    - `text/*`: use extracted text when available; otherwise decode downloaded bytes.
+    - `application/pdf` and `image/*`:
+      - S3 mode: prefer remote `s3://bucket/key` reference as `document_url`.
+      - Local/dev mode: download bytes and expose `binary_content`.
+    - Other media types: keep metadata only.
+    """
+
+    resolved: list[ChatAgentAttachmentInput] = []
+
+    for attachment in attachments:
+        media_type = _normalize_media_type(getattr(attachment, "content_type", None))
+        storage_key = getattr(attachment, "storage_key", None)
+        extracted_text = getattr(attachment, "extracted_text", None)
+        base = ChatAgentAttachmentInput(
+            attachment_id=str(attachment.id),
+            media_type=media_type,
+            filename=attachment.original_filename,
+            uploaded_file_ref=storage_key,
+            extracted_text=extracted_text,
+        )
+
+        is_text = media_type.startswith("text/")
+        is_binary_doc = media_type == "application/pdf" or media_type.startswith("image/")
+
+        if is_text:
+            if base.extracted_text:
+                resolved.append(base)
+                continue
+
+            if storage_key:
+                try:
+                    text_content = _decode_text_attachment(await download_file_content(storage_key))
+                except Exception:
+                    logger.warning(
+                        "chat_attachment_text_download_failed",
+                        attachment_id=str(attachment.id),
+                        storage_key=storage_key,
+                    )
+                    text_content = None
+
+                if text_content:
+                    resolved.append(
+                        ChatAgentAttachmentInput(
+                            attachment_id=base.attachment_id,
+                            media_type=base.media_type,
+                            filename=base.filename,
+                            uploaded_file_ref=base.uploaded_file_ref,
+                            extracted_text=text_content,
+                        )
+                    )
+                    continue
+
+            resolved.append(base)
+            continue
+
+        if is_binary_doc:
+            s3_uri = _build_s3_uri(storage_key)
+            if s3_uri:
+                resolved.append(
+                    ChatAgentAttachmentInput(
+                        attachment_id=base.attachment_id,
+                        media_type=base.media_type,
+                        filename=base.filename,
+                        document_url=s3_uri,
+                        uploaded_file_ref=s3_uri,
+                        extracted_text=base.extracted_text,
+                    )
+                )
+                continue
+
+            if storage_key:
+                try:
+                    binary_content = await download_file_content(storage_key)
+                except Exception:
+                    logger.warning(
+                        "chat_attachment_binary_download_failed",
+                        attachment_id=str(attachment.id),
+                        storage_key=storage_key,
+                    )
+                    binary_content = None
+
+                if binary_content:
+                    resolved.append(
+                        ChatAgentAttachmentInput(
+                            attachment_id=base.attachment_id,
+                            media_type=base.media_type,
+                            filename=base.filename,
+                            binary_content=binary_content,
+                            uploaded_file_ref=base.uploaded_file_ref,
+                            extracted_text=base.extracted_text,
+                        )
+                    )
+                    continue
+
+        resolved.append(base)
+
+    return resolved
+
+
+def extract_latest_user_text_with_vercel_adapter(messages: list[dict[str, Any]]) -> str | None:
+    """Extract latest user text from AI SDK `messages` payload using VercelAIAdapter.
+
+    This keeps backend parsing aligned with the official AI SDK message schema
+    while allowing the current thin transport contract (`contentText`) to remain.
+    """
+
+    if not messages:
+        return None
+
+    try:
+        from pydantic import TypeAdapter
+        from pydantic_ai.messages import ModelRequest, UserPromptPart
+        from pydantic_ai.ui.vercel_ai import VercelAIAdapter
+        from pydantic_ai.ui.vercel_ai.request_types import UIMessage
+
+        ui_messages = TypeAdapter(list[UIMessage]).validate_python(messages)
+        model_messages = VercelAIAdapter.load_messages(ui_messages)
+    except Exception:
+        return None
+
+    for model_message in reversed(model_messages):
+        if not isinstance(model_message, ModelRequest):
+            continue
+
+        for part in reversed(model_message.parts):
+            if not isinstance(part, UserPromptPart):
+                continue
+
+            content = part.content
+            if isinstance(content, str):
+                normalized = content.strip()
+                return normalized or None
+
+            text_segments = [segment for segment in content if isinstance(segment, str)]
+            if not text_segments:
+                continue
+
+            normalized = "\n".join(segment for segment in text_segments if segment.strip()).strip()
+            if normalized:
+                return normalized
+
+    return None

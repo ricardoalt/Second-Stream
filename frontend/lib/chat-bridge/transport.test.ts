@@ -46,7 +46,7 @@ describe("chat bridge transport", () => {
 			"https://api.secondstream.test/chat/threads/thread-42/messages/stream",
 		);
 		expect(prepared.body).toEqual({
-			contentText: "hello bridge",
+			messages: [createUserTextMessage("hello bridge")],
 			existingAttachmentIds: ["att-1", "att-2"],
 		});
 		expect(prepared.headers).toMatchObject({
@@ -68,7 +68,9 @@ describe("chat bridge transport", () => {
 			existingAttachmentIds: [],
 		});
 
-		expect(prepared.body).toEqual({ contentText: "hello bridge" });
+		expect(prepared.body).toEqual({
+			messages: [createUserTextMessage("hello bridge")],
+		});
 	});
 
 	it("keeps required protocol headers even without auth/org values", () => {

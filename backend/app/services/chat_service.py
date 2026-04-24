@@ -13,7 +13,7 @@ from app.agents.chat_agent import ChatAgentDeps, ChatAgentError, stream_chat_res
 from app.models.chat_attachment import ChatAttachment
 from app.models.chat_message import ChatMessage
 from app.models.chat_thread import ChatThread
-from app.services.chat_stream_protocol import resolve_attachments_to_agent_input
+from app.services.chat_stream_protocol import resolve_attachments_to_agent_input_for_model
 from app.services.s3_service import download_file_content
 
 logger = structlog.get_logger(__name__)
@@ -599,7 +599,7 @@ async def stream_chat_turn(
         db=db,
         attachments=message_attachments,
     )
-    agent_attachments = resolve_attachments_to_agent_input(message_attachments)
+    agent_attachments = await resolve_attachments_to_agent_input_for_model(message_attachments)
 
     yield {"event": "start", "run_id": run_id}
     try:

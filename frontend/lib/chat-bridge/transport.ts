@@ -68,7 +68,7 @@ export function prepareBridgeSendRequest(
 ): {
 	api: string;
 	body: {
-		contentText: string;
+		messages: MyUIMessage[];
 		existingAttachmentIds?: string[];
 	};
 	headers: Record<string, string>;
@@ -79,10 +79,10 @@ export function prepareBridgeSendRequest(
 	});
 
 	const body: {
-		contentText: string;
+		messages: MyUIMessage[];
 		existingAttachmentIds?: string[];
 	} = {
-		contentText: resolveLatestUserText(options.messages),
+		messages: options.messages,
 	};
 
 	if ((options.existingAttachmentIds?.length ?? 0) > 0) {

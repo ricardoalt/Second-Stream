@@ -595,3 +595,40 @@ async def test_chat_stream_legacy_explicit_request(client: AsyncClient, db_sessi
     assert "x-vercel-ai-ui-message-stream" not in response.headers
     events = _parse_sse_events(response.text)
     assert [e["event"] for e in events] == ["start", "delta", "completed"]
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_derives_content_text_from_ai_sdk_messages_payload(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+    monkeypatch,
+):
+    _org, _user = await _create_authed_user(db_session, set_current_user)
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Messages Payload"})
+    thread_id = create_thread.json()["id"]
+
+    captured: dict[str, str] = {}
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        captured["prompt"] = prompt
+        yield {"event": "delta", "delta": "ok"}
+        yield {"event": "completed", "response_text": "ok"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
+
+    response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={
+            "messages": [
+                {
+                    "id": "m-1",
+                    "role": "user",
+                    "parts": [{"type": "text", "text": "texto desde messages"}],
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert "texto desde messages" in captured["prompt"]

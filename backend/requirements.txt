@@ -9,8 +9,10 @@ python-dotenv==1.1.0
 fastapi-users[sqlalchemy]==14.0.1 
 
 # Agentes AI - VERSIONES ESTABLES (COMPATIBLES)
-pydantic-ai-slim[openai]==1.0.3
+# 1.38.0 includes the Vercel AI UI adapter and multimodal input primitives used by chat.
+pydantic-ai-slim[openai]==1.38.0
 openai>=1.75.0
+python-multipart==0.0.20
 
 # Base de datos
 sqlalchemy==2.0.41

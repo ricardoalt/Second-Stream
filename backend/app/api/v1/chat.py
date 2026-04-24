@@ -45,6 +45,7 @@ from app.services.chat_stream_protocol import (
     PROTOCOL_VERSION,
     adapt_stream_to_legacy_protocol,
     adapt_stream_to_official_protocol,
+    extract_latest_user_text_with_vercel_adapter,
 )
 from app.services.s3_service import upload_file_to_s3
 
@@ -329,6 +330,7 @@ async def stream_chat_message(
     """
     require_permission(current_user, permissions.CHAT_WRITE)
     run_id = f"run-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    content_text = _resolve_content_text(payload)
 
     # Resolve negotiated format: body field > header > default
     use_official = _resolve_stream_format(payload.stream_format, x_vercel_ai_ui_message_stream)
@@ -340,7 +342,7 @@ async def stream_chat_message(
                 organization_id=org.id,
                 created_by_user_id=current_user.id,
                 thread_id=thread_id,
-                content_text=payload.content_text,
+                content_text=content_text,
                 run_id=run_id,
                 existing_attachment_ids=payload.existing_attachment_ids,
             )
@@ -393,3 +395,20 @@ def _resolve_stream_format(
     if header_value and header_value.strip().lower() == PROTOCOL_VERSION:
         return True
     return True  # Default to official
+
+
+def _resolve_content_text(payload: ChatStreamRequest) -> str:
+    if payload.content_text and payload.content_text.strip():
+        return payload.content_text.strip()
+
+    extracted = extract_latest_user_text_with_vercel_adapter(payload.messages)
+    if extracted:
+        return extracted
+
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={
+            "code": "CONTENT_TEXT_REQUIRED",
+            "message": "contentText is required when no user text can be derived from messages",
+        },
+    )

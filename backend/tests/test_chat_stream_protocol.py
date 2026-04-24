@@ -19,7 +19,9 @@ from app.services.chat_stream_protocol import (
     adapt_stream_to_official_protocol,
     encode_legacy_sse,
     encode_official_sse,
+    extract_latest_user_text_with_vercel_adapter,
     resolve_attachments_to_agent_input,
+    resolve_attachments_to_agent_input_for_model,
 )
 
 # ---------------------------------------------------------------------------
@@ -268,6 +270,32 @@ class TestOfficialProtocolStreamAdapter:
         }
         assert parsed[1]["type"] == "DONE"
 
+    @pytest.mark.asyncio
+    async def test_data_new_thread_created_event_maps_to_official_data_part(self):
+        """Official protocol: data-new-thread-created keeps thread metadata contract."""
+        internal_events = [
+            {
+                "event": "data-new-thread-created",
+                "thread_id": "thread-99",
+                "title": "New chat",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+            }
+        ]
+        stream = adapt_stream_to_official_protocol(_stream_events_gen(internal_events))
+        output = await _collect(stream)
+        parsed = _parse_official_output(output)
+
+        assert parsed[0] == {
+            "type": "data-new-thread-created",
+            "data": {
+                "threadId": "thread-99",
+                "title": "New chat",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:00:00Z",
+            },
+        }
+
 
 # ---------------------------------------------------------------------------
 # 3. Protocol stream adapter — legacy protocol
@@ -482,6 +510,108 @@ class TestResolveAttachmentsToAgentInput:
 
         result = resolve_attachments_to_agent_input([attachment])
         assert result[0].media_type == ""
+
+
+class TestResolveAttachmentsToAgentInputForModel:
+    """Tests for model-ready attachment materialization (S3 URI vs binary bytes)."""
+
+    @pytest.mark.asyncio
+    async def test_pdf_prefers_s3_uri_when_s3_enabled(self, monkeypatch):
+        from app.models.chat_attachment import ChatAttachment
+
+        monkeypatch.setattr("app.services.chat_stream_protocol.USE_S3", True)
+        monkeypatch.setattr("app.services.chat_stream_protocol.S3_BUCKET", "chat-bucket")
+
+        attachment = ChatAttachment(
+            organization_id=uuid.uuid4(),
+            uploaded_by_user_id=uuid.uuid4(),
+            storage_key="chat/org/user/report.pdf",
+            original_filename="report.pdf",
+            content_type="application/pdf",
+            size_bytes=1024,
+            extracted_text=None,
+        )
+        attachment.id = uuid.uuid4()
+
+        result = await resolve_attachments_to_agent_input_for_model([attachment])
+
+        assert result[0].document_url == "s3://chat-bucket/chat/org/user/report.pdf"
+        assert result[0].binary_content is None
+
+    @pytest.mark.asyncio
+    async def test_image_falls_back_to_binary_content_without_s3(self, monkeypatch):
+        from app.models.chat_attachment import ChatAttachment
+
+        monkeypatch.setattr("app.services.chat_stream_protocol.USE_S3", False)
+
+        async def _fake_download(_key: str) -> bytes:
+            return b"PNG-BYTES"
+
+        monkeypatch.setattr(
+            "app.services.chat_stream_protocol.download_file_content",
+            _fake_download,
+        )
+
+        attachment = ChatAttachment(
+            organization_id=uuid.uuid4(),
+            uploaded_by_user_id=uuid.uuid4(),
+            storage_key="chat/org/user/image.png",
+            original_filename="image.png",
+            content_type="image/png",
+            size_bytes=2048,
+            extracted_text=None,
+        )
+        attachment.id = uuid.uuid4()
+
+        result = await resolve_attachments_to_agent_input_for_model([attachment])
+
+        assert result[0].binary_content == b"PNG-BYTES"
+        assert result[0].document_url is None
+
+    @pytest.mark.asyncio
+    async def test_text_attachment_remains_usable_text(self, monkeypatch):
+        from app.models.chat_attachment import ChatAttachment
+
+        monkeypatch.setattr("app.services.chat_stream_protocol.USE_S3", False)
+
+        attachment = ChatAttachment(
+            organization_id=uuid.uuid4(),
+            uploaded_by_user_id=uuid.uuid4(),
+            storage_key="chat/org/user/notes.txt",
+            original_filename="notes.txt",
+            content_type="text/plain",
+            size_bytes=128,
+            extracted_text="texto extraído",
+        )
+        attachment.id = uuid.uuid4()
+
+        result = await resolve_attachments_to_agent_input_for_model([attachment])
+
+        assert result[0].extracted_text == "texto extraído"
+        assert result[0].binary_content is None
+
+
+class TestExtractLatestUserTextWithVercelAdapter:
+    def test_extracts_latest_user_text_from_sdk_messages_payload(self):
+        messages = [
+            {
+                "id": "m1",
+                "role": "user",
+                "parts": [{"type": "text", "text": "hola"}],
+            },
+            {
+                "id": "m2",
+                "role": "assistant",
+                "parts": [{"type": "text", "text": "respuesta"}],
+            },
+            {
+                "id": "m3",
+                "role": "user",
+                "parts": [{"type": "text", "text": "último mensaje"}],
+            },
+        ]
+
+        assert extract_latest_user_text_with_vercel_adapter(messages) == "último mensaje"
 
 
 # ---------------------------------------------------------------------------

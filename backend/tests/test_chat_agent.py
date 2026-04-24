@@ -2,12 +2,15 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai import BinaryContent
+from pydantic_ai.messages import DocumentUrl
 
 import app.agents.chat_agent as chat_agent_module
 from app.agents.chat_agent import (
     ChatAgentDeps,
     ChatAgentError,
     ChatAgentOutput,
+    _build_runtime_user_content,
     generate_chat_response,
     stream_chat_response,
 )
@@ -171,3 +174,37 @@ async def test_stream_chat_response_falls_back_to_non_stream_run_when_streaming_
         {"event": "delta", "delta": "Fallback answer"},
         {"event": "completed", "response_text": "Fallback answer"},
     ]
+
+
+def test_build_runtime_user_content_uses_binary_for_local_image_attachment():
+    runtime_input = _build_runtime_user_content(
+        prompt="Analiza la imagen",
+        attachments=[
+            ChatAgentAttachmentInput(
+                attachment_id="att-img",
+                media_type="image/png",
+                filename="image.png",
+                binary_content=b"PNG",
+            )
+        ],
+    )
+
+    assert isinstance(runtime_input, list)
+    assert isinstance(runtime_input[1], BinaryContent)
+
+
+def test_build_runtime_user_content_uses_document_url_for_s3_pdf_attachment():
+    runtime_input = _build_runtime_user_content(
+        prompt="Analiza el PDF",
+        attachments=[
+            ChatAgentAttachmentInput(
+                attachment_id="att-pdf",
+                media_type="application/pdf",
+                filename="report.pdf",
+                document_url="s3://bucket/chat/report.pdf",
+            )
+        ],
+    )
+
+    assert isinstance(runtime_input, list)
+    assert isinstance(runtime_input[1], DocumentUrl)

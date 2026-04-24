@@ -6,7 +6,8 @@ from typing import Any
 
 import structlog
 from pydantic import Field, ValidationError
-from pydantic_ai import Agent
+from pydantic_ai import Agent, BinaryContent
+from pydantic_ai.messages import DocumentUrl, UserContent
 from pydantic_ai.models.bedrock import BedrockConverseModel
 from pydantic_ai.providers.bedrock import BedrockProvider
 from pydantic_ai.settings import ModelSettings
@@ -98,9 +99,7 @@ def _build_attachment_context(attachments: list[ChatAgentAttachmentInput]) -> st
             f"{index}. {attachment.filename} ({attachment.media_type or 'unknown'}) "
             f"[id={attachment.attachment_id}]"
         )
-        if attachment.extracted_text:
-            lines.append(f"   extracted_text: {attachment.extracted_text}")
-        elif attachment.document_url:
+        if attachment.document_url:
             lines.append(f"   document_url: {attachment.document_url}")
         elif attachment.uploaded_file_ref:
             lines.append(f"   uploaded_file_ref: {attachment.uploaded_file_ref}")
@@ -118,6 +117,44 @@ def _build_runtime_prompt(
     return f"{prompt}\n\n{attachment_context}"
 
 
+def _build_runtime_user_content(
+    *,
+    prompt: str,
+    attachments: list[ChatAgentAttachmentInput],
+) -> str | list[str | UserContent]:
+    runtime_prompt = _build_runtime_prompt(prompt=prompt, attachments=attachments)
+    content: list[str | UserContent] = [runtime_prompt]
+
+    for attachment in attachments:
+        if attachment.media_type.startswith("text/") and attachment.extracted_text:
+            content.append(
+                f"Attachment text ({attachment.filename}):\n{attachment.extracted_text}"
+            )
+            continue
+
+        if attachment.binary_content:
+            content.append(
+                BinaryContent(
+                    data=attachment.binary_content,
+                    media_type=attachment.media_type or "application/octet-stream",
+                )
+            )
+            continue
+
+        if attachment.document_url:
+            content.append(
+                DocumentUrl(
+                    url=attachment.document_url,
+                    media_type=attachment.media_type or None,
+                )
+            )
+            continue
+
+    if len(content) == 1:
+        return runtime_prompt
+    return content
+
+
 async def stream_chat_response(
     *,
     prompt: str,
@@ -125,11 +162,11 @@ async def stream_chat_response(
     attachments: list[ChatAgentAttachmentInput],
 ):
     """Stream chat response deltas and terminal text from the agent runtime."""
-    runtime_prompt = _build_runtime_prompt(prompt=prompt, attachments=attachments)
+    runtime_input = _build_runtime_user_content(prompt=prompt, attachments=attachments)
     emitted_delta = False
 
     try:
-        async with chat_agent.run_stream(runtime_prompt, deps=deps) as streamed_result:
+        async with chat_agent.run_stream(runtime_input, deps=deps) as streamed_result:
             accumulated_chunks: list[str] = []
             async for delta in streamed_result.stream_text(delta=True):
                 if not delta:
@@ -166,6 +203,7 @@ async def stream_chat_response(
             error=str(exc),
         )
 
-    fallback_output = await generate_chat_response(prompt=runtime_prompt, deps=deps)
+    fallback_prompt = _build_runtime_prompt(prompt=prompt, attachments=attachments)
+    fallback_output = await generate_chat_response(prompt=fallback_prompt, deps=deps)
     yield {"event": "delta", "delta": fallback_output.response_text}
     yield {"event": "completed", "response_text": fallback_output.response_text}
