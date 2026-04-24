@@ -56,6 +56,7 @@ import {
 import { Shimmer } from "./ai-elements/shimmer";
 import { Source, SourceContent, SourceTrigger } from "./ai-elements/sources";
 import { ChatAttachmentChip } from "./chat-attachment-chip";
+import { ChatEmptyGreeting } from "./chat-empty-greeting";
 import { ChatPromptComposer } from "./chat-prompt-composer";
 import { CopyButton } from "./copy-button";
 import { RegenerateButton } from "./regenerate-button";
@@ -269,9 +270,7 @@ export function ChatInterface({
 						transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
 						className="mx-auto flex w-full max-w-[70ch] flex-1 flex-col items-center justify-center gap-14 px-6 pb-24"
 					>
-						<h1 className="text-5xl font-medium tracking-tight text-foreground">
-							What can I help with?
-						</h1>
+						<ChatEmptyGreeting />
 						<ChatPromptComposer
 							className="w-full"
 							draftScopeKey={threadId}

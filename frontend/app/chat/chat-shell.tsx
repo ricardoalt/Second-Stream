@@ -21,10 +21,15 @@ export function ChatShell({
 		setActiveThreadId(threadId);
 	}, []);
 
+	const handleNewChat = useCallback(() => {
+		setActiveThreadId(undefined);
+	}, []);
+
 	return (
 		<div className="flex h-screen w-full bg-background">
 			<AppSidebar
 				{...(activeThreadId !== undefined ? { activeThreadId } : {})}
+				onNewChat={handleNewChat}
 				onThreadSelect={handleThreadActivated}
 			/>
 			<div className="flex flex-1 flex-col h-full overflow-hidden">
