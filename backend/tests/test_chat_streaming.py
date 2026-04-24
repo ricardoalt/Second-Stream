@@ -154,7 +154,7 @@ async def test_stream_chat_turn_emits_conversation_title_once_for_untitled_threa
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_turn_emits_error_and_does_not_persist_partial_assistant(db_session, monkeypatch):
+async def test_stream_chat_turn_emits_error_and_persists_failed_assistant(db_session, monkeypatch):
     org = await create_org(db_session, "Chat Stream Error Org", "chat-stream-error-org")
     owner = await create_user(
         db_session,
@@ -167,8 +167,8 @@ async def test_stream_chat_turn_emits_error_and_does_not_persist_partial_assista
     thread_id = thread.id
 
     async def _fail_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "Partial analysis"}
         raise ChatAgentError("bedrock timeout")
-        yield {"event": "delta", "delta": "unreachable"}
 
     monkeypatch.setattr(chat_service, "stream_chat_response", _fail_stream_response)
 
@@ -186,15 +186,21 @@ async def test_stream_chat_turn_emits_error_and_does_not_persist_partial_assista
 
     assert events == [
         {"event": "start", "run_id": "run-stream-error"},
+        {"event": "delta", "delta": "Partial analysis"},
         {"event": "error", "code": "CHAT_STREAM_FAILED"},
     ]
 
-    assistant_count = await db_session.scalar(
-        select(func.count())
-        .select_from(ChatMessage)
-        .where(ChatMessage.thread_id == thread_id, ChatMessage.role == "assistant")
+    assistant_rows = await db_session.execute(
+        select(ChatMessage).where(ChatMessage.thread_id == thread_id, ChatMessage.role == "assistant")
     )
-    assert assistant_count == 0
+    assistant_messages = assistant_rows.scalars().all()
+    assert len(assistant_messages) == 1
+    assert assistant_messages[0].status == "failed"
+    assert assistant_messages[0].error_code == "CHAT_STREAM_FAILED"
+    assert assistant_messages[0].content_text == (
+        "Partial analysis\n\n"
+        "[The agent failed before completing this response. Please retry.]"
+    )
 
     user_count = await db_session.scalar(
         select(func.count())

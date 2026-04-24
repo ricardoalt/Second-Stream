@@ -532,6 +532,45 @@ async def _persist_assistant_terminal_message(
     return message
 
 
+async def _persist_assistant_failed_message(
+    *,
+    db: AsyncSession,
+    thread: ChatThread,
+    organization_id: UUID,
+    created_by_user_id: UUID,
+    content_text: str,
+    run_id: str,
+    error_code: str,
+) -> ChatMessage:
+    message = ChatMessage(
+        organization_id=organization_id,
+        thread_id=thread.id,
+        created_by_user_id=created_by_user_id,
+        role="assistant",
+        content_text=content_text,
+        status="failed",
+        error_code=error_code,
+    )
+    db.add(message)
+    now = datetime.now(UTC)
+    thread.last_message_at = now
+    thread.last_message_preview = _build_last_message_preview(content_text)
+    thread.updated_at = now
+
+    await db.commit()
+    await db.refresh(message)
+    logger.info(
+        "chat_assistant_failed_message_persisted",
+        thread_id=str(thread.id),
+        message_id=str(message.id),
+        run_id=run_id,
+        organization_id=str(organization_id),
+        user_id=str(created_by_user_id),
+        error_code=error_code,
+    )
+    return message
+
+
 async def _load_message_attachments_for_agent(
     *,
     db: AsyncSession,
@@ -671,7 +710,11 @@ async def stream_chat_turn(
         db.add(att)
         await db.commit()
         await db.refresh(att)
-        att.signed_url = await get_presigned_url_with_headers(storage_key, filename=filename)
+        att.signed_url = await get_presigned_url_with_headers(
+            storage_key,
+            download_name=filename,
+            content_type=content_type,
+        )
         att.signed_url_expires_at = None
         return att
 
@@ -720,8 +763,8 @@ async def stream_chat_turn(
     )
 
     yield {"event": "start", "run_id": run_id}
+    delta_chunks: list[str] = []
     try:
-        delta_chunks: list[str] = []
         runtime_terminal_text: str | None = None
 
         async for runtime_event in stream_chat_response(
@@ -812,6 +855,29 @@ async def stream_chat_turn(
                     await delete_file_from_s3(key)
 
         await db.rollback()
+        partial_text = "".join(delta_chunks).strip()
+        failed_content = (
+            f"{partial_text}\n\n"
+            "[The agent failed before completing this response. Please retry.]"
+            if partial_text
+            else "The agent failed before completing this response. Please retry."
+        )
+        with contextlib.suppress(Exception):
+            thread = await _load_owned_active_thread(
+                db=db,
+                thread_id=thread_id,
+                organization_id=organization_id,
+                created_by_user_id=created_by_user_id,
+            )
+            await _persist_assistant_failed_message(
+                db=db,
+                thread=thread,
+                organization_id=organization_id,
+                created_by_user_id=created_by_user_id,
+                content_text=failed_content,
+                run_id=run_id,
+                error_code="CHAT_STREAM_FAILED",
+            )
         logger.error(
             "chat_stream_failed",
             thread_id=str(thread_id),
