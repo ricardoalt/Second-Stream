@@ -124,6 +124,43 @@ async def test_create_user_message_with_allowed_attachment_persists_message_owne
 
 
 @pytest.mark.asyncio
+async def test_create_user_message_allows_text_markdown_attachments(db_session):
+    org = await create_org(db_session, "Chat Attach Markdown Org", "chat-attach-markdown")
+    owner = await create_user(
+        db_session,
+        email=f"chat-attach-markdown-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    message = await create_user_message_with_attachments(
+        db=db_session,
+        organization_id=org.id,
+        created_by_user_id=owner.id,
+        thread_id=thread.id,
+        content_text="Analyze this markdown",
+        run_id="run-allowed-markdown",
+        attachments=[
+            ChatAttachmentInput(
+                storage_key=f"chat/{org.id}/{uuid.uuid4()}.md",
+                original_filename="notes.md",
+                content_type="text/markdown",
+                size_bytes=256,
+            )
+        ],
+    )
+
+    result = await db_session.execute(
+        select(ChatAttachment).where(ChatAttachment.message_id == message.id)
+    )
+    rows = result.scalars().all()
+    assert len(rows) == 1
+    assert rows[0].content_type == "text/markdown"
+
+
+@pytest.mark.asyncio
 async def test_create_user_message_rejects_mime_outside_allowlist(db_session):
     org = await create_org(db_session, "Chat Attach Mime Org", "chat-attach-mime")
     owner = await create_user(

@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
 	Conversation,
 	ConversationContent,
@@ -67,6 +67,7 @@ export function ChatInterface({
 	const queryClient = useQueryClient();
 	const { user } = useAuth();
 	const selectedOrgId = useOrganizationStore((state) => state.selectedOrgId);
+	const [submitError, setSubmitError] = useState<string | null>(null);
 
 	const chatThreadScope = useMemo(
 		() =>
@@ -135,6 +136,7 @@ export function ChatInterface({
 			if (!canSubmitPromptMessage(message)) {
 				return;
 			}
+			setSubmitError(null);
 
 			const promptText = message.text.trim();
 			const nowIsoString = new Date().toISOString();
@@ -168,17 +170,25 @@ export function ChatInterface({
 			);
 
 			clearError();
-			const attachmentIds = await uploadAttachmentsFromPromptMessage(message);
+			try {
+				const attachmentIds = await uploadAttachmentsFromPromptMessage(message);
 
-			await sendMessage(
-				{ text: message.text, files: message.files },
-				{
-					body:
-						attachmentIds.length > 0
-							? { existingAttachmentIds: attachmentIds }
-							: {},
-				},
-			);
+				await sendMessage(
+					{ text: message.text, files: message.files },
+					{
+						body:
+							attachmentIds.length > 0
+								? { existingAttachmentIds: attachmentIds }
+								: {},
+					},
+				);
+			} catch (submitFailure) {
+				setSubmitError(
+					submitFailure instanceof Error
+						? submitFailure.message
+						: "Unable to send this message right now.",
+				);
+			}
 		},
 		[
 			chatThreadsQueryKey,
@@ -191,7 +201,7 @@ export function ChatInterface({
 
 	const isEmptyState = messages.length === 0;
 	const showShimmer = shouldShowLoadingShimmer(status, messages);
-	const visibleError = error?.message ?? null;
+	const visibleError = submitError ?? error?.message ?? null;
 
 	return (
 		<div className="flex h-full flex-1 flex-col">
@@ -213,6 +223,7 @@ export function ChatInterface({
 							draftScopeKey={threadId}
 							errorMessage={visibleError}
 							onInteract={() => {
+								setSubmitError(null);
 								if (error) {
 									clearError();
 								}
@@ -375,14 +386,15 @@ export function ChatInterface({
 						</Conversation>
 
 						<div className="mx-auto w-full max-w-[70ch] px-6 pb-8 pt-4">
-							<ChatPromptComposer
+									<ChatPromptComposer
 								className="w-full"
 								draftScopeKey={threadId}
 								errorMessage={visibleError}
-								onInteract={() => {
-									if (error) {
-										clearError();
-									}
+									onInteract={() => {
+										setSubmitError(null);
+										if (error) {
+											clearError();
+										}
 								}}
 								onSubmitMessage={handleSubmitMessage}
 								placeholder="Send a message"

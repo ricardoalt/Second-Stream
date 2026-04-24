@@ -92,3 +92,36 @@ export function applyConversationTitleFromEvent(
 			: thread,
 	);
 }
+
+export function preserveValidTitlesOnRefetch(
+	previousThreads: ChatThreadSummaryDTO[] | undefined,
+	nextThreads: ChatThreadSummaryDTO[] | undefined,
+): ChatThreadSummaryDTO[] {
+	if (!nextThreads) {
+		return previousThreads ?? [];
+	}
+
+	if (!previousThreads || previousThreads.length === 0) {
+		return nextThreads;
+	}
+
+	const previousById = new Map(previousThreads.map((thread) => [thread.id, thread]));
+
+	return nextThreads.map((thread) => {
+		const prev = previousById.get(thread.id);
+		if (!prev) {
+			return thread;
+		}
+
+		const nextTitle = thread.title?.trim() ?? "";
+		const previousTitle = prev.title?.trim() ?? "";
+		if (!nextTitle && previousTitle) {
+			return {
+				...thread,
+				title: prev.title,
+			};
+		}
+
+		return thread;
+	});
+}

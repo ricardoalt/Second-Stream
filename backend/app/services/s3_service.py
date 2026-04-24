@@ -35,6 +35,7 @@ USE_S3 = bool(S3_BUCKET and S3_BUCKET.strip())
 
 logger = structlog.get_logger(__name__)
 _ALLOWED_LOCAL_PREFIXES = (
+    "chat/",
     "projects/",
     "proposals/",
     "feedback/",

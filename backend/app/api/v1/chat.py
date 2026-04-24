@@ -6,6 +6,8 @@ import hashlib
 import json
 import uuid
 from datetime import UTC, datetime
+from io import BytesIO
+from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -26,6 +28,7 @@ from app.schemas.chat import (
     StreamFormat,
 )
 from app.services.chat_service import (
+    MAX_ATTACHMENT_SIZE_BYTES,
     ChatAttachmentInput,
     ChatAttachmentValidationError,
     create_attachment_for_message,
@@ -43,8 +46,14 @@ from app.services.chat_stream_protocol import (
     adapt_stream_to_legacy_protocol,
     adapt_stream_to_official_protocol,
 )
+from app.services.s3_service import upload_file_to_s3
 
 router = APIRouter(prefix="/chat")
+
+CHAT_ATTACHMENT_STORAGE_PREFIX = "chat"
+CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS = 12_000
+CHAT_ALLOWED_UPLOAD_EXACT_MIME_TYPES = {"application/pdf"}
+CHAT_ALLOWED_UPLOAD_PREFIXES = ("image/", "text/")
 
 
 def _raise_chat_error(exc: ChatAttachmentValidationError) -> None:
@@ -74,6 +83,72 @@ def _sse_encode(event_payload: dict[str, Any]) -> str:
     event_name = str(event_payload["event"])
     data_payload = {k: v for k, v in event_payload.items() if k != "event"}
     return f"event: {event_name}\ndata: {json.dumps(data_payload)}\n\n"
+
+
+def _normalize_attachment_content_type(content_type: str | None) -> str:
+    if content_type is None:
+        return ""
+    return content_type.split(";", 1)[0].strip().lower()
+
+
+def _build_attachment_storage_key(*, organization_id: UUID, user_id: UUID, filename: str) -> str:
+    safe_name = Path(filename).name or "attachment"
+    return f"{CHAT_ATTACHMENT_STORAGE_PREFIX}/{organization_id}/{user_id}/{uuid.uuid4().hex}-{safe_name}"
+
+
+def _extract_attachment_text(*, content: bytes, content_type: str | None) -> str | None:
+    normalized = _normalize_attachment_content_type(content_type)
+    if not normalized.startswith("text/"):
+        return None
+
+    extracted = content.decode("utf-8", errors="replace").strip()
+    if not extracted:
+        return None
+    if len(extracted) <= CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS:
+        return extracted
+    return extracted[:CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS]
+
+
+def _build_attachment_input_and_persist_content(
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    file_name: str,
+    content_type: str | None,
+    content: bytes,
+) -> ChatAttachmentInput:
+    normalized_content_type = _normalize_attachment_content_type(content_type)
+    if normalized_content_type not in CHAT_ALLOWED_UPLOAD_EXACT_MIME_TYPES and not any(
+        normalized_content_type.startswith(prefix) for prefix in CHAT_ALLOWED_UPLOAD_PREFIXES
+    ):
+        raise ChatAttachmentValidationError(
+            "ATTACHMENT_MIME_NOT_ALLOWED",
+            "Attachment MIME type is not allowed",
+        )
+
+    if len(content) > MAX_ATTACHMENT_SIZE_BYTES:
+        raise ChatAttachmentValidationError(
+            "ATTACHMENT_TOO_LARGE",
+            "Attachment exceeds maximum allowed size",
+        )
+
+    storage_key = _build_attachment_storage_key(
+        organization_id=organization_id,
+        user_id=user_id,
+        filename=file_name,
+    )
+
+    return ChatAttachmentInput(
+        storage_key=storage_key,
+        original_filename=file_name,
+        content_type=normalized_content_type or None,
+        size_bytes=len(content),
+        sha256=hashlib.sha256(content).hexdigest(),
+        extracted_text=_extract_attachment_text(
+            content=content,
+            content_type=normalized_content_type,
+        ),
+    )
 
 
 @router.post("/threads", response_model=ChatThreadSummaryResponse, status_code=status.HTTP_201_CREATED)
@@ -171,16 +246,21 @@ async def upload_chat_attachment(
     require_permission(current_user, permissions.CHAT_ATTACHMENT_UPLOAD)
 
     content = await file.read()
-    attachment_input = ChatAttachmentInput(
-        storage_key=f"chat/{org.id}/{current_user.id}/{uuid.uuid4().hex}",
-        original_filename=file.filename or "attachment",
+    original_filename = file.filename or "attachment"
+    attachment_input = _build_attachment_input_and_persist_content(
+        organization_id=org.id,
+        user_id=current_user.id,
+        file_name=original_filename,
         content_type=file.content_type,
-        size_bytes=len(content),
-        sha256=hashlib.sha256(content).hexdigest(),
-        extracted_text=None,
+        content=content,
     )
 
     try:
+        await upload_file_to_s3(
+            BytesIO(content),
+            attachment_input.storage_key,
+            content_type=_normalize_attachment_content_type(file.content_type) or None,
+        )
         attachment = await create_attachment_for_message(
             db=db,
             organization_id=org.id,
@@ -204,16 +284,21 @@ async def upload_chat_attachment_draft(
     require_permission(current_user, permissions.CHAT_ATTACHMENT_UPLOAD)
 
     content = await file.read()
-    attachment_input = ChatAttachmentInput(
-        storage_key=f"chat/{org.id}/{current_user.id}/{uuid.uuid4().hex}",
-        original_filename=file.filename or "attachment",
+    original_filename = file.filename or "attachment"
+    attachment_input = _build_attachment_input_and_persist_content(
+        organization_id=org.id,
+        user_id=current_user.id,
+        file_name=original_filename,
         content_type=file.content_type,
-        size_bytes=len(content),
-        sha256=hashlib.sha256(content).hexdigest(),
-        extracted_text=None,
+        content=content,
     )
 
     try:
+        await upload_file_to_s3(
+            BytesIO(content),
+            attachment_input.storage_key,
+            content_type=_normalize_attachment_content_type(file.content_type) or None,
+        )
         attachment = await create_draft_attachment(
             db=db,
             organization_id=org.id,

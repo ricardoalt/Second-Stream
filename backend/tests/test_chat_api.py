@@ -345,6 +345,93 @@ async def test_chat_phase1_unsupported_actions_are_unavailable_and_history_is_un
 
 
 @pytest.mark.asyncio
+async def test_chat_stream_new_thread_persists_placeholder_and_emits_derived_title(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+    monkeypatch,
+):
+    _org, _user = await _create_authed_user(db_session, set_current_user)
+    thread_id = str(uuid.uuid4())
+    first_prompt = "Necesito analizar oportunidades de valorización"
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "Respuesta"}
+        yield {"event": "completed", "response_text": "Respuesta"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
+
+    response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={"contentText": first_prompt},
+    )
+    assert response.status_code == 200
+
+    events = _parse_official_sse_events(response.text)
+    new_thread_event = next(
+        event for event in events if event.get("type") == "data-new-thread-created"
+    )
+    title_event = next(
+        event for event in events if event.get("type") == "data-conversation-title"
+    )
+
+    assert new_thread_event["data"]["threadId"] == thread_id
+    assert new_thread_event["data"]["title"] == "New chat"
+    assert title_event["data"]["threadId"] == thread_id
+    assert title_event["data"]["title"] == first_prompt
+
+    list_response = await client.get("/api/v1/chat/threads")
+    assert list_response.status_code == 200
+    rows = list_response.json()["items"]
+    matching = next((row for row in rows if row["id"] == thread_id), None)
+    assert matching is not None
+    assert matching["title"] == first_prompt
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_resolves_uploaded_text_attachment_content_for_agent(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+    monkeypatch,
+):
+    _org, _user = await _create_authed_user(db_session, set_current_user)
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Attachment Thread"})
+    thread_id = create_thread.json()["id"]
+
+    upload_response = await client.post(
+        "/api/v1/chat/attachments",
+        files={"file": ("evidence.csv", io.BytesIO(b"name,value\nmetal,42\n"), "text/csv")},
+    )
+    assert upload_response.status_code == 201
+    attachment_id = upload_response.json()["id"]
+
+    captured: dict[str, object] = {}
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        captured["attachments"] = attachments
+        yield {"event": "delta", "delta": "ok"}
+        yield {"event": "completed", "response_text": "ok"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
+
+    stream_response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={
+            "contentText": "Usa el archivo para responder",
+            "existingAttachmentIds": [attachment_id],
+        },
+    )
+    assert stream_response.status_code == 200
+
+    resolved = captured["attachments"]
+    assert len(resolved) == 1
+    assert resolved[0].media_type == "text/csv"
+    assert resolved[0].extracted_text is not None
+    assert "metal,42" in resolved[0].extracted_text
+
+
+@pytest.mark.asyncio
 async def test_chat_draft_attachment_upload_contract(client: AsyncClient, db_session, set_current_user):
     org, user = await _create_authed_user(db_session, set_current_user)
 

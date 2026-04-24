@@ -14,16 +14,19 @@ from app.models.chat_attachment import ChatAttachment
 from app.models.chat_message import ChatMessage
 from app.models.chat_thread import ChatThread
 from app.services.chat_stream_protocol import resolve_attachments_to_agent_input
+from app.services.s3_service import download_file_content
 
 logger = structlog.get_logger(__name__)
 
 MAX_ATTACHMENTS_PER_MESSAGE = 5
 MAX_ATTACHMENT_SIZE_BYTES = 4 * 1024 * 1024
 CHAT_ORPHAN_DRAFT_RETENTION_DAYS = 7
-ALLOWED_EXACT_MIME_TYPES = {"application/pdf", "text/plain"}
-ALLOWED_MIME_PREFIXES = ("image/",)
+ALLOWED_EXACT_MIME_TYPES = {"application/pdf"}
+ALLOWED_MIME_PREFIXES = ("image/", "text/")
 CHAT_MODEL_CONTEXT_WINDOW = 12
 CHAT_TITLE_MAX_CHARS = 80
+CHAT_DEFAULT_THREAD_TITLE = "New chat"
+CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS = 12_000
 
 
 @dataclass(slots=True, frozen=True)
@@ -60,6 +63,28 @@ def _is_allowed_content_type(content_type: str) -> bool:
     if content_type in ALLOWED_EXACT_MIME_TYPES:
         return True
     return any(content_type.startswith(prefix) for prefix in ALLOWED_MIME_PREFIXES)
+
+
+def _is_stable_thread_title(title: str | None) -> bool:
+    if title is None:
+        return False
+    normalized = " ".join(title.split()).strip()
+    if not normalized:
+        return False
+    return normalized.casefold() != CHAT_DEFAULT_THREAD_TITLE.casefold()
+
+
+def _extract_text_from_attachment_bytes(*, content: bytes, content_type: str | None) -> str | None:
+    normalized_content_type = _normalize_content_type(content_type)
+    if not normalized_content_type.startswith("text/"):
+        return None
+
+    text = content.decode("utf-8", errors="replace").strip()
+    if not text:
+        return None
+    if len(text) <= CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS:
+        return text
+    return text[:CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS]
 
 
 async def ensure_thread_exists(
@@ -102,7 +127,7 @@ async def ensure_thread_exists(
             id=thread_id,
             organization_id=organization_id,
             created_by_user_id=created_by_user_id,
-            title=None,
+            title=CHAT_DEFAULT_THREAD_TITLE,
             last_message_preview=None,
             last_message_at=None,
             archived_at=None,
@@ -324,7 +349,7 @@ async def create_user_message_with_attachments(
             attachment.message_id = message.id
 
         derived_title = _derive_conversation_title(content_text)
-        if thread.title is None and derived_title is not None:
+        if not _is_stable_thread_title(thread.title) and derived_title is not None:
             thread.title = derived_title
 
         now = datetime.now(UTC)
@@ -460,6 +485,43 @@ async def _load_message_attachments_for_agent(
     return list(rows.scalars().all())
 
 
+async def _hydrate_missing_attachment_text(
+    *,
+    db: AsyncSession,
+    attachments: list[ChatAttachment],
+) -> list[ChatAttachment]:
+    pending_updates = False
+
+    for attachment in attachments:
+        if attachment.extracted_text:
+            continue
+
+        normalized_content_type = _normalize_content_type(attachment.content_type)
+        if not normalized_content_type.startswith("text/"):
+            continue
+
+        try:
+            content = await download_file_content(attachment.storage_key)
+            extracted_text = _extract_text_from_attachment_bytes(
+                content=content,
+                content_type=attachment.content_type,
+            )
+            if extracted_text:
+                attachment.extracted_text = extracted_text
+                pending_updates = True
+        except Exception:
+            logger.warning(
+                "chat_attachment_text_hydration_failed",
+                attachment_id=str(attachment.id),
+                storage_key=attachment.storage_key,
+            )
+
+    if pending_updates:
+        await db.commit()
+
+    return attachments
+
+
 async def stream_chat_turn(
     *,
     db: AsyncSession,
@@ -490,7 +552,7 @@ async def stream_chat_turn(
             "updated_at": thread.updated_at.isoformat(),
         }
 
-    had_existing_title = bool(thread.title and thread.title.strip())
+    previous_thread_title = thread.title
 
     user_message = await create_user_message_with_attachments(
         db=db,
@@ -503,7 +565,11 @@ async def stream_chat_turn(
         existing_attachment_ids=existing_attachment_ids,
     )
 
-    if not had_existing_title and thread.title:
+    if (
+        thread.title
+        and thread.title != previous_thread_title
+        and _is_stable_thread_title(thread.title)
+    ):
         yield {
             "event": "data-conversation-title",
             "thread_id": str(thread.id),
@@ -528,6 +594,10 @@ async def stream_chat_turn(
         db=db,
         organization_id=organization_id,
         message_id=user_message.id,
+    )
+    message_attachments = await _hydrate_missing_attachment_text(
+        db=db,
+        attachments=message_attachments,
     )
     agent_attachments = resolve_attachments_to_agent_input(message_attachments)
 
@@ -634,10 +704,11 @@ async def create_thread(
     title: str | None = None,
 ) -> ChatThread:
     """Create one chat thread scoped to org + creator."""
+    normalized_title = title.strip() if title else ""
     thread = ChatThread(
         organization_id=organization_id,
         created_by_user_id=created_by_user_id,
-        title=title.strip() if title else None,
+        title=normalized_title or CHAT_DEFAULT_THREAD_TITLE,
         last_message_preview=None,
         last_message_at=None,
     )

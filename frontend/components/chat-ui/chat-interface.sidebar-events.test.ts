@@ -4,6 +4,7 @@ import {
 	applyProvisionalThreadFromPrompt,
 	applyConversationTitleFromEvent,
 	deriveProvisionalThreadTitleFromPrompt,
+	preserveValidTitlesOnRefetch,
 	upsertThreadFromEvent,
 } from "@/lib/chat-runtime/sidebar-events";
 
@@ -117,5 +118,32 @@ describe("chat-interface sidebar events", () => {
 			lastMessageAt: nowIso,
 			updatedAt: nowIso,
 		});
+	});
+
+	it("preserva título previo válido cuando refetch trae null", () => {
+		const next = preserveValidTitlesOnRefetch(
+			[
+				{
+					id: "thread-1",
+					title: "Título persistido",
+					lastMessagePreview: null,
+					lastMessageAt: null,
+					createdAt: "2026-01-01T00:00:00.000Z",
+					updatedAt: "2026-01-01T00:00:00.000Z",
+				},
+			],
+			[
+				{
+					id: "thread-1",
+					title: null,
+					lastMessagePreview: null,
+					lastMessageAt: null,
+					createdAt: "2026-01-01T00:00:00.000Z",
+					updatedAt: "2026-01-02T00:00:00.000Z",
+				},
+			],
+		);
+
+		expect(next[0]?.title).toBe("Título persistido");
 	});
 });

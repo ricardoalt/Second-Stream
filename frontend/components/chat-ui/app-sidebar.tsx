@@ -13,6 +13,7 @@ import type * as React from "react";
 import { useState } from "react";
 import { buildChatThreadsQueryKey, listChatThreads } from "@/lib/api/chat";
 import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
+import { preserveValidTitlesOnRefetch } from "@/lib/chat-runtime/sidebar-events";
 import { sortThreadsByRecency } from "@/lib/chat-runtime/thread-order";
 import { resolveChatThreadScope } from "@/lib/chat-runtime/thread-scope";
 import { useAuth } from "@/lib/contexts";
@@ -105,6 +106,8 @@ export function AppSidebar({
 		queryKey: threadsQueryKey,
 		queryFn: () => listChatThreads(listThreadsOptions),
 		placeholderData: (previousThreads) => previousThreads,
+		structuralSharing: (oldData, newData) =>
+			preserveValidTitlesOnRefetch(oldData, newData),
 	});
 
 	const sortedThreads = sortThreadsByRecency(threads);
