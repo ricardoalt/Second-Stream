@@ -15,10 +15,20 @@ describe("chat baseline simplificado", () => {
 		expect(source).toContain("useChat<MyUIMessage>");
 		expect(source).toContain("id: threadId");
 		expect(source).toContain("transport");
+		expect(source).toContain("resume: true");
 		expect(source).toContain("onData");
 		expect(source).toContain("onFinish");
 		expect(source).toContain("DATA_NEW_THREAD_CREATED_PART");
 		expect(source).toContain("DATA_CONVERSATION_TITLE_PART");
+	});
+
+	it("renderiza adjuntos de archivos con ChatAttachmentChip compartido", () => {
+		const source = read("components/chat-ui/chat-interface.tsx");
+
+		expect(source).toContain('case "file":');
+		expect(source).toContain("<ChatAttachmentChip");
+		expect(source).not.toContain("next/image");
+		expect(source).not.toContain("isImage && !persistedAttachmentId");
 	});
 
 	it("el route boundary hace sincronización de URL sólo tras evento confirmado", () => {

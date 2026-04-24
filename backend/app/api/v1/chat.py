@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import uuid
+from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
@@ -61,6 +64,49 @@ CHAT_ATTACHMENT_STORAGE_PREFIX = "chat"
 CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS = 12_000
 CHAT_ALLOWED_UPLOAD_EXACT_MIME_TYPES = {"application/pdf"}
 CHAT_ALLOWED_UPLOAD_PREFIXES = ("image/", "text/")
+
+
+@dataclass(slots=True)
+class _ChatStreamSession:
+    protocol_official: bool
+    _frames: list[str] = field(default_factory=list)
+    _done: bool = False
+    _condition: asyncio.Condition = field(default_factory=asyncio.Condition)
+
+    async def publish(self, frame: str) -> None:
+        async with self._condition:
+            self._frames.append(frame)
+            self._condition.notify_all()
+
+    async def close(self) -> None:
+        async with self._condition:
+            self._done = True
+            self._condition.notify_all()
+
+    async def iter_frames(self) -> AsyncIterator[str]:
+        index = 0
+        while True:
+            async with self._condition:
+                while index >= len(self._frames) and not self._done:
+                    await self._condition.wait()
+
+                if index < len(self._frames):
+                    frame = self._frames[index]
+                    index += 1
+                elif self._done:
+                    break
+                else:
+                    continue
+
+            yield frame
+
+
+# Best-effort stream resume cache: process-local/in-memory only (no cross-worker durability).
+_active_chat_stream_sessions: dict[tuple[str, str, str], _ChatStreamSession] = {}
+
+
+def _build_stream_session_key(*, organization_id: UUID, user_id: UUID, thread_id: UUID) -> tuple[str, str, str]:
+    return (str(organization_id), str(user_id), str(thread_id))
 
 
 def _raise_chat_error(exc: ChatAttachmentValidationError) -> None:
@@ -441,9 +487,22 @@ async def stream_chat_message(
     run_id = f"run-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
     content_text = _resolve_content_text(payload)
     payload_messages_count, payload_file_parts_count = _summarize_ui_messages(payload.messages)
+    session_key = _build_stream_session_key(
+        organization_id=org.id,
+        user_id=current_user.id,
+        thread_id=thread_id,
+    )
 
     # Resolve negotiated format: body field > header > default
     use_official = _resolve_stream_format(payload.stream_format, x_vercel_ai_ui_message_stream)
+
+    previous_session = _active_chat_stream_sessions.get(session_key)
+    if previous_session is not None:
+        await previous_session.close()
+
+    stream_session = _ChatStreamSession(protocol_official=use_official)
+    _active_chat_stream_sessions[session_key] = stream_session
+
     logger.info(
         "chat_stream_request_received",
         thread_id=str(thread_id),
@@ -469,9 +528,11 @@ async def stream_chat_message(
             )
             if use_official:
                 async for frame in adapt_stream_to_official_protocol(internal_stream):
+                    await stream_session.publish(frame)
                     yield frame
             else:
                 async for frame in adapt_stream_to_legacy_protocol(internal_stream):
+                    await stream_session.publish(frame)
                     yield frame
         except ChatAttachmentValidationError as exc:
             # Attachment validation errors bypass the stream adapter —
@@ -479,10 +540,21 @@ async def stream_chat_message(
             if use_official:
                 from app.services.chat_stream_protocol import encode_official_sse
 
-                yield encode_official_sse("error", {"errorText": exc.code})
-                yield "data: [DONE]\n\n"
+                error_frame = encode_official_sse("error", {"errorText": exc.code})
+                await stream_session.publish(error_frame)
+                yield error_frame
+
+                done_frame = "data: [DONE]\n\n"
+                await stream_session.publish(done_frame)
+                yield done_frame
             else:
-                yield _sse_encode({"event": "error", "code": exc.code})
+                error_frame = _sse_encode({"event": "error", "code": exc.code})
+                await stream_session.publish(error_frame)
+                yield error_frame
+        finally:
+            await stream_session.close()
+            if _active_chat_stream_sessions.get(session_key) is stream_session:
+                _active_chat_stream_sessions.pop(session_key, None)
 
     from fastapi.responses import StreamingResponse
 
@@ -495,6 +567,44 @@ async def stream_chat_message(
 
     return StreamingResponse(
         _event_generator(),
+        media_type="text/event-stream",
+        headers=headers,
+    )
+
+
+@router.get("/threads/{thread_id}/messages/stream")
+async def reconnect_chat_message_stream(
+    thread_id: UUID,
+    current_user: CurrentUser,
+    org: OrganizationContext,
+):
+    """Reconnect to an in-flight chat stream if one exists.
+
+    Returns 204 when there is no active stream for this user/thread pair.
+    """
+
+    require_permission(current_user, permissions.CHAT_WRITE)
+
+    session_key = _build_stream_session_key(
+        organization_id=org.id,
+        user_id=current_user.id,
+        thread_id=thread_id,
+    )
+    stream_session = _active_chat_stream_sessions.get(session_key)
+    if stream_session is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    from fastapi.responses import StreamingResponse
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    }
+    if stream_session.protocol_official:
+        headers[PROTOCOL_HEADER] = PROTOCOL_VERSION
+
+    return StreamingResponse(
+        stream_session.iter_frames(),
         media_type="text/event-stream",
         headers=headers,
     )

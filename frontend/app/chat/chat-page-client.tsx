@@ -122,7 +122,6 @@ export function ChatPageClient({
 
 	return (
 		<ChatInterface
-			key={threadId}
 			threadId={threadId}
 			initialMessages={shouldLoadPersistedHistory ? initialMessages : []}
 			onThreadCreated={handleThreadCreated}

@@ -722,6 +722,50 @@ async def test_chat_attachment_download_denies_cross_user_scope(
 
 
 @pytest.mark.asyncio
+async def test_chat_stream_reconnect_returns_204_without_active_stream(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    _org, _user = await _create_authed_user(db_session, set_current_user)
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Reconnect Empty"})
+    thread_id = create_thread.json()["id"]
+
+    response = await client.get(f"/api/v1/chat/threads/{thread_id}/messages/stream")
+    assert response.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_reconnect_replays_active_official_stream_frames(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    org, user = await _create_authed_user(db_session, set_current_user)
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Reconnect Replay"})
+    thread_id = create_thread.json()["id"]
+
+    thread_uuid = uuid.UUID(thread_id)
+    session_key = chat_api._build_stream_session_key(
+        organization_id=org.id,
+        user_id=user.id,
+        thread_id=thread_uuid,
+    )
+    stream_session = chat_api._ChatStreamSession(protocol_official=True)
+    await stream_session.publish('data: {"type":"start","messageId":"msg-1"}\n\n')
+    await stream_session.publish("data: [DONE]\n\n")
+    await stream_session.close()
+    chat_api._active_chat_stream_sessions[session_key] = stream_session
+
+    response = await client.get(f"/api/v1/chat/threads/{thread_id}/messages/stream")
+    assert response.status_code == 200
+    assert response.headers.get("x-vercel-ai-ui-message-stream") == "v1"
+    assert response.text == 'data: {"type":"start","messageId":"msg-1"}\n\ndata: [DONE]\n\n'
+
+    chat_api._active_chat_stream_sessions.pop(session_key, None)
+
+
+@pytest.mark.asyncio
 async def test_chat_stream_official_protocol_success_contract(
     client: AsyncClient, db_session, set_current_user, monkeypatch
 ):

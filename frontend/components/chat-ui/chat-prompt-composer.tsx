@@ -1,12 +1,7 @@
 import type { ChatStatus } from "ai";
 import type * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-	Attachment,
-	AttachmentPreview,
-	AttachmentRemove,
-	Attachments,
-} from "@/components/ai-elements/attachments";
+import { ChatComposerAttachments } from "@/components/chat-ui/chat-composer-attachments";
 import {
 	PromptInput,
 	PromptInputActionAddAttachments,
@@ -90,18 +85,10 @@ function PromptInputAttachmentsHeader(): React.JSX.Element | null {
 
 	return (
 		<PromptInputHeader>
-			<Attachments className="w-full" variant="list">
-				{attachments.files.map((attachment) => (
-					<Attachment
-						data={attachment}
-						key={attachment.id}
-						onRemove={() => attachments.remove(attachment.id)}
-					>
-						<AttachmentPreview />
-						<AttachmentRemove />
-					</Attachment>
-				))}
-			</Attachments>
+			<ChatComposerAttachments
+				attachments={attachments.files}
+				onRemove={attachments.remove}
+			/>
 		</PromptInputHeader>
 	);
 }
@@ -154,8 +141,8 @@ export function ChatPromptComposer({
 	const handleSubmit = useCallback(
 		async (message: PromptInputMessage): Promise<void> => {
 			setAttachmentError(null);
-			draft.clear();
 			await onSubmitMessage(message);
+			draft.clear();
 		},
 		[draft, onSubmitMessage],
 	);

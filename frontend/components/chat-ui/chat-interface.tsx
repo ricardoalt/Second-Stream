@@ -4,7 +4,6 @@ import { useChat } from "@ai-sdk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileText } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import Image from "next/image";
 import { useCallback, useMemo, useState } from "react";
 import {
 	Conversation,
@@ -23,7 +22,6 @@ import { WorkingMemoryUpdate } from "@/components/chat-ui/ai-elements/working-me
 import {
 	buildChatThreadsQueryKey,
 	type ChatThreadSummaryDTO,
-	getChatAttachmentIdFromDownloadUrl,
 } from "@/lib/api/chat";
 import { createChatBridgeTransport } from "@/lib/chat-bridge/transport";
 import {
@@ -78,6 +76,7 @@ export function ChatInterface({
 	const { user } = useAuth();
 	const selectedOrgId = useOrganizationStore((state) => state.selectedOrgId);
 	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
 	const [retryMessage, setRetryMessage] = useState<PromptInputMessage | null>(
 		null,
 	);
@@ -119,6 +118,7 @@ export function ChatInterface({
 	} = useChat<MyUIMessage>({
 		id: threadId,
 		messages: initialMessages,
+		resume: true,
 		transport,
 		onFinish: () => {
 			void queryClient.refetchQueries({
@@ -157,6 +157,7 @@ export function ChatInterface({
 			if (!canSubmitPromptMessage(message)) {
 				return;
 			}
+			setIsSubmittingMessage(true);
 			setSubmitError(null);
 			setRetryMessage(null);
 
@@ -212,6 +213,8 @@ export function ChatInterface({
 						? submitFailure.message
 						: "Unable to send this message right now.",
 				);
+			} finally {
+				setIsSubmittingMessage(false);
 			}
 		},
 		[chatThreadsQueryKey, clearError, queryClient, sendMessage, threadId],
@@ -251,10 +254,11 @@ export function ChatInterface({
 		setMessages,
 	]);
 
-	const isEmptyState = messages.length === 0;
+	const isEmptyState = messages.length === 0 && !isSubmittingMessage;
 	const isStreamingOrSubmitted =
 		status === "submitted" || status === "streaming";
-	const showShimmer = shouldShowLoadingShimmer(status, messages);
+	const showShimmer =
+		isSubmittingMessage || shouldShowLoadingShimmer(status, messages);
 	const visibleError = submitError ?? error?.message ?? null;
 	const canRetry =
 		!isStreamingOrSubmitted && (Boolean(retryMessage) || messages.length > 0);
@@ -326,29 +330,6 @@ export function ChatInterface({
 												{message.parts.map((part, partIndex) => {
 													switch (part.type) {
 														case "file": {
-															const isImage =
-																part.mediaType.startsWith("image/");
-															const persistedAttachmentId =
-																getChatAttachmentIdFromDownloadUrl(part.url);
-
-															if (isImage && !persistedAttachmentId) {
-																return (
-																	<div
-																		key={`${message.id}-${partIndex}`}
-																		className="mb-2"
-																	>
-																		<Image
-																			alt={part.filename ?? "Uploaded image"}
-																			className="max-h-80 rounded-lg border object-contain"
-																			src={part.url}
-																			width={1280}
-																			height={960}
-																			unoptimized
-																		/>
-																	</div>
-																);
-															}
-
 															return (
 																<ChatAttachmentChip
 																	key={`${message.id}-${partIndex}`}

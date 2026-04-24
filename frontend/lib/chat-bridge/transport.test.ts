@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { MyUIMessage } from "@/types/ui-message";
 import {
 	buildBridgeHeaders,
+	prepareBridgeReconnectRequest,
 	prepareBridgeSendRequest,
 	resolveLatestUserText,
 } from "./transport";
@@ -70,6 +71,29 @@ describe("chat bridge transport", () => {
 
 		expect(prepared.body).toEqual({
 			messages: [createUserTextMessage("hello bridge")],
+		});
+	});
+
+	it("prepares reconnect request against chat stream endpoint", () => {
+		const prepared = prepareBridgeReconnectRequest({
+			baseUrl: "https://api.secondstream.test",
+			threadId: "thread-42",
+			accessToken: "token-abc",
+			organizationId: "org-7",
+			headers: {
+				"x-extra": "kept",
+			},
+		});
+
+		expect(prepared.api).toBe(
+			"https://api.secondstream.test/chat/threads/thread-42/messages/stream",
+		);
+		expect(prepared.headers).toMatchObject({
+			Accept: "text/event-stream",
+			Authorization: "Bearer token-abc",
+			"X-Organization-Id": "org-7",
+			"x-vercel-ai-ui-message-stream": "v1",
+			"x-extra": "kept",
 		});
 	});
 

@@ -17,6 +17,14 @@ interface PrepareBridgeSendRequestOptions {
 	headers?: HeadersInit | undefined;
 }
 
+interface PrepareBridgeReconnectRequestOptions {
+	baseUrl: string;
+	threadId: string;
+	accessToken: string | null;
+	organizationId: string | null;
+	headers?: HeadersInit | undefined;
+}
+
 interface CreateChatBridgeTransportOptions {
 	threadId: string;
 	baseUrl?: string;
@@ -99,6 +107,24 @@ export function prepareBridgeSendRequest(
 	};
 }
 
+export function prepareBridgeReconnectRequest(
+	options: PrepareBridgeReconnectRequestOptions,
+): {
+	api: string;
+	headers: Record<string, string>;
+} {
+	return {
+		api: `${options.baseUrl}/chat/threads/${options.threadId}/messages/stream`,
+		headers: {
+			...normalizeHeaders(options.headers),
+			...buildBridgeHeaders({
+				accessToken: options.accessToken,
+				organizationId: options.organizationId,
+			}),
+		},
+	};
+}
+
 function normalizeHeaders(headers?: HeadersInit): Record<string, string> {
 	if (!headers) {
 		return {};
@@ -146,6 +172,22 @@ export function createChatBridgeTransport(
 				api: prepared.api,
 				headers: prepared.headers,
 				body: prepared.body,
+			};
+		},
+		prepareReconnectToStreamRequest: ({ headers }) => {
+			const prepared = prepareBridgeReconnectRequest({
+				baseUrl: resolvedBaseUrl,
+				threadId: options.threadId,
+				accessToken: (options.getAccessToken ?? getAccessTokenFromStorage)(),
+				organizationId: (
+					options.getOrganizationId ?? getOrganizationIdFromStorage
+				)(),
+				headers,
+			});
+
+			return {
+				api: prepared.api,
+				headers: prepared.headers,
 			};
 		},
 	});
