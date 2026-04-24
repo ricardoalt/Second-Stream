@@ -155,6 +155,53 @@ async def adapt_stream_to_official_protocol(
                 },
             )
 
+        elif event_type == "tool-input-start":
+            yield encode_official_sse(
+                "tool-input-start",
+                {
+                    "toolCallId": event["toolCallId"],
+                    "toolName": event["toolName"],
+                },
+            )
+
+        elif event_type == "tool-input-delta":
+            yield encode_official_sse(
+                "tool-input-delta",
+                {
+                    "toolCallId": event["toolCallId"],
+                    "inputTextDelta": event["inputTextDelta"],
+                },
+            )
+
+        elif event_type == "tool-input-available":
+            yield encode_official_sse(
+                "tool-input-available",
+                {
+                    "toolCallId": event["toolCallId"],
+                    "toolName": event["toolName"],
+                    "input": event["input"],
+                },
+            )
+
+        elif event_type == "tool-output-available":
+            # No toolName — client has it from tool-input-start frame
+            yield encode_official_sse(
+                "tool-output-available",
+                {
+                    "toolCallId": event["toolCallId"],
+                    "output": event["output"],
+                },
+            )
+
+        elif event_type == "tool-output-error":
+            yield encode_official_sse(
+                "tool-output-error",
+                {
+                    "toolCallId": event["toolCallId"],
+                    "errorText": event["errorText"],
+                },
+            )
+
     # Stream termination marker per the official protocol
     yield "data: [DONE]\n\n"
 

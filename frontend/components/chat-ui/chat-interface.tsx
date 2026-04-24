@@ -2,6 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useQueryClient } from "@tanstack/react-query";
+import { FileText } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { useCallback, useMemo, useState } from "react";
@@ -418,6 +419,48 @@ export function ChatInterface({
 																	}
 																/>
 															);
+														case "tool-generateDiscoveryReport": {
+															if (part.state === "output-available") {
+																const bytes = part.output.size_bytes;
+																const sizeLabel =
+																	bytes >= 1_048_576
+																		? `${(bytes / 1_048_576).toFixed(1)} MB`
+																		: `${Math.round(bytes / 1024)} KB`;
+																return (
+																	<a
+																		key={`${message.id}-${partIndex}`}
+																		href={part.output.download_url}
+																		download={part.output.filename}
+																		className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-accent"
+																	>
+																		<FileText className="size-3.5" />
+																		<span>{part.output.filename}</span>
+																		<span className="text-muted-foreground">
+																			({sizeLabel})
+																		</span>
+																	</a>
+																);
+															}
+															if (part.state === "output-error") {
+																return (
+																	<span
+																		key={`${message.id}-${partIndex}`}
+																		className="text-destructive text-xs"
+																	>
+																		Failed to generate report
+																	</span>
+																);
+															}
+															return (
+																<Shimmer
+																	key={`${message.id}-${partIndex}`}
+																	as="p"
+																	className="text-xs"
+																>
+																	Generating discovery report...
+																</Shimmer>
+															);
+														}
 														default:
 															return null;
 													}

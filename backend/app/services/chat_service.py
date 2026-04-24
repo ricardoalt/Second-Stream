@@ -1,5 +1,6 @@
 """Chat service helpers for v1 visibility and message-owned attachments."""
 
+import contextlib
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -490,7 +491,10 @@ async def _persist_assistant_terminal_message(
     created_by_user_id: UUID,
     content_text: str,
     run_id: str,
+    produced_attachment_ids: list[UUID] | None = None,
 ) -> ChatMessage:
+    from sqlalchemy import update
+
     message = ChatMessage(
         organization_id=organization_id,
         thread_id=thread.id,
@@ -504,6 +508,17 @@ async def _persist_assistant_terminal_message(
     thread.last_message_at = now
     thread.last_message_preview = _build_last_message_preview(content_text)
     thread.updated_at = now
+
+    if produced_attachment_ids:
+        await db.execute(
+            update(ChatAttachment)
+            .where(
+                ChatAttachment.id.in_(produced_attachment_ids),
+                ChatAttachment.message_id.is_(None),
+            )
+            .values(message_id=message.id)
+        )
+
     await db.commit()
     await db.refresh(message)
     logger.info(
@@ -632,12 +647,40 @@ async def stream_chat_turn(
         exclude_message_id=user_message.id,
     )
     agent_prompt = _build_agent_prompt(history=history, user_message=user_message.content_text)
-    deps = ChatAgentDeps(
-        organization_id=str(organization_id),
-        user_id=str(created_by_user_id),
-        thread_id=str(thread_id),
-        run_id=run_id,
-    )
+
+    produced_attachment_ids: list[UUID] = []
+    produced_storage_keys: list[str] = []
+
+    async def _persist_attachment(
+        *,
+        storage_key: str,
+        filename: str,
+        content_type: str,
+        size_bytes: int,
+    ):
+        from app.services.s3_service import get_presigned_url_with_headers
+        att = ChatAttachment(
+            organization_id=organization_id,
+            uploaded_by_user_id=created_by_user_id,
+            message_id=None,
+            storage_key=storage_key,
+            original_filename=filename,
+            content_type=content_type,
+            size_bytes=size_bytes,
+        )
+        db.add(att)
+        await db.commit()
+        await db.refresh(att)
+        att.signed_url = await get_presigned_url_with_headers(storage_key, filename=filename)
+        att.signed_url_expires_at = None
+        return att
+
+    async def _upload_bytes(storage_key: str, data: object, content_type: str) -> str:
+        from app.services.s3_service import upload_file_to_s3
+
+        result = await upload_file_to_s3(data, storage_key, content_type)
+        produced_storage_keys.append(storage_key)
+        return result
 
     message_attachments = await _load_message_attachments_for_agent(
         db=db,
@@ -649,6 +692,16 @@ async def stream_chat_turn(
         attachments=message_attachments,
     )
     agent_attachments = await resolve_attachments_to_agent_input_for_model(message_attachments)
+
+    deps = ChatAgentDeps(
+        organization_id=str(organization_id),
+        user_id=str(created_by_user_id),
+        thread_id=str(thread_id),
+        run_id=run_id,
+        attachments=tuple(agent_attachments),
+        persist_attachment=_persist_attachment,
+        upload_bytes=_upload_bytes,
+    )
     media_type_counts, total_binary_bytes, total_text_chars, binary_attachment_count = (
         _summarize_attachments_for_observability(attachments=agent_attachments)
     )
@@ -685,6 +738,23 @@ async def stream_chat_turn(
                 yield {"event": "delta", "delta": delta}
                 continue
 
+            if event_type == "tool-output-available":
+                output = runtime_event.get("output", {})
+                if isinstance(output, dict) and (att_id := output.get("attachment_id")):
+                    with contextlib.suppress(ValueError):
+                        produced_attachment_ids.append(UUID(att_id))
+                yield runtime_event
+                continue
+
+            if event_type in (
+                "tool-input-start",
+                "tool-input-delta",
+                "tool-input-available",
+                "tool-output-error",
+            ):
+                yield runtime_event
+                continue
+
             if event_type == "completed":
                 candidate = str(runtime_event.get("response_text", "")).strip()
                 if candidate:
@@ -707,12 +777,40 @@ async def stream_chat_turn(
             created_by_user_id=created_by_user_id,
             content_text=response_text,
             run_id=run_id,
+            produced_attachment_ids=produced_attachment_ids,
         )
+
         yield {
             "event": "completed",
             "message_id": str(assistant_message.id),
         }
     except Exception as exc:
+        # Clean up orphan attachments from this run
+        deleted_storage_keys: set[str] = set()
+
+        if produced_attachment_ids:
+            from app.services.s3_service import delete_file_from_s3
+
+            with contextlib.suppress(Exception):
+                rows = await db.execute(
+                    select(ChatAttachment).where(ChatAttachment.id.in_(produced_attachment_ids))
+                )
+                for att in rows.scalars().all():
+                    with contextlib.suppress(Exception):
+                        await delete_file_from_s3(att.storage_key)
+                        deleted_storage_keys.add(att.storage_key)
+                    await db.delete(att)
+                await db.commit()
+
+        if produced_storage_keys:
+            from app.services.s3_service import delete_file_from_s3
+
+            for key in produced_storage_keys:
+                if key in deleted_storage_keys:
+                    continue
+                with contextlib.suppress(Exception):
+                    await delete_file_from_s3(key)
+
         await db.rollback()
         logger.error(
             "chat_stream_failed",

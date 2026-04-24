@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SecondStream Executive Discovery Report — {{ payload.customer | e }}</title>
+  <link rel="stylesheet" href="discovery_executive.css">
+</head>
+<body>
+
+<!-- ===== COVER BLOCK ===== -->
+<div class="cover-block">
+  <div class="cover-header">
+    <span class="cover-brand">SecondStream</span>
+    <span class="cover-label">Executive Discovery Report</span>
+  </div>
+  <div class="cover-fields">
+    <div class="cover-row"><span class="cover-key">Customer</span><span class="cover-val">{{ payload.customer | e }}</span></div>
+    <div class="cover-row"><span class="cover-key">Stream</span><span class="cover-val">{{ payload.stream | e }}</span></div>
+    <div class="cover-row"><span class="cover-key">Date</span><span class="cover-val">{{ payload.snapshot[:10] if payload.snapshot else "" }}</span></div>
+    <div class="cover-row gate-row">
+      <span class="cover-key">Qualification Gate</span>
+      <span class="gate-badge gate-{{ payload.gate_status | lower | replace('_', '-') }}">{{ payload.gate_status | e }}</span>
+    </div>
+    {% if payload.gate_blocker %}
+    <div class="gate-blocker">{{ payload.gate_blocker | e }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ===== SNAPSHOT ===== -->
+<div class="snapshot-block">
+  <h2 class="snapshot-heading">Snapshot</h2>
+  <p class="snapshot-body">{{ payload.snapshot | e }}</p>
+</div>
+
+<!-- ===== SAFETY CALLOUTS ===== -->
+{% if payload.safety_callouts %}
+<div class="safety-block">
+  <h2 class="safety-heading">Safety Flags</h2>
+  {% for flag in payload.safety_callouts %}
+  <div class="safety-flag safety-{{ flag.severity }}">
+    <span class="safety-severity">{{ flag.severity | upper }}</span>
+    <span class="safety-stream">{{ flag.sub_stream | e }}</span>
+    <span class="safety-desc">{{ flag.description | e }}</span>
+    {% if flag.intervention %}
+    <span class="safety-intervention">{{ flag.intervention | e }}</span>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="safety-block safety-none">
+  <p>No safety flags raised.</p>
+</div>
+{% endif %}
+
+<!-- ===== EIGHT SECTIONS ===== -->
+{% for section in payload.sections %}
+<div class="report-section">
+  <h2 class="section-heading">{{ loop.index }}. {{ section.title | e }}</h2>
+  <p class="section-lead"><strong>{{ section.lead | e }}</strong></p>
+  <p class="section-body">{{ section.body | e }}</p>
+  {% if section.close %}
+  <p class="section-close"><em>{{ section.close | e }}</em></p>
+  {% endif %}
+</div>
+{% endfor %}
+
+<!-- ===== STRATEGIC INSIGHT ===== -->
+<div class="strategic-insight-block">
+  <p class="strategic-insight-text">{{ payload.strategic_insight | e }}</p>
+</div>
+
+<!-- ===== WHAT TO ASK NEXT ===== -->
+<div class="questions-block">
+  <h2 class="section-heading">What to ask next</h2>
+  <div class="killer-question-box">
+    <p class="killer-question-label">KILLER QUESTION</p>
+    <p class="killer-question-text">{{ payload.killer_question.question | e }}</p>
+    <p class="killer-question-why"><em>Why it matters: {{ payload.killer_question.why_it_matters | e }}</em></p>
+  </div>
+  {% if payload.follow_up_questions %}
+  <div class="followup-questions">
+    <h3 class="followup-heading">If the conversation opens up</h3>
+    {% for q in payload.follow_up_questions %}
+    <div class="followup-item">
+      <p class="followup-q">{{ q.question | e }}</p>
+      <p class="followup-why"><em>Why it matters: {{ q.why_it_matters | e }}</em></p>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- ===== FOOTER ===== -->
+<div class="footer">
+  <span>SecondStream Executive Discovery Report</span>
+  <span>Confidential — not for distribution</span>
+</div>
+
+</body>
+</html>

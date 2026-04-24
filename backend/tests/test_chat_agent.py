@@ -1,11 +1,23 @@
+import importlib
 from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 from pydantic_ai import BinaryContent
-from pydantic_ai.messages import DocumentUrl
+from pydantic_ai.messages import (
+    DocumentUrl,
+    FunctionToolCallEvent,
+    FunctionToolResultEvent,
+    PartDeltaEvent,
+    PartStartEvent,
+    RetryPromptPart,
+    TextPartDelta,
+    ToolCallPart,
+    ToolCallPartDelta,
+    ToolReturnPart,
+)
+from pydantic_ai.run import AgentRunResultEvent
 
-import app.agents.chat_agent as chat_agent_module
 from app.agents.chat_agent import (
     ChatAgentDeps,
     ChatAgentError,
@@ -15,6 +27,8 @@ from app.agents.chat_agent import (
     stream_chat_response,
 )
 from app.services.chat_stream_protocol import ChatAgentAttachmentInput
+
+chat_agent_module = importlib.import_module("app.agents.chat_agent")
 
 
 @pytest.mark.asyncio
@@ -86,31 +100,32 @@ async def test_generate_chat_response_wraps_agent_runtime_failures(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_stream_chat_response_emits_incremental_deltas_and_completed(monkeypatch):
-    class _FakeStreamResult:
-        async def stream_text(self, *, delta: bool, debounce_by: float | None = 0.1):
-            assert delta is True
-            assert debounce_by is None
-            yield "First "
-            yield "First chunk"
-
-        def get_output(self):
-            return "First chunk"
-
-    class _FakeRunStream:
-        async def __aenter__(self):
-            return _FakeStreamResult()
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
     captured: dict[str, object] = {}
 
-    def _fake_run_stream(prompt, *, deps):
+    async def _fake_run_stream_events(prompt, *, deps):
         captured["prompt"] = prompt
         captured["deps"] = deps
-        return _FakeRunStream()
+        tool_call_id = "call-abc"
+        yield PartStartEvent(index=1, part=ToolCallPart("generateDiscoveryReport", args={}, tool_call_id=tool_call_id))
+        yield PartDeltaEvent(
+            index=1,
+            delta=ToolCallPartDelta(args_delta='{"customer":"Ex', tool_call_id=tool_call_id),
+        )
+        yield FunctionToolCallEvent(
+            part=ToolCallPart("generateDiscoveryReport", args={"customer": "ExxonMobil"}, tool_call_id=tool_call_id)
+        )
+        yield FunctionToolResultEvent(
+            result=ToolReturnPart(
+                tool_name="generateDiscoveryReport",
+                tool_call_id=tool_call_id,
+                content={"attachment_id": "att-1", "filename": "report.pdf"},
+            )
+        )
+        yield PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="First "))
+        yield PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="chunk"))
+        yield AgentRunResultEvent(result=SimpleNamespace(output="First chunk"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream", _fake_run_stream)
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -137,6 +152,19 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
     ]
 
     assert events == [
+        {"event": "tool-input-start", "toolCallId": "call-abc", "toolName": "generateDiscoveryReport"},
+        {"event": "tool-input-delta", "toolCallId": "call-abc", "inputTextDelta": '{"customer":"Ex'},
+        {
+            "event": "tool-input-available",
+            "toolCallId": "call-abc",
+            "toolName": "generateDiscoveryReport",
+            "input": {"customer": "ExxonMobil"},
+        },
+        {
+            "event": "tool-output-available",
+            "toolCallId": "call-abc",
+            "output": {"attachment_id": "att-1", "filename": "report.pdf"},
+        },
         {"event": "delta", "delta": "First "},
         {"event": "delta", "delta": "chunk"},
         {"event": "completed", "response_text": "First chunk"},
@@ -145,69 +173,20 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_response_falls_back_to_non_stream_run_when_streaming_unavailable(monkeypatch):
-    captured: dict[str, object] = {}
-
-    def _broken_run_stream(*_args, **_kwargs):
-        raise RuntimeError("stream unavailable")
-
-    async def _fallback_run(prompt, *, deps):
-        captured["prompt"] = prompt
-        captured["deps"] = deps
-        return SimpleNamespace(output="Fallback answer")
-
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream", _broken_run_stream)
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run", _fallback_run)
-
-    deps = ChatAgentDeps(
-        organization_id="org-1",
-        user_id="user-1",
-        thread_id="thread-1",
-        run_id="run-1",
-    )
-
-    events = [
-        event
-        async for event in stream_chat_response(
-            prompt="Question",
-            deps=deps,
-            attachments=[
-                ChatAgentAttachmentInput(
-                    attachment_id="att-pdf",
-                    media_type="application/pdf",
-                    filename="report.pdf",
-                    binary_content=b"%PDF-1.7",
-                )
-            ],
+async def test_stream_chat_response_maps_tool_output_error_events(monkeypatch):
+    async def _fake_run_stream_events(_prompt, *, deps):
+        _ = deps
+        tool_call_id = "call-error"
+        yield FunctionToolResultEvent(
+            result=RetryPromptPart(
+                tool_name="generateDiscoveryReport",
+                tool_call_id=tool_call_id,
+                content="tool failed",
+            )
         )
-    ]
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    assert events == [
-        {"event": "delta", "delta": "Fallback answer"},
-        {"event": "completed", "response_text": "Fallback answer"},
-    ]
-    assert isinstance(captured["prompt"], list)
-    assert isinstance(captured["prompt"][1], BinaryContent)
-
-
-@pytest.mark.asyncio
-async def test_stream_chat_response_emits_delta_when_stream_returns_only_terminal_output(monkeypatch):
-    class _FakeStreamResult:
-        async def stream_text(self, *, delta: bool, debounce_by: float | None = 0.1):
-            if False:
-                yield ""
-
-        def get_output(self):
-            return "Respuesta completa"
-
-    class _FakeRunStream:
-        async def __aenter__(self):
-            return _FakeStreamResult()
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream", lambda *_args, **_kwargs: _FakeRunStream())
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -226,9 +205,83 @@ async def test_stream_chat_response_emits_delta_when_stream_returns_only_termina
     ]
 
     assert events == [
-        {"event": "delta", "delta": "Respuesta completa"},
-        {"event": "completed", "response_text": "Respuesta completa"},
+        {
+            "event": "tool-output-error",
+            "toolCallId": "call-error",
+            "errorText": "tool failed\n\nFix the errors and try again.",
+        },
+        {"event": "completed", "response_text": "done"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_uses_tool_call_id_from_part_index_for_delta_without_id(monkeypatch):
+    async def _fake_run_stream_events(_prompt, *, deps):
+        _ = deps
+        yield PartStartEvent(
+            index=5,
+            part=ToolCallPart("generateDiscoveryReport", args={}, tool_call_id="call-from-start"),
+        )
+        yield PartDeltaEvent(index=5, delta=ToolCallPartDelta(args_delta='{"gate_status":"OPEN"}'))
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+
+    assert events[0] == {
+        "event": "tool-input-start",
+        "toolCallId": "call-from-start",
+        "toolName": "generateDiscoveryReport",
+    }
+    assert events[1] == {
+        "event": "tool-input-delta",
+        "toolCallId": "call-from-start",
+        "inputTextDelta": '{"gate_status":"OPEN"}',
+    }
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_raises_when_stream_crashes_before_terminal_result(monkeypatch):
+    async def _broken_run_stream_events(_prompt, *, deps):
+        _ = deps
+        raise RuntimeError("stream unavailable")
+        yield
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _broken_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+
+    with pytest.raises(ChatAgentError) as exc_info:
+        _ = [
+            event
+            async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+        ]
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
 def test_build_runtime_user_content_uses_binary_for_local_image_attachment():

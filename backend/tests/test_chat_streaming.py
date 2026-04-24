@@ -462,3 +462,55 @@ async def test_stream_chat_turn_resolves_existing_attachments_and_passes_agent_c
     assert resolved_inputs[0].attachment_id == str(draft_attachment.id)
     assert resolved_inputs[0].uploaded_file_ref == draft_attachment.storage_key
     assert resolved_inputs[0].extracted_text == "Extracted evidence body"
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_turn_cleans_up_uploaded_storage_key_when_tool_run_fails_before_row_persist(
+    db_session,
+    monkeypatch,
+):
+    org = await create_org(db_session, "Chat Cleanup Org", "chat-cleanup-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-cleanup-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    deleted_keys: list[str] = []
+
+    async def _capture_delete(storage_key: str):
+        deleted_keys.append(storage_key)
+
+    async def _fake_upload(_data, storage_key: str, _content_type: str):
+        return storage_key
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        _ = (prompt, attachments)
+        await deps.upload_bytes("chat/test/orphan.pdf", b"%PDF-1.7", "application/pdf")
+        raise ChatAgentError("tool execution failed")
+        yield
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response, raising=False)
+    monkeypatch.setattr("app.services.s3_service.upload_file_to_s3", _fake_upload)
+    monkeypatch.setattr("app.services.s3_service.delete_file_from_s3", _capture_delete)
+
+    events = [
+        event
+        async for event in stream_chat_turn(
+            db=db_session,
+            organization_id=org.id,
+            created_by_user_id=owner.id,
+            thread_id=thread.id,
+            content_text="Generate report",
+            run_id="run-storage-cleanup",
+        )
+    ]
+
+    assert events == [
+        {"event": "start", "run_id": "run-storage-cleanup"},
+        {"event": "error", "code": "CHAT_STREAM_FAILED"},
+    ]
+    assert deleted_keys == ["chat/test/orphan.pdf"]

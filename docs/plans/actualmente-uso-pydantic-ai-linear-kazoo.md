@@ -2,17 +2,17 @@
 
 ## Context
 
-PM entregó 10 documentos de skill (formato Anthropic Agent Skills: frontmatter YAML + markdown) en `backend/docs/skills-and-prompt-for-agent/skills/<name>/SKILL.md` sin wiring. El chat agent (`backend/app/agents/chat_agent.py`) es el menos moderno del repo: `system_prompt=` estático, cero tools, `ChatAgentDeps` nunca leído vía `RunContext`. El client aprobó el resultado de las skills → necesitamos conectarlas como primitivas nativas de Pydantic AI y de AI SDK v5 (los dos frameworks ya instalados), sin inventar abstracciones paralelas.
+PM entregó 10 documentos de skill (formato Anthropic Agent Skills: frontmatter YAML + markdown) en `backend/docs/skills-and-prompt-for-agent/skills/<name>/SKILL.md` sin wiring. El chat agent (`backend/app/agents/chat_agent.py`) es el menos moderno del repo: `system_prompt=` estático, cero tools, `ChatAgentDeps` nunca leído vía `RunContext`. El client aprobó el resultado de las skills → necesitamos conectarlas como primitivas nativas de Pydantic AI y de AI SDK v6 (los dos frameworks ya instalados), sin inventar abstracciones paralelas.
 
 ## Principio rector
 
-**Usar primitivas nativas del stack ya instalado, no inventar frames ni componentes custom.** Pydantic AI + AI SDK v5 + AI Elements cubren el 100% del caso de uso si mapeamos correctamente:
+**Usar primitivas nativas del stack ya instalado, no inventar frames ni componentes custom.** Pydantic AI + AI SDK v6 + AI Elements cubren el 100% del caso de uso si mapeamos correctamente:
 
 | Necesidad | Primitiva nativa | Precedente en tu repo |
 |---|---|---|
 | 9 skills prompt-only | `instructions=` + `@agent.instructions` (Pydantic AI) | — (caso nuevo, pero decorator oficial) |
 | Skill que genera PDF | `@agent.tool` con output tipado (Pydantic AI) | `bulk_import_extraction_agent.py` usa tools similares |
-| Propagar tool-call al frontend | Tool frames AI SDK v5: `tool-input-start` → `tool-input-available` → `tool-output-available` (estados `input-streaming`/`input-available`/`output-available`/`output-error`) | `tool-webSearch` en `chat-interface.tsx:302–330`, `tool-updateWorkingMemory` |
+| Propagar tool-call al frontend | Tool frames AI SDK v6: `tool-input-start` → `tool-input-delta` → `tool-input-available` → `tool-output-available` (estados `input-streaming`/`input-available`/`output-available`/`output-error`) | `tool-webSearch` en `chat-interface.tsx:302–330`, `tool-updateWorkingMemory` |
 | UI de progreso durante el tool | Estado `input-available` del mismo tool part → `<Shimmer>` | `WorkingMemoryUpdate` en `working-memory-update.tsx:22–67` |
 | UI de resultado (download chip) | Estado `output-available` del mismo tool part → `<a href download>` | Mismo pattern que sources en `tool-webSearch` |
 | Tool output tipado end-to-end | `{ input, output }` en tool map de `ui-message.ts` | `webSearch`, `updateWorkingMemory` en `ui-message.ts:22–34` |
@@ -26,7 +26,7 @@ PM entregó 10 documentos de skill (formato Anthropic Agent Skills: frontmatter 
 | Arquitectura backend | Agente único + instructions composicionales + 1 tool | Multi-agente (over-engineering) |
 | PDF engine | WeasyPrint + Jinja2 (stack del repo) | reportlab (heredado del harness Claude) |
 | Skill loading | 7 always-on + 2 condicionales (`multimodal-intake`, `sds-interpretation`) | 10 always-on (~25K tokens/turno sin caching Bedrock), 3 condicionales (`trainee_mode` requeriría migración → fase 2) |
-| Wire format del tool | Frames nativas AI SDK v5 `tool-*` con estados | `data-*` custom (duplica lo que SDK provee) |
+| Wire format del tool | Frames nativas AI SDK v6 `tool-*` con estados | `data-*` custom (duplica lo que SDK provee) |
 | Tool return shape | Pydantic model plano `DiscoveryReportOutput` | `ToolReturn(metadata=...)` (innecesario — AI SDK entrega `output` completo al frontend tipado) |
 | UI del tool | Case inline en `chat-interface.tsx` switch (5–10 líneas) | Nuevo componente separado `DiscoveryReportChip` |
 | Cleanup de orphans | Tracking in-memory de `attachment_id` producidos durante la run | Columna `run_id` en `ChatAttachment` (evita migración) |
@@ -375,3 +375,222 @@ Verificado contra archivos reales (chat_agent.py, chat_service.py, chat_stream_p
 ## Preguntas abiertas
 
 Ninguna bloqueante. Las 4 verificaciones pre-implementación son lecturas de source (~40 min total) antes de empezar a escribir código; no afectan la arquitectura, solo ajustan nombres exactos de campos.
+
+---
+
+## Post-review hardening (segunda pasada — corrección verificada contra docs)
+
+Revisión externa + verificación propia contra Pydantic AI 1.38 source + AI SDK v6 docs instalados.
+
+### Corrección importante respecto a mi análisis anterior
+
+**`run_stream_events()` SÍ EXISTE** en Pydantic AI 1.38 (`pydantic_ai/agent/abstract.py:757`). Estaba equivocado al afirmar lo contrario. Es exactamente lo que el revisor recomendó. Verificado contra el source instalado en `.venv/lib/python3.11/site-packages/pydantic_ai/agent/abstract.py`.
+
+`run_stream_events()` retorna `AsyncIterator[AgentStreamEvent | AgentRunResultEvent]` donde:
+- `AgentStreamEvent` = `ModelResponseStreamEvent | HandleResponseEvent`
+- `ModelResponseStreamEvent` = `PartStartEvent | PartDeltaEvent | PartEndEvent | FinalResultEvent`
+- `HandleResponseEvent` = `FunctionToolCallEvent | FunctionToolResultEvent`
+
+Esto elimina la necesidad del `tool_events` side-channel en `ChatAgentDeps` completamente.
+
+---
+
+### Cambio 1 — Migrar `stream_chat_response` a `run_stream_events()` (principal)
+
+**Archivo:** `backend/app/agents/chat_agent.py`
+
+**Por qué:** La implementación actual usa `run_stream().stream_text()` para texto + `tool_events: list[dict]` en deps como side-channel para tool events. Con `run_stream_events()` obtenemos todo en un único async iterator nativo, en el orden correcto, con `tool_call_id` real (no sintético), y con mejor UX (`tool-input-start` se emite cuando el modelo inicia la llamada, no cuando la función del tool empieza).
+
+**Wire format AI SDK v6 completo** (verificado contra `node_modules/ai/src/ui-message-stream/ui-message-chunks.ts`):
+- `tool-input-start` → state `input-streaming` — activado por `PartStartEvent(part=ToolCallPart)`
+- `tool-input-delta` → state permanece `input-streaming` — activado por `PartDeltaEvent(delta=ToolCallPartDelta)` (args en streaming; Bedrock los envía de golpe, pero otros modelos los streamean)
+- `tool-input-available` → state `input-available` — activado por `FunctionToolCallEvent` (args completos, tool a punto de ejecutar)
+- `tool-output-available` → state `output-available` — activado por `FunctionToolResultEvent(result=ToolReturnPart)` (**sin** `toolName` — confirmado)
+- `tool-output-error` → state `output-error` — activado por `FunctionToolResultEvent(result=RetryPromptPart)`
+
+**Mapping de eventos Pydantic AI → frames internos:**
+
+| Evento Pydantic AI | Frame interno | Payload |
+|---|---|---|
+| `PartStartEvent(part=ToolCallPart)` | `tool-input-start` | `{toolCallId, toolName}` |
+| `PartDeltaEvent(delta=ToolCallPartDelta)` | `tool-input-delta` | `{toolCallId, inputTextDelta}` — `delta.args_delta` como str (JSON-encode si es dict) |
+| `FunctionToolCallEvent` | `tool-input-available` | `{toolCallId, toolName, input}` |
+| `FunctionToolResultEvent(result=ToolReturnPart)` | `tool-output-available` | `{toolCallId, output}` — **SIN toolName** |
+| `FunctionToolResultEvent(result=RetryPromptPart)` | `tool-output-error` | `{toolCallId, errorText}` |
+| `PartDeltaEvent(delta=TextPartDelta)` | `delta` | `{delta: event.delta.content_delta}` |
+| `AgentRunResultEvent` | `completed` | Terminal — `event.result.output` como response_text |
+
+**Imports verificados en `.venv/lib/python3.11/site-packages/pydantic_ai/`:**
+```python
+from pydantic_ai.run import AgentRunResultEvent
+from pydantic_ai.messages import (
+    FunctionToolCallEvent, FunctionToolResultEvent, RetryPromptPart,
+    PartStartEvent, PartDeltaEvent, TextPartDelta, ToolCallPart, ToolCallPartDelta,
+)
+```
+
+**Nueva implementación de `stream_chat_response`:**
+```python
+import json as _json
+
+async def stream_chat_response(*, prompt, deps, attachments):
+    from pydantic_ai.run import AgentRunResultEvent
+    from pydantic_ai.messages import (
+        FunctionToolCallEvent, FunctionToolResultEvent, RetryPromptPart,
+        PartStartEvent, PartDeltaEvent, TextPartDelta, ToolCallPart, ToolCallPartDelta,
+    )
+
+    runtime_input = _build_runtime_user_content(prompt=prompt, attachments=attachments)
+    accumulated_text = ""
+
+    async for event in chat_agent.run_stream_events(runtime_input, deps=deps):
+        if isinstance(event, AgentRunResultEvent):
+            response_text = accumulated_text.strip() or str(event.result.output).strip()
+            yield {"event": "completed", "response_text": response_text}
+            return
+
+        if isinstance(event, PartStartEvent) and isinstance(event.part, ToolCallPart):
+            yield {
+                "event": "tool-input-start",
+                "toolCallId": event.part.tool_call_id,
+                "toolName": event.part.tool_name,
+            }
+        elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, ToolCallPartDelta):
+            args_delta = event.delta.args_delta
+            if args_delta is not None:
+                input_text_delta = args_delta if isinstance(args_delta, str) else _json.dumps(args_delta)
+                yield {
+                    "event": "tool-input-delta",
+                    "toolCallId": event.delta.tool_call_id or "",
+                    "inputTextDelta": input_text_delta,
+                }
+        elif isinstance(event, FunctionToolCallEvent):
+            yield {
+                "event": "tool-input-available",
+                "toolCallId": event.part.tool_call_id,
+                "toolName": event.part.tool_name,
+                "input": event.part.args_as_dict(),
+            }
+        elif isinstance(event, FunctionToolResultEvent):
+            if isinstance(event.result, RetryPromptPart):
+                yield {
+                    "event": "tool-output-error",
+                    "toolCallId": event.result.tool_call_id,
+                    "errorText": event.result.model_response(),
+                }
+            else:
+                output = event.result.model_response_object()
+                yield {
+                    "event": "tool-output-available",
+                    "toolCallId": event.result.tool_call_id,
+                    "output": output.get("return_value", output),
+                }
+        elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
+            delta = event.delta.content_delta
+            if delta:
+                accumulated_text += delta
+                yield {"event": "delta", "delta": delta}
+
+    # Fallback si AgentRunResultEvent no se recibió (error de red antes de terminal event)
+    yield {"event": "completed", "response_text": accumulated_text.strip()}
+```
+
+También añadir el **5to branch** en `backend/app/services/chat_stream_protocol.py` (después de `tool-input-start`):
+```python
+elif event_type == "tool-input-delta":
+    yield encode_official_sse("tool-input-delta", {
+        "toolCallId": event["toolCallId"],
+        "inputTextDelta": event["inputTextDelta"],
+    })
+```
+
+**Efectos secundarios del cambio:**
+- Borrar `tool_events: list[dict[str, Any]] = field(...)` de `ChatAgentDeps`
+- Borrar todas las llamadas `ctx.deps.tool_events.append(...)` en `generate_discovery_report`
+- Borrar `from __future__ import annotations` en `chat_agent.py` si solo servía para el tool decorator
+- Borrar `emitted_delta = False` + toda la lógica de fallback a `generate_chat_response` — ya no aplica
+- El `generate_discovery_report` tool queda limpio: solo lógica de negocio (render PDF, upload, persist, return output)
+- `_generate_tool_call_id()` ya no es necesario en el tool (Pydantic AI lo gestiona nativamente)
+
+### Cambio 2 — S3 orphan si DB falla tras upload (independiente del cambio 1)
+
+**Archivo:** `backend/app/services/chat_service.py`
+
+Hoy: si `_upload_bytes` tiene éxito pero `_persist_attachment` falla (error de DB), el storage key queda huérfano sin fila en DB. El cleanup actual busca por `ChatAttachment.id.in_(produced_attachment_ids)` — si no hay fila, no encuentra nada.
+
+Fix: capturar `storage_key` en el closure `_upload_bytes` ANTES de retornar:
+
+```python
+produced_storage_keys: list[str] = []  # añadir junto a produced_attachment_ids
+
+async def _upload_bytes(storage_key: str, data: object, content_type: str) -> str:
+    from app.services.s3_service import upload_file_to_s3
+    result = await upload_file_to_s3(data, storage_key, content_type)
+    produced_storage_keys.append(storage_key)  # track ANTES de retornar
+    return result
+```
+
+En la ruta de cleanup (except block), añadir limpieza por key ADEMÁS de por ID:
+```python
+for key in produced_storage_keys:
+    with contextlib.suppress(Exception):
+        await delete_file_from_s3(key)
+```
+
+### Cambio 3 — Validar exactamente 8 secciones en schema
+
+**Archivo:** `backend/app/agents/discovery_report_schema.py`
+
+```python
+from pydantic import BaseModel, Field
+
+sections: list[ReportSection] = Field(..., min_length=8, max_length=8)
+follow_up_questions: list[Question] = Field(default_factory=list)
+```
+
+### Cambio 4 — Eliminar `_manifest.md`
+
+**Archivo:** `backend/app/prompts/chat-skills/_manifest.md`
+
+El archivo existe pero no gobierna nada. `_ALWAYS_ON` en `chat_skill_loader.py` es la fuente de verdad. Borrar para eliminar la doble fuente.
+
+### Cambio 5 — Helper `_is_sds_attachment` + corregir lógica duplicada
+
+**Archivo:** `backend/app/agents/chat_skill_loader.py`
+
+La condición actual evalúa `_SDS_FILENAME_PATTERNS.search(...)` dos veces por attachment. Además no verifica `media_type` limpiamente.
+
+```python
+def _is_sds_attachment(att: ChatAgentAttachmentInput) -> bool:
+    filename = (getattr(att, "filename", "") or "").lower()
+    media_type = (getattr(att, "media_type", "") or "").lower()
+    return bool(_SDS_FILENAME_PATTERNS.search(filename)) or "safety-data-sheet" in media_type
+
+# En build_conditional_instructions_fn():
+has_sds = any(_is_sds_attachment(att) for att in attachments)
+```
+
+---
+
+### Archivos a tocar
+
+| Archivo | Cambio |
+|---|---|
+| `backend/app/agents/chat_agent.py` | Reescribir `stream_chat_response` → `run_stream_events()`; borrar `tool_events` de deps; limpiar tool function |
+| `backend/app/services/chat_stream_protocol.py` | Añadir 5to branch `tool-input-delta` |
+| `backend/app/services/chat_service.py` | Añadir `produced_storage_keys` tracking en closure `_upload_bytes` + cleanup |
+| `backend/app/agents/discovery_report_schema.py` | `Field(min_length=8, max_length=8)` en sections |
+| `backend/app/agents/chat_skill_loader.py` | Helper `_is_sds_attachment` |
+| `backend/app/prompts/chat-skills/_manifest.md` | Borrar |
+
+### Descartado explícitamente
+
+- Subdirectorios `skill/SKILL.md` — ningún "Agent Skills estándar 2026" existe como spec publicado. Zero beneficio funcional.
+- YAML manifest config — over-engineered para reemplazar `_ALWAYS_ON = [...]`.
+- TypedDict para tool events — ya no aplica con la migración a `run_stream_events()`.
+
+### Verificación
+
+`cd backend && make check` — verde (solo pre-existing en projects.py + purge_test_orgs.py).
+
+Cambios son internos al runtime: `cd frontend && bun run check:ci` no debería cambiar nada (los frames `tool-*` que llegan al frontend son los mismos, solo la fuente cambió).
