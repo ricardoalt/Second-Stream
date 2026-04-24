@@ -1,5 +1,6 @@
 """Chat service helpers for v1 visibility and message-owned attachments."""
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -20,6 +21,7 @@ logger = structlog.get_logger(__name__)
 
 MAX_ATTACHMENTS_PER_MESSAGE = 5
 MAX_ATTACHMENT_SIZE_BYTES = 4 * 1024 * 1024
+MAX_TOTAL_ATTACHMENT_BYTES_PER_MESSAGE = 12 * 1024 * 1024
 CHAT_ORPHAN_DRAFT_RETENTION_DAYS = 7
 ALLOWED_EXACT_MIME_TYPES = {"application/pdf"}
 ALLOWED_MIME_PREFIXES = ("image/", "text/")
@@ -243,6 +245,49 @@ async def _validate_existing_attachments(
     return attachments
 
 
+def _validate_total_attachment_bytes(
+    *,
+    incoming_attachments: list[ChatAttachmentInput],
+    existing_attachments: list[ChatAttachment],
+) -> int:
+    total_bytes = sum(max(0, attachment.size_bytes) for attachment in incoming_attachments)
+    total_bytes += sum(max(0, int(attachment.size_bytes or 0)) for attachment in existing_attachments)
+
+    if total_bytes > MAX_TOTAL_ATTACHMENT_BYTES_PER_MESSAGE:
+        limit_mb = MAX_TOTAL_ATTACHMENT_BYTES_PER_MESSAGE // (1024 * 1024)
+        raise ChatAttachmentValidationError(
+            "ATTACHMENT_TOTAL_BYTES_LIMIT_EXCEEDED",
+            f"Total attachment payload exceeds {limit_mb}MB per message",
+        )
+
+    return total_bytes
+
+
+def _summarize_attachments_for_observability(
+    *,
+    attachments: list,
+) -> tuple[dict[str, int], int, int, int]:
+    media_counter: Counter[str] = Counter()
+    total_binary_bytes = 0
+    total_text_chars = 0
+    binary_attachment_count = 0
+
+    for attachment in attachments:
+        media_type = str(getattr(attachment, "media_type", "") or "unknown")
+        media_counter[media_type] += 1
+
+        binary_content = getattr(attachment, "binary_content", None)
+        if binary_content:
+            binary_attachment_count += 1
+            total_binary_bytes += len(binary_content)
+
+        extracted_text = getattr(attachment, "extracted_text", None)
+        if extracted_text:
+            total_text_chars += len(extracted_text)
+
+    return dict(media_counter), total_binary_bytes, total_text_chars, binary_attachment_count
+
+
 def _build_last_message_preview(content_text: str) -> str:
     return content_text[:280]
 
@@ -316,6 +361,10 @@ async def create_user_message_with_attachments(
             attachment_ids=referenced_attachment_ids,
             organization_id=organization_id,
             created_by_user_id=created_by_user_id,
+        )
+        _validate_total_attachment_bytes(
+            incoming_attachments=incoming_attachments,
+            existing_attachments=existing_attachments,
         )
 
         message = ChatMessage(
@@ -600,6 +649,22 @@ async def stream_chat_turn(
         attachments=message_attachments,
     )
     agent_attachments = await resolve_attachments_to_agent_input_for_model(message_attachments)
+    media_type_counts, total_binary_bytes, total_text_chars, binary_attachment_count = (
+        _summarize_attachments_for_observability(attachments=agent_attachments)
+    )
+    logger.info(
+        "chat_run_agent_input_resolved",
+        thread_id=str(thread_id),
+        run_id=run_id,
+        organization_id=str(organization_id),
+        user_id=str(created_by_user_id),
+        history_message_count=len(history),
+        attachment_count=len(agent_attachments),
+        binary_attachment_count=binary_attachment_count,
+        total_binary_bytes=total_binary_bytes,
+        total_text_chars=total_text_chars,
+        media_type_counts=media_type_counts,
+    )
 
     yield {"event": "start", "run_id": run_id}
     try:
@@ -744,6 +809,28 @@ async def rename_thread(
     )
     thread.title = normalized_title
     thread.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(thread)
+    return thread
+
+
+async def archive_thread(
+    *,
+    db: AsyncSession,
+    organization_id: UUID,
+    created_by_user_id: UUID,
+    thread_id: UUID,
+) -> ChatThread:
+    """Soft-delete one owned active thread by setting archived_at timestamp."""
+    thread = await _load_owned_active_thread(
+        db=db,
+        thread_id=thread_id,
+        organization_id=organization_id,
+        created_by_user_id=created_by_user_id,
+    )
+    now = datetime.now(UTC)
+    thread.archived_at = now
+    thread.updated_at = now
     await db.commit()
     await db.refresh(thread)
     return thread

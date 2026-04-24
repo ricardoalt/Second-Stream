@@ -63,6 +63,7 @@ async def _create_attachment(
     user_id: uuid.UUID,
     message_id: uuid.UUID | None,
     storage_key: str,
+    size_bytes: int = 64,
 ) -> ChatAttachment:
     attachment = ChatAttachment(
         organization_id=org_id,
@@ -71,7 +72,7 @@ async def _create_attachment(
         storage_key=storage_key,
         original_filename="existing.txt",
         content_type="text/plain",
-        size_bytes=64,
+        size_bytes=size_bytes,
         sha256=None,
         extracted_text=None,
     )
@@ -260,6 +261,44 @@ async def test_create_user_message_rejects_more_than_five_attachments(db_session
         )
 
     assert exc_info.value.code == "ATTACHMENT_COUNT_LIMIT_EXCEEDED"
+
+
+@pytest.mark.asyncio
+async def test_create_user_message_rejects_total_attachment_payload_above_12mb(db_session):
+    org = await create_org(db_session, "Chat Attach Total Bytes Org", "chat-attach-total-bytes")
+    owner = await create_user(
+        db_session,
+        email=f"chat-attach-total-bytes-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    drafts: list[ChatAttachment] = []
+    for idx in range(4):
+        draft = await _create_attachment(
+            db_session,
+            org_id=org.id,
+            user_id=owner.id,
+            message_id=None,
+            storage_key=f"chat/{org.id}/{uuid.uuid4()}-{idx}.pdf",
+            size_bytes=3 * 1024 * 1024 + 1,
+        )
+        drafts.append(draft)
+
+    with pytest.raises(ChatAttachmentValidationError) as exc_info:
+        await create_user_message_with_attachments(
+            db=db_session,
+            organization_id=org.id,
+            created_by_user_id=owner.id,
+            thread_id=thread.id,
+            content_text="Analyze these files",
+            run_id="run-total-bytes-blocked",
+            existing_attachment_ids=[draft.id for draft in drafts],
+        )
+
+    assert exc_info.value.code == "ATTACHMENT_TOTAL_BYTES_LIMIT_EXCEEDED"
 
 
 @pytest.mark.asyncio

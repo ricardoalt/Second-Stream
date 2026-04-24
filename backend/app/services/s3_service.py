@@ -298,14 +298,15 @@ async def download_file_content(filename: str) -> bytes:
 
 
 async def delete_file_from_s3(filename: str) -> None:
-    """Delete a file from S3.
+    """Delete a file from S3 or local storage.
 
-    In development mode (without S3_BUCKET configured) does nothing,
-    local deletion is handled by the file management endpoints.
+    The operation is idempotent in local mode: deleting a missing file is a
+    no-op so callers can safely run compensation cleanup.
     """
     try:
         if not USE_S3:
-            # Nothing to do: file is managed locally by the caller
+            local_path, _ = _resolve_local_file(filename)
+            local_path.unlink(missing_ok=True)
             return
 
         normalized = _normalize_relative_key(filename)

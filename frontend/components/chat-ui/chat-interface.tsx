@@ -76,6 +76,9 @@ export function ChatInterface({
 	const { user } = useAuth();
 	const selectedOrgId = useOrganizationStore((state) => state.selectedOrgId);
 	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [retryMessage, setRetryMessage] = useState<PromptInputMessage | null>(
+		null,
+	);
 
 	const chatThreadScope = useMemo(
 		() =>
@@ -153,6 +156,7 @@ export function ChatInterface({
 				return;
 			}
 			setSubmitError(null);
+			setRetryMessage(null);
 
 			const promptText = message.text.trim();
 			const nowIsoString = new Date().toISOString();
@@ -200,6 +204,7 @@ export function ChatInterface({
 					},
 				);
 			} catch (submitFailure) {
+				setRetryMessage(message);
 				setSubmitError(
 					submitFailure instanceof Error
 						? submitFailure.message
@@ -210,11 +215,47 @@ export function ChatInterface({
 		[chatThreadsQueryKey, clearError, queryClient, sendMessage, threadId],
 	);
 
+	const handleRetry = useCallback(async () => {
+		setSubmitError(null);
+		if (error) {
+			clearError();
+		}
+
+		if (retryMessage) {
+			await handleSubmitMessage(retryMessage);
+			return;
+		}
+
+		let lastAssistantIndex = -1;
+		for (let index = messages.length - 1; index >= 0; index -= 1) {
+			if (messages[index]?.role === "assistant") {
+				lastAssistantIndex = index;
+				break;
+			}
+		}
+
+		if (lastAssistantIndex >= 0) {
+			setMessages(messages.slice(0, lastAssistantIndex));
+		}
+
+		regenerate();
+	}, [
+		clearError,
+		error,
+		handleSubmitMessage,
+		messages,
+		regenerate,
+		retryMessage,
+		setMessages,
+	]);
+
 	const isEmptyState = messages.length === 0;
 	const isStreamingOrSubmitted =
 		status === "submitted" || status === "streaming";
 	const showShimmer = shouldShowLoadingShimmer(status, messages);
 	const visibleError = submitError ?? error?.message ?? null;
+	const canRetry =
+		!isStreamingOrSubmitted && (Boolean(retryMessage) || messages.length > 0);
 
 	return (
 		<div className="flex h-full flex-1 flex-col">
@@ -246,6 +287,18 @@ export function ChatInterface({
 							status={status}
 							textareaClassName="min-h-16 text-lg"
 						/>
+						{visibleError && canRetry ? (
+							<div className="mt-2 flex justify-end">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => void handleRetry()}
+								>
+									Retry
+								</Button>
+							</div>
+						) : null}
 					</motion.div>
 				) : (
 					<motion.div
@@ -417,9 +470,22 @@ export function ChatInterface({
 								) : null}
 
 								{visibleError ? (
-									<p className="text-destructive text-sm" role="alert">
-										{visibleError}
-									</p>
+									<div
+										className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2"
+										role="alert"
+									>
+										<p className="text-destructive text-sm">{visibleError}</p>
+										{canRetry ? (
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												onClick={() => void handleRetry()}
+											>
+												Retry
+											</Button>
+										) : null}
+									</div>
 								) : null}
 							</ConversationContent>
 							<ConversationScrollButton />

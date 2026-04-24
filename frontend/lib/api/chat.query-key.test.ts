@@ -12,26 +12,43 @@ const {
 	downloadChatAttachment,
 	fetchChatThreadDetail,
 	getChatAttachmentIdFromDownloadUrl,
+	archiveChatThread,
 	listChatThreads,
 	renameChatThread,
 	reloadPersistedThreadHistory,
 } = await import("@/lib/api/chat");
 
 const originalGet = apiClient.get;
+const originalPost = apiClient.post;
 const originalPatch = apiClient.patch;
 const originalDownloadBlob = apiClient.downloadBlob;
 
 describe("chat threads query key", () => {
 	beforeEach(() => {
 		apiClient.get = originalGet;
+		apiClient.post = originalPost;
 		apiClient.patch = originalPatch;
 		apiClient.downloadBlob = originalDownloadBlob;
 	});
 
 	afterEach(() => {
 		apiClient.get = originalGet;
+		apiClient.post = originalPost;
 		apiClient.patch = originalPatch;
 		apiClient.downloadBlob = originalDownloadBlob;
+	});
+
+	it("calls archive endpoint with POST and scoped org header", async () => {
+		const postSpy = mock(async () => undefined);
+		apiClient.post = postSpy as typeof apiClient.post;
+
+		await archiveChatThread("thread-12", { organizationId: "org-9" });
+
+		expect(postSpy).toHaveBeenCalledWith(
+			"/chat/threads/thread-12/archive",
+			undefined,
+			{ "X-Organization-Id": "org-9" },
+		);
 	});
 
 	it("extracts attachment id from persisted download url", () => {

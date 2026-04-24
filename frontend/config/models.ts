@@ -5,6 +5,7 @@ type ProviderSlug = "openai" | "anthropic" | "google" | "amazon-bedrock";
 
 export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 export const MAX_ATTACHMENTS_PER_REQUEST = 5;
+export const MAX_TOTAL_ATTACHMENT_BYTES_PER_REQUEST = 12 * 1024 * 1024;
 
 export const SUPPORTED_ATTACHMENT_MIME_PATTERNS = [
 	"text/*",

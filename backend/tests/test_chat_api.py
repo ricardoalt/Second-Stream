@@ -8,9 +8,11 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 
 from app.agents.chat_agent import ChatAgentError
+from app.api.v1 import chat as chat_api
 from app.models.chat_message import ChatMessage
 from app.models.user import UserRole
 from app.services import chat_service
+from app.services.chat_service import ChatAttachmentValidationError
 
 
 async def _create_authed_user(db_session, set_current_user):
@@ -199,6 +201,39 @@ async def test_chat_thread_rename_returns_not_found_for_missing_thread(
 
 
 @pytest.mark.asyncio
+async def test_chat_thread_archive_soft_delete_hides_thread_from_list_detail_and_stream(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    _org, _user = await _create_authed_user(db_session, set_current_user)
+
+    create_response = await client.post("/api/v1/chat/threads", json={"title": "To archive"})
+    assert create_response.status_code == 201
+    thread_id = create_response.json()["id"]
+
+    archive_response = await client.post(f"/api/v1/chat/threads/{thread_id}/archive")
+    assert archive_response.status_code == 200
+    assert archive_response.json()["id"] == thread_id
+
+    list_response = await client.get("/api/v1/chat/threads")
+    assert list_response.status_code == 200
+    assert all(row["id"] != thread_id for row in list_response.json()["items"])
+
+    detail_response = await client.get(f"/api/v1/chat/threads/{thread_id}")
+    _assert_error_contract(detail_response, 404, "RESOURCE_NOT_FOUND")
+
+    stream_response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={"contentText": "Should fail", "streamFormat": "legacy"},
+    )
+    assert stream_response.status_code == 200
+    events = _parse_sse_events(stream_response.text)
+    assert [event["event"] for event in events] == ["error"]
+    assert events[0]["data"] == {"code": "THREAD_NOT_FOUND"}
+
+
+@pytest.mark.asyncio
 async def test_chat_message_owned_attachment_upload_contract(client: AsyncClient, db_session, set_current_user):
     org, user = await _create_authed_user(db_session, set_current_user)
 
@@ -247,6 +282,85 @@ async def test_chat_message_owned_attachment_upload_contract(client: AsyncClient
     assert len(user_messages) == 1
     assert len(user_messages[0]["attachments"]) == 1
     assert user_messages[0]["attachments"][0]["messageId"] == str(user_message_id)
+
+
+@pytest.mark.asyncio
+async def test_chat_message_attachment_upload_compensates_storage_when_db_persist_fails(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+    monkeypatch,
+):
+    org, user = await _create_authed_user(db_session, set_current_user)
+
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Attachment Thread"})
+    thread_id = create_thread.json()["id"]
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "ok"}
+        yield {"event": "completed", "response_text": "ok"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
+
+    stream_response = await client.post(
+        f"/api/v1/chat/threads/{thread_id}/messages/stream",
+        json={"contentText": "Create message"},
+    )
+    assert stream_response.status_code == 200
+
+    user_message_id = await db_session.scalar(
+        select(ChatMessage.id).where(
+            ChatMessage.thread_id == uuid.UUID(thread_id),
+            ChatMessage.organization_id == org.id,
+            ChatMessage.created_by_user_id == user.id,
+            ChatMessage.role == "user",
+        )
+    )
+    assert user_message_id is not None
+
+    async def _fail_create_attachment_for_message(*, db, organization_id, created_by_user_id, message_id, attachment):
+        raise RuntimeError("db persist failed")
+
+    cleaned_keys: list[str] = []
+
+    async def _capture_cleanup(storage_key: str) -> None:
+        cleaned_keys.append(storage_key)
+
+    monkeypatch.setattr(chat_api, "create_attachment_for_message", _fail_create_attachment_for_message)
+    monkeypatch.setattr(chat_api, "delete_file_from_s3", _capture_cleanup)
+
+    upload_response = await client.post(
+        f"/api/v1/chat/messages/{user_message_id}/attachments",
+        files={"file": ("report.txt", io.BytesIO(b"chat attachment"), "text/plain")},
+    )
+    assert upload_response.status_code == 500
+    assert len(cleaned_keys) == 1
+    assert cleaned_keys[0].startswith(f"chat/{org.id}/{user.id}/")
+
+
+@pytest.mark.asyncio
+async def test_chat_draft_attachment_upload_preserves_error_when_compensation_cleanup_fails(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+    monkeypatch,
+):
+    await _create_authed_user(db_session, set_current_user)
+
+    async def _fail_create_draft_attachment(*, db, organization_id, uploaded_by_user_id, attachment):
+        raise ChatAttachmentValidationError("ATTACHMENT_TOO_LARGE", "Attachment exceeds maximum allowed size")
+
+    async def _fail_cleanup(storage_key: str) -> None:
+        raise RuntimeError("cleanup failed")
+
+    monkeypatch.setattr(chat_api, "create_draft_attachment", _fail_create_draft_attachment)
+    monkeypatch.setattr(chat_api, "delete_file_from_s3", _fail_cleanup)
+
+    upload_response = await client.post(
+        "/api/v1/chat/attachments",
+        files={"file": ("draft-report.txt", io.BytesIO(b"draft content"), "text/plain")},
+    )
+    _assert_error_contract(upload_response, 400, "ATTACHMENT_TOO_LARGE")
 
 
 @pytest.mark.asyncio

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
+import structlog
 from fastapi import APIRouter, File, Header, HTTPException, Response, UploadFile, status
 
 from app.api.dependencies import AsyncDB, CurrentUser, OrganizationContext
@@ -32,6 +33,7 @@ from app.services.chat_service import (
     MAX_ATTACHMENT_SIZE_BYTES,
     ChatAttachmentInput,
     ChatAttachmentValidationError,
+    archive_thread,
     create_attachment_for_message,
     create_draft_attachment,
     create_thread,
@@ -50,9 +52,10 @@ from app.services.chat_stream_protocol import (
     adapt_stream_to_official_protocol,
     extract_latest_user_text_with_vercel_adapter,
 )
-from app.services.s3_service import download_file_content, upload_file_to_s3
+from app.services.s3_service import delete_file_from_s3, download_file_content, upload_file_to_s3
 
 router = APIRouter(prefix="/chat")
+logger = structlog.get_logger(__name__)
 
 CHAT_ATTACHMENT_STORAGE_PREFIX = "chat"
 CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS = 12_000
@@ -111,6 +114,16 @@ def _extract_attachment_text(*, content: bytes, content_type: str | None) -> str
     if len(extracted) <= CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS:
         return extracted
     return extracted[:CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS]
+
+
+async def _cleanup_uploaded_attachment_blob(storage_key: str) -> None:
+    try:
+        await delete_file_from_s3(storage_key)
+    except Exception:
+        logger.warning(
+            "chat_attachment_upload_compensation_cleanup_failed",
+            storage_key=storage_key,
+        )
 
 
 def _build_attachment_input_and_persist_content(
@@ -264,6 +277,29 @@ async def rename_chat_thread(
     return ChatThreadSummaryResponse.model_validate(thread)
 
 
+@router.post("/threads/{thread_id}/archive", response_model=ChatThreadSummaryResponse)
+async def archive_chat_thread(
+    thread_id: UUID,
+    current_user: CurrentUser,
+    org: OrganizationContext,
+    db: AsyncDB,
+) -> ChatThreadSummaryResponse:
+    require_permission(current_user, permissions.CHAT_WRITE)
+    try:
+        thread = await archive_thread(
+            db=db,
+            organization_id=org.id,
+            created_by_user_id=current_user.id,
+            thread_id=thread_id,
+        )
+    except ChatAttachmentValidationError as exc:
+        if exc.code == "THREAD_NOT_FOUND":
+            raise_resource_not_found("Chat thread not found", details={"thread_id": str(thread_id)})
+        _raise_chat_error(exc)
+
+    return ChatThreadSummaryResponse.model_validate(thread)
+
+
 @router.post("/messages/{message_id}/attachments", response_model=ChatAttachmentResponse, status_code=201)
 async def upload_chat_attachment(
     message_id: UUID,
@@ -284,12 +320,13 @@ async def upload_chat_attachment(
         content=content,
     )
 
+    await upload_file_to_s3(
+        BytesIO(content),
+        attachment_input.storage_key,
+        content_type=_normalize_attachment_content_type(file.content_type) or None,
+    )
+
     try:
-        await upload_file_to_s3(
-            BytesIO(content),
-            attachment_input.storage_key,
-            content_type=_normalize_attachment_content_type(file.content_type) or None,
-        )
         attachment = await create_attachment_for_message(
             db=db,
             organization_id=org.id,
@@ -298,7 +335,11 @@ async def upload_chat_attachment(
             attachment=attachment_input,
         )
     except ChatAttachmentValidationError as exc:
+        await _cleanup_uploaded_attachment_blob(attachment_input.storage_key)
         _raise_chat_error(exc)
+    except Exception:
+        await _cleanup_uploaded_attachment_blob(attachment_input.storage_key)
+        raise
 
     return _attachment_to_response(attachment)
 
@@ -357,12 +398,13 @@ async def upload_chat_attachment_draft(
         content=content,
     )
 
+    await upload_file_to_s3(
+        BytesIO(content),
+        attachment_input.storage_key,
+        content_type=_normalize_attachment_content_type(file.content_type) or None,
+    )
+
     try:
-        await upload_file_to_s3(
-            BytesIO(content),
-            attachment_input.storage_key,
-            content_type=_normalize_attachment_content_type(file.content_type) or None,
-        )
         attachment = await create_draft_attachment(
             db=db,
             organization_id=org.id,
@@ -370,7 +412,11 @@ async def upload_chat_attachment_draft(
             attachment=attachment_input,
         )
     except ChatAttachmentValidationError as exc:
+        await _cleanup_uploaded_attachment_blob(attachment_input.storage_key)
         _raise_chat_error(exc)
+    except Exception:
+        await _cleanup_uploaded_attachment_blob(attachment_input.storage_key)
+        raise
 
     return _attachment_to_response(attachment)
 
@@ -394,9 +440,21 @@ async def stream_chat_message(
     require_permission(current_user, permissions.CHAT_WRITE)
     run_id = f"run-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
     content_text = _resolve_content_text(payload)
+    payload_messages_count, payload_file_parts_count = _summarize_ui_messages(payload.messages)
 
     # Resolve negotiated format: body field > header > default
     use_official = _resolve_stream_format(payload.stream_format, x_vercel_ai_ui_message_stream)
+    logger.info(
+        "chat_stream_request_received",
+        thread_id=str(thread_id),
+        run_id=run_id,
+        organization_id=str(org.id),
+        user_id=str(current_user.id),
+        stream_format="official" if use_official else "legacy",
+        existing_attachment_ids_count=len(payload.existing_attachment_ids),
+        payload_messages_count=payload_messages_count,
+        payload_file_parts_count=payload_file_parts_count,
+    )
 
     async def _event_generator():
         try:
@@ -458,6 +516,18 @@ def _resolve_stream_format(
     if header_value and header_value.strip().lower() == PROTOCOL_VERSION:
         return True
     return True  # Default to official
+
+
+def _summarize_ui_messages(messages: list[dict[str, Any]]) -> tuple[int, int]:
+    file_parts_count = 0
+    for message in messages:
+        parts = message.get("parts")
+        if not isinstance(parts, list):
+            continue
+        for part in parts:
+            if isinstance(part, dict) and part.get("type") == "file":
+                file_parts_count += 1
+    return len(messages), file_parts_count
 
 
 def _resolve_content_text(payload: ChatStreamRequest) -> str:

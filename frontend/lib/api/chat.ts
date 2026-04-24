@@ -162,6 +162,21 @@ export async function renameChatThread(
 	);
 }
 
+export async function archiveChatThread(
+	threadId: string,
+	options: ListChatThreadsOptions = {},
+): Promise<void> {
+	await apiClient.post<void>(
+		`/chat/threads/${threadId}/archive`,
+		undefined,
+		options.organizationId
+			? {
+					"X-Organization-Id": options.organizationId,
+				}
+			: undefined,
+	);
+}
+
 export async function reloadPersistedThreadHistory(
 	threadId: string,
 	options: ListChatThreadsOptions = {},

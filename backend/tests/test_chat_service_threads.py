@@ -8,7 +8,7 @@ from sqlalchemy.dialects import postgresql
 
 from app.models.chat_thread import ChatThread
 from app.models.user import UserRole
-from app.services.chat_service import build_thread_list_query, list_owned_threads
+from app.services.chat_service import archive_thread, build_thread_list_query, list_owned_threads
 
 
 def _compiled_sql(query: sa.sql.Select) -> str:
@@ -113,3 +113,42 @@ async def test_thread_list_query_explain_uses_frozen_threads_index(db_session):
     plan_text = "\n".join(plan_lines)
 
     assert "ix_chat_threads_org_creator_archived_lastmsg" in plan_text
+
+
+@pytest.mark.asyncio
+async def test_archive_thread_sets_archived_at_and_hides_from_owned_listing(db_session):
+    org = await create_org(db_session, "Chat Archive Org", "chat-archive-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-archive-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    thread = ChatThread(
+        organization_id=org.id,
+        created_by_user_id=owner.id,
+        title="Archive me",
+        last_message_preview="preview",
+        last_message_at=datetime.now(UTC),
+    )
+    db_session.add(thread)
+    await db_session.commit()
+    await db_session.refresh(thread)
+
+    archived = await archive_thread(
+        db=db_session,
+        organization_id=org.id,
+        created_by_user_id=owner.id,
+        thread_id=thread.id,
+    )
+    assert archived.archived_at is not None
+
+    rows = await list_owned_threads(
+        db=db_session,
+        organization_id=org.id,
+        created_by_user_id=owner.id,
+        limit=10,
+    )
+    assert rows == []

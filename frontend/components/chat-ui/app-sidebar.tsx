@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+	Archive,
 	ChevronsUpDown,
 	LogOut,
 	MoreHorizontal,
@@ -14,6 +15,7 @@ import { useRouter } from "next/navigation";
 import type * as React from "react";
 import { useState } from "react";
 import {
+	archiveChatThread,
 	buildChatThreadsQueryKey,
 	type ChatThreadSummaryDTO,
 	listChatThreads,
@@ -29,6 +31,16 @@ import { useOrganizationStore } from "@/lib/stores/organization-store";
 import { ChatSearch } from "./chat-search";
 import { OpenChatLogo } from "./openchat-logo";
 import { SettingsDialog } from "./settings-dialog";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "./ui/alert-dialog";
 import { Button } from "./ui/button";
 import {
 	Dialog,
@@ -111,6 +123,10 @@ export function AppSidebar({
 	const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
 	const [renameTitle, setRenameTitle] = useState("");
 	const [renameError, setRenameError] = useState<string | null>(null);
+	const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+	const [archivingThread, setArchivingThread] =
+		useState<ChatThreadSummaryDTO | null>(null);
+	const [archiveError, setArchiveError] = useState<string | null>(null);
 	const threadScope = resolveChatThreadScope({
 		selectedOrgId,
 		fallbackOrganizationId: user?.organizationId ?? null,
@@ -123,6 +139,10 @@ export function AppSidebar({
 	const threadsQueryKey = buildChatThreadsQueryKey(threadScope);
 
 	type RenameMutationContext = {
+		previousThreads: ChatThreadSummaryDTO[] | undefined;
+	};
+
+	type ArchiveMutationContext = {
 		previousThreads: ChatThreadSummaryDTO[] | undefined;
 	};
 
@@ -168,6 +188,43 @@ export function AppSidebar({
 						thread.id === updatedThread.id ? updatedThread : thread,
 					),
 			);
+		},
+	});
+
+	const archiveThreadMutation = useMutation<
+		void,
+		Error,
+		{ threadId: string },
+		ArchiveMutationContext
+	>({
+		mutationFn: ({ threadId }) =>
+			archiveChatThread(threadId, listThreadsOptions),
+		onMutate: async ({ threadId }) => {
+			await queryClient.cancelQueries({
+				queryKey: threadsQueryKey,
+				exact: true,
+			});
+			const previousThreads =
+				queryClient.getQueryData<ChatThreadSummaryDTO[]>(threadsQueryKey);
+
+			queryClient.setQueryData<ChatThreadSummaryDTO[]>(
+				threadsQueryKey,
+				(current) => (current ?? []).filter((thread) => thread.id !== threadId),
+			);
+
+			return { previousThreads };
+		},
+		onError: (error, _variables, context) => {
+			if (context?.previousThreads) {
+				queryClient.setQueryData(threadsQueryKey, context.previousThreads);
+			}
+			setArchiveError(error.message || "Unable to archive chat.");
+		},
+		onSettled: () => {
+			void queryClient.invalidateQueries({
+				queryKey: threadsQueryKey,
+				exact: true,
+			});
 		},
 	});
 
@@ -219,6 +276,12 @@ export function AppSidebar({
 		setRenameDialogOpen(true);
 	};
 
+	const handleOpenArchiveDialog = (thread: ChatThreadSummaryDTO) => {
+		setArchiveError(null);
+		setArchivingThread(thread);
+		setArchiveDialogOpen(true);
+	};
+
 	const handleRenameSubmit = async () => {
 		const trimmedTitle = renameTitle.trim();
 		if (!renamingThreadId) {
@@ -241,8 +304,67 @@ export function AppSidebar({
 		}
 	};
 
+	const handleArchiveSubmit = async () => {
+		if (!archivingThread) {
+			return;
+		}
+
+		setArchiveError(null);
+
+		const isArchivingActiveThread = archivingThread.id === activeThreadId;
+		if (isArchivingActiveThread) {
+			handleAction("new-chat");
+		}
+
+		try {
+			await archiveThreadMutation.mutateAsync({ threadId: archivingThread.id });
+			setArchiveDialogOpen(false);
+		} catch {
+			// Error is handled by mutation onError.
+		}
+	};
+
 	return (
 		<>
+			<AlertDialog
+				open={archiveDialogOpen}
+				onOpenChange={(open) => {
+					setArchiveDialogOpen(open);
+					if (!open) {
+						setArchivingThread(null);
+						setArchiveError(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Archive chat?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This removes this thread from your sidebar. You can’t undo this
+							action from chat.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					{archiveError ? (
+						<p className="text-destructive text-xs" role="alert">
+							{archiveError}
+						</p>
+					) : null}
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={archiveThreadMutation.isPending}>
+							Cancel
+						</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={archiveThreadMutation.isPending}
+							onClick={(event) => {
+								event.preventDefault();
+								void handleArchiveSubmit();
+							}}
+						>
+							Archive
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 			<Dialog
 				open={renameDialogOpen}
 				onOpenChange={(open) => {
@@ -374,6 +496,13 @@ export function AppSidebar({
 													>
 														<Pencil className="size-4" />
 														Rename
+													</DropdownMenuItem>
+													<DropdownMenuItem
+														className="text-destructive focus:text-destructive"
+														onClick={() => handleOpenArchiveDialog(thread)}
+													>
+														<Archive className="size-4" />
+														Archive
 													</DropdownMenuItem>
 												</DropdownMenuContent>
 											</DropdownMenu>
