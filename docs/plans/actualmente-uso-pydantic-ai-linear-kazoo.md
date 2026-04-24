@@ -143,12 +143,16 @@ Cambios puntuales:
       yield {"event": "tool-input-start", "toolCallId": event.part.tool_call_id, "toolName": event.part.tool_name}
       yield {"event": "tool-input-available", "toolCallId": ..., "toolName": ..., "input": event.part.args_as_dict()}
   if isinstance(event, FunctionToolResultEvent):
-      if event.result.is_error:
-          yield {"event": "tool-output-error", "toolCallId": ..., "errorText": ...}
+      # Discriminar error vs éxito por tipo del result (NO hay .is_error)
+      from pydantic_ai.messages import RetryPromptPart
+      if isinstance(event.result, RetryPromptPart):
+          yield {"event": "tool-output-error", "toolCallId": event.result.tool_call_id, "errorText": event.result.model_response()}
       else:
-          yield {"event": "tool-output-available", "toolCallId": ..., "toolName": ..., "output": event.result.content.model_dump()}
+          # event.result es ToolReturnPart; .content trae el retorno tipado
+          yield {"event": "tool-output-available", "toolCallId": event.result.tool_call_id, "toolName": event.result.tool_name, "output": event.result.model_response_object()}
   ```
-- Borrar `_build_attachment_context` y `_build_runtime_prompt`: attachments ahora viven en deps y las condicionales los inspeccionan. Fase 2 los sube a `BinaryContent` real.
+- Borrar `_build_attachment_context` y `_build_runtime_prompt`: texto redundante al final del prompt; attachments ahora viven en deps y las condicionales los inspeccionan.
+- **MANTENER `_build_runtime_user_content`** (chat_agent.py:123-158): es el único camino que inyecta `BinaryContent(data=..., media_type=...)` / `DocumentUrl(...)` al `user_prompt` first-class. Sin este helper, Bedrock deja de ver PDFs/imágenes. El plan original lo dejaba ambiguo — explícito aquí.
 
 ### 7. `backend/app/services/chat_stream_protocol.py`
 
@@ -290,18 +294,48 @@ Nuevos:
 Borrar:
 - `backend/docs/skills-and-prompt-for-agent/skills/skills-integration.test.ts`
 
+## Análisis de integración — el plan NO rompe el stack actual
+
+Verificado contra archivos reales (chat_agent.py, chat_service.py, chat_stream_protocol.py, chat.py, chat-interface.tsx, ui-message.ts) y librerías instaladas (pydantic_ai 1.x, ai@6.0.168). Los 4 puntos de contacto:
+
+### a) `chat_agent.py` — API pública estable
+- Call sites externos: `chat_service.py:635-640` construye `ChatAgentDeps(organization_id=..., user_id=..., thread_id=..., run_id=...)` y luego `chat_service.py:674-678` llama `stream_chat_response(prompt=..., deps=..., attachments=...)`. Ambas firmas permanecen — sólo crecen los kwargs de `ChatAgentDeps` (aditivo). ✅
+- `_build_runtime_user_content` **se mantiene**: sigue siendo la ruta que convierte attachments a `BinaryContent`/`DocumentUrl` para que Bedrock los vea first-class. El prompt ya no duplica la lista textual (se borra `_build_attachment_context`), pero el contenido binario sigue pasando. ✅
+- Current `system_prompt=` → `instructions=`: ambos son válidos en Pydantic AI 1.x. Las pruebas existentes que inspeccionan `chat_agent` por nombre/firma siguen pasando. ✅
+
+### b) `chat_service.py:670-714` — loop de eventos
+- El loop actual sólo reconoce `delta` y `completed`. Nuevos eventos `tool-*` añaden branches — **los eventos desconocidos se ignoran silenciosamente hoy** (no hay `else: raise`), así que incluso en rollback parcial nada explota. ✅
+- `_persist_assistant_terminal_message`: la firma crece con `produced_attachment_ids: list[UUID] | None = None` (kwarg opcional) — callers existentes no cambian. ✅
+- Cleanup de orphans: `s3_service.delete_file_from_s3` ya existe (línea 300). Plan viable. ✅
+
+### c) `chat_stream_protocol.py:88-159` — adapter oficial
+- Agregar 4 `elif` branches es pura extensión. Los eventos actuales (`start`, `delta`, `completed`, `error`, `data-new-thread-created`, `data-conversation-title`) intactos. ✅
+- Adapter legacy (`chat_stream_protocol.py:162-172`) es pass-through `encode_legacy_sse(event_type, event)`. Los nuevos eventos tool pasan como `event: tool-input-start\ndata: {...}` y el frontend legacy los ignora si no los reconoce. **No breakage** aunque un cliente legacy reciba tool frames. ✅
+- Endpoint `chat.py:424-500` negocia official/legacy por body > header > default. Sin cambios. ✅
+
+### d) Frontend — `chat-interface.tsx:326-430`
+- Switch existente en línea 326 con cases `case "tool-webSearch":` (línea 380) y `case "tool-updateWorkingMemory":` (línea 409) — patrón confirmado. Nuevo `case "tool-generateDiscoveryReport":` es aditivo.
+- `ui-message.ts:22-34` — tool map actual con `webSearch` y `updateWorkingMemory`. Añadir una entrada más NO rompe el tipo genérico `MyUIMessage`. `useChat<MyUIMessage>` sigue tipado. ✅
+- `<Shimmer>` ya existe y se usa en `WorkingMemoryUpdate`. Sin nuevas dependencias. ✅
+
+### e) Hallazgos durante la verificación
+- **`pydantic_ai/ui/vercel_ai/_event_stream.py` existe** — adapter oficial que emite `ToolInputStartChunk`/`ToolInputAvailableChunk`/`ToolOutputAvailableChunk`/`ToolOutputErrorChunk` con el wire format correcto (output-available sin `toolName`, coincide con nuestra verificación). **No lo adoptamos en fase 1** porque nuestro adapter mantiene los data-parts custom `data-new-thread-created` / `data-conversation-title` que no están en `VercelAIEventStream`. Migración → fase 2.
+- **`Agent.run_stream(event_stream_handler=...)` confirmado** en `pydantic_ai/agent/abstract.py:448` — el handler recibe `FunctionToolCallEvent` / `FunctionToolResultEvent` en `line 604` (`is_call_tools_node(node) and event_stream_handler is not None`).
+- **`FunctionToolCallEvent.part.tool_call_id` + `.tool_name` + `.args_as_dict()`** confirmado en `pydantic_ai/messages.py:1876-1898`. `FunctionToolResultEvent.result: ToolReturnPart | RetryPromptPart` — `isinstance(part, RetryPromptPart)` discrimina el error path (NO `.is_error`). **Corregir** el snippet del plan: usar `isinstance` en lugar de `.is_error`.
+
 ## Verificación pre-implementación (cerrar antes de escribir código)
 
 1. **Wire format AI SDK v6 — CONFIRMADO** en `node_modules/ai/docs/04-ai-sdk-ui/50-stream-protocol.mdx`:
    - `tool-input-start`: `{toolCallId, toolName}` (sin input)
    - `tool-input-available`: `{toolCallId, toolName, input}`
    - `tool-output-available`: `{toolCallId, output}` **(NO incluye `toolName`)**
-   - `tool-output-error`: `{toolCallId, errorText}` (inferred del `ToolUIPart` type; grepear source si surge duda)
+   - `tool-output-error`: `{toolCallId, errorText}`
 2. **`ToolUIPart` type — CONFIRMADO** en `node_modules/ai/docs/07-reference/01-ai-sdk-core/31-ui-message.mdx`: states `input-streaming | input-available | output-available | output-error` con narrowing por discriminante; el tool map `{input, output}` en `ui-message.ts` genera el part tipado automáticamente.
-3. **Stack version — CONFIRMADO**: `ai@^6.0.168`, `@ai-sdk/react@^3.0.170`, `@ai-sdk/amazon-bedrock@^4.0.96`. Stream protocol v6 (no v5).
-4. **`FunctionToolCallEvent` / `FunctionToolResultEvent` API en Pydantic AI 1.38**: confirmar nombres exactos de atributos (`.part.tool_call_id` vs `.part.tool_call_id()`). Leer `.venv/lib/python3.*/site-packages/pydantic_ai/messages.py`. 5 min.
-5. **`s3_service.upload_file_to_s3` acepta `BytesIO`** — confirmado (línea 118–119, firma `IO[bytes] | BytesIO`).
-6. **`pyyaml`** disponible — verificar con `python -c "import yaml"`; fallback: parseo manual trivial `split("---", 2)`.
+3. **Stack version — CONFIRMADO**: `ai@^6.0.168`, `@ai-sdk/react@^3.0.170`, `@ai-sdk/amazon-bedrock@^4.0.96`. Stream protocol v6.
+4. **`FunctionToolCallEvent` / `FunctionToolResultEvent` — CONFIRMADO** (messages.py:1876-1921): `event.part.tool_call_id`, `event.part.tool_name`, `event.part.args_as_dict()` para call; `event.result` con `isinstance(..., RetryPromptPart)` para error path.
+5. **`run_stream(event_stream_handler=...)` — CONFIRMADO** en `pydantic_ai/agent/abstract.py:448` — tool events se rutean al handler.
+6. **`s3_service.upload_file_to_s3` acepta `BytesIO`** — confirmado línea 118-119; **`s3_service.delete_file_from_s3`** existe línea 300.
+7. **`pyyaml`** disponible — verificar con `python -c "import yaml"`; fallback: parseo manual `split("---", 2)`.
 
 ## Riesgos
 
@@ -314,7 +348,8 @@ Borrar:
 
 ## Fase 2 (out of scope)
 
-- Multimodal real vía `BinaryContent` → `multimodal-intake` y `sds-interpretation` migran de prompts a tools (`ingest_multimodal_attachment`, `extract_sds_fields`).
+- **Migrar a `VercelAIEventStream` oficial** (`pydantic_ai/ui/vercel_ai/_event_stream.py`): reemplaza `chat_stream_protocol.py` hand-rolled + el `event_stream_handler` manual. Elimina ~60 líneas de adapter. Bloqueante: los data-parts custom (`data-new-thread-created`, `data-conversation-title`) hay que extenderlos sobre el stream — viable pero mayor superficie de cambio que los 4 `elif` de fase 1.
+- Multimodal real: `multimodal-intake` y `sds-interpretation` migran de prompts a tools (`ingest_multimodal_attachment`, `extract_sds_fields`).
 - `trainee_mode` como columna `ChatThread.mode` + UI toggle.
 - **Migrar los 3 tool UIs a AI Elements canónicos** (disponibles en la librería pero NO instalados hoy):
   - `bunx ai-elements@latest add tool` → unificar `tool-webSearch`, `tool-updateWorkingMemory` y `tool-generateDiscoveryReport` sobre `<Tool>/<ToolHeader>/<ToolInput>/<ToolOutput>` (collapsible, `getStatusBadge`, a11y).
