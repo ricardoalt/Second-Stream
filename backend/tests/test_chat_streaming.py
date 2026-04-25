@@ -1,9 +1,11 @@
+import asyncio
 import uuid
 from datetime import UTC, datetime
 
 import pytest
 from conftest import create_org, create_user
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.chat_agent import ChatAgentError
 from app.models.chat_attachment import ChatAttachment
@@ -12,6 +14,17 @@ from app.models.chat_thread import ChatThread
 from app.models.user import UserRole
 from app.services import chat_service
 from app.services.chat_service import CHAT_MODEL_CONTEXT_WINDOW, stream_chat_turn
+
+
+@pytest.fixture
+def chat_session_factory(db_session):
+    return async_sessionmaker(
+        db_session.bind,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
 
 
 async def _create_thread(db_session, *, org_id: uuid.UUID, owner_id: uuid.UUID) -> ChatThread:
@@ -52,7 +65,11 @@ async def _create_message(
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_turn_emits_start_delta_completed_and_persists_assistant(db_session, monkeypatch):
+async def test_stream_chat_turn_emits_start_delta_completed_and_persists_assistant(
+    db_session,
+    chat_session_factory,
+    monkeypatch,
+):
     org = await create_org(db_session, "Chat Stream Org", "chat-stream-org")
     owner = await create_user(
         db_session,
@@ -85,7 +102,7 @@ async def test_stream_chat_turn_emits_start_delta_completed_and_persists_assista
     events = [
         event
         async for event in stream_chat_turn(
-            db=db_session,
+            session_factory=chat_session_factory,
             organization_id=org.id,
             created_by_user_id=owner.id,
             thread_id=thread.id,
@@ -116,7 +133,11 @@ async def test_stream_chat_turn_emits_start_delta_completed_and_persists_assista
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_turn_emits_conversation_title_once_for_untitled_thread(db_session, monkeypatch):
+async def test_stream_chat_turn_emits_conversation_title_once_for_untitled_thread(
+    db_session,
+    chat_session_factory,
+    monkeypatch,
+):
     org = await create_org(db_session, "Chat Title Org", "chat-title-org")
     owner = await create_user(
         db_session,
@@ -138,7 +159,7 @@ async def test_stream_chat_turn_emits_conversation_title_once_for_untitled_threa
     events = [
         event
         async for event in stream_chat_turn(
-            db=db_session,
+            session_factory=chat_session_factory,
             organization_id=org.id,
             created_by_user_id=owner.id,
             thread_id=thread.id,
@@ -154,7 +175,11 @@ async def test_stream_chat_turn_emits_conversation_title_once_for_untitled_threa
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_turn_emits_error_and_persists_failed_assistant(db_session, monkeypatch):
+async def test_stream_chat_turn_emits_error_and_persists_failed_assistant(
+    db_session,
+    chat_session_factory,
+    monkeypatch,
+):
     org = await create_org(db_session, "Chat Stream Error Org", "chat-stream-error-org")
     owner = await create_user(
         db_session,
@@ -175,7 +200,7 @@ async def test_stream_chat_turn_emits_error_and_persists_failed_assistant(db_ses
     events = [
         event
         async for event in stream_chat_turn(
-            db=db_session,
+            session_factory=chat_session_factory,
             organization_id=org.id,
             created_by_user_id=owner.id,
             thread_id=thread.id,
@@ -211,7 +236,62 @@ async def test_stream_chat_turn_emits_error_and_persists_failed_assistant(db_ses
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_turn_prompt_includes_active_user_turn_only_once(db_session, monkeypatch):
+async def test_stream_chat_turn_cancelled_after_delta_does_not_persist_failed_assistant(
+    db_session,
+    chat_session_factory,
+    monkeypatch,
+):
+    org = await create_org(db_session, "Chat Stream Cancel Org", "chat-stream-cancel-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-stream-cancel-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    async def _cancel_stream_response(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "Partial analysis"}
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _cancel_stream_response)
+
+    stream = stream_chat_turn(
+        session_factory=chat_session_factory,
+        organization_id=org.id,
+        created_by_user_id=owner.id,
+        thread_id=thread.id,
+        content_text="Analyze file",
+        run_id="run-stream-cancel",
+    )
+
+    assert await anext(stream) == {"event": "start", "run_id": "run-stream-cancel"}
+    assert await anext(stream) == {"event": "delta", "delta": "Partial analysis"}
+    with pytest.raises(asyncio.CancelledError):
+        await anext(stream)
+
+    assistant_count = await db_session.scalar(
+        select(func.count())
+        .select_from(ChatMessage)
+        .where(ChatMessage.thread_id == thread.id, ChatMessage.role == "assistant")
+    )
+    assert assistant_count == 0
+
+    user_count = await db_session.scalar(
+        select(func.count())
+        .select_from(ChatMessage)
+        .where(ChatMessage.thread_id == thread.id, ChatMessage.role == "user")
+    )
+    assert user_count == 1
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_turn_prompt_includes_active_user_turn_only_once(
+    db_session,
+    chat_session_factory,
+    monkeypatch,
+):
     org = await create_org(db_session, "Chat Prompt Org", "chat-prompt-org")
     owner = await create_user(
         db_session,
@@ -251,7 +331,7 @@ async def test_stream_chat_turn_prompt_includes_active_user_turn_only_once(db_se
     _ = [
         event
         async for event in stream_chat_turn(
-            db=db_session,
+            session_factory=chat_session_factory,
             organization_id=org.id,
             created_by_user_id=owner.id,
             thread_id=thread.id,
@@ -266,7 +346,11 @@ async def test_stream_chat_turn_prompt_includes_active_user_turn_only_once(db_se
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_turn_prompt_with_empty_history_includes_single_user_turn(db_session, monkeypatch):
+async def test_stream_chat_turn_prompt_with_empty_history_includes_single_user_turn(
+    db_session,
+    chat_session_factory,
+    monkeypatch,
+):
     org = await create_org(db_session, "Chat Empty History Org", "chat-empty-history-org")
     owner = await create_user(
         db_session,
@@ -289,7 +373,7 @@ async def test_stream_chat_turn_prompt_with_empty_history_includes_single_user_t
     _ = [
         event
         async for event in stream_chat_turn(
-            db=db_session,
+            session_factory=chat_session_factory,
             organization_id=org.id,
             created_by_user_id=owner.id,
             thread_id=thread.id,
@@ -306,6 +390,7 @@ async def test_stream_chat_turn_prompt_with_empty_history_includes_single_user_t
 @pytest.mark.asyncio
 async def test_stream_chat_turn_persists_full_history_but_uses_recent_window_for_model_context(
     db_session,
+    chat_session_factory,
     monkeypatch,
 ):
     org = await create_org(db_session, "Chat History Org", "chat-history-org")
@@ -347,7 +432,7 @@ async def test_stream_chat_turn_persists_full_history_but_uses_recent_window_for
     _ = [
         event
         async for event in stream_chat_turn(
-            db=db_session,
+            session_factory=chat_session_factory,
             organization_id=org.id,
             created_by_user_id=owner.id,
             thread_id=thread.id,
@@ -370,6 +455,7 @@ async def test_stream_chat_turn_persists_full_history_but_uses_recent_window_for
 @pytest.mark.asyncio
 async def test_stream_chat_turn_forwards_incremental_runtime_events_without_sentence_chunking(
     db_session,
+    chat_session_factory,
     monkeypatch,
 ):
     org = await create_org(db_session, "Chat Runtime Stream Org", "chat-runtime-stream-org")
@@ -392,7 +478,7 @@ async def test_stream_chat_turn_forwards_incremental_runtime_events_without_sent
     events = [
         event
         async for event in stream_chat_turn(
-            db=db_session,
+            session_factory=chat_session_factory,
             organization_id=org.id,
             created_by_user_id=owner.id,
             thread_id=thread.id,
@@ -411,6 +497,7 @@ async def test_stream_chat_turn_forwards_incremental_runtime_events_without_sent
 @pytest.mark.asyncio
 async def test_stream_chat_turn_resolves_existing_attachments_and_passes_agent_consumable_inputs(
     db_session,
+    chat_session_factory,
     monkeypatch,
 ):
     org = await create_org(db_session, "Chat Attachments Stream Org", "chat-attachments-stream-org")
@@ -449,7 +536,7 @@ async def test_stream_chat_turn_resolves_existing_attachments_and_passes_agent_c
     events = [
         event
         async for event in stream_chat_turn(
-            db=db_session,
+            session_factory=chat_session_factory,
             organization_id=org.id,
             created_by_user_id=owner.id,
             thread_id=thread.id,
@@ -473,6 +560,7 @@ async def test_stream_chat_turn_resolves_existing_attachments_and_passes_agent_c
 @pytest.mark.asyncio
 async def test_stream_chat_turn_cleans_up_uploaded_storage_key_when_tool_run_fails_before_row_persist(
     db_session,
+    chat_session_factory,
     monkeypatch,
 ):
     org = await create_org(db_session, "Chat Cleanup Org", "chat-cleanup-org")
@@ -506,7 +594,7 @@ async def test_stream_chat_turn_cleans_up_uploaded_storage_key_when_tool_run_fai
     events = [
         event
         async for event in stream_chat_turn(
-            db=db_session,
+            session_factory=chat_session_factory,
             organization_id=org.id,
             created_by_user_id=owner.id,
             thread_id=thread.id,

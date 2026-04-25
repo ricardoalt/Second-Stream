@@ -441,7 +441,7 @@ async def test_chat_stream_persists_derived_title_for_thread_list(
 
 
 @pytest.mark.asyncio
-async def test_chat_stream_error_contract_without_partial_assistant(
+async def test_chat_stream_error_contract_persists_failed_assistant_for_real_runtime_failure(
     client: AsyncClient,
     db_session,
     set_current_user,
@@ -469,9 +469,8 @@ async def test_chat_stream_error_contract_without_partial_assistant(
     assert events[0]["data"]["run_id"]
     assert events[1]["data"] == {"code": "CHAT_STREAM_FAILED"}
 
-    assistant_count = await db_session.scalar(
-        select(func.count())
-        .select_from(ChatMessage)
+    assistant = await db_session.scalar(
+        select(ChatMessage)
         .where(
             ChatMessage.thread_id == uuid.UUID(thread_id),
             ChatMessage.organization_id == org.id,
@@ -479,7 +478,9 @@ async def test_chat_stream_error_contract_without_partial_assistant(
             ChatMessage.role == "assistant",
         )
     )
-    assert assistant_count == 0
+    assert assistant is not None
+    assert assistant.status == "failed"
+    assert assistant.error_code == "CHAT_STREAM_FAILED"
 
 
 @pytest.mark.asyncio

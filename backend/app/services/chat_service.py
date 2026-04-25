@@ -1,5 +1,6 @@
 """Chat service helpers for v1 visibility and message-owned attachments."""
 
+import asyncio
 import contextlib
 from collections import Counter
 from dataclasses import dataclass
@@ -7,11 +8,13 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import structlog
+from anyio import BrokenResourceError
 from sqlalchemy import Select, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.chat_agent import ChatAgentDeps, ChatAgentError, stream_chat_response
+from app.core.database import AsyncSessionLocal
 from app.models.chat_attachment import ChatAttachment
 from app.models.chat_message import ChatMessage
 from app.models.chat_thread import ChatThread
@@ -54,6 +57,14 @@ class ChatAttachmentInput:
     size_bytes: int
     sha256: str | None = None
     extracted_text: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class _PreparedChatTurn:
+    events: tuple[dict, ...]
+    agent_prompt: str
+    agent_attachments: list
+    history_message_count: int
 
 
 def _normalize_content_type(content_type: str | None) -> str:
@@ -627,7 +638,6 @@ async def _hydrate_missing_attachment_text(
 
 async def stream_chat_turn(
     *,
-    db: AsyncSession,
     organization_id: UUID,
     created_by_user_id: UUID,
     thread_id: UUID,
@@ -635,57 +645,85 @@ async def stream_chat_turn(
     run_id: str,
     attachments: list[ChatAttachmentInput] | None = None,
     existing_attachment_ids: list[UUID] | None = None,
+    session_factory: async_sessionmaker[AsyncSession] = AsyncSessionLocal,
 ):
-    """Stream one chat turn as ordered events and persist terminal success only."""
-    # First operation: ensure the thread exists (upsert if needed).
-    # Emit data-new-thread-created event if the thread was newly created.
-    thread, was_created = await ensure_thread_exists(
-        db=db,
-        organization_id=organization_id,
-        created_by_user_id=created_by_user_id,
-        thread_id=thread_id,
+    """Stream one chat turn with short database sessions around each unit of work."""
+    preparation_events: list[dict] = []
+
+    async with session_factory() as db:
+        # Upsert/ownership validation and user message persistence are short-lived
+        # DB units; the agent stream below intentionally runs without this session.
+        thread, was_created = await ensure_thread_exists(
+            db=db,
+            organization_id=organization_id,
+            created_by_user_id=created_by_user_id,
+            thread_id=thread_id,
+        )
+
+        if was_created:
+            preparation_events.append(
+                {
+                    "event": "data-new-thread-created",
+                    "thread_id": str(thread.id),
+                    "title": thread.title,
+                    "created_at": thread.created_at.isoformat(),
+                    "updated_at": thread.updated_at.isoformat(),
+                }
+            )
+
+        previous_thread_title = thread.title
+
+        user_message = await create_user_message_with_attachments(
+            db=db,
+            organization_id=organization_id,
+            created_by_user_id=created_by_user_id,
+            thread_id=thread_id,
+            content_text=content_text,
+            run_id=run_id,
+            attachments=attachments,
+            existing_attachment_ids=existing_attachment_ids,
+        )
+
+        if (
+            thread.title
+            and thread.title != previous_thread_title
+            and _is_stable_thread_title(thread.title)
+        ):
+            preparation_events.append(
+                {
+                    "event": "data-conversation-title",
+                    "thread_id": str(thread.id),
+                    "title": thread.title,
+                }
+            )
+
+        history = await _load_recent_thread_history(
+            db=db,
+            thread_id=thread_id,
+            limit=CHAT_MODEL_CONTEXT_WINDOW,
+            exclude_message_id=user_message.id,
+        )
+        agent_prompt = _build_agent_prompt(history=history, user_message=user_message.content_text)
+
+        message_attachments = await _load_message_attachments_for_agent(
+            db=db,
+            organization_id=organization_id,
+            message_id=user_message.id,
+        )
+        message_attachments = await _hydrate_missing_attachment_text(
+            db=db,
+            attachments=message_attachments,
+        )
+
+        history_message_count = len(history)
+
+    agent_attachments = await resolve_attachments_to_agent_input_for_model(message_attachments)
+    prepared = _PreparedChatTurn(
+        events=tuple(preparation_events),
+        agent_prompt=agent_prompt,
+        agent_attachments=agent_attachments,
+        history_message_count=history_message_count,
     )
-
-    if was_created:
-        yield {
-            "event": "data-new-thread-created",
-            "thread_id": str(thread.id),
-            "title": thread.title,
-            "created_at": thread.created_at.isoformat(),
-            "updated_at": thread.updated_at.isoformat(),
-        }
-
-    previous_thread_title = thread.title
-
-    user_message = await create_user_message_with_attachments(
-        db=db,
-        organization_id=organization_id,
-        created_by_user_id=created_by_user_id,
-        thread_id=thread_id,
-        content_text=content_text,
-        run_id=run_id,
-        attachments=attachments,
-        existing_attachment_ids=existing_attachment_ids,
-    )
-
-    if (
-        thread.title
-        and thread.title != previous_thread_title
-        and _is_stable_thread_title(thread.title)
-    ):
-        yield {
-            "event": "data-conversation-title",
-            "thread_id": str(thread.id),
-            "title": thread.title,
-        }
-
-    history = await _load_recent_thread_history(
-        db=db,
-        thread_id=thread_id,
-        limit=CHAT_MODEL_CONTEXT_WINDOW,
-        exclude_message_id=user_message.id,
-    )
-    agent_prompt = _build_agent_prompt(history=history, user_message=user_message.content_text)
 
     produced_attachment_ids: list[UUID] = []
     produced_storage_keys: list[str] = []
@@ -698,18 +736,21 @@ async def stream_chat_turn(
         size_bytes: int,
     ):
         from app.services.s3_service import get_presigned_url_with_headers
-        att = ChatAttachment(
-            organization_id=organization_id,
-            uploaded_by_user_id=created_by_user_id,
-            message_id=None,
-            storage_key=storage_key,
-            original_filename=filename,
-            content_type=content_type,
-            size_bytes=size_bytes,
-        )
-        db.add(att)
-        await db.commit()
-        await db.refresh(att)
+
+        async with session_factory() as db:
+            att = ChatAttachment(
+                organization_id=organization_id,
+                uploaded_by_user_id=created_by_user_id,
+                message_id=None,
+                storage_key=storage_key,
+                original_filename=filename,
+                content_type=content_type,
+                size_bytes=size_bytes,
+            )
+            db.add(att)
+            await db.commit()
+            await db.refresh(att)
+
         att.signed_url = await get_presigned_url_with_headers(
             storage_key,
             download_name=filename,
@@ -725,28 +766,17 @@ async def stream_chat_turn(
         produced_storage_keys.append(storage_key)
         return result
 
-    message_attachments = await _load_message_attachments_for_agent(
-        db=db,
-        organization_id=organization_id,
-        message_id=user_message.id,
-    )
-    message_attachments = await _hydrate_missing_attachment_text(
-        db=db,
-        attachments=message_attachments,
-    )
-    agent_attachments = await resolve_attachments_to_agent_input_for_model(message_attachments)
-
     deps = ChatAgentDeps(
         organization_id=str(organization_id),
         user_id=str(created_by_user_id),
         thread_id=str(thread_id),
         run_id=run_id,
-        attachments=tuple(agent_attachments),
+        attachments=tuple(prepared.agent_attachments),
         persist_attachment=_persist_attachment,
         upload_bytes=_upload_bytes,
     )
     media_type_counts, total_binary_bytes, total_text_chars, binary_attachment_count = (
-        _summarize_attachments_for_observability(attachments=agent_attachments)
+        _summarize_attachments_for_observability(attachments=prepared.agent_attachments)
     )
     logger.info(
         "chat_run_agent_input_resolved",
@@ -754,13 +784,16 @@ async def stream_chat_turn(
         run_id=run_id,
         organization_id=str(organization_id),
         user_id=str(created_by_user_id),
-        history_message_count=len(history),
-        attachment_count=len(agent_attachments),
+        history_message_count=prepared.history_message_count,
+        attachment_count=len(prepared.agent_attachments),
         binary_attachment_count=binary_attachment_count,
         total_binary_bytes=total_binary_bytes,
         total_text_chars=total_text_chars,
         media_type_counts=media_type_counts,
     )
+
+    for event in prepared.events:
+        yield event
 
     yield {"event": "start", "run_id": run_id}
     delta_chunks: list[str] = []
@@ -768,9 +801,9 @@ async def stream_chat_turn(
         runtime_terminal_text: str | None = None
 
         async for runtime_event in stream_chat_response(
-            prompt=agent_prompt,
+            prompt=prepared.agent_prompt,
             deps=deps,
-            attachments=agent_attachments,
+            attachments=prepared.agent_attachments,
         ):
             event_type = runtime_event.get("event")
             if event_type == "delta":
@@ -807,26 +840,36 @@ async def stream_chat_turn(
         if not response_text:
             raise ChatAgentError("Chat agent returned empty streamed response")
 
-        thread = await _load_owned_active_thread(
-            db=db,
-            thread_id=thread_id,
-            organization_id=organization_id,
-            created_by_user_id=created_by_user_id,
-        )
-        assistant_message = await _persist_assistant_terminal_message(
-            db=db,
-            thread=thread,
-            organization_id=organization_id,
-            created_by_user_id=created_by_user_id,
-            content_text=response_text,
-            run_id=run_id,
-            produced_attachment_ids=produced_attachment_ids,
-        )
+        async with session_factory() as db:
+            thread = await _load_owned_active_thread(
+                db=db,
+                thread_id=thread_id,
+                organization_id=organization_id,
+                created_by_user_id=created_by_user_id,
+            )
+            assistant_message = await _persist_assistant_terminal_message(
+                db=db,
+                thread=thread,
+                organization_id=organization_id,
+                created_by_user_id=created_by_user_id,
+                content_text=response_text,
+                run_id=run_id,
+                produced_attachment_ids=produced_attachment_ids,
+            )
 
         yield {
             "event": "completed",
             "message_id": str(assistant_message.id),
         }
+    except (asyncio.CancelledError, BrokenResourceError):
+        logger.info(
+            "chat_stream_cancelled",
+            thread_id=str(thread_id),
+            run_id=run_id,
+            organization_id=str(organization_id),
+            user_id=str(created_by_user_id),
+        )
+        raise
     except Exception as exc:
         # Clean up orphan attachments from this run
         deleted_storage_keys: set[str] = set()
@@ -835,15 +878,16 @@ async def stream_chat_turn(
             from app.services.s3_service import delete_file_from_s3
 
             with contextlib.suppress(Exception):
-                rows = await db.execute(
-                    select(ChatAttachment).where(ChatAttachment.id.in_(produced_attachment_ids))
-                )
-                for att in rows.scalars().all():
-                    with contextlib.suppress(Exception):
-                        await delete_file_from_s3(att.storage_key)
-                        deleted_storage_keys.add(att.storage_key)
-                    await db.delete(att)
-                await db.commit()
+                async with session_factory() as db:
+                    rows = await db.execute(
+                        select(ChatAttachment).where(ChatAttachment.id.in_(produced_attachment_ids))
+                    )
+                    for att in rows.scalars().all():
+                        with contextlib.suppress(Exception):
+                            await delete_file_from_s3(att.storage_key)
+                            deleted_storage_keys.add(att.storage_key)
+                        await db.delete(att)
+                    await db.commit()
 
         if produced_storage_keys:
             from app.services.s3_service import delete_file_from_s3
@@ -854,7 +898,6 @@ async def stream_chat_turn(
                 with contextlib.suppress(Exception):
                     await delete_file_from_s3(key)
 
-        await db.rollback()
         partial_text = "".join(delta_chunks).strip()
         failed_content = (
             f"{partial_text}\n\n"
@@ -863,21 +906,22 @@ async def stream_chat_turn(
             else "The agent failed before completing this response. Please retry."
         )
         with contextlib.suppress(Exception):
-            thread = await _load_owned_active_thread(
-                db=db,
-                thread_id=thread_id,
-                organization_id=organization_id,
-                created_by_user_id=created_by_user_id,
-            )
-            await _persist_assistant_failed_message(
-                db=db,
-                thread=thread,
-                organization_id=organization_id,
-                created_by_user_id=created_by_user_id,
-                content_text=failed_content,
-                run_id=run_id,
-                error_code="CHAT_STREAM_FAILED",
-            )
+            async with session_factory() as db:
+                thread = await _load_owned_active_thread(
+                    db=db,
+                    thread_id=thread_id,
+                    organization_id=organization_id,
+                    created_by_user_id=created_by_user_id,
+                )
+                await _persist_assistant_failed_message(
+                    db=db,
+                    thread=thread,
+                    organization_id=organization_id,
+                    created_by_user_id=created_by_user_id,
+                    content_text=failed_content,
+                    run_id=run_id,
+                    error_code="CHAT_STREAM_FAILED",
+                )
         logger.error(
             "chat_stream_failed",
             thread_id=str(thread_id),

@@ -1,5 +1,6 @@
 """Single chat agent wrapper for phase-1 chat responses."""
 
+import asyncio
 import json
 import re
 from collections.abc import Callable
@@ -9,6 +10,7 @@ from typing import Any
 from uuid import uuid4
 
 import structlog
+from anyio import BrokenResourceError
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai import Agent, BinaryContent, RunContext
 from pydantic_ai.messages import (
@@ -292,6 +294,15 @@ async def stream_chat_response(
                     yield {"event": "delta", "delta": delta}
 
         raise ChatAgentError("Chat agent stream ended without terminal result")
+    except (asyncio.CancelledError, BrokenResourceError):
+        logger.info(
+            "chat_agent_stream_cancelled",
+            organization_id=deps.organization_id,
+            user_id=deps.user_id,
+            thread_id=deps.thread_id,
+            run_id=deps.run_id,
+        )
+        raise
     except ChatAgentError:
         raise
     except Exception as exc:

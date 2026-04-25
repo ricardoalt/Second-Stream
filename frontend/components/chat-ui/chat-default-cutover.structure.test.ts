@@ -35,8 +35,10 @@ describe("chat baseline simplificado", () => {
 		const source = read("app/chat/chat-page-client.tsx");
 
 		expect(source).toContain("shouldSyncRouteAfterThreadCreated");
-		expect(source).toContain("syncChatThreadUrlSilently(createdThreadId)");
-		expect(source).not.toContain("router.replace(");
+		expect(source).toContain(
+			"router.replace(buildChatThreadUrl(createdThreadId))",
+		);
+		expect(source).not.toContain("syncChatThreadUrlSilently");
 		expect(source).not.toContain("first-turn-routing");
 	});
 

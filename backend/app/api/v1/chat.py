@@ -15,6 +15,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 import structlog
+from anyio import BrokenResourceError
 from fastapi import APIRouter, File, Header, HTTPException, Response, UploadFile, status
 
 from app.api.dependencies import AsyncDB, CurrentUser, OrganizationContext
@@ -358,13 +359,16 @@ async def upload_chat_attachment(
 
     content = await file.read()
     original_filename = file.filename or "attachment"
-    attachment_input = _build_attachment_input_and_persist_content(
-        organization_id=org.id,
-        user_id=current_user.id,
-        file_name=original_filename,
-        content_type=file.content_type,
-        content=content,
-    )
+    try:
+        attachment_input = _build_attachment_input_and_persist_content(
+            organization_id=org.id,
+            user_id=current_user.id,
+            file_name=original_filename,
+            content_type=file.content_type,
+            content=content,
+        )
+    except ChatAttachmentValidationError as exc:
+        _raise_chat_error(exc)
 
     await upload_file_to_s3(
         BytesIO(content),
@@ -383,9 +387,12 @@ async def upload_chat_attachment(
     except ChatAttachmentValidationError as exc:
         await _cleanup_uploaded_attachment_blob(attachment_input.storage_key)
         _raise_chat_error(exc)
-    except Exception:
+    except Exception as exc:
         await _cleanup_uploaded_attachment_blob(attachment_input.storage_key)
-        raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ATTACHMENT_UPLOAD_FAILED", "message": "Attachment upload failed"},
+        ) from exc
 
     return _attachment_to_response(attachment)
 
@@ -436,13 +443,16 @@ async def upload_chat_attachment_draft(
 
     content = await file.read()
     original_filename = file.filename or "attachment"
-    attachment_input = _build_attachment_input_and_persist_content(
-        organization_id=org.id,
-        user_id=current_user.id,
-        file_name=original_filename,
-        content_type=file.content_type,
-        content=content,
-    )
+    try:
+        attachment_input = _build_attachment_input_and_persist_content(
+            organization_id=org.id,
+            user_id=current_user.id,
+            file_name=original_filename,
+            content_type=file.content_type,
+            content=content,
+        )
+    except ChatAttachmentValidationError as exc:
+        _raise_chat_error(exc)
 
     await upload_file_to_s3(
         BytesIO(content),
@@ -460,9 +470,12 @@ async def upload_chat_attachment_draft(
     except ChatAttachmentValidationError as exc:
         await _cleanup_uploaded_attachment_blob(attachment_input.storage_key)
         _raise_chat_error(exc)
-    except Exception:
+    except Exception as exc:
         await _cleanup_uploaded_attachment_blob(attachment_input.storage_key)
-        raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ATTACHMENT_UPLOAD_FAILED", "message": "Attachment upload failed"},
+        ) from exc
 
     return _attachment_to_response(attachment)
 
@@ -473,7 +486,6 @@ async def stream_chat_message(
     payload: ChatStreamRequest,
     current_user: CurrentUser,
     org: OrganizationContext,
-    db: AsyncDB,
     x_vercel_ai_ui_message_stream: Annotated[str | None, Header()] = None,
 ):
     """Stream a chat turn using the negotiated protocol format.
@@ -518,7 +530,6 @@ async def stream_chat_message(
     async def _event_generator():
         try:
             internal_stream = stream_chat_turn(
-                db=db,
                 organization_id=org.id,
                 created_by_user_id=current_user.id,
                 thread_id=thread_id,
@@ -534,6 +545,23 @@ async def stream_chat_message(
                 async for frame in adapt_stream_to_legacy_protocol(internal_stream):
                     await stream_session.publish(frame)
                     yield frame
+        except asyncio.CancelledError:
+            logger.info(
+                "chat_stream_client_disconnected",
+                thread_id=str(thread_id),
+                run_id=run_id,
+                organization_id=str(org.id),
+                user_id=str(current_user.id),
+            )
+            raise
+        except BrokenResourceError:
+            logger.info(
+                "chat_stream_client_channel_closed",
+                thread_id=str(thread_id),
+                run_id=run_id,
+                organization_id=str(org.id),
+                user_id=str(current_user.id),
+            )
         except ChatAttachmentValidationError as exc:
             # Attachment validation errors bypass the stream adapter —
             # they are emitted directly in the negotiated format.
