@@ -238,7 +238,9 @@ const useOptionalProviderAttachments = () =>
 	useContext(ProviderAttachmentsContext);
 
 export type PromptInputProviderProps = PropsWithChildren<{
+	input?: string;
 	initialInput?: string;
+	onInputChange?: (input: string) => void;
 }>;
 
 /**
@@ -246,12 +248,25 @@ export type PromptInputProviderProps = PropsWithChildren<{
  * If you don't use it, PromptInput stays fully self-managed.
  */
 export const PromptInputProvider = ({
+	input,
 	initialInput: initialTextInput = "",
+	onInputChange,
 	children,
 }: PromptInputProviderProps) => {
 	// ----- textInput state
-	const [textInput, setTextInput] = useState(initialTextInput);
-	const clearInput = useCallback(() => setTextInput(""), []);
+	const [uncontrolledTextInput, setUncontrolledTextInput] =
+		useState(initialTextInput);
+	const textInput = input ?? uncontrolledTextInput;
+	const setTextInput = useCallback(
+		(value: string) => {
+			if (input === undefined) {
+				setUncontrolledTextInput(value);
+			}
+			onInputChange?.(value);
+		},
+		[input, onInputChange],
+	);
+	const clearInput = useCallback(() => setTextInput(""), [setTextInput]);
 
 	// ----- attachments state (global when wrapped)
 	const [attachmentFiles, setAttachmentFiles] = useState<
@@ -353,7 +368,7 @@ export const PromptInputProvider = ({
 				value: textInput,
 			},
 		}),
-		[textInput, clearInput, attachments, __registerFileInput],
+		[textInput, clearInput, attachments, __registerFileInput, setTextInput],
 	);
 
 	return (
@@ -881,18 +896,16 @@ export const PromptInput = ({
 				if (result instanceof Promise) {
 					try {
 						await result;
-						clear();
-						if (usingProvider) {
-							controller.textInput.clear();
+						if (!usingProvider) {
+							clear();
 						}
 					} catch {
 						// Don't clear on error - user may want to retry
 					}
 				} else {
 					// Sync function completed without throwing, clear inputs
-					clear();
-					if (usingProvider) {
-						controller.textInput.clear();
+					if (!usingProvider) {
+						clear();
 					}
 				}
 			} catch {

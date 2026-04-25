@@ -1,7 +1,6 @@
 import type { ChatStatus } from "ai";
 import type * as React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ChatComposerAttachments } from "@/components/chat-ui/chat-composer-attachments";
+import { useCallback, useEffect, useState } from "react";
 import {
 	PromptInput,
 	PromptInputActionAddAttachments,
@@ -19,6 +18,7 @@ import {
 	usePromptInputAttachments,
 	usePromptInputController,
 } from "@/components/ai-elements/prompt-input";
+import { ChatComposerAttachments } from "@/components/chat-ui/chat-composer-attachments";
 import {
 	MAX_ATTACHMENT_BYTES,
 	MAX_ATTACHMENTS_PER_REQUEST,
@@ -31,7 +31,10 @@ type ChatPromptComposerProps = {
 	draftScopeKey: string;
 	errorMessage?: string | null;
 	onInteract?: () => void;
-	onSubmitMessage: (message: PromptInputMessage) => Promise<void>;
+	onSubmitMessage: (
+		message: PromptInputMessage,
+		onAccepted: () => void,
+	) => Promise<void>;
 	placeholder: string;
 	status: ChatStatus;
 	textareaClassName: string;
@@ -107,24 +110,6 @@ function PromptSubmitButton({
 	);
 }
 
-function DraftSync({
-	onTextChange,
-}: {
-	onTextChange: (value: string) => void;
-}) {
-	const { textInput } = usePromptInputController();
-	const previousValueRef = useRef(textInput.value);
-
-	useEffect(() => {
-		if (textInput.value !== previousValueRef.current) {
-			previousValueRef.current = textInput.value;
-			onTextChange(textInput.value);
-		}
-	}, [textInput.value, onTextChange]);
-
-	return null;
-}
-
 export function ChatPromptComposer({
 	className,
 	draftScopeKey,
@@ -136,13 +121,26 @@ export function ChatPromptComposer({
 	textareaClassName,
 }: ChatPromptComposerProps): React.JSX.Element {
 	const draft = useDraftInput(draftScopeKey);
+	const [input, setInput] = useState(() => draft.initialText ?? "");
+	const [resetKey, setResetKey] = useState(0);
 	const [attachmentError, setAttachmentError] = useState<string | null>(null);
+
+	const handleInputChange = useCallback(
+		(value: string) => {
+			setInput(value);
+			draft.setText(value);
+		},
+		[draft],
+	);
 
 	const handleSubmit = useCallback(
 		async (message: PromptInputMessage): Promise<void> => {
 			setAttachmentError(null);
-			await onSubmitMessage(message);
-			draft.clear();
+			await onSubmitMessage(message, () => {
+				setInput("");
+				draft.clear();
+				setResetKey((key) => key + 1);
+			});
 		},
 		[draft, onSubmitMessage],
 	);
@@ -160,8 +158,11 @@ export function ChatPromptComposer({
 	}, []);
 
 	return (
-		<PromptInputProvider initialInput={draft.initialText}>
-			<DraftSync onTextChange={draft.setText} />
+		<PromptInputProvider
+			input={input}
+			key={`${draftScopeKey}:${resetKey}`}
+			onInputChange={handleInputChange}
+		>
 			<PromptComposerStateWatcher
 				onComposerChange={() => {
 					setAttachmentError(null);

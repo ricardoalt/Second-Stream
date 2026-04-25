@@ -32,17 +32,42 @@ describe("getAttachmentValidationMessage", () => {
 		const source = read("components/chat-ui/chat-composer-attachments.tsx");
 
 		expect(source).toContain('variant="inline"');
-		expect(source).toContain("<AttachmentInfo className=\"text-xs\" title={filename} />");
+		expect(source).toContain(
+			'<AttachmentInfo className="text-xs" title={filename} />',
+		);
 		expect(source).toContain('className="max-w-[min(11rem,100%)] min-w-0"');
 		expect(source).toContain("<AttachmentHoverCard");
 	});
 
-	it("clears draft only after submit succeeds", () => {
+	it("clears visible input and draft from the submit acceptance callback", () => {
 		const source = read("components/chat-ui/chat-prompt-composer.tsx");
-		const submitCallIndex = source.indexOf("await onSubmitMessage(message);");
+		const submitCallIndex = source.indexOf(
+			"await onSubmitMessage(message, () => {",
+		);
+		const clearInputIndex = source.indexOf('setInput("");');
 		const clearDraftIndex = source.indexOf("draft.clear();");
+		const resetAttachmentsIndex = source.indexOf(
+			"setResetKey((key) => key + 1);",
+		);
 
 		expect(submitCallIndex).toBeGreaterThan(-1);
 		expect(clearDraftIndex).toBeGreaterThan(submitCallIndex);
+		expect(clearInputIndex).toBeGreaterThan(submitCallIndex);
+		expect(resetAttachmentsIndex).toBeGreaterThan(clearDraftIndex);
+	});
+
+	it("accepts the message after uploads and before awaiting sendMessage", () => {
+		const source = read("components/chat-ui/chat-interface.tsx");
+		const uploadIndex = source.indexOf(
+			"const attachmentIds = await uploadAttachmentsFromPromptMessage(message);",
+		);
+		const submittingIndex = source.indexOf("setIsSubmittingMessage(true);");
+		const acceptedIndex = source.indexOf("onAccepted();");
+		const sendIndex = source.indexOf("await sendMessage(");
+
+		expect(uploadIndex).toBeGreaterThan(-1);
+		expect(submittingIndex).toBeGreaterThan(uploadIndex);
+		expect(acceptedIndex).toBeGreaterThan(submittingIndex);
+		expect(sendIndex).toBeGreaterThan(acceptedIndex);
 	});
 });

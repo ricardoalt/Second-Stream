@@ -153,11 +153,10 @@ export function ChatInterface({
 	});
 
 	const handleSubmitMessage = useCallback(
-		async (message: PromptInputMessage) => {
+		async (message: PromptInputMessage, onAccepted: () => void) => {
 			if (!canSubmitPromptMessage(message)) {
 				return;
 			}
-			setIsSubmittingMessage(true);
 			setSubmitError(null);
 			setRetryMessage(null);
 
@@ -196,6 +195,8 @@ export function ChatInterface({
 			clearError();
 			try {
 				const attachmentIds = await uploadAttachmentsFromPromptMessage(message);
+				setIsSubmittingMessage(true);
+				onAccepted();
 
 				await sendMessage(
 					{ text: message.text, files: message.files },
@@ -227,7 +228,7 @@ export function ChatInterface({
 		}
 
 		if (retryMessage) {
-			await handleSubmitMessage(retryMessage);
+			await handleSubmitMessage(retryMessage, () => undefined);
 			return;
 		}
 
