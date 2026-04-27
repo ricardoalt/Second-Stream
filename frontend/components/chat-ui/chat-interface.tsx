@@ -272,14 +272,11 @@ export function ChatInterface({
 		setMessages,
 	]);
 
-	const isEmptyState = messages.length === 0 && !isSubmittingMessage;
+	const isEmptyState = messages.length === 0 && status === "ready";
 	const isStreamingOrSubmitted =
 		status === "submitted" || status === "streaming";
 	const isComposerBusy = isSubmittingMessage || isStreamingOrSubmitted;
-	const showShimmer =
-		isSubmittingMessage && status !== "streaming"
-			? true
-			: shouldShowLoadingShimmer(status, messages);
+	const showShimmer = shouldShowLoadingShimmer(status, messages);
 	const visibleError = submitError ?? error?.message ?? null;
 	const canRetry =
 		!isStreamingOrSubmitted && (Boolean(retryMessage) || messages.length > 0);

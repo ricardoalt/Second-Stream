@@ -8,6 +8,7 @@ export function ChatShell({ routeThreadId }: { routeThreadId: string | null }) {
 	const [activeThreadId, setActiveThreadId] = useState<string | undefined>(
 		routeThreadId ?? undefined,
 	);
+	const [chatInstanceKey, setChatInstanceKey] = useState(0);
 
 	useEffect(() => {
 		setActiveThreadId(routeThreadId ?? undefined);
@@ -19,6 +20,7 @@ export function ChatShell({ routeThreadId }: { routeThreadId: string | null }) {
 
 	const handleNewChat = useCallback(() => {
 		setActiveThreadId(undefined);
+		setChatInstanceKey((currentKey) => currentKey + 1);
 	}, []);
 
 	return (
@@ -30,6 +32,7 @@ export function ChatShell({ routeThreadId }: { routeThreadId: string | null }) {
 			/>
 			<div className="flex flex-1 flex-col h-full overflow-hidden">
 				<ChatPageClient
+					key={chatInstanceKey}
 					routeThreadId={routeThreadId}
 					onActiveThreadIdChange={handleThreadActivated}
 				/>
