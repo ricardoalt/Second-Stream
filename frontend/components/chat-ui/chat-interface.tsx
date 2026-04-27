@@ -249,7 +249,9 @@ export function ChatInterface({
 	const isStreamingOrSubmitted =
 		status === "submitted" || status === "streaming";
 	const showShimmer =
-		isSubmittingMessage || shouldShowLoadingShimmer(status, messages);
+		isSubmittingMessage && status !== "streaming"
+			? true
+			: shouldShowLoadingShimmer(status, messages);
 	const visibleError = submitError ?? error?.message ?? null;
 	const canRetry =
 		!isStreamingOrSubmitted && (Boolean(retryMessage) || messages.length > 0);
