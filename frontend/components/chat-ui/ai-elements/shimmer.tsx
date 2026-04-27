@@ -47,6 +47,12 @@ const ShimmerComponent = ({
 		[children, spread],
 	);
 
+	const shimmerStyle = {
+		"--spread": `${dynamicSpread}px`,
+		backgroundImage:
+			"var(--bg), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))",
+	} as unknown as NonNullable<MotionProps["style"]>;
+
 	return (
 		<MotionComponent
 			animate={{ backgroundPosition: "0% center" }}
@@ -56,14 +62,7 @@ const ShimmerComponent = ({
 				className,
 			)}
 			initial={{ backgroundPosition: "100% center" }}
-			// biome-ignore lint/suspicious/noExplicitAny: motion/react types require any for CSS custom properties with exactOptionalPropertyTypes
-			style={
-				{
-					"--spread": `${dynamicSpread}px`,
-					backgroundImage:
-						"var(--bg), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))",
-				} as any
-			}
+			style={shimmerStyle}
 			transition={{
 				duration,
 				ease: "linear",

@@ -70,7 +70,16 @@ function renderWebSearchPart(part: MyUIMessage["parts"][number]) {
 }
 
 function renderPdfToolPart(
-	part: Extract<MyUIMessage["parts"][number], { type: `tool-${string}` }>,
+	part: Extract<
+		MyUIMessage["parts"][number],
+		{
+			type:
+				| "tool-generateDiscoveryReport"
+				| "tool-generateIdeationBrief"
+				| "tool-generateAnalyticalRead"
+				| "tool-generatePlaybook";
+		}
+	>,
 ) {
 	const toolKey = part.type.replace("tool-", "") as PdfToolKey;
 	const config = PDF_DOC_CONFIGS[toolKey];

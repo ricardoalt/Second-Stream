@@ -1,23 +1,35 @@
 "use client";
 
 import { BrainIcon, CheckIcon, XIcon } from "lucide-react";
-import type { WorkingMemory } from "@/config/working-memory";
 import { cn } from "@/lib/utils";
+import type { MyUIMessage } from "@/types/ui-message";
 import { Shimmer } from "./shimmer";
 
+type UpdateWorkingMemoryPart = Extract<
+	MyUIMessage["parts"][number],
+	{ type: "tool-updateWorkingMemory" }
+>;
+
 type WorkingMemoryUpdateProps = {
-	state: string;
-	input?: { memory: WorkingMemory } | undefined;
+	state: UpdateWorkingMemoryPart["state"];
+	input?: UpdateWorkingMemoryPart["input"];
 	className?: string;
 };
 
-function formatMemorySummary(memory: WorkingMemory): string {
+function formatMemorySummary(
+	memory: NonNullable<NonNullable<UpdateWorkingMemoryPart["input"]>["memory"]>,
+): string {
 	const parts: string[] = [];
 	if (memory.summary) parts.push(memory.summary);
-	if (memory.keyFacts?.length)
-		parts.push(`${memory.keyFacts.length} key facts`);
-	if (memory.preferences?.length)
-		parts.push(`${memory.preferences.length} preferences`);
+	const keyFactsCount =
+		memory.keyFacts?.filter((fact): fact is string => typeof fact === "string")
+			.length ?? 0;
+	if (keyFactsCount > 0) parts.push(`${keyFactsCount} key facts`);
+	const preferencesCount =
+		memory.preferences?.filter(
+			(fact): fact is string => typeof fact === "string",
+		).length ?? 0;
+	if (preferencesCount > 0) parts.push(`${preferencesCount} preferences`);
 	return parts.length > 0 ? parts.join(" · ") : "memory updated";
 }
 
