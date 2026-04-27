@@ -19,6 +19,7 @@ from app.services.chat_stream_protocol import (
     adapt_stream_to_official_protocol,
     encode_legacy_sse,
     encode_official_sse,
+    encode_sse_comment,
     extract_latest_user_text_with_vercel_adapter,
     resolve_attachments_to_agent_input,
     resolve_attachments_to_agent_input_for_model,
@@ -81,6 +82,11 @@ class TestEncodeOfficialSSE:
         result = encode_official_sse("finish", {})
         payload = json.loads(result[len("data: "):].rstrip("\n"))
         assert payload["type"] == "finish"
+
+    def test_keepalive_comment_format(self):
+        """SSE keepalive must be emitted as comment, not data JSON."""
+        result = encode_sse_comment("keepalive")
+        assert result == ": keepalive\n\n"
 
 
 class TestEncodeLegacySSE:
@@ -295,6 +301,18 @@ class TestOfficialProtocolStreamAdapter:
                 "updatedAt": "2026-01-01T00:00:00Z",
             },
         }
+
+    @pytest.mark.asyncio
+    async def test_keepalive_event_maps_to_sse_comment_frame(self):
+        """keepalive internal event must be serialized as SSE comment frame only."""
+        internal_events = [
+            {"event": "keepalive"},
+        ]
+        stream = adapt_stream_to_official_protocol(_stream_events_gen(internal_events))
+        output = await _collect(stream)
+
+        assert output[0] == ": keepalive\n\n"
+        assert output[1] == "data: [DONE]\n\n"
 
 
 # ---------------------------------------------------------------------------

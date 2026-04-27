@@ -5,6 +5,7 @@ import contextlib
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from time import perf_counter
 from uuid import UUID
 
 import structlog
@@ -33,6 +34,7 @@ CHAT_MODEL_CONTEXT_WINDOW = 12
 CHAT_TITLE_MAX_CHARS = 80
 CHAT_DEFAULT_THREAD_TITLE = "New chat"
 CHAT_ATTACHMENT_EXTRACTED_TEXT_MAX_CHARS = 12_000
+CHAT_STREAM_KEEPALIVE_INTERVAL_SECONDS = 10.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -647,8 +649,62 @@ async def stream_chat_turn(
     attachments: list[ChatAttachmentInput] | None = None,
     existing_attachment_ids: list[UUID] | None = None,
     session_factory: async_sessionmaker[AsyncSession] = AsyncSessionLocal,
+    keepalive_interval_seconds: float = CHAT_STREAM_KEEPALIVE_INTERVAL_SECONDS,
 ):
     """Stream one chat turn with short database sessions around each unit of work."""
+    stream_started_at = perf_counter()
+    first_event_at: float | None = None
+    first_delta_at: float | None = None
+    last_event_at: float | None = None
+    max_gap_seconds = 0.0
+    emitted_events_count = 0
+    emitted_keepalive_count = 0
+    stream_outcome = "unknown"
+
+    keepalive_interval = max(float(keepalive_interval_seconds), 0.01)
+
+    def _mark_emitted_event(*, event_type: str) -> None:
+        nonlocal first_event_at, first_delta_at, last_event_at, max_gap_seconds, emitted_events_count
+
+        now = perf_counter()
+        if first_event_at is None:
+            first_event_at = now
+            logger.info(
+                "chat_stream_first_event",
+                thread_id=str(thread_id),
+                run_id=run_id,
+                organization_id=str(organization_id),
+                user_id=str(created_by_user_id),
+                event_type=event_type,
+                first_event_latency_seconds=now - stream_started_at,
+            )
+
+        if event_type == "delta" and first_delta_at is None:
+            first_delta_at = now
+            logger.info(
+                "chat_stream_first_delta",
+                thread_id=str(thread_id),
+                run_id=run_id,
+                organization_id=str(organization_id),
+                user_id=str(created_by_user_id),
+                first_delta_latency_seconds=now - stream_started_at,
+            )
+
+        if last_event_at is not None:
+            max_gap_seconds = max(max_gap_seconds, now - last_event_at)
+
+        last_event_at = now
+        emitted_events_count += 1
+
+    logger.info(
+        "chat_stream_started",
+        thread_id=str(thread_id),
+        run_id=run_id,
+        organization_id=str(organization_id),
+        user_id=str(created_by_user_id),
+        keepalive_interval_seconds=keepalive_interval,
+    )
+
     preparation_events: list[dict] = []
 
     async with session_factory() as db:
@@ -794,48 +850,82 @@ async def stream_chat_turn(
     )
 
     for event in prepared.events:
+        _mark_emitted_event(event_type=str(event.get("event", "unknown")))
         yield event
 
+    _mark_emitted_event(event_type="start")
     yield {"event": "start", "run_id": run_id}
     delta_chunks: list[str] = []
     try:
         runtime_terminal_text: str | None = None
 
-        async for runtime_event in stream_chat_response(
+        runtime_stream = stream_chat_response(
             prompt=prepared.agent_prompt,
             deps=deps,
             attachments=prepared.agent_attachments,
-        ):
-            event_type = runtime_event.get("event")
-            if event_type == "delta":
-                delta = str(runtime_event.get("delta", ""))
-                if not delta:
+        )
+        pending_runtime_event: asyncio.Task[dict] | None = None
+
+        try:
+            while True:
+                if pending_runtime_event is None:
+                    pending_runtime_event = asyncio.create_task(runtime_stream.__anext__())
+
+                try:
+                    runtime_event = await asyncio.wait_for(
+                        asyncio.shield(pending_runtime_event),
+                        timeout=keepalive_interval,
+                    )
+                    pending_runtime_event = None
+                except TimeoutError:
+                    emitted_keepalive_count += 1
+                    _mark_emitted_event(event_type="keepalive")
+                    yield {"event": "keepalive"}
                     continue
-                delta_chunks.append(delta)
-                yield {"event": "delta", "delta": delta}
-                continue
+                except StopAsyncIteration:
+                    pending_runtime_event = None
+                    break
 
-            if event_type == "tool-output-available":
-                output = runtime_event.get("output", {})
-                if isinstance(output, dict) and (att_id := output.get("attachment_id")):
-                    with contextlib.suppress(ValueError):
-                        produced_attachment_ids.append(UUID(att_id))
-                yield runtime_event
-                continue
+                event_type = runtime_event.get("event")
+                if event_type == "delta":
+                    delta = str(runtime_event.get("delta", ""))
+                    if not delta:
+                        continue
+                    delta_chunks.append(delta)
+                    _mark_emitted_event(event_type="delta")
+                    yield {"event": "delta", "delta": delta}
+                    continue
 
-            if event_type in (
-                "tool-input-start",
-                "tool-input-delta",
-                "tool-input-available",
-                "tool-output-error",
-            ):
-                yield runtime_event
-                continue
+                if event_type == "tool-output-available":
+                    output = runtime_event.get("output", {})
+                    if isinstance(output, dict) and (att_id := output.get("attachment_id")):
+                        with contextlib.suppress(ValueError):
+                            produced_attachment_ids.append(UUID(att_id))
+                    _mark_emitted_event(event_type="tool-output-available")
+                    yield runtime_event
+                    continue
 
-            if event_type == "completed":
-                candidate = str(runtime_event.get("response_text", "")).strip()
-                if candidate:
-                    runtime_terminal_text = candidate
+                if event_type in (
+                    "tool-input-start",
+                    "tool-input-delta",
+                    "tool-input-available",
+                    "tool-output-error",
+                ):
+                    _mark_emitted_event(event_type=str(event_type))
+                    yield runtime_event
+                    continue
+
+                if event_type == "completed":
+                    candidate = str(runtime_event.get("response_text", "")).strip()
+                    if candidate:
+                        runtime_terminal_text = candidate
+        finally:
+            if pending_runtime_event is not None and not pending_runtime_event.done():
+                pending_runtime_event.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await pending_runtime_event
+            with contextlib.suppress(Exception):
+                await runtime_stream.aclose()
 
         response_text = runtime_terminal_text or "".join(delta_chunks).strip()
         if not response_text:
@@ -858,11 +948,14 @@ async def stream_chat_turn(
                 produced_attachment_ids=produced_attachment_ids,
             )
 
+        _mark_emitted_event(event_type="completed")
         yield {
             "event": "completed",
             "message_id": str(assistant_message.id),
         }
-    except (asyncio.CancelledError, BrokenResourceError):
+        stream_outcome = "completed"
+    except asyncio.CancelledError:
+        stream_outcome = "cancelled"
         logger.info(
             "chat_stream_cancelled",
             thread_id=str(thread_id),
@@ -871,7 +964,18 @@ async def stream_chat_turn(
             user_id=str(created_by_user_id),
         )
         raise
+    except BrokenResourceError:
+        stream_outcome = "disconnected"
+        logger.info(
+            "chat_stream_disconnected",
+            thread_id=str(thread_id),
+            run_id=run_id,
+            organization_id=str(organization_id),
+            user_id=str(created_by_user_id),
+        )
+        raise
     except Exception as exc:
+        stream_outcome = "failed"
         # Clean up orphan attachments from this run
         deleted_storage_keys: set[str] = set()
 
@@ -931,7 +1035,29 @@ async def stream_chat_turn(
             user_id=str(created_by_user_id),
             error=str(exc),
         )
+        _mark_emitted_event(event_type="error")
         yield {"event": "error", "code": "CHAT_STREAM_FAILED"}
+    finally:
+        ended_at = perf_counter()
+        logger.info(
+            "chat_stream_metrics",
+            thread_id=str(thread_id),
+            run_id=run_id,
+            organization_id=str(organization_id),
+            user_id=str(created_by_user_id),
+            outcome=stream_outcome,
+            cancelled_or_disconnected=stream_outcome in {"cancelled", "disconnected"},
+            total_duration_seconds=ended_at - stream_started_at,
+            first_event_latency_seconds=(
+                None if first_event_at is None else first_event_at - stream_started_at
+            ),
+            first_delta_latency_seconds=(
+                None if first_delta_at is None else first_delta_at - stream_started_at
+            ),
+            max_gap_seconds=max_gap_seconds,
+            emitted_events_count=emitted_events_count,
+            emitted_keepalive_count=emitted_keepalive_count,
+        )
 
 
 def build_thread_list_query(

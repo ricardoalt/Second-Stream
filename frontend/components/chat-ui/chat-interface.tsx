@@ -107,7 +107,8 @@ export function ChatInterface({
 	} = useChat<MyUIMessage>({
 		id: threadId,
 		messages: initialMessages,
-		resume: true,
+		// Disabled until durable cross-worker resume exists in backend infra.
+		resume: false,
 		experimental_throttle: 50,
 		transport,
 		onFinish: () => {

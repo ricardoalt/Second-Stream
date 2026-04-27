@@ -179,6 +179,53 @@ async def test_stream_chat_turn_emits_conversation_title_once_for_untitled_threa
 
 
 @pytest.mark.asyncio
+async def test_stream_chat_turn_emits_keepalive_when_runtime_has_long_gap(
+    db_session,
+    chat_session_factory,
+    monkeypatch,
+):
+    org = await create_org(db_session, "Chat Keepalive Org", "chat-keepalive-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-keepalive-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    async def _slow_stream_response(*, prompt, deps, attachments):
+        await asyncio.sleep(0.03)
+        yield {"event": "delta", "delta": "Late chunk"}
+        yield {"event": "completed", "response_text": "Late chunk"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _slow_stream_response)
+
+    events = [
+        event
+        async for event in stream_chat_turn(
+            session_factory=chat_session_factory,
+            organization_id=org.id,
+            created_by_user_id=owner.id,
+            thread_id=thread.id,
+            content_text="Help me analyze",
+            run_id="run-keepalive",
+            keepalive_interval_seconds=0.01,
+        )
+    ]
+
+    event_types = [event["event"] for event in events]
+    assert event_types[0] == "start"
+    assert "keepalive" in event_types
+    assert "delta" in event_types
+    assert event_types[-1] == "completed"
+
+    first_keepalive_index = event_types.index("keepalive")
+    first_delta_index = event_types.index("delta")
+    assert first_keepalive_index < first_delta_index
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_turn_emits_error_and_persists_failed_assistant(
     db_session,
     chat_session_factory,

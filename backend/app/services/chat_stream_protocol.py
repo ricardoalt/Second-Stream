@@ -70,6 +70,11 @@ def encode_official_sse(event_type: str, data: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
+def encode_sse_comment(comment: str) -> str:
+    """Encode a keepalive/comment frame following SSE comment format."""
+    return f": {comment}\n\n"
+
+
 def encode_legacy_sse(event_type: str, data: dict[str, Any]) -> str:
     """Encode an event in the legacy SSE format (temporary compatibility).
 
@@ -201,6 +206,10 @@ async def adapt_stream_to_official_protocol(
                     "errorText": event["errorText"],
                 },
             )
+
+        elif event_type == "keepalive":
+            # SSE standard keepalive frame; intentionally not part of AI SDK data JSON.
+            yield encode_sse_comment("keepalive")
 
     # Stream termination marker per the official protocol
     yield "data: [DONE]\n\n"

@@ -15,7 +15,7 @@ describe("chat baseline simplificado", () => {
 		expect(source).toContain("useChat<MyUIMessage>");
 		expect(source).toContain("id: threadId");
 		expect(source).toContain("transport");
-		expect(source).toContain("resume: true");
+		expect(source).toContain("resume: false");
 		expect(source).toContain("onData");
 		expect(source).toContain("onFinish");
 		expect(source).toContain("DATA_NEW_THREAD_CREATED_PART");
