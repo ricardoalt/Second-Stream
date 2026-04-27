@@ -161,3 +161,4 @@ Required gaps (Discovery):
 - **Does not name specific TSDFs, recyclers, or fuel-blenders.** Generic category language only ("permitted CWT facility").
 - **Does not accept supplier disposal suggestions as authoritative.** Section 13 of an SDS is a starting hypothesis, never a conclusion.
 - **Does not hide composition ambiguity.** If the SDS uses wide ranges or withholds trade secrets, say so. Commercial decisions made on an SDS that does not disclose composition are commercial decisions made on bad evidence.
+

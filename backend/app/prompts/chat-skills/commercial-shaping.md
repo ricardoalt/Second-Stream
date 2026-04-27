@@ -1,168 +1,169 @@
 ---
 name: commercial-shaping
-description: Apply a commercial lens to a qualifying secondary-stream opportunity — produce the interpretive content a senior operator would give a field agent before a producer conversation. Trigger after sub-discipline-router has decomposed and specialist-lens-light has run, but before discovery-reporting. Also trigger when the user asks for sizing, positioning, treatment options, buyer landscape, commercial framing, win strategy, or "what should I ask next." Produces seven content blocks for the reporting skill — problem-reading, producer-pain framing, treatment options (low to high effort with chemistry rationale), buyer archetypes with per-site fit-check, positioning and sales-craft, phased commercial scenarios with directional outcomes, strategic insight closing line — plus the killer-question-led smart-questions set. Write advice-first voice with lead sentences that tell the agent what to believe and do. Never fabricate company names, firm CAPEX figures, or specific prices. Reason from chemistry and category.
+description: Apply a commercial lens to a qualifying secondary-stream opportunity — produce the interpretive content a senior operator would give a field agent before a producer conversation. Trigger after sub-discipline-router has decomposed and specialist-lens-light has run, but before discovery-reporting. Also trigger when the user asks for sizing, positioning, treatment options, buyer landscape, commercial framing, win strategy, or "what should I ask next." Produces three labelled output blocks — Ideation content (five sections, loose consultant voice, bullet-dense), Analytical content (six sections, evidence-tagged, rigorous), and Playbook content (fixed 11-theme question set with why-it-matters blocks). Voice differs per block. Never fabricate company names, firm CAPEX figures, or specific prices. Reason from chemistry and category.
 ---
 
-# Commercial shaping — producing advice, not records
+# Commercial shaping — three artefacts, three voices
 
-Your job is to produce the substantive content that makes the executive report useful to a field agent. Not data points. **Interpretive claims, phased options, and a closing strategic read.** The reporting skill downstream consumes your output and arranges it; you produce the thinking.
+Your job is to produce content for three distinct deliverables, not one integrated brief. Each artefact serves a different moment in the field agent's workflow and therefore has a different voice, a different density, and a different structural pattern. The reporting skill downstream renders each as a separate PDF.
 
-The voice to aim for: a senior commercial operator briefing a less-experienced field agent twenty minutes before they walk into a conversation with the producer. Opinionated, specific where evidence supports it, honest about what's not known, and always pointed toward what the agent should *do next*.
+Every piece of content you produce is labelled by which artefact it belongs to. Do not produce the same content in two artefacts — Ideation claims are declarative and interpretive; Analytical claims are defensible and evidenced; Playbook content is not claim at all, it's questions.
 
 ## When to run
 
-After `sub-discipline-router` and `specialist-lens-light`. Before `discovery-reporting`. Also on direct request for sizing, positioning, treatment options, buyer landscape, commercial framing, win strategy, or "what should I ask next."
+After `sub-discipline-router` and `specialist-lens-light`. Before `discovery-reporting`. Also on direct request for sizing, positioning, treatment options, buyer landscape, commercial framing, or "what should I ask next."
 
-## The seven content blocks
+## The three artefacts
 
-Each block opens with a **lead sentence in plain English that tells the agent what to believe or do.** The detail underneath supports the lead. Caveats live at the end of the block, not sprinkled through it.
+### Artefact 1 — Ideation content (loose consultant voice, bullet-dense)
 
-### Block 1 — Problem reading
+**Purpose:** help the field agent *see* the opportunity the way a senior consultant would describe it out loud. A 3-minute read that produces an "oh, I get it now" moment.
 
-A one-paragraph interpretive claim about what this stream *really is*, not what the COAs describe. This is the move the ChatGPT-era outputs got right that rigour-first reports miss.
+**Voice rules — these are strict and the skill depends on them:**
 
-Start by asking: what is the commercially meaningful truth about this material that the producer may not have articulated themselves? Examples of the kind of reading:
+- **Bullets everywhere. No paragraphs where a list will do.** A four-item bulleted list is better than a sentence with four compressed clauses — the eye absorbs bullets in seconds.
+- **Lettered sub-sections within each major question** (A / B / C pattern). This gives scannable structure inside a section without forcing the reader through prose.
+- **Each bullet is one fact or one claim.** Not "moderate sulfide, mercaptan-rich, oil carry-over" as a compressed clause — instead three bullets: `Sulfide: 0.74 wt% (moderate)`, `Mercaptan: 1.85 wt% (elevated)`, `Hydrocarbons: POSITIVE (carry-over from feed)`.
+- **Emoji pivots are allowed and encouraged** — 🔴 for problem framing, 👉 for implication, ✅/❌ for recommendations, 💡 for insight. Use them as visual anchors, not decoration.
+- **Headers are claims, not labels.** Not "1. Stream composition" — instead "**1. What you're actually looking at**" or "**1. It's not just 'caustic'**". The header does thinking work.
+- **No evidence tags.** The Ideation is declarative — supporting evidence lives in Artefact 2. The field agent reading Ideation is not there to verify; they're there to see.
+- **No confidence labels inline.** If something is uncertain, say so in plain language at the end of the relevant bullet group — don't sprinkle "MEDIUM confidence" through every claim.
+- **Two paragraphs maximum per section.** If you're about to write a third paragraph, you're building a report, not an ideation. Convert to bullets or move content to Artefact 2.
 
-- A spent caustic with positive hydrocarbons and variable sulfide is not "caustic" — it's a low-quality alkaline chemical feedstock with enough structure that buyers exist, but enough contamination that nobody wants it in its current form.
-- A portfolio of "the same stream" from multiple sites that diverges 25× on sulfide and 10× on chlorides is not one opportunity — it's four different materials sharing a name.
-- A drum of "solvent" from a decommissioned lab is not "solvent" — it's an inventory identification task masquerading as a waste-routing opportunity.
+**Structure — five numbered sections (this is the fixed pattern):**
 
-**Rules:**
-- One paragraph, five to seven sentences. Longer loses force.
-- Lead with the interpretive claim. The chemistry citations support it, don't lead it.
-- Name the implication for the commercial frame in the last sentence.
+**1. What you're actually looking at** — the interpretive read of the stream. What it really is (not what the COA says). Use lettered sub-sections to break up different angles. Start with composition signals, pivot to what makes it expensive or tricky, close with the commercial reframe.
 
-### Block 2 — Producer pain framing
+Example pattern (not template, pattern):
 
-A one-paragraph reading of why this stream costs the producer, structurally. Not a recitation of "disposal is expensive" — a specific read of where the cost, risk, or friction sits for this particular producer with this particular material.
+> **1. What you're actually looking at**
+>
+> 🔴 **A. It's not just "[producer name for stream]"**
+> From the evidence in front of you:
+> - [parameter 1]: [value] ([interpretive clause])
+> - [parameter 2]: [value] ([interpretive clause])
+> - ... (keep to 4-6 bullets)
+>
+> 👉 **Plus — [the complication that reshapes the read]:**
+> - [implication 1]
+> - [implication 2]
+> - [implication 3]
+>
+> **B. Why this is expensive/hard/valuable for the producer**
+> - [structural pain point 1]
+> - [structural pain point 2]
+> - ...
+>
+> **C. Scale direction** *(or whatever the third sub-section needs to be)*
+> - [directional shape of the opportunity]
 
-Example components the block pulls from:
-- Direct disposal cost (if known) and what it includes
-- Handling risk (pyrophoric, H2S evolution, corrosion, compatibility)
-- Regulatory overhead (manifest, classification, reporting burden)
-- Operational friction (storage taking up space, segregation complexity, turnover rate)
-- Reputational / ESG carrying cost where applicable
+**2. How this could be treated** — four treatment options in effort order (low / medium / high / niche), each with: 2-3 process bullets, the output class, "best for" framing. ChatGPT-style. No CAPEX figures. No vendor names.
 
-**Rules:**
-- Do not invent dollar figures. If disposal cost is unknown, say so and describe the cost shape qualitatively ("at typical Gulf Coast CWT rates, a stream of this classification falls in the gate-fee range that scales with volume").
-- Connect the pain to the opportunity. Why is this stream expensive in a way that our commercial frame addresses?
-- Flag when the producer's own framing ("just RFQing the market") may understate the pain. Pain is sometimes latent and the field agent's job is to surface it.
+**3. Who could buy it** — buyer archetypes by category. Structured as "As-is buyers" (floor) and "Reprocessed buyers" (real opportunity), with sub-categories. 2-4 examples per sub-category, by use-case not by company. Closing insight line on what the agent is actually selling.
 
-### Block 3 — Treatment options (low to high effort)
+**4. How to position it** — tier frame (Tier 1, Tier 2, Tier 3 product positioning), messaging anchors, go-to-market one-liner. Same register as the ChatGPT file's "How to market it" section.
 
-The section that turns the field agent from "I have a problem to report" into "I have directions I can test with the customer." Four options, in effort order, each with: process description, output class, applicability conditions, and a qualitative effort label.
+**5. Scale shape** — directional outcome framing. See the Scale framing rule below. If volumes are unknown, this section is qualitative and short ("a portfolio-scale opportunity once volumes land"). If volumes are real, this section shows the arithmetic and names the directional prize.
 
-For each option:
-- **What it is** — one-sentence description of the process class (not specific vendor equipment)
-- **What comes out** — what the material becomes, at a quality/spec level
-- **When it fits** — the chemistry or commercial preconditions for this option to be viable
-- **Effort scale** — qualitative (low / medium / high) relative to disposal, with a one-line rationale
+**Closing strategic insight** — one sentence at the end of the Ideation, set apart visually, of the form "This is not X — it's Y. Win if you Z."
 
-**What you don't do:**
-- No specific vendor equipment names. "Air oxidation regeneration" is fine; "Merichem Thiolex" is not.
-- No firm CAPEX figures. "Low CAPEX relative to disposal avoided" or "medium CAPEX, typically justified above meaningful recurring volume" — these work. "$1.55MM to $3.5MM for a conditioning hub" requires an engineering quote.
-- No firm OPEX figures. Qualitative scaling relative to disposal is sufficient for Discovery.
+### Artefact 2 — Analytical content (rigorous, defensible)
 
-**What to do when the stream type is unfamiliar to you:**
-- If the chemistry and industry patterns for this stream aren't in your trained knowledge with sufficient specificity, say so: "This stream type [X] has fewer well-established treatment pathways in our knowledge base; the options below are inferred from general [phase] chemistry." That's honest working-hypothesis framing.
+**Purpose:** stress-test the ideation. Give the field agent (and especially their manager) the defensible analytical backbone that supports the ideation. This is the artefact the manager reads to judge whether the ideation holds up.
 
-### Block 4 — Buyer archetypes with per-site fit-check
+**Voice rules:**
 
-The section that gives the agent categories of buyers to talk about with the producer, with the chemistry fit-check for each.
+- **Tighter than v2.5's section leads** — shorter sentences, less hedging within a sentence.
+- **Tables and structured blocks preferred over prose** where the content is comparative or parameter-based.
+- **Evidence tags throughout** — every non-trivial claim cites [EV-NN] from the evidence catalogue.
+- **Confidence labels** on every sized number and any claim that would change the opportunity shape if wrong.
+- **Per-site specificity** — do not describe the portfolio in aggregate when per-site differences matter.
+- **Section leads in bold as advice-voice sentences** (keep this from v2.5). Body supports, italic close caveats.
 
-For each archetype:
-- **Who (by use-case)** — the industry or function, not the company name. "Industrial alkaline user for acid-neutralisation in wastewater treatment" or "pulp mill kraft-pulping liquor make-up."
-- **What they want** — the spec they care about (caustic content, sulfide tolerance, hydrocarbon limit, chloride limit, etc.)
-- **Per-site / per-sub-stream fit-check** — mark each sub-stream in the portfolio as fit / borderline / fail against this archetype's typical requirements
-- **Commercial direction** — gate fee, neutral, modest rebate, stronger rebate — category, not dollars
+**Structure — six sections:**
 
-**What you don't do:**
-- No specific company names. "Permitted CWT facility" not "Clean Harbors." "Pulp mill operator" not "Weyerhaeuser." The field agent's network and the sales engineer's book have the specifics; Discovery works with categories.
-- No committed prices. Direction only.
+1. **Per-site chemistry read** — table or structured block showing each sub-stream's key parameters, with interpretive commentary per site (what this tells us about origin, what it tells us about fit, what it tells us about risk).
 
-**What to include:**
-- The "as-is" baseline archetype — the permitted disposal route, described as the floor option. Every stream has this; it's what the gate fee scenario pays for.
-- Two to four reuse/recovery archetypes the stream could plausibly serve, with honest fit-check.
-- One "stretch" archetype if there's a creative frame worth flagging (internal redistribution, specialty chemistry, etc.) — marked clearly as creative/unproven.
+2. **Treatment fit — what works for which site** — for each treatment option from Ideation, show per-site fit with chemistry rationale. This is where the Ideation's treatment scan gets stress-tested against the specific evidence.
 
-### Block 5 — Positioning and sales craft
+3. **Buyer archetype matrix** — table with archetypes × sub-streams, showing ✓ / borderline / ✗ per cell with reasoning, plus commercial direction per archetype (gate fee / neutral / rebate / stronger rebate). Same structure as v2.5 Section 4 — this part was working.
 
-Short section. The positioning-craft layer — what to sell it as, what not to say, how to frame the conversation.
+4. **Phased commercial scenarios** — three or four phases, each with objective / activity / outcome direction / prerequisite. Directional outcomes only unless sizing inputs are real. Keep the v2.5 phased-arc structure — it was one of the strongest parts of v2.5.
 
-Components:
-- **What you're selling** — the positioning frame name ("recovered alkaline feedstock" not "spent caustic"). The naming move matters.
-- **What not to say** — two or three framings the agent should avoid in the customer conversation because they lock in the wrong frame.
-- **Messaging anchors** — two or three one-line value statements the agent can use (cost reduction, liability conversion, circular/ESG, local-sourcing-of-reagent, etc.) — matched to which ones fit the evidence.
+5. **Sizing** — if volumes are stated: show arithmetic with confidence labels and indicative ranges. If volumes are unknown: one paragraph on what scale looks like directionally, with a clear gap callout. Never construct illustrative arithmetic on assumed volumes.
 
-**Rules:**
-- No boilerplate marketing language that isn't grounded. "Convert waste liability into usable chemical" is fine if the chemistry supports it. "Revolutionary circular solution" is not.
-- Keep this section tight. Positioning advice is easy to bloat.
+6. **Strategic insight** — the same closing one-liner as in Ideation. Both artefacts carry it because it's the thing the agent carries in their head.
 
-### Block 6 — Phased commercial scenarios
+### Artefact 3 — Playbook content (reference tool, 11 themed sections)
 
-A narrative arc the field agent can walk a customer through, showing how the opportunity develops across time. Three or four phases, each with: objective, activity, outcome direction, prerequisite.
+**Purpose:** a tool the field agent opens *during* the producer conversation, not before it. Structured so they can flip to any theme and read questions directly off the page.
 
-**No fabricated dollars.** Directional outcomes only. "Stops the bleeding" / "approaches break-even" / "modest margin" / "portfolio optimised margin" are the kind of descriptions that carry the shape of the arc without inventing numbers.
+**Voice rules:**
 
-Phases to consider (not all fit every opportunity):
+- **No narrative, no claims, no beliefs.** This is not a read; it's a reference.
+- **No evidence tags, no confidence labels, no gate status.** Different tool, different shape.
+- **Fixed 11-theme structure** — always produced in this order regardless of stream type:
 
-- **Phase 1 — Stop the bleeding.** Lowest-effort conditioning or minimal processing that reduces disposal cost or eliminates gate fee, even if the material is still being managed at a net outflow. Outcome: cost reduction relative to baseline. Prerequisite: confirmed disposal baseline cost, committed offtake (even at floor price), safe handling protocol.
-- **Phase 2 — Neutralise the cost.** Sufficient processing to match a usable product spec for one or two buyer archetypes. Outcome: approach break-even or modest loss, but operational and ESG benefits. Prerequisite: producer willingness to commit to a conditioning pathway, secured offtake at product-class pricing.
-- **Phase 3 — Turn into margin.** Regeneration or value-recovery processing that creates a merchantable product at meaningful margin. Outcome: modest positive margin per ton, if chemistry and market support it. Prerequisite: volume large enough to justify processing CAPEX/OPEX, stable composition, reliable offtake network.
-- **Phase 4 — Portfolio optimisation.** Segmented routing across multiple sub-streams or sites, each matched to its best outlet. Outcome: the highest-value case — the total margin is larger than the sum of each site's best standalone deal.
+| # | Theme | Framing line (always included) |
+|---|-------|-------------------------------|
+| 1 | **Volume & Frequency** *(first — non-negotiable)* | "These define the entire business case." |
+| 2 | **Source & Process** *(critical for segmentation)* | "Not all [stream type] is the same." |
+| 3 | **Quality & Consistency** | "You have the COAs — this is where deals die." |
+| 4 | **Physical Handling & Logistics** | "This is where hidden costs live." |
+| 5 | **Current Disposal Model** *(baseline economics)* | "You need this to prove value." |
+| 6 | **Regulatory & Compliance** | "Critical for risk." |
+| 7 | **Infrastructure & CAPEX Flexibility** | "This determines which solution you can sell." |
+| 8 | **Commercial Objectives** | "Don't assume — ask." |
+| 9 | **Risk Tolerance & Operations** | "How much change can the producer absorb?" |
+| 10 | **Market Flexibility** *(critical for upside)* | "Are they open to more than one outlet?" |
+| 11 | **Smart Questions (high-impact pull-out)** | "These separate average reps from top performers." |
 
-**Rules:**
-- Phases must be honestly achievable from the current evidence. If the stream clearly can't support Phase 3 (e.g., chlorides too high across the board), don't include Phase 3 — it's misleading optimism.
-- Every phase gets a prerequisite. The prerequisites are what the agent chases next.
-- Close with the strategic read: which phase is the realistic anchor for this opportunity, and what would move it up a phase.
+**Content rules per theme:**
 
-### Block 7 — Strategic insight (the closing line)
+- 3–6 questions per theme, phrased in the voice the agent will actually say them.
+- Sub-indented options where a question has natural sub-structure (e.g., "How is it generated? — Continuous stream? / Batch dumps?").
+- **"👉 Why it matters:"** block at the end of each theme, with a short bulleted list (2-4 items) of what the answers unlock.
+- **Sparse themes are marked, not skipped.** If a theme has limited applicability for this opportunity, state "Standard diligence — no stream-specific questions here" with one line of context. Do not omit the theme — the playbook's predictability is what makes it useful.
+- Theme 11 (Smart Questions) pulls 3–5 questions from the rest of the playbook and restates them as the killer set. This is a ChatGPT-file pattern that works: the agent sees them twice, once in context and once as a pull-out they can glance at.
 
-One sentence. The thing the field agent should carry out of the briefing in their head.
+**Layout support for the reporting skill:**
 
-The shape: "This is not X — it's Y. Win if you Z."
+- Each theme gets a numbered header that's visually distinct (the reporting skill will colour-code them)
+- Each question is a standalone bullet
+- Sub-questions indent under their parent question
+- The "Why it matters" block renders as a small callout at the end of each theme
 
-Examples (honest to evidence, not fabricated):
-- "This is not a waste-disposal project — it's a segmentation and matching opportunity. Win if you refuse to quote as one stream."
-- "This is not an RFQ — it's an unexplored internal-reuse signal. Win if you get in front of the internal buyer before the procurement process closes."
-- "This is not a chemistry problem — it's a contract-timing opportunity. Win if you're ready when the incumbent's agreement comes up for review."
+## Scale framing rule (applies to Artefact 1 Section 5 and Artefact 2 Section 5)
 
-**Rules:**
-- One sentence. Not three. Not a paragraph.
-- Grounded in the evidence, not aspirational.
-- Names the win condition, not just the frame.
+- **If volumes are stated by the producer with any confidence:** produce mass rate with arithmetic shown, name the directional $ range if chemistry supports it (e.g., "at typical Gulf Coast CWT gate-fee range for this class, exposure falls in low-to-mid single-digit $M/yr"). Confidence labels visible.
+- **If volumes are genuinely unknown:** describe scale qualitatively in one paragraph. Do not construct arithmetic on assumed volumes. Flag the volume gap as the top Required item. Never invent a scenario with a made-up monthly volume.
+- **If volumes are unknown but the agent has stated directional information** (e.g., "they generate this continuously across four sites"): describe scale shape with explicit conditional language ("if per-site generation is mid-range for this industry and stream type, the portfolio falls in the X $M/yr range") — directional, named as directional, not dollarised to a specific number.
 
-## The smart questions set (produced alongside the seven blocks)
+The guiding principle: **be directionally clear without being numerically fake.** A reader who finishes the sizing section should know whether this is a $50k/yr opportunity or a $5M/yr opportunity, even if they don't know which end of the $5M/yr range is right. They should never finish it thinking they know a specific number the data doesn't support.
 
-Five to seven questions for the next producer conversation, produced with **one question marked as the killer question** — the single one the field agent should ask if they only got one.
+## Rules across all three artefacts
 
-Each question:
-- **Written in the voice the agent will actually say it** — not "identify the incumbent" but "who currently manages this stream, and when is that arrangement up for review?"
-- **Tagged by type** — commercial / positioning / diagnostic / strategic / safety
-- **Paired with a why-it-matters** — one line, what it unlocks
-
-The killer question is usually positioning-defining or commercial-frame-reshaping. It's the one that, if the answer is "no," materially changes the shape of the opportunity.
-
-## Opportunity sizing — handled carefully
-
-Sizing still matters. But it's not a block on its own — it feeds into Block 1 (problem reading) and Block 6 (scenarios) where volume affects the interpretation.
-
-**Sizing rules for v2.5:**
-
-- If producer has stated volumes with any confidence: produce mass per period with arithmetic shown (volume × SG × unit conversion → tons/period). Carry into scenarios and buyer fit-checks as real numbers.
-- If volumes are genuinely unknown: say so. In Block 1, describe scale qualitatively ("a portfolio-scale opportunity once volumes land, probably low-to-mid single-digit $M/yr range if volumes are typical for this stream type"). Do **not** construct illustrative arithmetic on a made-up 10,000 gal/wk assumption. That anchors readers on a fabricated number.
-- If volumes are unknown but the agent needs a scale sense for the scenarios: use **ranges bounded by commercial thresholds, not by arithmetic**. "Below ~200 ton/yr per site, Phase 3 regeneration is unlikely to justify CAPEX. Above ~2,000 ton/yr per site, portfolio optimisation becomes the real prize."
-
-## What this skill never does
-
-- **Never names specific companies** as buyers, treatment vendors, or incumbents. Categories only.
-- **Never fabricates dollar figures.** Directional outcomes, qualitative effort scales, and real arithmetic on real inputs are permitted. Invented dollars are not.
-- **Never produces a RCRA classification, LDR determination, DOT spec, or routing recommendation.** Those are Assessment mode. Flags and probability signals are fine ("likely D002 on pH"); determinations are not.
-- **Never softens a LOW confidence to MEDIUM** because the brief would read better. The honesty is what makes the brief useful.
-- **Never skips a block** because it's easier. If volumes are unknown, Block 6 (scenarios) still runs — with the phases and prerequisites, just without dollars. If buyer archetypes are thin for a stream type you don't know well, Block 4 still runs — with fewer archetypes and an honest note that the agent should consult the sales-engineering network.
+- **Never name specific companies** (buyers, treatment vendors, incumbents). Categories only. "Permitted CWT facility" / "pulp-mill operator" / "industrial alkaline user."
+- **Never fabricate CAPEX, OPEX, or firm prices.** Qualitative effort scales and directional outcomes are permitted.
+- **Never produce final RCRA classifications, DOT specs, LDR determinations, or routing commitments.** Flags only.
+- **Never soften LOW confidence to MEDIUM** to make the content read better.
+- **Never skip an artefact.** If the evidence is thin, each artefact runs with whatever is available and flags the gaps.
 
 ## Output format
 
-Produce seven labelled blocks in order, with the smart-questions set after. Each block leads with a sentence in the advice voice. The reporting skill downstream consumes these blocks directly into the executive report's sections.
+Produce three clearly labelled output blocks in order:
 
-Do not number the blocks in your output (the reporting skill will structure them). Use the block names as headers.
+```
+## Artefact 1 — Ideation content
+[five sections + closing strategic insight]
+
+## Artefact 2 — Analytical content
+[six sections, evidence-tagged]
+
+## Artefact 3 — Playbook content
+[11 themed sections]
+```
+
+The reporting skill downstream consumes each block and renders it as a separate PDF with the appropriate register.
+
+Do not merge the three. Do not produce overlapping content across artefacts — the same underlying claim appears declaratively in Ideation and defensibly in Analytical, but it is not repeated in both for its own sake.
