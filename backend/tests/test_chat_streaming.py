@@ -13,7 +13,11 @@ from app.models.chat_message import ChatMessage
 from app.models.chat_thread import ChatThread
 from app.models.user import UserRole
 from app.services import chat_service
-from app.services.chat_service import CHAT_MODEL_CONTEXT_WINDOW, stream_chat_turn
+from app.services.chat_service import (
+    CHAT_MODEL_CONTEXT_WINDOW,
+    _persist_assistant_terminal_message,
+    stream_chat_turn,
+)
 
 
 @pytest.fixture
@@ -608,3 +612,42 @@ async def test_stream_chat_turn_cleans_up_uploaded_storage_key_when_tool_run_fai
         {"event": "error", "code": "CHAT_STREAM_FAILED"},
     ]
     assert deleted_keys == ["chat/test/orphan.pdf"]
+
+
+@pytest.mark.asyncio
+async def test_persist_assistant_terminal_message_links_produced_attachments_after_message_flush(db_session):
+    org = await create_org(db_session, "Chat Persist Attach Org", "chat-persist-attach-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-persist-attach-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    produced = ChatAttachment(
+        organization_id=org.id,
+        uploaded_by_user_id=owner.id,
+        message_id=None,
+        storage_key=f"chat/{org.id}/{owner.id}/produced.pdf",
+        original_filename="produced.pdf",
+        content_type="application/pdf",
+        size_bytes=512,
+    )
+    db_session.add(produced)
+    await db_session.commit()
+    await db_session.refresh(produced)
+
+    message = await _persist_assistant_terminal_message(
+        db=db_session,
+        thread=thread,
+        organization_id=org.id,
+        created_by_user_id=owner.id,
+        content_text="Generated a report",
+        run_id="run-produced-attach",
+        produced_attachment_ids=[produced.id],
+    )
+
+    await db_session.refresh(produced)
+    assert produced.message_id == message.id

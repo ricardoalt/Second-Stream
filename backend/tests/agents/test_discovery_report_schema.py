@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.agents.discovery_report_schema import DiscoveryReportPayload
+from app.agents.discovery_report_schema import DiscoveryReportPayload, PdfAttachmentOutput
 
 
 def _section(idx: int) -> dict[str, str]:
@@ -51,3 +51,23 @@ def test_discovery_report_payload_follow_up_questions_default_isolated_per_insta
         }
     )
     assert second.follow_up_questions == []
+
+
+def test_pdf_attachment_output_contract_is_stable():
+    output = PdfAttachmentOutput.model_validate(
+        {
+            "attachment_id": "att-1",
+            "filename": "report.pdf",
+            "download_url": "https://example.com/signed",
+            "expires_at": "2026-04-26T12:00:00Z",
+            "size_bytes": 1024,
+        }
+    )
+
+    assert output.model_dump() == {
+        "attachment_id": "att-1",
+        "filename": "report.pdf",
+        "download_url": "https://example.com/signed",
+        "expires_at": "2026-04-26T12:00:00Z",
+        "size_bytes": 1024,
+    }

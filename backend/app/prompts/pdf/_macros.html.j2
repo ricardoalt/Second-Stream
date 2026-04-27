@@ -1,0 +1,128 @@
+{#
+  SecondStream PDF macro library.
+
+  Import in any template with:
+    {% from '_macros.html.j2' import cover_block, gate_callout, safety_callout,
+        theme_header, why_it_matters_box, insight_callout, marker, marker_legend %}
+
+  All macros output Markup (safe HTML) — autoescape applies only to the
+  *parameters* passed in (user-controlled content), not the HTML structure.
+#}
+
+
+{%- macro cover_block(customer, stream, date, doc_type=none, gate=none, gate_blocker=none, handover_tag=none) -%}
+{%- set gate_norm = none -%}
+{%- if gate is not none -%}
+  {%- set _g = gate | lower -%}
+  {%- set gate_norm = 'open' if _g in ('open', 'green') else ('amber' if _g in ('amber', 'conditional', 'conditionally_open', 'open_conditional') else 'closed') -%}
+{%- endif -%}
+<div class="avoid-break" style="margin-bottom: 24pt;">
+  <table style="width:100%;border-collapse:collapse;margin-bottom:6pt;">
+    <tr>
+      <td style="padding:0;vertical-align:bottom;">
+        <img src="assets/secondstream_logo.svg" style="width:160pt;height:auto;" alt="SecondStream">
+      </td>
+      {%- if doc_type is not none -%}
+      <td style="padding:0;vertical-align:bottom;text-align:right;font-size:9pt;color:#8892A0;text-transform:uppercase;letter-spacing:0.08em;">
+        {{ doc_type }}
+      </td>
+      {%- endif -%}
+    </tr>
+  </table>
+  <hr class="cover-rule">
+  <table class="cover-fields">
+    <tr><td class="cover-key">Customer</td><td class="cover-val">{{ customer }}</td></tr>
+    <tr><td class="cover-key">Stream</td><td class="cover-val">{{ stream }}</td></tr>
+    <tr><td class="cover-key">Date</td><td class="cover-val">{{ date }}</td></tr>
+    {%- if gate_norm is not none -%}
+    <tr>
+      <td class="cover-key">Qualification Gate</td>
+      <td class="cover-val"><span class="gate-badge gate-badge-{{ gate_norm }}">{{ gate }}</span></td>
+    </tr>
+    {%- if gate_blocker is not none -%}
+    <tr><td></td><td class="gate-blocker">{{ gate_blocker }}</td></tr>
+    {%- endif -%}
+    {%- endif -%}
+  </table>
+  {%- if handover_tag is not none -%}
+  <p class="cover-handover-tag">{{ handover_tag }}</p>
+  {%- endif -%}
+</div>
+{%- endmacro -%}
+
+
+{%- macro gate_callout(status, message) -%}
+{%- set s = status | lower -%}
+{%- set norm = 'open' if s in ('open', 'green') else ('amber' if s in ('amber', 'conditional', 'conditionally_open', 'open_conditional') else 'closed') -%}
+{%- set label = 'QUALIFICATION GATE — OPEN' if norm == 'open' else ('QUALIFICATION GATE — CONDITIONALLY OPEN' if norm == 'amber' else 'QUALIFICATION GATE — CLOSED') -%}
+<div class="callout-gate callout-gate-{{ norm }} avoid-break">
+  <p class="callout-label">{{ label }}</p>
+  <p>{{ message }}</p>
+</div>
+{%- endmacro -%}
+
+
+{%- macro safety_callout(level, message) -%}
+{%- set l = level | lower -%}
+{%- set norm = 'red' if l in ('red', 'stop') else ('amber' if l in ('amber', 'specialist') else ('yellow' if l in ('yellow', 'attention') else 'none')) -%}
+{%- set label = 'SAFETY FLAG — RED (STOP)' if norm == 'red' else ('SAFETY FLAG — AMBER (SPECIALIST REQUIRED)' if norm == 'amber' else ('SAFETY FLAG — YELLOW (ATTENTION)' if norm == 'yellow' else 'SAFETY FLAGS')) -%}
+<div class="callout-safety callout-safety-{{ norm }} avoid-break">
+  <p class="callout-label">{{ label }}</p>
+  <p>{{ message }}</p>
+</div>
+{%- endmacro -%}
+
+
+{%- macro theme_header(number, title) -%}
+<div class="theme-header">
+  <table>
+    <tr>
+      <td class="theme-num">{{ number }}</td>
+      <td class="theme-title">{{ title }}</td>
+    </tr>
+  </table>
+</div>
+{%- endmacro -%}
+
+
+{%- macro why_it_matters_box(items) -%}
+<div class="why-it-matters avoid-break">
+  <p class="wim-label">Why it matters</p>
+  <ul>
+    {%- for item in items -%}
+    <li>{{ item }}</li>
+    {%- endfor -%}
+  </ul>
+</div>
+{%- endmacro -%}
+
+
+{%- macro insight_callout(text) -%}
+<div class="insight-callout avoid-break">
+  <p>{{ text }}</p>
+</div>
+{%- endmacro -%}
+
+
+{%- macro marker(key) -%}
+{%- if key == 'insight' -%}<span class="marker-insight">&#9632;</span>
+{%- elif key == 'caution' -%}<span class="marker-caution">&#9632;</span>
+{%- elif key == 'gap' -%}<span class="marker-gap">&#9632;</span>
+{%- endif -%}
+{%- endmacro -%}
+
+
+{%- macro marker_legend(which=none) -%}
+{%- set all_markers = [
+  ('insight', '#2F5FA7', 'Commercial insight — the move that changes the deal'),
+  ('caution', '#B8740A', 'Caution — a nuance that changes routing or pricing'),
+  ('gap',     '#4A5260', 'Gap — information needed before moving forward')
+] -%}
+{%- set keys = which if which is not none else ['insight', 'caution', 'gap'] -%}
+<div class="marker-legend avoid-break">
+  <p class="legend-label">Marker legend</p>
+  {%- for key, colour, meaning in all_markers if key in keys -%}
+  <p class="legend-row"><span style="color:{{ colour }};font-size:12pt;line-height:1;">&#9632;</span>&nbsp; {{ meaning }}</p>
+  {%- endfor -%}
+</div>
+{%- endmacro -%}

@@ -1,0 +1,55 @@
+{% extends '_base.html.j2' %}
+{% from '_macros.html.j2' import cover_block, safety_callout, insight_callout %}
+
+{% block title %}SecondStream Analytical Read — {{ payload.customer | e }}{% endblock %}
+{% block footer_center %}Analytical Read — Confidential{% endblock %}
+
+{% block body %}
+
+{{ cover_block(
+    customer=payload.customer,
+    stream=payload.stream,
+    date=payload.date,
+    doc_type="Analytical Read"
+) }}
+
+<div class="avoid-break" style="margin-bottom:16pt;">
+  <h2 class="section-h1">Executive Summary</h2>
+  <p class="body-text">{{ payload.executive_summary }}</p>
+</div>
+
+{% if payload.safety_callouts %}
+<div style="margin-bottom:20pt;">
+  <h2 class="section-h1">Safety Flags</h2>
+  {% for flag in payload.safety_callouts %}
+  {{ safety_callout(
+      flag.severity,
+      flag.sub_stream ~ ": " ~ flag.description ~ (" — " ~ flag.intervention if flag.intervention else "")
+  ) }}
+  {% endfor %}
+</div>
+{% endif %}
+
+{% for table in payload.tables %}
+<div style="margin-bottom:20pt;">
+  <h2 class="section-h1">{{ table.title }}</h2>
+  <table class="analytical-table">
+    <thead>
+      <tr>
+        {% for header in table.headers %}<th>{{ header }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in table.rows %}
+      <tr>
+        {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+
+{{ insight_callout(payload.strategic_insight) }}
+
+{% endblock %}

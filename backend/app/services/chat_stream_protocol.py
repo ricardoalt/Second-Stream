@@ -268,8 +268,9 @@ async def resolve_attachments_to_agent_input_for_model(
 
     Strategy:
     - `text/*`: use extracted text when available; otherwise decode downloaded bytes.
-    - `application/pdf` and `image/*`: download bytes and expose `binary_content`
-      as the primary path (most reliable Bedrock/Pydantic input).
+    - `application/pdf`: prefer extracted text when available; otherwise download
+      bytes and expose `binary_content`.
+    - `image/*`: download bytes and expose `binary_content`.
     - Other media types: keep metadata only.
 
     Note:
@@ -323,6 +324,10 @@ async def resolve_attachments_to_agent_input_for_model(
                     )
                     continue
 
+            resolved.append(base)
+            continue
+
+        if media_type == "application/pdf" and base.extracted_text:
             resolved.append(base)
             continue
 

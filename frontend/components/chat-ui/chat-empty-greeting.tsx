@@ -16,12 +16,13 @@ const CHAR_ERASING_MS = 22;
 const PAUSE_AFTER_TYPED_MS = 2800;
 const PAUSE_AFTER_ERASED_MS = 400;
 
-/**
- * Isolated perpetual typewriter greeting for the chat empty state.
- * Uses requestAnimationFrame-driven intervals to avoid React re-render cost.
- * The headline is static; only the cycling subtitle animates.
- */
-export function ChatEmptyGreeting() {
+type ChatEmptyGreetingProps = {
+	onSuggestionClick?: (text: string) => void;
+};
+
+export function ChatEmptyGreeting({
+	onSuggestionClick,
+}: ChatEmptyGreetingProps) {
 	const [displayText, setDisplayText] = useState("");
 	const [promptIndex, setPromptIndex] = useState(0);
 	const [showCursor, setShowCursor] = useState(true);
@@ -91,7 +92,7 @@ export function ChatEmptyGreeting() {
 	}, []);
 
 	return (
-		<div className="flex flex-col items-center gap-3 select-none">
+		<div className="flex flex-col items-center gap-5">
 			<motion.h1
 				initial={{ opacity: 0, y: 6 }}
 				animate={{ opacity: 1, y: 0 }}
@@ -105,7 +106,7 @@ export function ChatEmptyGreeting() {
 				initial={{ opacity: 0 }}
 				animate={{ opacity: 1 }}
 				transition={{ duration: 0.5, delay: 0.2 }}
-				className="flex h-7 items-center justify-center"
+				className="flex h-7 items-center justify-center select-none"
 				aria-live="polite"
 				aria-label="Example prompts"
 			>
@@ -115,6 +116,24 @@ export function ChatEmptyGreeting() {
 					style={{ opacity: showCursor ? 1 : 0 }}
 					aria-hidden="true"
 				/>
+			</motion.div>
+
+			<motion.div
+				initial={{ opacity: 0, y: 8 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.4, delay: 0.45, ease: [0.25, 0.1, 0.25, 1] }}
+				className="flex flex-wrap justify-center gap-2"
+			>
+				{PROMPTS.map((prompt) => (
+					<button
+						key={prompt}
+						type="button"
+						onClick={() => onSuggestionClick?.(prompt)}
+						className="cursor-pointer rounded-full border px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					>
+						{prompt}
+					</button>
+				))}
 			</motion.div>
 		</div>
 	);

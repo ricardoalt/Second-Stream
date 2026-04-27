@@ -1,0 +1,126 @@
+/* SecondStream PDF base styles — global resets and structural elements.
+   @page rules live in _base.html.j2 <style> block so Jinja can customise
+   per-document footer text without forking CSS files. */
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: var(--type-body);
+  color: var(--ink);
+  line-height: 1.45;
+  background: var(--paper);
+}
+
+p  { margin: 0 0 var(--space-xs) 0; }
+ul { margin: 0; padding-left: 14pt; }
+li { margin-bottom: 2pt; line-height: 1.4; }
+
+/* Page break helpers */
+.page-break   { page-break-before: always; }
+.avoid-break  { page-break-inside: avoid; }
+.break-after  { page-break-after: always; }
+
+/* Section headings */
+.section-h1 {
+  font-size: var(--type-h1);
+  font-weight: bold;
+  color: var(--brand-primary);
+  margin: var(--space-lg) 0 var(--space-sm) 0;
+  padding-bottom: var(--space-xs);
+  border-bottom: 0.75pt solid var(--ink-soft);
+  page-break-after: avoid;
+}
+
+.section-h2 {
+  font-size: var(--type-h2);
+  font-weight: bold;
+  color: var(--brand-secondary);
+  margin: var(--space-md) 0 var(--space-xs) 0;
+  page-break-after: avoid;
+}
+
+/* Cover block */
+.cover-rule {
+  border: none;
+  border-top: 0.75pt solid var(--ink-soft);
+  margin: var(--space-sm) 0 var(--space-md) 0;
+}
+
+.cover-fields {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: var(--space-sm);
+}
+
+.cover-key {
+  font-weight: bold;
+  font-size: var(--type-body);
+  width: 130pt;
+  padding: 2pt 0;
+  vertical-align: top;
+  color: var(--ink);
+}
+
+.cover-val {
+  font-size: var(--type-body);
+  padding: 2pt 0;
+  vertical-align: top;
+  color: var(--ink);
+}
+
+.cover-handover-tag {
+  font-size: var(--type-caption);
+  color: var(--ink-soft);
+  margin: var(--space-xs) 0 0 0;
+}
+
+/* Gate badge (inline in cover fields) */
+.gate-badge {
+  display: inline-block;
+  padding: 2pt 8pt;
+  border-radius: 3pt;
+  font-weight: bold;
+  font-size: var(--type-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.gate-badge-open   { background: var(--gate-open-bg);   color: var(--gate-open);   border: 0.75pt solid var(--gate-open); }
+.gate-badge-amber  { background: var(--gate-amber-bg);  color: var(--gate-amber);  border: 0.75pt solid var(--gate-amber); }
+.gate-badge-closed { background: var(--gate-closed-bg); color: var(--gate-closed); border: 0.75pt solid var(--gate-closed); }
+
+.gate-blocker {
+  font-size: var(--type-caption);
+  color: var(--gate-closed);
+  padding-top: 2pt;
+}
+
+/* Body text helpers */
+.body-lead {
+  font-size: var(--type-body);
+  font-weight: bold;
+  color: var(--ink);
+  margin: 0 0 var(--space-xs) 0;
+  line-height: 1.4;
+}
+
+.body-text {
+  font-size: var(--type-body);
+  color: var(--ink);
+  margin: 0 0 var(--space-xs) 0;
+  line-height: 1.5;
+}
+
+.body-close {
+  font-size: var(--type-body);
+  font-style: italic;
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+.caption {
+  font-size: var(--type-caption);
+  color: var(--ink-muted);
+  line-height: 1.35;
+}

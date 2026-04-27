@@ -30,8 +30,11 @@ export function shouldShowLoadingShimmer(
 				(part.type === "text" || part.type === "reasoning") &&
 				part.text.length > 0,
 		);
+		const hasToolActivity = lastAssistant.parts.some((part) =>
+			part.type.startsWith("tool-"),
+		);
 
-		return !hasContent;
+		return !(hasContent || hasToolActivity);
 	}
 
 	return false;

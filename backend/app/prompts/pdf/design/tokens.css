@@ -1,0 +1,55 @@
+/* SecondStream PDF design tokens — single source of truth for all PDF templates.
+   Import this first. All values derived from docs/plans/brand.py PALETTE / TYPE_SCALE / SPACING.
+   Hardcode values in @page margin boxes — CSS vars don't cascade into WeasyPrint @page content. */
+
+:root {
+  /* Brand palette */
+  --brand-primary:   #273B77;
+  --brand-secondary: #2F5FA7;
+  --brand-accent:    #63C1E5;
+
+  /* Ink scale */
+  --ink:       #1A1D24;
+  --ink-muted: #4A5260;
+  --ink-soft:  #8892A0;
+  --paper:     #FFFFFF;
+  --paper-tint:#F4F6FA;
+
+  /* Gate callout */
+  --gate-open:       #1E7F4E;
+  --gate-open-bg:    #E8F5EE;
+  --gate-amber:      #B8740A;
+  --gate-amber-bg:   #FDF5E6;
+  --gate-closed:     #B73A2D;
+  --gate-closed-bg:  #FBEAE7;
+
+  /* Safety callout */
+  --safety-red:        #B73A2D;
+  --safety-red-bg:     #FBEAE7;
+  --safety-amber:      #B8740A;
+  --safety-amber-bg:   #FDF5E6;
+  --safety-yellow:     #8A7000;
+  --safety-yellow-bg:  #FDFAE6;
+  --safety-none:       #4A5260;
+  --safety-none-bg:    #F4F6FA;
+
+  /* Marker colours (inline ■ glyphs) */
+  --marker-insight: #2F5FA7;
+  --marker-caution: #B8740A;
+  --marker-gap:     #4A5260;
+
+  /* Type scale (pt) */
+  --type-display: 22pt;
+  --type-h1:      14pt;
+  --type-h2:      11pt;
+  --type-body:    10pt;
+  --type-caption: 8.5pt;
+
+  /* Spacing (pt) */
+  --space-xs:  3pt;
+  --space-sm:  6pt;
+  --space-md:  10pt;
+  --space-lg:  16pt;
+  --space-xl:  24pt;
+  --space-xxl: 36pt;
+}

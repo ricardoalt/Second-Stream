@@ -4,6 +4,21 @@ import type { WorkingMemory } from "@/config/working-memory";
 export const DATA_NEW_THREAD_CREATED_PART = "data-new-thread-created" as const;
 export const DATA_CONVERSATION_TITLE_PART = "data-conversation-title" as const;
 
+type PdfOutput = {
+	attachment_id: string;
+	filename: string;
+	download_url: string;
+	expires_at: string;
+	size_bytes: number;
+};
+
+type SafetyCallout = {
+	severity: "stop" | "specialist" | "attention";
+	sub_stream: string;
+	description: string;
+	intervention: string | null;
+};
+
 export type MyUIMessage = UIMessage<
 	unknown,
 	{
@@ -39,12 +54,7 @@ export type MyUIMessage = UIMessage<
 				snapshot: string;
 				gate_status: "OPEN" | "OPEN_CONDITIONAL" | "CLOSED";
 				gate_blocker: string | null;
-				safety_callouts: Array<{
-					severity: "stop" | "specialist" | "attention";
-					sub_stream: string;
-					description: string;
-					intervention: string | null;
-				}>;
+				safety_callouts: SafetyCallout[];
 				sections: Array<{
 					title: string;
 					lead: string;
@@ -58,13 +68,58 @@ export type MyUIMessage = UIMessage<
 				}>;
 				strategic_insight: string;
 			};
-			output: {
-				attachment_id: string;
-				filename: string;
-				download_url: string;
-				expires_at: string;
-				size_bytes: number;
+			output: PdfOutput;
+		};
+		generateIdeationBrief: {
+			input: {
+				customer: string;
+				stream: string;
+				date: string;
+				gate_status: "OPEN" | "OPEN_CONDITIONAL" | "CLOSED";
+				gate_blocker: string | null;
+				sections: Array<{
+					title: string;
+					lead: string;
+					body: string;
+					emphasis: "insight" | "caution" | "gap" | null;
+					close: string | null;
+				}>;
+				strategic_insight: string;
+				markers_used: Array<"insight" | "caution" | "gap">;
 			};
+			output: PdfOutput;
+		};
+		generateAnalyticalRead: {
+			input: {
+				customer: string;
+				stream: string;
+				date: string;
+				executive_summary: string;
+				safety_callouts: SafetyCallout[];
+				tables: Array<{
+					title: string;
+					headers: string[];
+					rows: string[][];
+				}>;
+				strategic_insight: string;
+			};
+			output: PdfOutput;
+		};
+		generatePlaybook: {
+			input: {
+				customer: string;
+				stream: string;
+				date: string;
+				opening_context: string;
+				themes: Array<{
+					number: number;
+					title: string;
+					body: string;
+					probe_questions: string[];
+					why_it_matters: string[];
+				}>;
+			};
+			output: PdfOutput;
 		};
 	}
 >;

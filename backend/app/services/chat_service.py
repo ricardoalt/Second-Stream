@@ -515,6 +515,7 @@ async def _persist_assistant_terminal_message(
         status="completed",
     )
     db.add(message)
+    await db.flush()
     now = datetime.now(UTC)
     thread.last_message_at = now
     thread.last_message_preview = _build_last_message_preview(content_text)

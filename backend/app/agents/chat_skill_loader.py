@@ -25,6 +25,9 @@ _ALWAYS_ON = [
     "commercial-shaping",
     "discovery-gap-analysis",
     "discovery-reporting",
+    "ideation-brief",
+    "analytical-read",
+    "playbook",
 ]
 
 _SDS_FILENAME_PATTERNS = re.compile(
@@ -108,8 +111,7 @@ def build_conditional_instructions_fn():
         blocks: list[str] = []
 
         has_non_text = any(
-            not (getattr(att, "media_type", "") or "").startswith("text/")
-            for att in attachments
+            not (getattr(att, "media_type", "") or "").startswith("text/") for att in attachments
         )
         if has_non_text:
             skill = load_skill("multimodal-intake")

@@ -127,7 +127,9 @@
 			"includes": [
 				"components/chat-ui/openchat-logo.tsx",
 				"components/chat-ui/ai-elements/model-selector.tsx",
-				"components/chat-ui/ai-elements/sources.tsx"
+				"components/chat-ui/ai-elements/sources.tsx",
+				"components/ai-elements/model-selector.tsx",
+				"components/ai-elements/sources.tsx"
 			],
 			"linter": {
 				"rules": {
@@ -138,7 +140,10 @@
 			}
 		},
 		{
-			"includes": ["components/chat-ui/ai-elements/shimmer.tsx"],
+			"includes": [
+				"components/chat-ui/ai-elements/shimmer.tsx",
+				"components/ai-elements/shimmer.tsx"
+			],
 			"linter": {
 				"rules": {
 					"suspicious": {

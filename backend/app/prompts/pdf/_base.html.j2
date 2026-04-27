@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}SecondStream{% endblock %}</title>
+  <link rel="stylesheet" href="design/tokens.css">
+  <link rel="stylesheet" href="design/base.css">
+  <link rel="stylesheet" href="design/components.css">
+  <style>
+    /* @page lives here so Jinja can override footer_center per document.
+       CSS vars don't reach into @page content — colours are hardcoded here. */
+    @page {
+      size: letter;
+      margin: 0.75in;
+      @bottom-left {
+        content: "SecondStream";
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        font-weight: bold;
+        color: #273B77;
+      }
+      @bottom-center {
+        content: "{% block footer_center %}Confidential — internal use{% endblock %}";
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #8892A0;
+      }
+      @bottom-right {
+        content: "Page " counter(page);
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #8892A0;
+      }
+    }
+    {% block page_extra_rules %}{% endblock %}
+  </style>
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+{% block body %}{% endblock %}
+</body>
+</html>

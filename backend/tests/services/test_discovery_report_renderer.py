@@ -19,7 +19,7 @@ from app.agents.discovery_report_schema import (
     ReportSection,
     SafetyFlag,
 )
-from app.services.discovery_report_renderer import render_discovery_report
+from app.services.pdf_renderer import render_discovery_report
 
 
 def _make_payload(**overrides) -> DiscoveryReportPayload:

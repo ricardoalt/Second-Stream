@@ -1,4 +1,5 @@
 import importlib
+from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
@@ -106,13 +107,13 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
         captured["prompt"] = prompt
         captured["deps"] = deps
         tool_call_id = "call-abc"
-        yield PartStartEvent(index=1, part=ToolCallPart("generateDiscoveryReport", args={}, tool_call_id=tool_call_id))
+        yield PartStartEvent(index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id))
         yield PartDeltaEvent(
             index=1,
             delta=ToolCallPartDelta(args_delta='{"customer":"Ex', tool_call_id=tool_call_id),
         )
         yield FunctionToolCallEvent(
-            part=ToolCallPart("generateDiscoveryReport", args={"customer": "ExxonMobil"}, tool_call_id=tool_call_id)
+            part=ToolCallPart("webSearch", args={"customer": "ExxonMobil"}, tool_call_id=tool_call_id)
         )
         yield FunctionToolResultEvent(
             result=ToolReturnPart(
@@ -152,12 +153,12 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
     ]
 
     assert events == [
-        {"event": "tool-input-start", "toolCallId": "call-abc", "toolName": "generateDiscoveryReport"},
+        {"event": "tool-input-start", "toolCallId": "call-abc", "toolName": "webSearch"},
         {"event": "tool-input-delta", "toolCallId": "call-abc", "inputTextDelta": '{"customer":"Ex'},
         {
             "event": "tool-input-available",
             "toolCallId": "call-abc",
-            "toolName": "generateDiscoveryReport",
+            "toolName": "webSearch",
             "input": {"customer": "ExxonMobil"},
         },
         {
@@ -220,7 +221,7 @@ async def test_stream_chat_response_uses_tool_call_id_from_part_index_for_delta_
         _ = deps
         yield PartStartEvent(
             index=5,
-            part=ToolCallPart("generateDiscoveryReport", args={}, tool_call_id="call-from-start"),
+            part=ToolCallPart("webSearch", args={}, tool_call_id="call-from-start"),
         )
         yield PartDeltaEvent(index=5, delta=ToolCallPartDelta(args_delta='{"gate_status":"OPEN"}'))
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
@@ -246,13 +247,61 @@ async def test_stream_chat_response_uses_tool_call_id_from_part_index_for_delta_
     assert events[0] == {
         "event": "tool-input-start",
         "toolCallId": "call-from-start",
-        "toolName": "generateDiscoveryReport",
+        "toolName": "webSearch",
     }
     assert events[1] == {
         "event": "tool-input-delta",
         "toolCallId": "call-from-start",
         "inputTextDelta": '{"gate_status":"OPEN"}',
     }
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_suppresses_pdf_tool_input_delta_only(monkeypatch):
+    async def _fake_run_stream_events(_prompt, *, deps):
+        _ = deps
+        yield PartStartEvent(
+            index=1,
+            part=ToolCallPart("generateDiscoveryReport", args={}, tool_call_id="pdf-call"),
+        )
+        yield PartDeltaEvent(
+            index=1,
+            delta=ToolCallPartDelta(args_delta='{"customer":"Ex"}', tool_call_id="pdf-call"),
+        )
+        yield PartStartEvent(
+            index=2,
+            part=ToolCallPart("webSearch", args={}, tool_call_id="web-call"),
+        )
+        yield PartDeltaEvent(
+            index=2,
+            delta=ToolCallPartDelta(args_delta='{"query":"waste"}', tool_call_id="web-call"),
+        )
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+
+    assert events == [
+        {"event": "tool-input-start", "toolCallId": "pdf-call", "toolName": "generateDiscoveryReport"},
+        {"event": "tool-input-start", "toolCallId": "web-call", "toolName": "webSearch"},
+        {"event": "tool-input-delta", "toolCallId": "web-call", "inputTextDelta": '{"query":"waste"}'},
+        {"event": "completed", "response_text": "done"},
+    ]
 
 
 @pytest.mark.asyncio
@@ -333,3 +382,61 @@ def test_build_runtime_user_content_uses_document_url_for_s3_pdf_attachment():
 
     assert isinstance(runtime_input, list)
     assert isinstance(runtime_input[1], DocumentUrl)
+
+
+@pytest.mark.asyncio
+async def test_upload_pdf_requires_persist_attachment_when_upload_is_enabled():
+    async def _upload_bytes(_storage_key, _data, _content_type):
+        return "ok"
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+        upload_bytes=_upload_bytes,
+    )
+    ctx = SimpleNamespace(deps=deps)
+
+    with pytest.raises(ChatAgentError):
+        await chat_agent_module._upload_pdf(
+            ctx,
+            payload=SimpleNamespace(customer="Acme", stream="Caustic"),
+            renderer=lambda _payload: BytesIO(b"%PDF-1.7"),
+            filename_suffix="discovery-exec",
+        )
+
+
+@pytest.mark.asyncio
+async def test_upload_pdf_renders_in_thread_offload(monkeypatch):
+    captured: dict[str, object] = {}
+
+    async def _fake_to_thread(fn, payload):
+        captured["fn"] = fn
+        captured["payload"] = payload
+        return BytesIO(b"%PDF-1.7")
+
+    def _renderer(payload):
+        return BytesIO(bytes(str(payload), "utf-8"))
+
+    monkeypatch.setattr(chat_agent_module.asyncio, "to_thread", _fake_to_thread)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    payload = SimpleNamespace(customer="Acme", stream="Caustic")
+    ctx = SimpleNamespace(deps=deps)
+
+    result = await chat_agent_module._upload_pdf(
+        ctx,
+        payload=payload,
+        renderer=_renderer,
+        filename_suffix="discovery-exec",
+    )
+
+    assert captured["fn"] is _renderer
+    assert captured["payload"] is payload
+    assert result.size_bytes == len(b"%PDF-1.7")

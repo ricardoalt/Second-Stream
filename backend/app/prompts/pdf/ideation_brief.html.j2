@@ -1,0 +1,36 @@
+{% extends '_base.html.j2' %}
+{% from '_macros.html.j2' import cover_block, insight_callout, marker, marker_legend %}
+
+{% block title %}SecondStream Ideation Brief — {{ payload.customer | e }}{% endblock %}
+{% block footer_center %}Ideation Brief — Confidential{% endblock %}
+
+{% block body %}
+
+{{ cover_block(
+    customer=payload.customer,
+    stream=payload.stream,
+    date=payload.date,
+    doc_type="Ideation Brief",
+    gate=payload.gate_status,
+    gate_blocker=payload.gate_blocker
+) }}
+
+{% for section in payload.sections %}
+<div class="avoid-break" style="margin-bottom:18pt;">
+  <h2 class="section-h1">
+    {%- if section.emphasis %}{{ marker(section.emphasis) }} {% endif -%}
+    {{ loop.index }}. {{ section.title }}
+  </h2>
+  <p class="body-lead">{{ section.lead }}</p>
+  <p class="body-text">{{ section.body }}</p>
+  {% if section.close %}<p class="body-close">{{ section.close }}</p>{% endif %}
+</div>
+{% endfor %}
+
+{{ insight_callout(payload.strategic_insight) }}
+
+{% if payload.markers_used %}
+{{ marker_legend(payload.markers_used) }}
+{% endif %}
+
+{% endblock %}

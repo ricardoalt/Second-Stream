@@ -37,7 +37,7 @@ class DiscoveryReportPayload(BaseModel):
     strategic_insight: str
 
 
-class DiscoveryReportOutput(BaseModel):
+class PdfAttachmentOutput(BaseModel):
     attachment_id: str
     filename: str
     download_url: str

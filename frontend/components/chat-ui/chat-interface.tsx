@@ -2,23 +2,17 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FileText } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
 	Conversation,
 	ConversationContent,
+	ConversationDownload,
 	ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import {
-	Message,
-	MessageActions,
-	MessageContent,
-	MessageResponse,
-	MessageToolbar,
-} from "@/components/ai-elements/message";
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
-import { WorkingMemoryUpdate } from "@/components/chat-ui/ai-elements/working-memory-update";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import {
 	buildChatThreadsQueryKey,
 	type ChatThreadSummaryDTO,
@@ -47,18 +41,9 @@ import {
 	DATA_CONVERSATION_TITLE_PART,
 	DATA_NEW_THREAD_CREATED_PART,
 } from "@/types/ui-message";
-import {
-	Reasoning,
-	ReasoningContent,
-	ReasoningTrigger,
-} from "./ai-elements/reasoning";
-import { Shimmer } from "./ai-elements/shimmer";
-import { Source, SourceContent, SourceTrigger } from "./ai-elements/sources";
-import { ChatAttachmentChip } from "./chat-attachment-chip";
 import { ChatEmptyGreeting } from "./chat-empty-greeting";
 import { ChatPromptComposer } from "./chat-prompt-composer";
-import { CopyButton } from "./copy-button";
-import { RegenerateButton } from "./regenerate-button";
+import { MessagePartsRenderer } from "./message-parts-renderer";
 import { Button } from "./ui/button";
 
 export interface ChatInterfaceProps {
@@ -80,6 +65,10 @@ export function ChatInterface({
 	const [retryMessage, setRetryMessage] = useState<PromptInputMessage | null>(
 		null,
 	);
+
+	// Track how many messages existed on mount so new messages get stagger
+	// animation while historical messages render instantly on load.
+	const existingCountRef = useRef(initialMessages.length);
 
 	const chatThreadScope = useMemo(
 		() =>
@@ -119,6 +108,7 @@ export function ChatInterface({
 		id: threadId,
 		messages: initialMessages,
 		resume: true,
+		experimental_throttle: 50,
 		transport,
 		onFinish: () => {
 			void queryClient.refetchQueries({
@@ -264,6 +254,18 @@ export function ChatInterface({
 	const canRetry =
 		!isStreamingOrSubmitted && (Boolean(retryMessage) || messages.length > 0);
 
+	const conversationFilename = useMemo(
+		() =>
+			`secondstream-${threadId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.md`,
+		[threadId],
+	);
+
+	useEffect(() => {
+		if (visibleError) {
+			toast.error(visibleError, { id: "chat-error" });
+		}
+	}, [visibleError]);
+
 	return (
 		<div className="flex h-full flex-1 flex-col">
 			<AnimatePresence mode="wait" initial={false}>
@@ -276,7 +278,11 @@ export function ChatInterface({
 						transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
 						className="mx-auto flex w-full max-w-[70ch] flex-1 flex-col items-center justify-center gap-14 px-6 pb-24"
 					>
-						<ChatEmptyGreeting />
+						<ChatEmptyGreeting
+							onSuggestionClick={(text) =>
+								void handleSubmitMessage({ text, files: [] }, () => undefined)
+							}
+						/>
 						<ChatPromptComposer
 							className="w-full"
 							draftScopeKey={threadId}
@@ -287,6 +293,7 @@ export function ChatInterface({
 									clearError();
 								}
 							}}
+							onStop={stop}
 							onSubmitMessage={handleSubmitMessage}
 							placeholder="Ask anything"
 							status={status}
@@ -322,158 +329,23 @@ export function ChatInterface({
 										animate={{ opacity: 1, y: 0 }}
 										transition={{
 											duration: 0.2,
-											delay: Math.min(index * 0.04, 0.2),
+											// Historical messages on load: no delay.
+											// New messages during the session: stagger.
+											delay:
+												index >= existingCountRef.current
+													? Math.min(index * 0.04, 0.2)
+													: 0,
 											ease: [0.25, 0.1, 0.25, 1],
 										}}
 									>
-										<Message from={message.role}>
-											<MessageContent>
-												{message.parts.map((part, partIndex) => {
-													switch (part.type) {
-														case "file": {
-															return (
-																<ChatAttachmentChip
-																	key={`${message.id}-${partIndex}`}
-																	filename={part.filename}
-																	mediaType={part.mediaType}
-																	url={part.url}
-																/>
-															);
-														}
-														case "reasoning":
-															return (
-																<Reasoning
-																	key={`${message.id}-${partIndex}`}
-																	isStreaming={part.state === "streaming"}
-																>
-																	<ReasoningTrigger />
-																	<ReasoningContent>
-																		{part.text}
-																	</ReasoningContent>
-																</Reasoning>
-															);
-														case "text":
-															return (
-																<MessageResponse
-																	key={`${message.id}-${partIndex}`}
-																>
-																	{part.text}
-																</MessageResponse>
-															);
-														case "tool-webSearch":
-															return part.state === "output-available" ? (
-																<div
-																	key={`${message.id}-${partIndex}`}
-																	className="not-prose mb-4 flex flex-wrap gap-2"
-																>
-																	{part.output.map((source, sourceIndex) => (
-																		<Source key={source.url} href={source.url}>
-																			<SourceTrigger
-																				showFavicon
-																				label={sourceIndex + 1}
-																			/>
-																			<SourceContent
-																				title={source.title ?? source.url}
-																				description={source.content}
-																			/>
-																		</Source>
-																	))}
-																</div>
-															) : (
-																<div
-																	key={`${message.id}-${partIndex}`}
-																	className="flex items-center gap-1.5"
-																>
-																	<Shimmer as="p" className="text-sm">
-																		{`Searching for: ${part.state === "input-available" ? part.input.query : "..."}`}
-																	</Shimmer>
-																</div>
-															);
-														case "tool-updateWorkingMemory":
-															return (
-																<WorkingMemoryUpdate
-																	key={`${message.id}-${partIndex}`}
-																	state={part.state}
-																	input={
-																		part.state !== "input-streaming"
-																			? part.input
-																			: undefined
-																	}
-																/>
-															);
-														case "tool-generateDiscoveryReport": {
-															if (part.state === "output-available") {
-																const bytes = part.output.size_bytes;
-																const sizeLabel =
-																	bytes >= 1_048_576
-																		? `${(bytes / 1_048_576).toFixed(1)} MB`
-																		: `${Math.round(bytes / 1024)} KB`;
-																return (
-																	<a
-																		key={`${message.id}-${partIndex}`}
-																		href={part.output.download_url}
-																		download={part.output.filename}
-																		className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-accent"
-																	>
-																		<FileText className="size-3.5" />
-																		<span>{part.output.filename}</span>
-																		<span className="text-muted-foreground">
-																			({sizeLabel})
-																		</span>
-																	</a>
-																);
-															}
-															if (part.state === "output-error") {
-																return (
-																	<span
-																		key={`${message.id}-${partIndex}`}
-																		className="text-destructive text-xs"
-																	>
-																		Failed to generate report
-																	</span>
-																);
-															}
-															return (
-																<Shimmer
-																	key={`${message.id}-${partIndex}`}
-																	as="p"
-																	className="text-xs"
-																>
-																	Generating discovery report...
-																</Shimmer>
-															);
-														}
-														default:
-															return null;
-													}
-												})}
-											</MessageContent>
-											{message.role === "assistant" ? (
-												<MessageToolbar className="mt-1">
-													<MessageActions>
-														{message.parts.some(
-															(part) => part.type === "text",
-														) ? (
-															<CopyButton
-																text={message.parts
-																	.filter((part) => part.type === "text")
-																	.map((part) => part.text)
-																	.join("\n")}
-															/>
-														) : null}
-														{index === messages.length - 1 &&
-														!isStreamingOrSubmitted ? (
-															<RegenerateButton
-																message={message}
-																messages={messages}
-																setMessages={setMessages}
-																regenerate={regenerate}
-															/>
-														) : null}
-													</MessageActions>
-												</MessageToolbar>
-											) : null}
-										</Message>
+										<MessagePartsRenderer
+											message={message}
+											isLastMessage={index === messages.length - 1}
+											isStreamingOrSubmitted={isStreamingOrSubmitted}
+											messages={messages}
+											setMessages={setMessages}
+											regenerate={regenerate}
+										/>
 									</motion.div>
 								))}
 
@@ -483,13 +355,9 @@ export function ChatInterface({
 										animate={{ opacity: 1, y: 0 }}
 										transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
 									>
-										<Message from="assistant">
-											<MessageContent>
-												<Shimmer as="p" className="text-sm">
-													Thinking...
-												</Shimmer>
-											</MessageContent>
-										</Message>
+										<Shimmer as="p" className="text-sm">
+											Thinking...
+										</Shimmer>
 									</motion.div>
 								) : null}
 
@@ -512,22 +380,16 @@ export function ChatInterface({
 									</div>
 								) : null}
 							</ConversationContent>
+
 							<ConversationScrollButton />
+							<ConversationDownload
+								aria-label="Download conversation"
+								messages={messages}
+								filename={conversationFilename}
+							/>
 						</Conversation>
 
 						<div className="mx-auto w-full max-w-[70ch] px-6 pb-8 pt-4">
-							{isStreamingOrSubmitted ? (
-								<div className="mb-2 flex justify-end">
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={stop}
-									>
-										Stop
-									</Button>
-								</div>
-							) : null}
 							<ChatPromptComposer
 								className="w-full"
 								draftScopeKey={threadId}
@@ -538,6 +400,7 @@ export function ChatInterface({
 										clearError();
 									}
 								}}
+								onStop={stop}
 								onSubmitMessage={handleSubmitMessage}
 								placeholder="Send a message"
 								status={status}

@@ -31,6 +31,7 @@ type ChatPromptComposerProps = {
 	draftScopeKey: string;
 	errorMessage?: string | null;
 	onInteract?: () => void;
+	onStop?: () => void;
 	onSubmitMessage: (
 		message: PromptInputMessage,
 		onAccepted: () => void,
@@ -98,14 +99,21 @@ function PromptInputAttachmentsHeader(): React.JSX.Element | null {
 
 function PromptSubmitButton({
 	status,
+	onStop,
 }: {
 	status: ChatStatus;
+	onStop?: () => void;
 }): React.JSX.Element {
 	const { textInput } = usePromptInputController();
 	return (
 		<PromptInputSubmit
-			disabled={textInput.value.trim().length === 0}
+			disabled={
+				textInput.value.trim().length === 0 &&
+				status !== "submitted" &&
+				status !== "streaming"
+			}
 			status={status}
+			{...(onStop && { onStop })}
 		/>
 	);
 }
@@ -115,6 +123,7 @@ export function ChatPromptComposer({
 	draftScopeKey,
 	errorMessage,
 	onInteract,
+	onStop,
 	onSubmitMessage,
 	placeholder,
 	status,
@@ -214,7 +223,7 @@ export function ChatPromptComposer({
 						</PromptInputActionMenu>
 					</PromptInputTools>
 
-					<PromptSubmitButton status={status} />
+					<PromptSubmitButton status={status} {...(onStop && { onStop })} />
 				</PromptInputFooter>
 			</PromptInput>
 		</PromptInputProvider>

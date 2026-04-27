@@ -23,6 +23,7 @@ type ChatAttachmentChipProps = {
 	filename: string | undefined;
 	mediaType: string;
 	url: string;
+	compact?: boolean;
 };
 
 type AttachmentAction = "open" | "download";
@@ -50,6 +51,7 @@ export function ChatAttachmentChip({
 	filename,
 	mediaType,
 	url,
+	compact = false,
 }: ChatAttachmentChipProps) {
 	const [activeAction, setActiveAction] = useState<AttachmentAction | null>(
 		null,
@@ -61,6 +63,7 @@ export function ChatAttachmentChip({
 		[url],
 	);
 	const isPersistedAttachment = attachmentId !== null;
+	const allowMediaPreview = !compact && !isPersistedAttachment;
 
 	const handleAction = useCallback(
 		async (action: AttachmentAction) => {
@@ -102,7 +105,7 @@ export function ChatAttachmentChip({
 				if (pendingWindow && !pendingWindow.closed) {
 					pendingWindow.close();
 				}
-				setErrorMessage("No pudimos abrir este archivo. Inténtalo de nuevo.");
+				setErrorMessage("We couldn't open this file. Please try again.");
 			} finally {
 				setActiveAction(null);
 			}
@@ -124,7 +127,7 @@ export function ChatAttachmentChip({
 						url,
 					}}
 				>
-					<AttachmentPreview allowMediaPreview={!isPersistedAttachment} />
+					<AttachmentPreview allowMediaPreview={allowMediaPreview} />
 					<AttachmentInfo showMediaType />
 					<div className="flex shrink-0 items-center gap-0.5">
 						<Tooltip>
@@ -138,7 +141,7 @@ export function ChatAttachmentChip({
 										void handleAction("open");
 									}}
 									disabled={isBusy}
-									aria-label="Abrir adjunto"
+									aria-label="Open attachment"
 								>
 									{activeAction === "open" ? (
 										<Loader2Icon className="animate-spin" />
@@ -148,7 +151,7 @@ export function ChatAttachmentChip({
 									<span className="sr-only">Open</span>
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent>Abrir en una nueva pestaña</TooltipContent>
+							<TooltipContent>Open in new tab</TooltipContent>
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -161,7 +164,7 @@ export function ChatAttachmentChip({
 										void handleAction("download");
 									}}
 									disabled={isBusy}
-									aria-label="Descargar adjunto"
+									aria-label="Download attachment"
 								>
 									{activeAction === "download" ? (
 										<Loader2Icon className="animate-spin" />
@@ -171,7 +174,7 @@ export function ChatAttachmentChip({
 									<span className="sr-only">Download</span>
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent>Descargar archivo</TooltipContent>
+							<TooltipContent>Download file</TooltipContent>
 						</Tooltip>
 					</div>
 				</Attachment>

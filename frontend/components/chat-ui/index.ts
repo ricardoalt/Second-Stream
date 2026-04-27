@@ -31,6 +31,64 @@ export { SettingsDialog } from "./settings-dialog";
 // ============================================================================
 
 export {
+	// Model selector
+	ModelSelector,
+	ModelSelectorContent,
+	type ModelSelectorContentProps,
+	ModelSelectorDialog,
+	type ModelSelectorDialogProps,
+	ModelSelectorEmpty,
+	type ModelSelectorEmptyProps,
+	ModelSelectorGroup,
+	type ModelSelectorGroupProps,
+	ModelSelectorInput,
+	type ModelSelectorInputProps,
+	ModelSelectorItem,
+	type ModelSelectorItemProps,
+	ModelSelectorList,
+	type ModelSelectorListProps,
+	ModelSelectorLogo,
+	ModelSelectorLogoGroup,
+	type ModelSelectorLogoGroupProps,
+	type ModelSelectorLogoProps,
+	ModelSelectorName,
+	type ModelSelectorNameProps,
+	type ModelSelectorProps,
+	ModelSelectorSeparator,
+	type ModelSelectorSeparatorProps,
+	ModelSelectorShortcut,
+	type ModelSelectorShortcutProps,
+	ModelSelectorTrigger,
+	type ModelSelectorTriggerProps,
+} from "@/components/ai-elements/model-selector";
+export {
+	// Reasoning display
+	Reasoning,
+	ReasoningContent,
+	type ReasoningContentProps,
+	type ReasoningProps,
+	ReasoningTrigger,
+	type ReasoningTriggerProps,
+} from "@/components/ai-elements/reasoning";
+export {
+	// Shimmer loading effect
+	Shimmer,
+	type TextShimmerProps as ShimmerProps,
+} from "@/components/ai-elements/shimmer";
+export {
+	// Source citations
+	Source,
+	SourceContent,
+	type SourceContentProps,
+	type SourceProps,
+	SourceTrigger,
+	type SourceTriggerProps,
+} from "@/components/ai-elements/sources";
+export {
+	// Working memory updates
+	WorkingMemoryUpdate,
+} from "@/components/ai-elements/working-memory-update";
+export {
 	Attachment,
 	AttachmentPreview,
 	type AttachmentPreviewProps,
@@ -83,37 +141,6 @@ export {
 	type MessageToolbarProps,
 } from "./ai-elements/message";
 export {
-	// Model selector
-	ModelSelector,
-	ModelSelectorContent,
-	type ModelSelectorContentProps,
-	ModelSelectorDialog,
-	type ModelSelectorDialogProps,
-	ModelSelectorEmpty,
-	type ModelSelectorEmptyProps,
-	ModelSelectorGroup,
-	type ModelSelectorGroupProps,
-	ModelSelectorInput,
-	type ModelSelectorInputProps,
-	ModelSelectorItem,
-	type ModelSelectorItemProps,
-	ModelSelectorList,
-	type ModelSelectorListProps,
-	ModelSelectorLogo,
-	ModelSelectorLogoGroup,
-	type ModelSelectorLogoGroupProps,
-	type ModelSelectorLogoProps,
-	ModelSelectorName,
-	type ModelSelectorNameProps,
-	type ModelSelectorProps,
-	ModelSelectorSeparator,
-	type ModelSelectorSeparatorProps,
-	ModelSelectorShortcut,
-	type ModelSelectorShortcutProps,
-	ModelSelectorTrigger,
-	type ModelSelectorTriggerProps,
-} from "./ai-elements/model-selector";
-export {
 	PromptInput,
 	PromptInputActionAddAttachments,
 	type PromptInputActionAddAttachmentsProps,
@@ -154,33 +181,6 @@ export {
 	usePromptInputController,
 	usePromptInputReferencedSources,
 } from "./ai-elements/prompt-input";
-export {
-	// Reasoning display
-	Reasoning,
-	ReasoningContent,
-	type ReasoningContentProps,
-	type ReasoningProps,
-	ReasoningTrigger,
-	type ReasoningTriggerProps,
-} from "./ai-elements/reasoning";
-export {
-	// Shimmer loading effect
-	Shimmer,
-	type TextShimmerProps as ShimmerProps,
-} from "./ai-elements/shimmer";
-export {
-	// Source citations
-	Source,
-	SourceContent,
-	type SourceContentProps,
-	type SourceProps,
-	SourceTrigger,
-	type SourceTriggerProps,
-} from "./ai-elements/sources";
-export {
-	// Working memory updates
-	WorkingMemoryUpdate,
-} from "./ai-elements/working-memory-update";
 
 // ============================================================================
 // Utility Components

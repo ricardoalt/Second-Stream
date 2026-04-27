@@ -9,8 +9,8 @@ from app.agents.chat_agent import (
     stream_chat_response,
 )
 from app.agents.discovery_report_schema import (
-    DiscoveryReportOutput,
     DiscoveryReportPayload,
+    PdfAttachmentOutput,
 )
 from app.agents.image_analysis_agent import (
     ImageAnalysisError,
@@ -25,8 +25,8 @@ __all__ = [
     "ChatAgentDeps",
     "ChatAgentError",
     "ChatAgentOutput",
-    "DiscoveryReportOutput",
     "DiscoveryReportPayload",
+    "PdfAttachmentOutput",
     "ImageAnalysisError",
     "ProposalGenerationError",
     "analyze_image",

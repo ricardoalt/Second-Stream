@@ -49,7 +49,10 @@ export function ChatComposerAttachments({
 							>
 								<AttachmentPreview allowMediaPreview={false} />
 								<AttachmentInfo className="text-xs" title={filename} />
-								<AttachmentRemove className="opacity-100" label={`Remove ${filename}`} />
+								<AttachmentRemove
+									className="opacity-100"
+									label={`Remove ${filename}`}
+								/>
 							</Attachment>
 						</AttachmentHoverCardTrigger>
 						<AttachmentHoverCardContent className="max-w-80 break-all text-xs">

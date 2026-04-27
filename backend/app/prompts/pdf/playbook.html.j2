@@ -1,0 +1,42 @@
+{% extends '_base.html.j2' %}
+{% from '_macros.html.j2' import cover_block, theme_header, why_it_matters_box %}
+
+{% block title %}SecondStream Discovery Playbook — {{ payload.customer | e }}{% endblock %}
+{% block footer_center %}Discovery Playbook — Internal use only{% endblock %}
+
+{% block body %}
+
+{{ cover_block(
+    customer=payload.customer,
+    stream=payload.stream,
+    date=payload.date,
+    doc_type="Discovery Playbook"
+) }}
+
+{% if payload.opening_context %}
+<div class="avoid-break" style="margin-bottom:16pt;">
+  <p class="body-text">{{ payload.opening_context }}</p>
+</div>
+{% endif %}
+
+{% for theme in payload.themes %}
+<div style="margin-bottom:16pt;">
+  {{ theme_header(theme.number, theme.title) }}
+  <p class="body-text" style="margin-top:var(--space-sm);">{{ theme.body }}</p>
+
+  {% if theme.probe_questions %}
+  <h3 class="section-h2">Probe questions</h3>
+  <ul>
+    {% for q in theme.probe_questions %}
+    <li class="body-text">{{ q }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if theme.why_it_matters %}
+  {{ why_it_matters_box(theme.why_it_matters) }}
+  {% endif %}
+</div>
+{% endfor %}
+
+{% endblock %}

@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from io import BytesIO
 from typing import Any
 from uuid import uuid4
 
@@ -30,7 +31,10 @@ from pydantic_ai.providers.bedrock import BedrockProvider
 from pydantic_ai.run import AgentRunResultEvent
 from pydantic_ai.settings import ModelSettings
 
-from app.agents.discovery_report_schema import DiscoveryReportOutput, DiscoveryReportPayload
+from app.agents.analytical_read_schema import AnalyticalReadPayload
+from app.agents.discovery_report_schema import DiscoveryReportPayload, PdfAttachmentOutput
+from app.agents.ideation_brief_schema import IdeationBriefPayload
+from app.agents.playbook_schema import PlaybookPayload
 from app.core.config import settings
 from app.schemas.common import BaseSchema
 from app.services.chat_stream_protocol import ChatAgentAttachmentInput
@@ -62,6 +66,68 @@ def _slug(text: str) -> str:
 
 
 _BEDROCK_MODEL_NAME = settings.AI_TEXT_MODEL.replace("bedrock:", "")
+_PDF_TOOL_NAMES = {
+    "generateDiscoveryReport",
+    "generateIdeationBrief",
+    "generateAnalyticalRead",
+    "generatePlaybook",
+}
+
+
+async def _upload_pdf(
+    ctx: RunContext[ChatAgentDeps],
+    *,
+    payload: Any,
+    renderer: Callable[[Any], BytesIO],
+    filename_suffix: str,
+) -> PdfAttachmentOutput:
+    """Render a PDF, upload to S3, persist attachment record, return signed URL.
+
+    payload must expose .customer and .stream for filename construction.
+    renderer is a callable that accepts the payload and returns a BytesIO PDF.
+    """
+    customer_slug = _slug(str(getattr(payload, "customer", "")))
+    stream_slug = _slug(str(getattr(payload, "stream", "")))
+    filename = f"{customer_slug}-{stream_slug}_{date.today():%Y-%m-%d}_{filename_suffix}.pdf"
+
+    pdf_bytes = await asyncio.to_thread(renderer, payload)
+    size_bytes = len(pdf_bytes.getvalue())
+    storage_key = (
+        f"chat/{ctx.deps.organization_id}/{ctx.deps.user_id}/{date.today():%Y/%m}/{uuid4().hex}.pdf"
+    )
+
+    if ctx.deps.upload_bytes is not None and ctx.deps.persist_attachment is None:
+        raise ChatAgentError(
+            "persist_attachment is required when upload_bytes is configured for PDF tools"
+        )
+
+    if ctx.deps.upload_bytes is not None:
+        await ctx.deps.upload_bytes(storage_key, pdf_bytes, "application/pdf")
+
+    download_url = storage_key
+    expires_at = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+    attachment_id = str(uuid4())
+
+    if ctx.deps.persist_attachment is not None:
+        ref = await ctx.deps.persist_attachment(
+            storage_key=storage_key,
+            filename=filename,
+            content_type="application/pdf",
+            size_bytes=size_bytes,
+        )
+        attachment_id = str(ref.id)
+        download_url = getattr(ref, "signed_url", storage_key)
+        if hasattr(ref, "signed_url_expires_at") and ref.signed_url_expires_at:
+            expires_at = ref.signed_url_expires_at.isoformat()
+
+    logger.info("pdf_uploaded", filename=filename, size_bytes=size_bytes)
+    return PdfAttachmentOutput(
+        attachment_id=attachment_id,
+        filename=filename,
+        download_url=download_url,
+        expires_at=expires_at,
+        size_bytes=size_bytes,
+    )
 
 
 def _make_agent() -> Agent:
@@ -99,48 +165,41 @@ def _register_tools(agent: Agent) -> None:
     async def generate_discovery_report(
         ctx: RunContext[ChatAgentDeps],
         payload: DiscoveryReportPayload,
-    ) -> DiscoveryReportOutput:
+    ) -> PdfAttachmentOutput:
         """Generate a SecondStream Executive Discovery Report PDF and return a signed download URL."""
-        from app.services.discovery_report_renderer import render_discovery_report
+        from app.services.pdf_renderer import render_discovery_report
 
-        customer_slug = _slug(payload.customer)
-        stream_slug = _slug(payload.stream)
-        filename = f"{customer_slug}-{stream_slug}_{date.today():%Y-%m-%d}_discovery-exec.pdf"
+        return await _upload_pdf(ctx, payload=payload, renderer=render_discovery_report, filename_suffix="discovery-exec")
 
-        pdf_bytes = render_discovery_report(payload)
-        size_bytes = len(pdf_bytes.getvalue())
+    @agent.tool(name="generateIdeationBrief")
+    async def generate_ideation_brief(
+        ctx: RunContext[ChatAgentDeps],
+        payload: IdeationBriefPayload,
+    ) -> PdfAttachmentOutput:
+        """Generate a SecondStream Ideation Brief PDF and return a signed download URL."""
+        from app.services.pdf_renderer import render_ideation_brief
 
-        storage_key = (
-            f"chat/{ctx.deps.organization_id}/{ctx.deps.user_id}"
-            f"/{date.today():%Y/%m}/{uuid4().hex}.pdf"
-        )
+        return await _upload_pdf(ctx, payload=payload, renderer=render_ideation_brief, filename_suffix="ideation-brief")
 
-        if ctx.deps.upload_bytes is not None:
-            await ctx.deps.upload_bytes(storage_key, pdf_bytes, "application/pdf")
+    @agent.tool(name="generateAnalyticalRead")
+    async def generate_analytical_read(
+        ctx: RunContext[ChatAgentDeps],
+        payload: AnalyticalReadPayload,
+    ) -> PdfAttachmentOutput:
+        """Generate a SecondStream Analytical Read PDF and return a signed download URL."""
+        from app.services.pdf_renderer import render_analytical_read
 
-        download_url = storage_key
-        expires_at = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
-        attachment_id = str(uuid4())
+        return await _upload_pdf(ctx, payload=payload, renderer=render_analytical_read, filename_suffix="analytical-read")
 
-        if ctx.deps.persist_attachment is not None:
-            ref = await ctx.deps.persist_attachment(
-                storage_key=storage_key,
-                filename=filename,
-                content_type="application/pdf",
-                size_bytes=size_bytes,
-            )
-            attachment_id = str(ref.id)
-            download_url = getattr(ref, "signed_url", storage_key)
-            if hasattr(ref, "signed_url_expires_at") and ref.signed_url_expires_at:
-                expires_at = ref.signed_url_expires_at.isoformat()
+    @agent.tool(name="generatePlaybook")
+    async def generate_playbook(
+        ctx: RunContext[ChatAgentDeps],
+        payload: PlaybookPayload,
+    ) -> PdfAttachmentOutput:
+        """Generate a SecondStream Discovery Playbook PDF and return a signed download URL."""
+        from app.services.pdf_renderer import render_playbook
 
-        return DiscoveryReportOutput(
-            attachment_id=attachment_id,
-            filename=filename,
-            download_url=download_url,
-            expires_at=expires_at,
-            size_bytes=size_bytes,
-        )
+        return await _upload_pdf(ctx, payload=payload, renderer=render_playbook, filename_suffix="playbook")
 
 
 chat_agent = _make_agent()
@@ -187,9 +246,7 @@ def _build_runtime_user_content(
 
     for attachment in attachments:
         if attachment.media_type.startswith("text/") and attachment.extracted_text:
-            content.append(
-                f"Attachment text ({attachment.filename}):\n{attachment.extracted_text}"
-            )
+            content.append(f"Attachment text ({attachment.filename}):\n{attachment.extracted_text}")
             continue
 
         if attachment.binary_content:
@@ -225,6 +282,7 @@ async def stream_chat_response(
     runtime_input = _build_runtime_user_content(prompt=prompt, attachments=attachments)
     accumulated_text = ""
     tool_call_ids_by_index: dict[int, str] = {}
+    tool_names_by_call_id: dict[str, str] = {}
     try:
         async for event in chat_agent.run_stream_events(runtime_input, deps=deps):
             if isinstance(event, AgentRunResultEvent):
@@ -234,6 +292,7 @@ async def stream_chat_response(
 
             if isinstance(event, PartStartEvent) and isinstance(event.part, ToolCallPart):
                 tool_call_ids_by_index[event.index] = event.part.tool_call_id
+                tool_names_by_call_id[event.part.tool_call_id] = event.part.tool_name
                 yield {
                     "event": "tool-input-start",
                     "toolCallId": event.part.tool_call_id,
@@ -245,6 +304,8 @@ async def stream_chat_response(
                 args_delta = event.delta.args_delta
                 tool_call_id = event.delta.tool_call_id or tool_call_ids_by_index.get(event.index)
                 if tool_call_id and args_delta is not None:
+                    if tool_names_by_call_id.get(tool_call_id) in _PDF_TOOL_NAMES:
+                        continue
                     input_text_delta = (
                         args_delta if isinstance(args_delta, str) else json.dumps(args_delta)
                     )

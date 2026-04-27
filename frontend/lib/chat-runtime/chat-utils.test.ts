@@ -41,4 +41,22 @@ describe("chat-utils", () => {
 			]),
 		).toBe(false);
 	});
+
+	it("oculta shimmer cuando assistant ya muestra actividad de tool", () => {
+		expect(
+			shouldShowLoadingShimmer("streaming", [
+				{
+					id: "1",
+					role: "assistant",
+					parts: [
+						{
+							type: "tool-generateDiscoveryReport",
+							state: "input-available",
+							input: undefined,
+						},
+					],
+				},
+			]),
+		).toBe(false);
+	});
 });
