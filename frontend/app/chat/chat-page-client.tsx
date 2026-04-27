@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatInterface } from "@/components/chat-ui/chat-interface";
 import {
@@ -12,7 +11,7 @@ import {
 	resolveChatRouteState,
 	shouldSyncRouteAfterThreadCreated,
 } from "@/lib/chat-runtime/page-client-state";
-import { buildChatThreadUrl } from "@/lib/chat-runtime/routing";
+import { syncChatThreadUrlSilently } from "@/lib/chat-runtime/routing";
 import { resolveChatThreadScope } from "@/lib/chat-runtime/thread-scope";
 import { useAuth } from "@/lib/contexts";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
@@ -26,7 +25,6 @@ export function ChatPageClient({
 }) {
 	const [localThreadId, setLocalThreadId] = useState(() => crypto.randomUUID());
 	const previousRouteThreadIdRef = useRef(routeThreadId);
-	const router = useRouter();
 	const { user } = useAuth();
 	const selectedOrgId = useOrganizationStore((state) => state.selectedOrgId);
 
@@ -85,10 +83,10 @@ export function ChatPageClient({
 				return;
 			}
 
-			router.replace(buildChatThreadUrl(createdThreadId));
+			syncChatThreadUrlSilently(createdThreadId);
 			onActiveThreadIdChange?.(createdThreadId);
 		},
-		[onActiveThreadIdChange, routeThreadId, router, threadId],
+		[onActiveThreadIdChange, routeThreadId, threadId],
 	);
 
 	if (shouldLoadPersistedHistory && isLoadingHistory) {

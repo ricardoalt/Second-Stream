@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildChatThreadUrl } from "./routing";
+import { buildChatThreadUrl, syncChatThreadUrlSilently } from "./routing";
 
 describe("chat runtime routing", () => {
 	it("builds canonical path url for a thread", () => {
@@ -18,5 +18,9 @@ describe("chat runtime routing", () => {
 
 	it("trims whitespace from thread id", () => {
 		expect(buildChatThreadUrl("  thread-1  ")).toBe("/chat/thread-1");
+	});
+
+	it("does nothing when window is unavailable", () => {
+		expect(() => syncChatThreadUrlSilently("thread-1")).not.toThrow();
 	});
 });
