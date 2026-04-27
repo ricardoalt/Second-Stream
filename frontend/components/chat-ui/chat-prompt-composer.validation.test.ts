@@ -56,18 +56,40 @@ describe("getAttachmentValidationMessage", () => {
 		expect(resetAttachmentsIndex).toBeGreaterThan(clearDraftIndex);
 	});
 
-	it("accepts the message after uploads and before awaiting sendMessage", () => {
+	it("acquires local submit lock before async upload starts", () => {
 		const source = read("components/chat-ui/chat-interface.tsx");
+		const guardIndex = source.indexOf(
+			"if (isSubmittingMessageRef.current || isChatBusy) {",
+		);
+		const setSubmittingRefIndex = source.indexOf(
+			"isSubmittingMessageRef.current = true;",
+		);
+		const setSubmittingStateIndex = source.indexOf("setIsSubmittingMessage(true);");
 		const uploadIndex = source.indexOf(
 			"const attachmentIds = await uploadAttachmentsFromPromptMessage(message);",
 		);
-		const submittingIndex = source.indexOf("setIsSubmittingMessage(true);");
-		const acceptedIndex = source.indexOf("onAccepted();");
-		const sendIndex = source.indexOf("await sendMessage(");
 
-		expect(uploadIndex).toBeGreaterThan(-1);
-		expect(submittingIndex).toBeGreaterThan(uploadIndex);
-		expect(acceptedIndex).toBeGreaterThan(submittingIndex);
-		expect(sendIndex).toBeGreaterThan(acceptedIndex);
+		expect(guardIndex).toBeGreaterThan(-1);
+		expect(setSubmittingRefIndex).toBeGreaterThan(guardIndex);
+		expect(setSubmittingStateIndex).toBeGreaterThan(setSubmittingRefIndex);
+		expect(uploadIndex).toBeGreaterThan(setSubmittingStateIndex);
+	});
+
+	it("derives composer busy from local lock plus AI SDK stream status", () => {
+		const source = read("components/chat-ui/chat-interface.tsx");
+
+		expect(source).toContain(
+			"const isComposerBusy = isSubmittingMessage || isStreamingOrSubmitted;",
+		);
+		expect(source).toContain("busy={isComposerBusy}");
+	});
+
+	it("disables composer controls when busy", () => {
+		const source = read("components/chat-ui/chat-prompt-composer.tsx");
+
+		expect(source).toContain("disabled={busy}");
+		expect(source).toContain("disabled={");
+		expect(source).toContain("(!canStop && busy)");
+		expect(source).toContain("const canStop = isStreamingOrSubmitted && Boolean(onStop);");
 	});
 });

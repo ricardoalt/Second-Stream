@@ -65,6 +65,7 @@ export function ChatInterface({
 	const [retryMessage, setRetryMessage] = useState<PromptInputMessage | null>(
 		null,
 	);
+	const isSubmittingMessageRef = useRef(false);
 
 	// Track how many messages existed on mount so new messages get stagger
 	// animation while historical messages render instantly on load.
@@ -142,12 +143,31 @@ export function ChatInterface({
 			}
 		},
 	});
+	const statusRef = useRef(status);
+
+	const releaseSubmitLock = useCallback(() => {
+		isSubmittingMessageRef.current = false;
+		setIsSubmittingMessage(false);
+	}, []);
+
+	useEffect(() => {
+		statusRef.current = status;
+	}, [status]);
 
 	const handleSubmitMessage = useCallback(
 		async (message: PromptInputMessage, onAccepted: () => void) => {
+			const isChatBusy =
+				statusRef.current === "submitted" || statusRef.current === "streaming";
+			if (isSubmittingMessageRef.current || isChatBusy) {
+				return;
+			}
+
 			if (!canSubmitPromptMessage(message)) {
 				return;
 			}
+
+			isSubmittingMessageRef.current = true;
+			setIsSubmittingMessage(true);
 			setSubmitError(null);
 			setRetryMessage(null);
 
@@ -186,8 +206,8 @@ export function ChatInterface({
 			clearError();
 			try {
 				const attachmentIds = await uploadAttachmentsFromPromptMessage(message);
-				setIsSubmittingMessage(true);
 				onAccepted();
+				statusRef.current = "submitted";
 
 				await sendMessage(
 					{ text: message.text, files: message.files },
@@ -205,11 +225,17 @@ export function ChatInterface({
 						? submitFailure.message
 						: "Unable to send this message right now.",
 				);
-			} finally {
-				setIsSubmittingMessage(false);
+				releaseSubmitLock();
 			}
 		},
-		[chatThreadsQueryKey, clearError, queryClient, sendMessage, threadId],
+		[
+			chatThreadsQueryKey,
+			clearError,
+			queryClient,
+			releaseSubmitLock,
+			sendMessage,
+			threadId,
+		],
 	);
 
 	const handleRetry = useCallback(async () => {
@@ -249,6 +275,7 @@ export function ChatInterface({
 	const isEmptyState = messages.length === 0 && !isSubmittingMessage;
 	const isStreamingOrSubmitted =
 		status === "submitted" || status === "streaming";
+	const isComposerBusy = isSubmittingMessage || isStreamingOrSubmitted;
 	const showShimmer =
 		isSubmittingMessage && status !== "streaming"
 			? true
@@ -269,6 +296,16 @@ export function ChatInterface({
 		}
 	}, [visibleError]);
 
+	useEffect(() => {
+		if (
+			isSubmittingMessageRef.current &&
+			status !== "submitted" &&
+			status !== "streaming"
+		) {
+			releaseSubmitLock();
+		}
+	}, [releaseSubmitLock, status]);
+
 	return (
 		<div className="flex h-full flex-1 flex-col">
 			<AnimatePresence mode="wait" initial={false}>
@@ -288,6 +325,7 @@ export function ChatInterface({
 						/>
 						<ChatPromptComposer
 							className="w-full"
+							busy={isComposerBusy}
 							draftScopeKey={threadId}
 							errorMessage={visibleError}
 							onInteract={() => {
@@ -395,6 +433,7 @@ export function ChatInterface({
 						<div className="mx-auto w-full max-w-[70ch] px-6 pb-8 pt-4">
 							<ChatPromptComposer
 								className="w-full"
+								busy={isComposerBusy}
 								draftScopeKey={threadId}
 								errorMessage={visibleError}
 								onInteract={() => {

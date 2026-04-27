@@ -27,6 +27,7 @@ import {
 import { useDraftInput } from "@/hooks/use-draft-input";
 
 type ChatPromptComposerProps = {
+	busy?: boolean;
 	className: string;
 	draftScopeKey: string;
 	errorMessage?: string | null;
@@ -98,19 +99,23 @@ function PromptInputAttachmentsHeader(): React.JSX.Element | null {
 }
 
 function PromptSubmitButton({
+	busy,
 	status,
 	onStop,
 }: {
+	busy: boolean;
 	status: ChatStatus;
 	onStop?: () => void;
 }): React.JSX.Element {
 	const { textInput } = usePromptInputController();
+	const isStreamingOrSubmitted =
+		status === "submitted" || status === "streaming";
+	const canStop = isStreamingOrSubmitted && Boolean(onStop);
 	return (
 		<PromptInputSubmit
 			disabled={
-				textInput.value.trim().length === 0 &&
-				status !== "submitted" &&
-				status !== "streaming"
+				(!canStop && busy) ||
+				(textInput.value.trim().length === 0 && !isStreamingOrSubmitted)
 			}
 			status={status}
 			{...(onStop && { onStop })}
@@ -119,6 +124,7 @@ function PromptSubmitButton({
 }
 
 export function ChatPromptComposer({
+	busy = false,
 	className,
 	draftScopeKey,
 	errorMessage,
@@ -181,6 +187,7 @@ export function ChatPromptComposer({
 			<PromptInput
 				accept={SUPPORTED_ATTACHMENT_MIME_PATTERNS.join(",")}
 				className={className}
+				data-busy={busy ? "true" : "false"}
 				maxFileSize={MAX_ATTACHMENT_BYTES}
 				maxFiles={MAX_ATTACHMENTS_PER_REQUEST}
 				multiple
@@ -209,6 +216,7 @@ export function ChatPromptComposer({
 					<PromptInputTextarea
 						ref={textareaRef}
 						className={textareaClassName}
+						disabled={busy}
 						placeholder={placeholder}
 					/>
 				</PromptInputBody>
@@ -223,7 +231,11 @@ export function ChatPromptComposer({
 						</PromptInputActionMenu>
 					</PromptInputTools>
 
-					<PromptSubmitButton status={status} {...(onStop && { onStop })} />
+					<PromptSubmitButton
+						busy={busy}
+						status={status}
+						{...(onStop && { onStop })}
+					/>
 				</PromptInputFooter>
 			</PromptInput>
 		</PromptInputProvider>
