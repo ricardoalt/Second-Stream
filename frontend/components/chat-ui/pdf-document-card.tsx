@@ -4,6 +4,7 @@ import {
 	BarChart3,
 	BookOpen,
 	DownloadIcon,
+	ExternalLink,
 	FileText,
 	Lightbulb,
 } from "lucide-react";
@@ -56,8 +57,8 @@ export function PdfDocumentCard({
 }: PdfDocCardProps) {
 	if (state === "output-error") {
 		return (
-			<span className="text-destructive text-xs">
-				Failed to generate {label.toLowerCase()}
+			<span className="text-destructive text-xs" role="status">
+				Could not generate {label.toLowerCase()}. Please retry.
 			</span>
 		);
 	}
@@ -69,20 +70,40 @@ export function PdfDocumentCard({
 				? `${(size_bytes / 1_048_576).toFixed(1)} MB`
 				: `${Math.round(size_bytes / 1024)} KB`;
 		return (
-			<a
-				href={download_url}
-				download={filename}
-				className="group not-prose inline-flex w-full items-center gap-3 rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:max-w-sm"
-			>
-				<Icon className="size-5 shrink-0 text-primary" />
-				<div className="min-w-0 flex-1">
-					<p className="truncate text-xs font-medium">{label}</p>
-					<p className="truncate text-muted-foreground text-xs">
-						{filename} · {sizeLabel}
-					</p>
+			<div className="not-prose w-full rounded-lg border bg-card px-3 py-3 sm:max-w-sm">
+				<div className="flex items-start gap-3">
+					<Icon aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
+					<div className="min-w-0 flex-1">
+						<p className="text-xs font-semibold">{label}</p>
+						<p className="truncate text-muted-foreground text-xs" title={filename}>
+							{filename} · {sizeLabel}
+						</p>
+					</div>
 				</div>
-				<DownloadIcon className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-			</a>
+				<div className="mt-3 flex flex-wrap items-center gap-2">
+					<a
+						aria-label={`View ${filename} in a new tab`}
+						className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						href={download_url}
+						rel="noreferrer"
+						target="_blank"
+						title={`View ${filename}`}
+					>
+						<ExternalLink aria-hidden className="size-3.5" />
+						View
+					</a>
+					<a
+						aria-label={`Download ${filename}`}
+						className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						download={filename}
+						href={download_url}
+						title={`Download ${filename}`}
+					>
+						<DownloadIcon aria-hidden className="size-3.5" />
+						Download
+					</a>
+				</div>
+			</div>
 		);
 	}
 

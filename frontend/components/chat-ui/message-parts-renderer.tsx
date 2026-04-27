@@ -84,6 +84,18 @@ function renderPdfToolPart(
 	const toolKey = part.type.replace("tool-", "") as PdfToolKey;
 	const config = PDF_DOC_CONFIGS[toolKey];
 
+	if (part.state === "output-available") {
+		return (
+			<PdfDocumentCard
+				Icon={config.Icon}
+				label={config.label}
+				shimmerText={config.shimmerText}
+				state={part.state}
+				output={part.output}
+			/>
+		);
+	}
+
 	return (
 		<Tool
 			className="max-w-sm border-border/70 bg-card/60 shadow-none"
@@ -96,9 +108,6 @@ function renderPdfToolPart(
 					label={config.label}
 					shimmerText={config.shimmerText}
 					state={part.state}
-					{...(part.state === "output-available" && {
-						output: part.output,
-					})}
 				/>
 			</ToolContent>
 		</Tool>
