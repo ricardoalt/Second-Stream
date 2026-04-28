@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.agents.base_pdf_schema import BasePdfPayload
-from app.agents.discovery_report_schema import PdfAttachmentOutput as PDFOutput  # noqa: F401
+from app.agents.shared_schema import PdfAttachmentOutput as PDFOutput  # noqa: F401
 
 
 class IdeationSection(BaseModel):

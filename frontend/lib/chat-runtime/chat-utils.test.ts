@@ -50,7 +50,7 @@ describe("chat-utils", () => {
 					role: "assistant",
 					parts: [
 						{
-							type: "tool-generateDiscoveryReport",
+							type: "tool-generateIdeationBrief",
 							state: "input-available",
 							input: undefined,
 						},

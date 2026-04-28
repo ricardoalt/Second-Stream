@@ -21,7 +21,7 @@ async def test_tool_input_start_frame_shape():
             {
                 "event": "tool-input-start",
                 "toolCallId": "call-1",
-                "toolName": "generateDiscoveryReport",
+                "toolName": "generateIdeationBrief",
             },
             {"event": "completed"},
         ]
@@ -30,7 +30,7 @@ async def test_tool_input_start_frame_shape():
     data = json.loads(tool_frame.replace("data: ", "").strip())
     assert data["type"] == "tool-input-start"
     assert data["toolCallId"] == "call-1"
-    assert data["toolName"] == "generateDiscoveryReport"
+    assert data["toolName"] == "generateIdeationBrief"
 
 
 @pytest.mark.asyncio
@@ -40,7 +40,7 @@ async def test_tool_input_available_frame_shape():
             {
                 "event": "tool-input-available",
                 "toolCallId": "call-1",
-                "toolName": "generateDiscoveryReport",
+                "toolName": "generateIdeationBrief",
                 "input": {"customer": "ExxonMobil"},
             },
             {"event": "completed"},

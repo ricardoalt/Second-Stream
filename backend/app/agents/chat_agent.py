@@ -32,7 +32,7 @@ from pydantic_ai.run import AgentRunResultEvent
 from pydantic_ai.settings import ModelSettings
 
 from app.agents.analytical_read_schema import AnalyticalReadPayload
-from app.agents.discovery_report_schema import DiscoveryReportPayload, PdfAttachmentOutput
+from app.agents.shared_schema import PdfAttachmentOutput
 from app.agents.ideation_brief_schema import IdeationBriefPayload
 from app.agents.playbook_schema import PlaybookPayload
 from app.core.config import settings
@@ -67,7 +67,6 @@ def _slug(text: str) -> str:
 
 _BEDROCK_MODEL_NAME = settings.AI_TEXT_MODEL.replace("bedrock:", "")
 _PDF_TOOL_NAMES = {
-    "generateDiscoveryReport",
     "generateIdeationBrief",
     "generateAnalyticalRead",
     "generatePlaybook",
@@ -164,16 +163,6 @@ def _make_agent() -> Agent:
 
 def _register_tools(agent: Agent) -> None:
     """Register all tools on the agent instance."""
-
-    @agent.tool(name="generateDiscoveryReport")
-    async def generate_discovery_report(
-        ctx: RunContext[ChatAgentDeps],
-        payload: DiscoveryReportPayload,
-    ) -> PdfAttachmentOutput:
-        """Generate a SecondStream Executive Discovery Report PDF and return a signed download URL."""
-        from app.services.pdf_renderer import render_discovery_report
-
-        return await _upload_pdf(ctx, payload=payload, renderer=render_discovery_report, filename_suffix="discovery-exec")
 
     @agent.tool(name="generateIdeationBrief")
     async def generate_ideation_brief(

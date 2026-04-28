@@ -2,9 +2,82 @@
 {% from '_macros.html.j2' import cover_block, safety_callout, insight_callout %}
 
 {% block title %}SecondStream Analytical Read — {{ payload.customer | e }}{% endblock %}
-{% block footer_center %}Analytical Read — Confidential{% endblock %}
+{% block footer_center %}Confidential — Internal Use Only{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* ── Analytical Read corporate compact overrides ── */
+  .analytical-read .cover-fields { margin-top: 4pt; }
+  .analytical-read .cover-key {
+    width: 70pt;
+    padding: 1pt 0;
+    font-size: 9pt;
+    font-weight: normal;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .analytical-read .cover-val {
+    padding: 1pt 0;
+    font-size: 9pt;
+    font-weight: bold;
+    color: var(--ink);
+  }
+  .analytical-read .section-h1 {
+    font-size: 12pt;
+    font-weight: bold;
+    color: var(--brand-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 18pt 0 6pt 0;
+    padding-bottom: 3pt;
+    border-bottom: 0.5pt solid var(--brand-primary);
+    page-break-after: avoid;
+  }
+
+  .analytical-read .body-text {
+    line-height: 1.4;
+    margin: 0 0 6pt 0;
+  }
+
+  .analytical-read .analytical-table {
+    margin: 4pt 0 10pt 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+  .analytical-read .analytical-table thead th {
+    padding: 3pt 5pt;
+    font-size: 8pt;
+  }
+  .analytical-read .analytical-table tbody td {
+    padding: 3pt 5pt;
+    font-size: 8pt;
+  }
+
+  .analytical-read .insight-callout {
+    margin: 16pt 0;
+    padding: 10pt 14pt;
+    background: #EAF2FB;
+  }
+  .analytical-read .insight-callout p {
+    font-size: 11pt;
+    text-align: center;
+    font-style: italic;
+    font-weight: bold;
+    color: var(--brand-primary);
+    margin: 0;
+  }
+
+  .analytical-read .callout-safety {
+    margin: 4pt 0;
+    padding: 5pt 8pt;
+  }
+</style>
+{% endblock %}
 
 {% block body %}
+
+<div class="analytical-read">
 
 {{ cover_block(
     customer=payload.customer,
@@ -13,13 +86,13 @@
     doc_type="Analytical Read"
 ) }}
 
-<div class="avoid-break" style="margin-bottom:16pt;">
+<div class="avoid-break" style="margin-bottom:12pt;">
   <h2 class="section-h1">Executive Summary</h2>
   <p class="body-text">{{ payload.executive_summary }}</p>
 </div>
 
 {% if payload.safety_callouts %}
-<div style="margin-bottom:20pt;">
+<div style="margin-bottom:14pt;">
   <h2 class="section-h1">Safety Flags</h2>
   {% for flag in payload.safety_callouts %}
   {{ safety_callout(
@@ -31,7 +104,7 @@
 {% endif %}
 
 {% for table in payload.tables %}
-<div style="margin-bottom:20pt;">
+<div class="avoid-break" style="margin-bottom:14pt;">
   <h2 class="section-h1">{{ table.title }}</h2>
   <table class="analytical-table">
     <thead>
@@ -51,5 +124,7 @@
 {% endfor %}
 
 {{ insight_callout(payload.strategic_insight) }}
+
+</div>
 
 {% endblock %}

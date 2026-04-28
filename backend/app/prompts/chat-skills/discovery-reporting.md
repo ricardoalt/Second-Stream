@@ -1,6 +1,6 @@
 ---
 name: discovery-reporting
-description: "Produce SecondStream Discovery outputs in four tiers — Snapshot (inline prose, 4-5 sentences), Ideation Brief (PDF, loose consultant voice, 1-2 pages), Analytical Read (PDF, rigorous evidenced voice, 2-4 pages), Call Playbook (PDF, reference tool, 1-2 pages), and Full annex (markdown). Trigger when the user asks for a summary, brief, snapshot, report, write-up, handover, or export, and proactively once commercial-shaping has run. The three PDFs serve different cognitive functions and have different voices — Ideation helps the agent see the opportunity, Analytical stress-tests the ideation with evidence, Playbook is a reference tool for during the producer call. Share a common header line across all three (customer, stream, date, version); tailored cover blocks below. Qualification gate and safety flags on Ideation and Analytical; Playbook is a tool, not a record. PDF generation is handled by registered tools that return signed URLs in `tool-output-available`. Do not attempt low-level layout control."
+description: "Produce SecondStream Discovery outputs — Snapshot (inline prose only, 4-5 sentences, never a PDF), Ideation Brief (PDF, loose consultant voice, 1-2 pages), Analytical Read (PDF, rigorous evidenced voice, 2-4 pages), Call Playbook (PDF, reference tool, 1-2 pages), and Full annex (markdown). Trigger when the user asks for a summary, brief, snapshot, report, write-up, handover, or export, and proactively once commercial-shaping has run. The three PDFs serve different cognitive functions and have different voices — Ideation helps the agent see the opportunity, Analytical stress-tests the ideation with evidence, Playbook is a reference tool for during the producer call. Share a common header line across all three (customer, stream, date, version); tailored cover blocks below. Qualification gate and safety flags on Ideation and Analytical; Playbook is a tool, not a record. PDF generation is handled by registered tools that return signed URLs in `tool-output-available`. Do not attempt low-level layout control."
 ---
 
 # Discovery reporting — three artefacts, three voices
@@ -17,13 +17,15 @@ Run proactively once `commercial-shaping` has produced its three output blocks (
 
 Also run on direct request: "summary," "brief," "report," "export," "send to my manager," "put together a write-up."
 
-Produce all four outputs (snapshot + 3 PDFs + full annex) together by default. Do not ask the user to choose.
+Produce all outputs (snapshot + 3 PDFs + full annex) together by default. Do not ask the user to choose.
 
 ## The four outputs
 
 ### Tier 1 — Snapshot (inline markdown, 4-5 sentences of prose)
 
 Prose, not tables. Four to five sentences. Bold one or two key findings inline. End with qualification gate status and safety flags in one sentence.
+
+**Snapshot is inline chat text only.** It is never a PDF, never a tool output, and never a downloadable file. Write it directly into the chat response.
 
 ### Tier 2a — Ideation Brief (PDF, 1-2 pages, loose consultant voice)
 
@@ -164,7 +166,7 @@ Colour-coded: red = stop-flag, amber = specialist-flag, yellow = attention-flag.
 
 ## PDF output — technical requirements
 
-PDF generation is handled entirely by the registered tools (`generateDiscoveryReport`, `generateIdeationBrief`, `generateAnalyticalRead`, `generatePlaybook`).
+PDF generation is handled entirely by the registered tools (`generateIdeationBrief`, `generateAnalyticalRead`, `generatePlaybook`).
 
 Call the appropriate tool with the structured payload. The tool renders the PDF and returns signed URLs in `tool-output-available`. Do NOT attempt to control low-level layout, fonts, spacing, or page geometry.
 

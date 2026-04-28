@@ -19,7 +19,7 @@ requires_weasyprint = pytest.mark.skipif(
 )
 
 from app.agents.analytical_read_schema import AnalyticalReadPayload, AnalyticalTable
-from app.agents.discovery_report_schema import SafetyFlag
+from app.agents.shared_schema import SafetyFlag
 from app.agents.ideation_brief_schema import IdeationBriefPayload, IdeationSection
 from app.agents.playbook_schema import PlaybookPayload, PlaybookTheme
 

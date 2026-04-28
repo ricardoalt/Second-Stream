@@ -49,10 +49,6 @@ def render_pdf(template_name: str, payload: BaseModel) -> BytesIO:
 # ── Document wrappers ─────────────────────────────────────────────────────── #
 
 
-def render_discovery_report(payload: BaseModel) -> BytesIO:
-    return render_pdf("discovery_executive.html.j2", payload)
-
-
 def render_ideation_brief(payload: BaseModel) -> BytesIO:
     return render_pdf("ideation_brief.html.j2", payload)
 

@@ -5,7 +5,6 @@ import {
 	BookOpen,
 	DownloadIcon,
 	ExternalLink,
-	FileText,
 	Lightbulb,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
@@ -16,11 +15,6 @@ type LucideIcon = ComponentType<
 >;
 
 export const PDF_DOC_CONFIGS = {
-	generateDiscoveryReport: {
-		label: "Executive Discovery Report",
-		shimmerText: "Generating discovery report...",
-		Icon: FileText as LucideIcon,
-	},
 	generateIdeationBrief: {
 		label: "Ideation Brief",
 		shimmerText: "Generating ideation brief...",

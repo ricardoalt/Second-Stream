@@ -1,22 +1,178 @@
 {% extends '_base.html.j2' %}
-{% from '_macros.html.j2' import cover_block, insight_callout, marker, marker_legend %}
+{% from '_macros.html.j2' import gate_callout, insight_callout, marker, marker_legend %}
 
 {% block title %}SecondStream Ideation Brief — {{ payload.customer | e }}{% endblock %}
 {% block footer_center %}Ideation Brief — Confidential{% endblock %}
 
+{% block head_extra %}
+<style>
+  /* ── Ideation Brief reportlab-inspired overrides ── */
+  .ideation-brief .ideation-cover {
+    margin-bottom: 22pt;
+    page-break-inside: avoid;
+  }
+
+  .ideation-brief .cover-topline {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 6pt;
+  }
+
+  .ideation-brief .cover-logo-cell {
+    width: 124pt;
+    padding: 0;
+    vertical-align: top;
+  }
+
+  .ideation-brief .cover-logo-cell img {
+    width: 112pt;
+    height: auto;
+  }
+
+  .ideation-brief .cover-heading-cell {
+    padding: 0;
+    vertical-align: top;
+  }
+
+  .ideation-brief .cover-header-line {
+    margin: 0 0 2pt 0;
+    font-size: 9pt;
+    font-weight: bold;
+    color: var(--ink);
+    line-height: 1.25;
+  }
+
+  .ideation-brief .cover-header-meta {
+    margin: 0;
+    font-size: 8pt;
+    color: var(--ink-muted);
+    line-height: 1.25;
+  }
+
+  .ideation-brief .cover-rule {
+    margin: 7pt 0 12pt 0;
+  }
+
+  .ideation-brief .cover-title {
+    margin: 0 0 3pt 0;
+    font-size: 22pt;
+    line-height: 1.16;
+    font-weight: bold;
+    color: var(--brand-primary);
+  }
+
+  .ideation-brief .cover-subtitle {
+    margin: 0 0 2pt 0;
+    font-size: 13pt;
+    line-height: 1.25;
+    font-style: italic;
+    font-weight: bold;
+    color: var(--ink-muted);
+  }
+
+  .ideation-brief .cover-handover-tag {
+    margin: 0 0 12pt 0;
+    font-size: 8pt;
+    color: var(--ink-soft);
+  }
+
+  .ideation-brief .callout-gate {
+    margin: 6pt 0;
+    padding: 6pt 9pt;
+    border: 0.75pt solid transparent;
+    border-left-width: 3pt;
+  }
+
+  .ideation-brief .callout-gate-amber {
+    border-color: var(--gate-amber);
+  }
+
+  .ideation-brief .callout-gate-open {
+    border-color: var(--gate-open);
+  }
+
+  .ideation-brief .callout-gate-closed {
+    border-color: var(--gate-closed);
+  }
+
+  .ideation-brief .section-block {
+    margin-bottom: 17pt;
+  }
+
+  .ideation-brief .section-h1 {
+    margin: 17pt 0 7pt 0;
+    padding-bottom: 0;
+    border-bottom: 0;
+    font-size: 14pt;
+    line-height: 1.25;
+    color: var(--brand-primary);
+  }
+
+  .ideation-brief .section-h1 .marker-insight,
+  .ideation-brief .section-h1 .marker-caution,
+  .ideation-brief .section-h1 .marker-gap {
+    font-size: 10pt;
+    margin-right: 3pt;
+  }
+
+  .ideation-brief .body-lead {
+    margin-bottom: 4pt;
+    font-size: 9.5pt;
+    line-height: 1.35;
+  }
+
+  .ideation-brief .body-text {
+    font-size: 9.5pt;
+    line-height: 1.45;
+    white-space: pre-line;
+  }
+
+  .ideation-brief .body-close {
+    margin-top: 3pt;
+    font-size: 9pt;
+    line-height: 1.4;
+  }
+
+  .ideation-brief .insight-callout {
+    margin: 24pt 0 18pt 0;
+    background: var(--paper-tint);
+  }
+
+  .ideation-brief .marker-legend {
+    margin-top: 10pt;
+  }
+</style>
+{% endblock %}
+
 {% block body %}
 
-{{ cover_block(
-    customer=payload.customer,
-    stream=payload.stream,
-    date=payload.date,
-    doc_type="Ideation Brief",
-    gate=payload.gate_status,
-    gate_blocker=payload.gate_blocker
-) }}
+<div class="ideation-brief">
+
+<div class="ideation-cover">
+  <table class="cover-topline">
+    <tr>
+      <td class="cover-logo-cell">
+        <img src="assets/secondstream_logo.svg" alt="SecondStream">
+      </td>
+      <td class="cover-heading-cell">
+        <p class="cover-header-line">{{ payload.customer }}</p>
+        <p class="cover-header-meta">Sites: {{ payload.stream }}&nbsp;&nbsp;|&nbsp;&nbsp;{{ payload.date }}</p>
+      </td>
+    </tr>
+  </table>
+  <hr class="cover-rule">
+  <h1 class="cover-title">Ideation Brief</h1>
+  <p class="cover-subtitle">A consultant's first read — help you see the opportunity</p>
+  <p class="cover-handover-tag">Discovery Ideation Brief · SecondStream Discovery Agent v3.1</p>
+
+  {{ gate_callout(
+      payload.gate_status,
+      payload.gate_blocker if payload.gate_blocker else "No qualification blockers identified."
+  ) }}
+</div>
 
 {% for section in payload.sections %}
-<div class="avoid-break" style="margin-bottom:18pt;">
+<div class="section-block avoid-break">
   <h2 class="section-h1">
     {%- if section.emphasis %}{{ marker(section.emphasis) }} {% endif -%}
     {{ loop.index }}. {{ section.title }}
@@ -32,5 +188,7 @@
 {% if payload.markers_used %}
 {{ marker_legend(payload.markers_used) }}
 {% endif %}
+
+</div>
 
 {% endblock %}

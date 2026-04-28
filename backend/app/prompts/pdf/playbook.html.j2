@@ -1,34 +1,195 @@
 {% extends '_base.html.j2' %}
-{% from '_macros.html.j2' import cover_block, theme_header, why_it_matters_box %}
+{% from '_macros.html.j2' import theme_header, why_it_matters_box %}
 
 {% block title %}SecondStream Discovery Playbook — {{ payload.customer | e }}{% endblock %}
 {% block footer_center %}Discovery Playbook — Internal use only{% endblock %}
 
+{% block head_extra %}
+<style>
+  /* ── Call Playbook reportlab-inspired overrides ── */
+  .call-playbook .playbook-cover {
+    margin-bottom: 16pt;
+    page-break-inside: avoid;
+  }
+
+  .call-playbook .cover-topline {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 6pt;
+  }
+
+  .call-playbook .cover-logo-cell {
+    width: 124pt;
+    padding: 0;
+    vertical-align: top;
+  }
+
+  .call-playbook .cover-logo-cell img {
+    width: 112pt;
+    height: auto;
+  }
+
+  .call-playbook .cover-heading-cell {
+    padding: 0;
+    vertical-align: top;
+  }
+
+  .call-playbook .cover-header-line {
+    margin: 0 0 2pt 0;
+    font-size: 9pt;
+    font-weight: bold;
+    color: var(--ink);
+    line-height: 1.25;
+  }
+
+  .call-playbook .cover-header-meta {
+    margin: 0;
+    font-size: 8pt;
+    color: var(--ink-muted);
+    line-height: 1.25;
+  }
+
+  .call-playbook .cover-rule {
+    margin: 7pt 0 12pt 0;
+  }
+
+  .call-playbook .cover-title {
+    margin: 0 0 4pt 0;
+    font-size: 22pt;
+    line-height: 1.16;
+    font-weight: bold;
+    color: var(--brand-primary);
+  }
+
+  .call-playbook .cover-subtitle {
+    margin: 0 0 2pt 0;
+    font-size: 13pt;
+    line-height: 1.25;
+    font-style: italic;
+    font-weight: bold;
+    color: var(--ink-muted);
+  }
+
+  .call-playbook .cover-handover-tag {
+    margin: 0;
+    font-size: 8pt;
+    color: var(--ink-soft);
+  }
+
+  .call-playbook .opening-note {
+    margin: 0 0 14pt 0;
+    font-size: 9.5pt;
+    line-height: 1.35;
+    font-weight: bold;
+    color: var(--ink);
+  }
+
+  .call-playbook .theme-block {
+    margin-bottom: 16pt;
+  }
+
+  .call-playbook .theme-header {
+    margin: 0 0 4pt 0;
+    padding: 5pt 10pt;
+    background: var(--brand-primary);
+  }
+
+  .call-playbook .theme-num {
+    width: 34pt;
+    font-size: 16pt;
+    line-height: 1;
+    color: #FFFFFF;
+  }
+
+  .call-playbook .theme-title {
+    font-size: 14pt;
+    line-height: 1.2;
+    color: #FFFFFF;
+  }
+
+  .call-playbook .theme-context {
+    margin: 0 0 6pt 0;
+    font-size: 8.5pt;
+    line-height: 1.35;
+    font-style: italic;
+    color: var(--ink-muted);
+  }
+
+  .call-playbook .probe-list {
+    margin: 0 0 7pt 0;
+    padding-left: 13pt;
+  }
+
+  .call-playbook .probe-list li {
+    margin-bottom: 3pt;
+    font-size: 9.5pt;
+    line-height: 1.35;
+    color: var(--ink);
+  }
+
+  .call-playbook .why-it-matters {
+    margin: 7pt 0 0 0;
+    padding: 7pt 10pt 7pt 12pt;
+    border: 0.75pt solid var(--brand-secondary);
+    border-left: 3pt solid var(--brand-secondary);
+    background: var(--paper-tint);
+  }
+
+  .call-playbook .why-it-matters .wim-label {
+    margin-bottom: 4pt;
+    font-size: 9.5pt;
+    color: var(--brand-primary);
+  }
+
+  .call-playbook .why-it-matters ul {
+    padding-left: 13pt;
+  }
+
+  .call-playbook .why-it-matters li {
+    margin-bottom: 2pt;
+    font-size: 9pt;
+    line-height: 1.35;
+  }
+</style>
+{% endblock %}
+
 {% block body %}
 
-{{ cover_block(
-    customer=payload.customer,
-    stream=payload.stream,
-    date=payload.date,
-    doc_type="Discovery Playbook"
-) }}
+<div class="call-playbook">
+
+<div class="playbook-cover">
+  <table class="cover-topline">
+    <tr>
+      <td class="cover-logo-cell">
+        <img src="assets/secondstream_logo.svg" alt="SecondStream">
+      </td>
+      <td class="cover-heading-cell">
+        <p class="cover-header-line">{{ payload.customer }}</p>
+        <p class="cover-header-meta">Sites: {{ payload.stream }}&nbsp;&nbsp;|&nbsp;&nbsp;{{ payload.date }}</p>
+      </td>
+    </tr>
+  </table>
+  <hr class="cover-rule">
+  <h1 class="cover-title">Call Playbook</h1>
+  <p class="cover-subtitle">Open during the producer call. Flip to any theme.</p>
+  <p class="cover-handover-tag">Discovery Call Playbook · SecondStream Discovery Agent v3.1</p>
+</div>
 
 {% if payload.opening_context %}
-<div class="avoid-break" style="margin-bottom:16pt;">
-  <p class="body-text">{{ payload.opening_context }}</p>
+<div class="avoid-break">
+  <p class="opening-note">{{ payload.opening_context }}</p>
 </div>
 {% endif %}
 
 {% for theme in payload.themes %}
-<div style="margin-bottom:16pt;">
+<div class="theme-block avoid-break">
   {{ theme_header(theme.number, theme.title) }}
-  <p class="body-text" style="margin-top:var(--space-sm);">{{ theme.body }}</p>
+  <p class="theme-context">{{ theme.body }}</p>
 
   {% if theme.probe_questions %}
-  <h3 class="section-h2">Probe questions</h3>
-  <ul>
+  <ul class="probe-list">
     {% for q in theme.probe_questions %}
-    <li class="body-text">{{ q }}</li>
+    <li>{{ q }}</li>
     {% endfor %}
   </ul>
   {% endif %}
@@ -38,5 +199,7 @@
   {% endif %}
 </div>
 {% endfor %}
+
+</div>
 
 {% endblock %}

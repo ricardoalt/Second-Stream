@@ -48,29 +48,6 @@ export type MyUIMessage = UIMessage<
 			input: { memory: WorkingMemory };
 			output: { success: boolean };
 		};
-		generateDiscoveryReport: {
-			input: {
-				customer: string;
-				stream: string;
-				snapshot: string;
-				gate_status: "OPEN" | "OPEN_CONDITIONAL" | "CLOSED";
-				gate_blocker: string | null;
-				safety_callouts: SafetyCallout[];
-				sections: Array<{
-					title: string;
-					lead: string;
-					body: string;
-					close: string | null;
-				}>;
-				killer_question: { question: string; why_it_matters: string };
-				follow_up_questions: Array<{
-					question: string;
-					why_it_matters: string;
-				}>;
-				strategic_insight: string;
-			};
-			output: PdfOutput;
-		};
 		generateIdeationBrief: {
 			input: {
 				customer: string;

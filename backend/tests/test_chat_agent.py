@@ -117,7 +117,7 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
         )
         yield FunctionToolResultEvent(
             result=ToolReturnPart(
-                tool_name="generateDiscoveryReport",
+                tool_name="generateIdeationBrief",
                 tool_call_id=tool_call_id,
                 content={"attachment_id": "att-1", "filename": "report.pdf"},
             )
@@ -180,7 +180,7 @@ async def test_stream_chat_response_maps_tool_output_error_events(monkeypatch):
         tool_call_id = "call-error"
         yield FunctionToolResultEvent(
             result=RetryPromptPart(
-                tool_name="generateDiscoveryReport",
+                tool_name="generateIdeationBrief",
                 tool_call_id=tool_call_id,
                 content="tool failed",
             )
@@ -262,7 +262,7 @@ async def test_stream_chat_response_suppresses_pdf_tool_input_delta_only(monkeyp
         _ = deps
         yield PartStartEvent(
             index=1,
-            part=ToolCallPart("generateDiscoveryReport", args={}, tool_call_id="pdf-call"),
+            part=ToolCallPart("generateIdeationBrief", args={}, tool_call_id="pdf-call"),
         )
         yield PartDeltaEvent(
             index=1,
@@ -297,7 +297,7 @@ async def test_stream_chat_response_suppresses_pdf_tool_input_delta_only(monkeyp
     ]
 
     assert events == [
-        {"event": "tool-input-start", "toolCallId": "pdf-call", "toolName": "generateDiscoveryReport"},
+        {"event": "tool-input-start", "toolCallId": "pdf-call", "toolName": "generateIdeationBrief"},
         {"event": "tool-input-start", "toolCallId": "web-call", "toolName": "webSearch"},
         {"event": "tool-input-delta", "toolCallId": "web-call", "inputTextDelta": '{"query":"waste"}'},
         {"event": "completed", "response_text": "done"},

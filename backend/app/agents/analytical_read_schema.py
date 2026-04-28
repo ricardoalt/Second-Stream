@@ -3,8 +3,8 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from app.agents.base_pdf_schema import BasePdfPayload
-from app.agents.discovery_report_schema import PdfAttachmentOutput as PDFOutput  # noqa: F401
-from app.agents.discovery_report_schema import SafetyFlag
+from app.agents.shared_schema import PdfAttachmentOutput as PDFOutput  # noqa: F401
+from app.agents.shared_schema import SafetyFlag
 
 
 class AnalyticalTable(BaseModel):

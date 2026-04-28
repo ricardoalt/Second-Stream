@@ -73,11 +73,10 @@ function renderPdfToolPart(
 	part: Extract<
 		MyUIMessage["parts"][number],
 		{
-			type:
-				| "tool-generateDiscoveryReport"
-				| "tool-generateIdeationBrief"
-				| "tool-generateAnalyticalRead"
-				| "tool-generatePlaybook";
+				type:
+					| "tool-generateIdeationBrief"
+					| "tool-generateAnalyticalRead"
+					| "tool-generatePlaybook";
 		}
 	>,
 ) {
@@ -173,7 +172,6 @@ function MessagePartsRendererInner({
 									{part.text}
 								</MessageResponse>
 							);
-						case "tool-generateDiscoveryReport":
 						case "tool-generateIdeationBrief":
 						case "tool-generateAnalyticalRead":
 						case "tool-generatePlaybook":
