@@ -39,7 +39,12 @@ type PdfDocCardProps = {
 	label: string;
 	shimmerText: string;
 	state: string;
-	output?: { filename: string; download_url: string; view_url: string; size_bytes: number };
+	output?: {
+		filename: string;
+		download_url: string;
+		view_url: string;
+		size_bytes: number;
+	};
 };
 
 export function PdfDocumentCard({
@@ -51,9 +56,9 @@ export function PdfDocumentCard({
 }: PdfDocCardProps) {
 	if (state === "output-error") {
 		return (
-			<span className="text-destructive text-xs" role="status">
+			<output className="text-destructive text-xs">
 				Could not generate {label.toLowerCase()}. Please retry.
-			</span>
+			</output>
 		);
 	}
 
@@ -70,7 +75,10 @@ export function PdfDocumentCard({
 					<Icon aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
 					<div className="min-w-0 flex-1">
 						<p className="text-xs font-semibold">{label}</p>
-						<p className="truncate text-muted-foreground text-xs" title={filename}>
+						<p
+							className="truncate text-muted-foreground text-xs"
+							title={filename}
+						>
 							{filename} · {sizeLabel}
 						</p>
 					</div>

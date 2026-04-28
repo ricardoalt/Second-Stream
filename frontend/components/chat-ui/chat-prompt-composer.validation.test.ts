@@ -64,7 +64,9 @@ describe("getAttachmentValidationMessage", () => {
 		const setSubmittingRefIndex = source.indexOf(
 			"isSubmittingMessageRef.current = true;",
 		);
-		const setSubmittingStateIndex = source.indexOf("setIsSubmittingMessage(true);");
+		const setSubmittingStateIndex = source.indexOf(
+			"setIsSubmittingMessage(true);",
+		);
 		const uploadIndex = source.indexOf(
 			"const attachmentIds = await uploadAttachmentsFromPromptMessage(message);",
 		);
@@ -90,6 +92,8 @@ describe("getAttachmentValidationMessage", () => {
 		expect(source).toContain("disabled={busy}");
 		expect(source).toContain("disabled={");
 		expect(source).toContain("(!canStop && busy)");
-		expect(source).toContain("const canStop = isStreamingOrSubmitted && Boolean(onStop);");
+		expect(source).toContain(
+			"const canStop = isStreamingOrSubmitted && Boolean(onStop);",
+		);
 	});
 });

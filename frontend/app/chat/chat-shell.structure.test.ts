@@ -12,7 +12,9 @@ describe("chat-shell new chat reset", () => {
 	it("usa chatInstanceKey para forzar remount en New Chat", () => {
 		const source = read("app/chat/chat-shell.tsx");
 
-		expect(source).toContain("const [chatInstanceKey, setChatInstanceKey] = useState(0)");
+		expect(source).toContain(
+			"const [chatInstanceKey, setChatInstanceKey] = useState(0)",
+		);
 		expect(source).toContain(
 			"setChatInstanceKey((currentKey) => currentKey + 1)",
 		);

@@ -31,11 +31,11 @@ describe("pdf artifact UI", () => {
 
 		expect(source).toContain("View");
 		expect(source).toContain("Download");
-		expect(source).toContain("target=\"_blank\"");
-		expect(source).toContain("rel=\"noreferrer\"");
-		expect(source).toContain("aria-label={`View ${filename} in a new tab`}");
-		expect(source).toContain("aria-label={`Download ${filename}`}");
-		expect(source).toContain("title={`View ${filename}`}");
-		expect(source).toContain("title={`Download ${filename}`}");
+		expect(source).toContain('target="_blank"');
+		expect(source).toContain('rel="noreferrer"');
+		expect(source).toContain(`aria-label={\`View \${filename} in a new tab\`}`);
+		expect(source).toContain(`aria-label={\`Download \${filename}\`}`);
+		expect(source).toContain(`title={\`View \${filename}\`}`);
+		expect(source).toContain(`title={\`Download \${filename}\`}`);
 	});
 });
