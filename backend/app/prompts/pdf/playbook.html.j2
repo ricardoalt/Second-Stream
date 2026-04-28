@@ -127,6 +127,14 @@
     color: var(--ink);
   }
 
+  .call-playbook .killer-question-box {
+    margin-top: 7pt;
+  }
+
+  .call-playbook .killer-question-box + .killer-question-box {
+    margin-top: 5pt;
+  }
+
   .call-playbook .why-it-matters {
     margin: 7pt 0 0 0;
     padding: 7pt 10pt 7pt 12pt;
@@ -175,10 +183,14 @@
   <p class="cover-handover-tag">Discovery Call Playbook · SecondStream Discovery Agent v3.1</p>
 </div>
 
-{% if payload.opening_context %}
+{% if payload.orientation_note %}
 <div class="avoid-break">
-  <p class="opening-note">{{ payload.opening_context }}</p>
+  <p class="opening-note">{{ payload.orientation_note }}</p>
 </div>
+{% endif %}
+
+{% if payload.opening_context %}
+<p class="theme-context">{{ payload.opening_context }}</p>
 {% endif %}
 
 {% for theme in payload.themes %}
@@ -196,6 +208,15 @@
 
   {% if theme.why_it_matters %}
   {{ why_it_matters_box(theme.why_it_matters) }}
+  {% endif %}
+
+  {% if theme.number == 11 and theme.probe_questions %}
+    {% for question in theme.probe_questions %}
+    <div class="killer-question-box">
+      <p class="kq-label">Smart question</p>
+      <p class="kq-text">{{ question }}</p>
+    </div>
+    {% endfor %}
   {% endif %}
 </div>
 {% endfor %}

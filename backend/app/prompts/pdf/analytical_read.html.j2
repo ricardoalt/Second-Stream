@@ -1,5 +1,5 @@
 {% extends '_base.html.j2' %}
-{% from '_macros.html.j2' import cover_block, safety_callout, insight_callout %}
+{% from '_macros.html.j2' import cover_block, gate_callout, safety_callout, insight_callout %}
 
 {% block title %}SecondStream Analytical Read — {{ payload.customer | e }}{% endblock %}
 {% block footer_center %}Confidential — Internal Use Only{% endblock %}
@@ -72,6 +72,50 @@
     margin: 4pt 0;
     padding: 5pt 8pt;
   }
+
+  .analytical-read .section-lead {
+    margin: 0 0 6pt 0;
+    font-size: 9.5pt;
+    font-weight: bold;
+    color: var(--ink);
+  }
+
+  .analytical-read .evidence-item,
+  .analytical-read .gap-item,
+  .analytical-read .narrative-item {
+    margin: 0 0 6pt 0;
+    font-size: 9pt;
+    line-height: 1.4;
+    color: var(--ink);
+  }
+
+  .analytical-read .evidence-tag,
+  .analytical-read .gap-label {
+    font-weight: bold;
+    color: var(--brand-primary);
+  }
+
+  .analytical-read .confidence {
+    font-weight: bold;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+
+  .analytical-read .gap-group-title {
+    margin: 7pt 0 3pt 0;
+    font-size: 9pt;
+    font-weight: bold;
+    color: var(--brand-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .analytical-read .narrative-bullets {
+    margin: 2pt 0 0 0;
+    padding-left: 13pt;
+    font-size: 8.5pt;
+    color: var(--ink-muted);
+  }
 </style>
 {% endblock %}
 
@@ -83,13 +127,14 @@
     customer=payload.customer,
     stream=payload.stream,
     date=payload.date,
-    doc_type="Analytical Read"
+    doc_type="Analytical Read",
+    gate=payload.gate_status,
+    gate_blocker=(payload.gate_blockers | join('; ') if payload.gate_blockers else none)
 ) }}
 
-<div class="avoid-break" style="margin-bottom:12pt;">
-  <h2 class="section-h1">Executive Summary</h2>
-  <p class="body-text">{{ payload.executive_summary }}</p>
-</div>
+{% if payload.gate_status %}
+{{ gate_callout(payload.gate_status, payload.gate_blockers | join(' ') if payload.gate_blockers else payload.executive_summary) }}
+{% endif %}
 
 {% if payload.safety_callouts %}
 <div style="margin-bottom:14pt;">
@@ -102,6 +147,11 @@
   {% endfor %}
 </div>
 {% endif %}
+
+<div class="avoid-break" style="margin-bottom:12pt;">
+  <h2 class="section-h1">Executive Summary</h2>
+  <p class="body-text">{{ payload.executive_summary }}</p>
+</div>
 
 {% for table in payload.tables %}
 <div class="avoid-break" style="margin-bottom:14pt;">
@@ -121,7 +171,42 @@
     </tbody>
   </table>
 </div>
+{% if loop.index == 1 and payload.evidence_tags %}
+<div class="avoid-break" style="margin-bottom:14pt;">
+  {% for ev in payload.evidence_tags %}
+  <p class="evidence-item"><span class="evidence-tag">[{{ ev.tag }}] {{ ev.title }}:</span> {{ ev.description }}{% if ev.confidence %} <span class="confidence">Confidence: {{ ev.confidence }}</span>{% endif %}</p>
+  {% endfor %}
+</div>
+{% endif %}
 {% endfor %}
+
+{% if not payload.tables and payload.evidence_tags %}
+<div class="avoid-break" style="margin-bottom:14pt;">
+  {% for ev in payload.evidence_tags %}
+  <p class="evidence-item"><span class="evidence-tag">[{{ ev.tag }}] {{ ev.title }}:</span> {{ ev.description }}{% if ev.confidence %} <span class="confidence">Confidence: {{ ev.confidence }}</span>{% endif %}</p>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% for section in payload.narrative_sections %}
+<div class="avoid-break" style="margin-bottom:14pt;">
+  <h2 class="section-h1">{{ section.title }}</h2>
+  {% if section.body %}<p class="narrative-item">{{ section.body }}</p>{% endif %}
+  {% if section.bullets %}
+  <ul class="narrative-bullets">{% for item in section.bullets %}<li>{{ item }}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if payload.gap_sections %}
+<div class="avoid-break" style="margin-bottom:14pt;">
+  <h2 class="section-h1">Required gaps and regulatory flags for Assessment</h2>
+  {% for section in payload.gap_sections %}
+  <p class="gap-group-title">{{ section.title }}</p>
+  {% for gap in section.items %}<p class="gap-item"><span class="gap-label">{{ gap.label }}:</span> {{ gap.detail }}</p>{% endfor %}
+  {% endfor %}
+</div>
+{% endif %}
 
 {{ insight_callout(payload.strategic_insight) }}
 

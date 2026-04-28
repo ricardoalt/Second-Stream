@@ -5,7 +5,10 @@ Tests are skipped when those are not present (dev machine without brew deps).
 Run these in Docker via `make test-file FILE=tests/services/test_pdf_renderers.py`.
 """
 
+from pathlib import Path
+
 import pytest
+from jinja2 import Environment, FileSystemLoader
 
 weasyprint_available = True
 try:
@@ -18,10 +21,19 @@ requires_weasyprint = pytest.mark.skipif(
     reason="WeasyPrint system libraries (libgobject, Cairo, Pango) not installed",
 )
 
-from app.agents.analytical_read_schema import AnalyticalReadPayload, AnalyticalTable
-from app.agents.shared_schema import SafetyFlag
+from app.agents.analytical_read_schema import (
+    AnalyticalSection,
+    AnalyticalReadPayload,
+    AnalyticalTable,
+    EvidenceTag,
+    GapItem,
+    GapSection,
+)
 from app.agents.ideation_brief_schema import IdeationBriefPayload, IdeationSection
 from app.agents.playbook_schema import PlaybookPayload, PlaybookTheme
+from app.agents.shared_schema import SafetyFlag
+
+PDF_TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "app" / "prompts" / "pdf"
 
 # ── Payload factories ──────────────────────────────────────────────────── #
 
@@ -59,6 +71,8 @@ def _analytical_payload(**overrides) -> AnalyticalReadPayload:
         "customer": "Chevron",
         "stream": "Spent Caustic — Gulf Coast",
         "date": "2026-04-25",
+        "gate_status": "CONDITIONALLY OPEN",
+        "gate_blockers": ["Per-site volume split not stated", "Phenol result pending"],
         "executive_summary": "Three streams with distinct H2S profiles across two facilities.",
         "safety_callouts": [
             SafetyFlag(
@@ -70,14 +84,56 @@ def _analytical_payload(**overrides) -> AnalyticalReadPayload:
         ],
         "tables": [
             AnalyticalTable(
-                title="Stream Comparison",
-                headers=["Stream", "pH", "H2S (ppm)", "Volume (gal/mo)"],
-                rows=[
-                    ["Caustic A", "12.1", "80", "45,000"],
-                    ["Caustic B", "11.8", "30", "22,000"],
-                    ["Caustic C", "13.0", "5", "10,000"],
-                ],
+                title="1. Per-site chemistry read",
+                headers=["Parameter", "Baytown", "Beaumont", "Corpus Christi"],
+                rows=[["pH", "13.13", "13.7", "13.9"], ["Sulfide as S", "0.74", "0.13", "3.35"]],
+            ),
+            AnalyticalTable(
+                title="2. Treatment fit by site",
+                headers=["Route", "Baytown", "Beaumont", "Corpus Christi"],
+                rows=[["Industrial alkaline reuse", "Strong fit", "Unlikely", "Strong fit*"]],
+            ),
+            AnalyticalTable(
+                title="3. Buyer archetype matrix",
+                headers=["Buyer archetype", "Baytown", "Beaumont", "Key requirements"],
+                rows=[["Industrial alkaline user", "Fit", "Borderline", "Na >3%, Cl <100 mg/kg"]],
+            ),
+            AnalyticalTable(
+                title="5. Sizing",
+                headers=["Input", "Value", "Confidence", "Source"],
+                rows=[["Mass rate", "~3,400 MT/month (~40,800 MT/yr)", "MEDIUM", "Calculated"]],
+            ),
+        ],
+        "evidence_tags": [
+            EvidenceTag(
+                tag="EV-01",
+                title="Baytown COA",
+                description="Most recent and granular COA.",
+                confidence="HIGH",
             )
+        ],
+        "narrative_sections": [
+            AnalyticalSection(
+                title="4. Phased commercial scenarios",
+                body="Phase 1 — Portfolio disposal + partial reuse qualification.",
+                bullets=["Portfolio control improves pricing leverage."],
+            )
+        ],
+        "gap_sections": [
+            GapSection(
+                title="Required",
+                items=[
+                    GapItem(label="Per-site volume split", detail="Blocks routing and commercial scenario selection.")
+                ],
+            ),
+            GapSection(
+                title="Nice to have",
+                items=[GapItem(label="Fresh COA", detail="Improves routing confidence.")],
+            ),
+            GapSection(
+                title="Regulatory flags",
+                items=[GapItem(label="RCRA corrosivity", detail="Assessment must determine waste status.")],
+            ),
         ],
         "strategic_insight": "Caustic C is gate-ready. A and B need pre-treatment first.",
     }
@@ -91,13 +147,14 @@ def _playbook_payload(**overrides) -> PlaybookPayload:
         "stream": "Refinery Waste",
         "date": "2026-04-25",
         "opening_context": "Greenfield opportunity — first meeting. Focus on volume validation.",
+        "orientation_note": "The killer questions are in Theme 11. The questions you need to ask first are in Theme 1.",
         "themes": [
             PlaybookTheme(
                 number=1,
                 title="Volume & Continuity",
                 body="Understand the generation rate and how stable it is across quarters.",
                 probe_questions=[
-                    "What is the monthly volume today?",
+                    "How is the monthly volume distributed across sites? — Ballpark is fine.",
                     "Has the rate been consistent over the past 12 months?",
                 ],
                 why_it_matters=[
@@ -106,16 +163,20 @@ def _playbook_payload(**overrides) -> PlaybookPayload:
                 ],
             ),
             PlaybookTheme(
-                number=2,
-                title="Regulatory Posture",
-                body="Understand disposal constraints driving urgency.",
-                probe_questions=["Are you under any consent orders or NOVs?"],
-                why_it_matters=["Urgency unlocks faster deal cycles."],
+                number=11,
+                title="Smart Questions — The High-Impact Set",
+                body="The five questions that will most change your understanding of this deal.",
+                probe_questions=["Can you give me a rough volume split across the sites?"],
             ),
         ],
     }
     defaults.update(overrides)
     return PlaybookPayload(**defaults)
+
+
+def _render_html(template_name: str, payload: object) -> str:
+    env = Environment(loader=FileSystemLoader(PDF_TEMPLATE_DIR), autoescape=True)
+    return env.get_template(template_name).render(payload=payload)
 
 
 # ── Tests ──────────────────────────────────────────────────────────────── #
@@ -159,6 +220,18 @@ def test_analytical_read_no_safety_callouts():
     assert len(buf.read()) > 1024
 
 
+def test_analytical_read_template_renders_structured_sections():
+    html = _render_html("analytical_read.html.j2", _analytical_payload())
+
+    assert "QUALIFICATION GATE" in html
+    assert "Per-site chemistry read" in html
+    assert "[EV-01]" in html
+    assert "Treatment fit by site" in html
+    assert "Buyer archetype matrix" in html
+    assert "~3,400 MT/month" in html
+    assert "Required gaps and regulatory flags" in html
+
+
 @requires_weasyprint
 def test_playbook_renders_pdf():
     from app.services.pdf_renderer import render_playbook
@@ -176,3 +249,13 @@ def test_playbook_single_theme():
     payload = _playbook_payload(themes=[PlaybookTheme(number=1, title="Test", body="Body.")])
     buf = render_playbook(payload)
     assert len(buf.read()) > 1024
+
+
+def test_playbook_template_renders_orientation_followups_and_killer_questions():
+    html = _render_html("playbook.html.j2", _playbook_payload())
+
+    assert "The killer questions are in Theme 11" in html
+    assert "Ballpark is fine." in html
+    assert "Smart Questions — The High-Impact Set" in html
+    assert "killer-question-box" in html
+    assert "Can you give me a rough volume split" in html
