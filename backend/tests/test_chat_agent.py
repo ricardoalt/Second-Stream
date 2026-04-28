@@ -440,11 +440,13 @@ async def test_upload_pdf_renders_in_thread_offload(monkeypatch):
     assert captured["fn"] is _renderer
     assert captured["payload"] is payload
     assert result.size_bytes == len(b"%PDF-1.7")
-    assert result.download_url == result.view_url
+    assert result.download_url is None
+    assert result.view_url is None
 
 
 @pytest.mark.asyncio
-async def test_upload_pdf_uses_signed_urls_from_persist_attachment(monkeypatch):
+async def test_upload_pdf_returns_attachment_id_and_none_urls(monkeypatch):
+    """Presigned URLs must not be exposed; attachment_id is the canonical handle."""
     async def _fake_to_thread(fn, payload):
         return BytesIO(b"%PDF-1.7")
 
@@ -481,5 +483,6 @@ async def test_upload_pdf_uses_signed_urls_from_persist_attachment(monkeypatch):
     )
 
     assert result.attachment_id == "att-ref-1"
-    assert result.download_url == "https://example.com/download"
-    assert result.view_url == "https://example.com/view"
+    assert result.download_url is None
+    assert result.view_url is None
+    assert result.expires_at is None

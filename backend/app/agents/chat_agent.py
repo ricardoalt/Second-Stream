@@ -5,7 +5,7 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import date
 from io import BytesIO
 from typing import Any
 from uuid import uuid4
@@ -32,9 +32,9 @@ from pydantic_ai.run import AgentRunResultEvent
 from pydantic_ai.settings import ModelSettings
 
 from app.agents.analytical_read_schema import AnalyticalReadPayload
-from app.agents.shared_schema import PdfAttachmentOutput
 from app.agents.ideation_brief_schema import IdeationBriefPayload
 from app.agents.playbook_schema import PlaybookPayload
+from app.agents.shared_schema import PdfAttachmentOutput
 from app.core.config import settings
 from app.schemas.common import BaseSchema
 from app.services.chat_stream_protocol import ChatAgentAttachmentInput
@@ -80,7 +80,10 @@ async def _upload_pdf(
     renderer: Callable[[Any], BytesIO],
     filename_suffix: str,
 ) -> PdfAttachmentOutput:
-    """Render a PDF, upload to S3, persist attachment record, return signed URL.
+    """Render a PDF, upload to S3, persist attachment record, return attachment_id.
+
+    Presigned URLs are intentionally not exposed; the frontend resolves downloads
+    via the persistent backend attachment endpoint using attachment_id.
 
     payload must expose .customer and .stream for filename construction.
     renderer is a callable that accepts the payload and returns a BytesIO PDF.
@@ -103,11 +106,11 @@ async def _upload_pdf(
     if ctx.deps.upload_bytes is not None:
         await ctx.deps.upload_bytes(storage_key, pdf_bytes, "application/pdf")
 
-    download_url = storage_key
-    expires_at = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+    download_url = None
+    expires_at = None
     attachment_id = str(uuid4())
 
-    view_url = download_url
+    view_url = None
 
     if ctx.deps.persist_attachment is not None:
         ref = await ctx.deps.persist_attachment(
@@ -117,10 +120,7 @@ async def _upload_pdf(
             size_bytes=size_bytes,
         )
         attachment_id = str(ref.id)
-        download_url = getattr(ref, "signed_url", storage_key)
-        view_url = getattr(ref, "view_url", download_url)
-        if hasattr(ref, "signed_url_expires_at") and ref.signed_url_expires_at:
-            expires_at = ref.signed_url_expires_at.isoformat()
+        # Presigned URLs are intentionally not exposed; frontend resolves via attachment_id
 
     logger.info("pdf_uploaded", filename=filename, size_bytes=size_bytes)
     return PdfAttachmentOutput(
@@ -169,7 +169,7 @@ def _register_tools(agent: Agent) -> None:
         ctx: RunContext[ChatAgentDeps],
         payload: IdeationBriefPayload,
     ) -> PdfAttachmentOutput:
-        """Generate a SecondStream Ideation Brief PDF and return a signed download URL."""
+        """Generate a SecondStream Ideation Brief PDF and return an attachment handle."""
         from app.services.pdf_renderer import render_ideation_brief
 
         return await _upload_pdf(ctx, payload=payload, renderer=render_ideation_brief, filename_suffix="ideation-brief")
@@ -179,7 +179,7 @@ def _register_tools(agent: Agent) -> None:
         ctx: RunContext[ChatAgentDeps],
         payload: AnalyticalReadPayload,
     ) -> PdfAttachmentOutput:
-        """Generate a SecondStream Analytical Read PDF and return a signed download URL."""
+        """Generate a SecondStream Analytical Read PDF and return an attachment handle."""
         from app.services.pdf_renderer import render_analytical_read
 
         return await _upload_pdf(ctx, payload=payload, renderer=render_analytical_read, filename_suffix="analytical-read")
@@ -189,7 +189,7 @@ def _register_tools(agent: Agent) -> None:
         ctx: RunContext[ChatAgentDeps],
         payload: PlaybookPayload,
     ) -> PdfAttachmentOutput:
-        """Generate a SecondStream Discovery Playbook PDF and return a signed download URL."""
+        """Generate a SecondStream Discovery Playbook PDF and return an attachment handle."""
         from app.services.pdf_renderer import render_playbook
 
         return await _upload_pdf(ctx, payload=payload, renderer=render_playbook, filename_suffix="playbook")

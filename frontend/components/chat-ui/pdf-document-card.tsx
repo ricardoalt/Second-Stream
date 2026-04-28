@@ -6,9 +6,12 @@ import {
 	DownloadIcon,
 	ExternalLink,
 	Lightbulb,
+	Loader2Icon,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
+import { useCallback, useState } from "react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
+import { downloadChatAttachment } from "@/lib/api/chat";
 
 type LucideIcon = ComponentType<
 	SVGProps<SVGSVGElement> & { size?: number | string }
@@ -40,12 +43,23 @@ type PdfDocCardProps = {
 	shimmerText: string;
 	state: string;
 	output?: {
+		attachment_id?: string;
 		filename: string;
-		download_url: string;
-		view_url: string;
+		download_url: string | null;
+		view_url: string | null;
 		size_bytes: number;
 	};
 };
+
+function triggerDownload(url: string, filename: string): void {
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = filename;
+	link.rel = "noreferrer";
+	document.body.append(link);
+	link.click();
+	link.remove();
+}
 
 export function PdfDocumentCard({
 	Icon,
@@ -54,6 +68,77 @@ export function PdfDocumentCard({
 	state,
 	output,
 }: PdfDocCardProps) {
+	const [activeAction, setActiveAction] = useState<"view" | "download" | null>(
+		null,
+	);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+	const handleView = useCallback(async () => {
+		if (!output) return;
+		setActiveAction("view");
+		setErrorMessage(null);
+		const pendingWindow = output.attachment_id
+			? window.open("", "_blank")
+			: null;
+		try {
+			if (output.attachment_id) {
+				const blob = await downloadChatAttachment(output.attachment_id);
+				const url = URL.createObjectURL(blob);
+				if (pendingWindow) {
+					pendingWindow.location.href = url;
+					pendingWindow.opener = null;
+				} else {
+					const openedWindow = window.open(
+						url,
+						"_blank",
+						"noopener,noreferrer",
+					);
+					if (!openedWindow) {
+						triggerDownload(url, output.filename);
+					}
+				}
+				setTimeout(() => URL.revokeObjectURL(url), 60_000);
+				return;
+			}
+
+			const fallbackUrl = output.view_url || output.download_url;
+			if (fallbackUrl) {
+				window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+			}
+		} catch {
+			if (pendingWindow && !pendingWindow.closed) {
+				pendingWindow.close();
+			}
+			setErrorMessage("We couldn't open this file. Please try again.");
+		} finally {
+			setActiveAction(null);
+		}
+	}, [output]);
+
+	const handleDownload = useCallback(async () => {
+		if (!output) return;
+		setActiveAction("download");
+		setErrorMessage(null);
+		try {
+			if (output.attachment_id) {
+				const blob = await downloadChatAttachment(output.attachment_id);
+				const url = URL.createObjectURL(blob);
+				triggerDownload(url, output.filename);
+				setTimeout(() => URL.revokeObjectURL(url), 0);
+				return;
+			}
+
+			const fallbackUrl = output.download_url || output.view_url;
+			if (fallbackUrl) {
+				triggerDownload(fallbackUrl, output.filename);
+			}
+		} catch {
+			setErrorMessage("We couldn't download this file. Please try again.");
+		} finally {
+			setActiveAction(null);
+		}
+	}, [output]);
+
 	if (state === "output-error") {
 		return (
 			<output className="text-destructive text-xs">
@@ -63,8 +148,7 @@ export function PdfDocumentCard({
 	}
 
 	if (state === "output-available" && output) {
-		const { filename, download_url, view_url, size_bytes } = output;
-		const viewUrl = view_url || download_url;
+		const { filename, size_bytes } = output;
 		const sizeLabel =
 			size_bytes >= 1_048_576
 				? `${(size_bytes / 1_048_576).toFixed(1)} MB`
@@ -84,28 +168,46 @@ export function PdfDocumentCard({
 					</div>
 				</div>
 				<div className="mt-3 flex flex-wrap items-center gap-2">
-					<a
+					<button
+						type="button"
 						aria-label={`View ${filename} in a new tab`}
-						className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-						href={viewUrl}
-						rel="noreferrer"
-						target="_blank"
+						className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60"
+						onClick={() => {
+							void handleView();
+						}}
+						disabled={activeAction !== null}
 						title={`View ${filename}`}
 					>
-						<ExternalLink aria-hidden className="size-3.5" />
+						{activeAction === "view" ? (
+							<Loader2Icon aria-hidden className="size-3.5 animate-spin" />
+						) : (
+							<ExternalLink aria-hidden className="size-3.5" />
+						)}
 						View
-					</a>
-					<a
+					</button>
+					<button
+						type="button"
 						aria-label={`Download ${filename}`}
-						className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-						download={filename}
-						href={download_url}
+						className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60"
+						onClick={() => {
+							void handleDownload();
+						}}
+						disabled={activeAction !== null}
 						title={`Download ${filename}`}
 					>
-						<DownloadIcon aria-hidden className="size-3.5" />
+						{activeAction === "download" ? (
+							<Loader2Icon aria-hidden className="size-3.5 animate-spin" />
+						) : (
+							<DownloadIcon aria-hidden className="size-3.5" />
+						)}
 						Download
-					</a>
+					</button>
 				</div>
+				{errorMessage ? (
+					<p className="mt-2 text-destructive text-xs" role="alert">
+						{errorMessage}
+					</p>
+				) : null}
 			</div>
 		);
 	}

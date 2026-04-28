@@ -15,7 +15,7 @@ class SafetyFlag(BaseModel):
 class PdfAttachmentOutput(BaseModel):
     attachment_id: str
     filename: str
-    download_url: str
-    view_url: str
-    expires_at: str  # ISO 8601
+    download_url: str | None = None
+    view_url: str | None = None
+    expires_at: str | None = None  # ISO 8601; None when resolved via persistent endpoint
     size_bytes: int

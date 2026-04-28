@@ -792,8 +792,6 @@ async def stream_chat_turn(
         content_type: str,
         size_bytes: int,
     ):
-        from app.services.s3_service import get_presigned_url_with_headers
-
         async with session_factory() as db:
             att = ChatAttachment(
                 organization_id=organization_id,
@@ -808,19 +806,6 @@ async def stream_chat_turn(
             await db.commit()
             await db.refresh(att)
 
-        att.signed_url = await get_presigned_url_with_headers(
-            storage_key,
-            disposition="attachment",
-            download_name=filename,
-            content_type=content_type,
-        )
-        att.view_url = await get_presigned_url_with_headers(
-            storage_key,
-            disposition="inline",
-            download_name=filename,
-            content_type=content_type,
-        )
-        att.signed_url_expires_at = None
         return att
 
     async def _upload_bytes(storage_key: str, data: object, content_type: str) -> str:

@@ -7,9 +7,9 @@ export const DATA_CONVERSATION_TITLE_PART = "data-conversation-title" as const;
 type PdfOutput = {
 	attachment_id: string;
 	filename: string;
-	download_url: string;
-	view_url: string;
-	expires_at: string;
+	download_url: string | null;
+	view_url: string | null;
+	expires_at: string | null;
 	size_bytes: number;
 };
 
