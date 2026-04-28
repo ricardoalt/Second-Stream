@@ -440,3 +440,46 @@ async def test_upload_pdf_renders_in_thread_offload(monkeypatch):
     assert captured["fn"] is _renderer
     assert captured["payload"] is payload
     assert result.size_bytes == len(b"%PDF-1.7")
+    assert result.download_url == result.view_url
+
+
+@pytest.mark.asyncio
+async def test_upload_pdf_uses_signed_urls_from_persist_attachment(monkeypatch):
+    async def _fake_to_thread(fn, payload):
+        return BytesIO(b"%PDF-1.7")
+
+    monkeypatch.setattr(chat_agent_module.asyncio, "to_thread", _fake_to_thread)
+
+    class FakeRef:
+        id = "att-ref-1"
+        signed_url = "https://example.com/download"
+        view_url = "https://example.com/view"
+        signed_url_expires_at = None
+
+    async def _persist(*, storage_key, filename, content_type, size_bytes):
+        return FakeRef()
+
+    async def _upload_bytes(storage_key, data, content_type):
+        return "ok"
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+        upload_bytes=_upload_bytes,
+        persist_attachment=_persist,
+    )
+    payload = SimpleNamespace(customer="Acme", stream="Caustic")
+    ctx = SimpleNamespace(deps=deps)
+
+    result = await chat_agent_module._upload_pdf(
+        ctx,
+        payload=payload,
+        renderer=lambda p: BytesIO(b"%PDF-1.7"),
+        filename_suffix="discovery-exec",
+    )
+
+    assert result.attachment_id == "att-ref-1"
+    assert result.download_url == "https://example.com/download"
+    assert result.view_url == "https://example.com/view"

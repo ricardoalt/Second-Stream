@@ -1,6 +1,6 @@
 ---
 name: discovery-reporting
-description: "Produce SecondStream Discovery outputs in four tiers — Snapshot (inline prose, 4-5 sentences), Ideation Brief (PDF, loose consultant voice, 1-2 pages), Analytical Read (PDF, rigorous evidenced voice, 2-4 pages), Call Playbook (PDF, reference tool, 1-2 pages), and Full annex (markdown). Trigger when the user asks for a summary, brief, snapshot, report, write-up, handover, or export, and proactively once commercial-shaping has run. The three PDFs serve different cognitive functions and have different voices — Ideation helps the agent see the opportunity, Analytical stress-tests the ideation with evidence, Playbook is a reference tool for during the producer call. Share a common header line across all three (customer, stream, date, version); tailored cover blocks below. Qualification gate and safety flags on Ideation and Analytical; Playbook is a tool, not a record. Produce the three PDFs with reportlab; use sub and super XML tags for chemical formulae — never Unicode subscripts."
+description: "Produce SecondStream Discovery outputs in four tiers — Snapshot (inline prose, 4-5 sentences), Ideation Brief (PDF, loose consultant voice, 1-2 pages), Analytical Read (PDF, rigorous evidenced voice, 2-4 pages), Call Playbook (PDF, reference tool, 1-2 pages), and Full annex (markdown). Trigger when the user asks for a summary, brief, snapshot, report, write-up, handover, or export, and proactively once commercial-shaping has run. The three PDFs serve different cognitive functions and have different voices — Ideation helps the agent see the opportunity, Analytical stress-tests the ideation with evidence, Playbook is a reference tool for during the producer call. Share a common header line across all three (customer, stream, date, version); tailored cover blocks below. Qualification gate and safety flags on Ideation and Analytical; Playbook is a tool, not a record. PDF generation is handled by registered tools that return signed URLs in `tool-output-available`. Do not attempt low-level layout control."
 ---
 
 # Discovery reporting — three artefacts, three voices
@@ -9,9 +9,7 @@ description: "Produce SecondStream Discovery outputs in four tiers — Snapshot 
 
 Not producing a report. Producing three separate tools the field agent uses at three different moments in their workflow.
 
-The artefacts are deliberately separate because they serve different cognitive functions. Combining them into one document — which v2 and v2.5 did — collapses three voices into one and produces something that reads fine but helps nobody. The ChatGPT file that inspired this structure was produced as three sequential prompts by the user; we produce the same three outputs in one agent run.
-
-Before rendering any PDF, read the secondstream-brand skill and use brand.py from project knowledge for all styling. Never define colours, fonts, spacing, cover blocks, callouts, or table styles directly in this skill.
+The artefacts are deliberately separate because they serve different cognitive functions. Combining them into one document collapses three voices into one and produces something that reads fine but helps nobody.
 
 ## Trigger
 
@@ -25,7 +23,7 @@ Produce all four outputs (snapshot + 3 PDFs + full annex) together by default. D
 
 ### Tier 1 — Snapshot (inline markdown, 4-5 sentences of prose)
 
-Unchanged from v2.5. Prose, not tables. Four to five sentences. Bold one or two key findings inline. End with qualification gate status and safety flags in one sentence.
+Prose, not tables. Four to five sentences. Bold one or two key findings inline. End with qualification gate status and safety flags in one sentence.
 
 ### Tier 2a — Ideation Brief (PDF, 1-2 pages, loose consultant voice)
 
@@ -34,7 +32,7 @@ Unchanged from v2.5. Prose, not tables. Four to five sentences. Bold one or two 
 **Voice — strict rules:**
 
 - **Bullet density is high.** No paragraphs where a list will do.
-- **Lettered sub-sections** (A / B / C) within each numbered major section. Matches the ChatGPT pattern.
+- **Lettered sub-sections** (A / B / C) within each numbered major section.
 - **Each bullet is one fact or one claim.** Not compressed clauses.
 - **Emoji pivots allowed** — 🔴 for problem framing, 👉 for implication, ✅/❌ for recommendations, 💡 for insight. Sparingly, as visual anchors.
 - **Headers are claims, not labels.** Consumes the section headers produced by `commercial-shaping`'s Ideation output block.
@@ -61,22 +59,13 @@ Plus **closing strategic insight** — one sentence, visually set apart, italic 
 
 **Filename:** `[customer-slug]-[stream-slug]_[YYYY-MM-DD]_ideation.pdf`
 
-**PDF layout specifics:**
-
-- US Letter, 1-inch margins
-- Section headers 14pt bold in navy
-- Sub-section headers (A/B/C) 11pt bold
-- Bullets at 10pt, comfortable line spacing — not crammed
-- Emoji rendered at body size; allow Unicode but use reportlab-safe emoji only (no exotic glyphs that fail in Helvetica)
-- Strategic insight callout: centred italic 13pt, bordered box, light navy background
-
 ### Tier 2b — Analytical Read (PDF, 2-4 pages, rigorous evidenced voice)
 
 **Purpose:** stress-test the ideation. Defensible analytical backbone. The artefact a manager reads to judge whether the ideation holds up.
 
 **Voice:**
 
-- Tighter than v2.5 — shorter sentences, less intra-sentence hedging
+- Tighter — shorter sentences, less intra-sentence hedging
 - Tables and structured blocks preferred over prose for comparative content
 - Evidence tags throughout — `[EV-NN]`
 - Confidence labels on sized numbers (HIGH / MEDIUM / LOW)
@@ -101,16 +90,6 @@ Plus **closing strategic insight** — one sentence, visually set apart, italic 
 - Safety flags callout
 
 **Filename:** `[customer-slug]-[stream-slug]_[YYYY-MM-DD]_analytical.pdf`
-
-**PDF layout specifics:**
-
-- US Letter, 1-inch margins
-- Same section header treatment as Ideation
-- Lead sentences 11pt bold
-- Body 10pt regular
-- Closing caveats in italic
-- Evidence tags in smaller muted colour so they don't dominate
-- Tables with subtle zebra striping for readability
 
 ### Tier 2c — Call Playbook (PDF, 1-2 pages, reference voice)
 
@@ -151,19 +130,9 @@ Sparse themes are marked, not skipped. A theme with no stream-specific content s
 
 **Filename:** `[customer-slug]-[stream-slug]_[YYYY-MM-DD]_playbook.pdf`
 
-**PDF layout specifics:**
-
-- US Letter, 1-inch margins
-- Theme headers 14pt bold, each with a colour accent (cycling palette) so themes are visually distinguishable
-- Theme number in large type to aid scanning during a call
-- Questions as bullets, 10pt
-- Sub-questions indented with a lighter bullet
-- "Why it matters" rendered as a small callout at the end of each theme with light background
-- Theme 11 (Smart Questions) gets its own visual treatment — distinct box, bold, called out as the high-impact set
-
 ### Tier 3 — Full annex (markdown)
 
-Unchanged architecturally from v2.5. Structure:
+Structure:
 1. Executive mirror (snapshot + Ideation + Analytical content for self-contained reading)
 2. Per-sub-stream deep dive
 3. Evidence catalogue (EV-NN with source, date, authority, description)
@@ -171,8 +140,6 @@ Unchanged architecturally from v2.5. Structure:
 5. Open regulatory / handling / logistics agenda (for Assessment)
 6. Safety annex
 7. Document control
-
-Save to the same output directory as the PDFs with `_full.md` suffix.
 
 ## Shared elements across the three PDFs
 
@@ -197,25 +164,21 @@ Colour-coded: red = stop-flag, amber = specialist-flag, yellow = attention-flag.
 
 ## PDF output — technical requirements
 
-Save all three PDFs to `/mnt/user-data/outputs/` with the filename patterns above. Save the markdown annex to the same directory.
+PDF generation is handled entirely by the registered tools (`generateDiscoveryReport`, `generateIdeationBrief`, `generateAnalyticalRead`, `generatePlaybook`).
 
-Call `present_files` at the end of the response with the three PDFs in order: **Ideation first** (the most important on first read), Analytical second, Playbook third. Markdown annex after.
+Call the appropriate tool with the structured payload. The tool renders the PDF and returns signed URLs in `tool-output-available`. Do NOT attempt to control low-level layout, fonts, spacing, or page geometry.
 
-### Subscripts and superscripts — CRITICAL
+Do not save files to disk, do not reference local filesystem paths, and do not attempt to present files via harness directives. PDF attachments are returned through AI SDK standard tool parts and rendered by the frontend.
 
-Never use Unicode subscript/superscript characters (₂, ⁰, etc.). Helvetica does not contain those glyphs — they render as solid black boxes.
+### Subscripts and superscripts
 
-Use reportlab's `<sub>` and `<super>` tags inside Paragraph objects:
-
-```python
-Paragraph("H<sub>2</sub>S risk in enclosed transfer", styles['Body'])
-```
+Never use Unicode subscript/superscript characters (₂, ⁰, etc.). Use HTML entities in the payload instead: `H&lt;sub&gt;2&lt;/sub&gt;S`, not `H₂S`.
 
 Applies to every chemical formula, scientific notation, and unit exponent in all three PDFs.
 
 ### Emoji handling
 
-Emojis in the Ideation and Playbook (🔴 👉 ✅ ❌ 💡) should be rendered as text at body size. Test that reportlab's default font can render them — if not, substitute with a text equivalent or a simple Unicode symbol that does render. Do not let emoji rendering failure corrupt the layout.
+Emojis in the Ideation and Playbook (🔴 👉 ✅ ❌ 💡) should be rendered as text at body size. If the renderer cannot display a glyph, it substitutes a text equivalent automatically. Do not let emoji rendering failure corrupt the layout.
 
 ## Rules across all three PDFs
 
@@ -241,5 +204,4 @@ Emojis in the Ideation and Playbook (🔴 👉 ✅ ❌ 💡) should be rendered 
 End the response with:
 
 1. A brief message stating what was produced (one to two lines, naming the three PDFs).
-2. `present_files` call with Ideation, Analytical, Playbook, and markdown annex in that order.
-3. A short note on qualification gate status and the single next action (one to two sentences, not a repeat of the reports).
+2. A short note on qualification gate status and the single next action (one to two sentences, not a repeat of the reports).

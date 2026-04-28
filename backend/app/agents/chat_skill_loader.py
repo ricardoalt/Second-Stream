@@ -38,7 +38,7 @@ _SDS_FILENAME_PATTERNS = re.compile(
 @dataclass(slots=True, frozen=True)
 class SkillPrompt:
     name: str
-    body: str  # frontmatter stripped, harness directives sanitized
+    body: str  # frontmatter stripped
 
 
 def _strip_frontmatter(text: str) -> tuple[dict[str, str], str]:
@@ -51,36 +51,11 @@ def _strip_frontmatter(text: str) -> tuple[dict[str, str], str]:
     return {}, parts[2].strip()
 
 
-def _sanitize_discovery_reporting(body: str) -> str:
-    """Replace Claude harness directives with WeasyPrint/tool equivalents."""
-    # Remove save-to-disk instruction block
-    body = re.sub(r"Save to `/mnt/user-data/outputs/`.*?```", "", body, flags=re.DOTALL)
-    # Remove present_files call instruction lines (all occurrences)
-    body = re.sub(r"[^\n]*`?present_files`?[^\n]*\n?", "", body)
-    # Replace reportlab references with WeasyPrint tool reference
-    body = body.replace("reportlab", "WeasyPrint (via tool `generateDiscoveryReport`)")
-    # Remove raw Python reportlab syntax examples
-    body = re.sub(r"```python\nParagraph.*?```", "", body, flags=re.DOTALL)
-    # Add tool instruction at the end
-    replacement = (
-        "\n\nTo produce the PDF, call the tool `generateDiscoveryReport` with the "
-        "structured payload. The tool renders the PDF and returns a signed download URL. "
-        "Do NOT use Unicode subscript/superscript characters — use HTML entities instead: "
-        "H&lt;sub&gt;2&lt;/sub&gt;S, not H₂S.\n"
-    )
-    body = body + replacement
-    return body.strip()
-
-
 def load_skill(name: str) -> SkillPrompt:
-    """Load a skill from disk, stripping frontmatter and sanitizing harness refs."""
+    """Load a skill from disk, stripping frontmatter."""
     path = _SKILLS_DIR / f"{name}.md"
     raw = path.read_text(encoding="utf-8").strip()
     _, body = _strip_frontmatter(raw)
-
-    if name == "discovery-reporting":
-        body = _sanitize_discovery_reporting(body)
-
     return SkillPrompt(name=name, body=body)
 
 

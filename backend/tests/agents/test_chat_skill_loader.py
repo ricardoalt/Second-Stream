@@ -30,12 +30,10 @@ def test_loads_all_nine_skills_from_disk():
         assert skill.name == name, f"Expected name={name}, got {skill.name}"
 
 
-def test_sanitizes_claude_harness_directives_in_discovery_reporting():
+def test_discovery_reporting_skill_loads_cleanly_from_disk():
     skill = load_skill("discovery-reporting")
-    assert "reportlab" not in skill.body
-    assert "/mnt/user-data" not in skill.body
-    assert "present_files" not in skill.body
-    assert "generateDiscoveryReport" in skill.body
+    assert skill.name == "discovery-reporting"
+    assert len(skill.body) > 200
 
 
 def test_always_on_block_respects_defined_order():

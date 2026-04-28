@@ -108,6 +108,8 @@ async def _upload_pdf(
     expires_at = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
     attachment_id = str(uuid4())
 
+    view_url = download_url
+
     if ctx.deps.persist_attachment is not None:
         ref = await ctx.deps.persist_attachment(
             storage_key=storage_key,
@@ -117,6 +119,7 @@ async def _upload_pdf(
         )
         attachment_id = str(ref.id)
         download_url = getattr(ref, "signed_url", storage_key)
+        view_url = getattr(ref, "view_url", download_url)
         if hasattr(ref, "signed_url_expires_at") and ref.signed_url_expires_at:
             expires_at = ref.signed_url_expires_at.isoformat()
 
@@ -125,6 +128,7 @@ async def _upload_pdf(
         attachment_id=attachment_id,
         filename=filename,
         download_url=download_url,
+        view_url=view_url,
         expires_at=expires_at,
         size_bytes=size_bytes,
     )

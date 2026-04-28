@@ -8,6 +8,7 @@ type PdfOutput = {
 	attachment_id: string;
 	filename: string;
 	download_url: string;
+	view_url: string;
 	expires_at: string;
 	size_bytes: number;
 };

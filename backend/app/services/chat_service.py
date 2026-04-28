@@ -810,6 +810,13 @@ async def stream_chat_turn(
 
         att.signed_url = await get_presigned_url_with_headers(
             storage_key,
+            disposition="attachment",
+            download_name=filename,
+            content_type=content_type,
+        )
+        att.view_url = await get_presigned_url_with_headers(
+            storage_key,
+            disposition="inline",
             download_name=filename,
             content_type=content_type,
         )

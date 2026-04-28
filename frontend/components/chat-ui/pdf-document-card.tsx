@@ -45,7 +45,7 @@ type PdfDocCardProps = {
 	label: string;
 	shimmerText: string;
 	state: string;
-	output?: { filename: string; download_url: string; size_bytes: number };
+	output?: { filename: string; download_url: string; view_url: string; size_bytes: number };
 };
 
 export function PdfDocumentCard({
@@ -64,7 +64,8 @@ export function PdfDocumentCard({
 	}
 
 	if (state === "output-available" && output) {
-		const { filename, download_url, size_bytes } = output;
+		const { filename, download_url, view_url, size_bytes } = output;
+		const viewUrl = view_url || download_url;
 		const sizeLabel =
 			size_bytes >= 1_048_576
 				? `${(size_bytes / 1_048_576).toFixed(1)} MB`
@@ -84,7 +85,7 @@ export function PdfDocumentCard({
 					<a
 						aria-label={`View ${filename} in a new tab`}
 						className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-						href={download_url}
+						href={viewUrl}
 						rel="noreferrer"
 						target="_blank"
 						title={`View ${filename}`}

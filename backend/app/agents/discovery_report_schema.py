@@ -41,5 +41,6 @@ class PdfAttachmentOutput(BaseModel):
     attachment_id: str
     filename: str
     download_url: str
+    view_url: str
     expires_at: str  # ISO 8601
     size_bytes: int
