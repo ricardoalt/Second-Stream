@@ -132,4 +132,55 @@ describe("MessagePartsRenderer", () => {
 		expect(markup).toContain("View");
 		expect(markup).toContain("Download");
 	});
+
+	it("suppresses PDF tool output-error when same tool type succeeds later", () => {
+		const message = {
+			id: "msg-retry",
+			role: "assistant",
+			content: "",
+			parts: [
+				{
+					type: "tool-generateIdeationBrief" as const,
+					state: "output-error" as const,
+					toolCallId: "call-error",
+					toolName: "generateIdeationBrief",
+					input: { customer: "Acme", stream: "Caustic" },
+					errorText: "validation failed",
+				},
+				{
+					type: "tool-generateIdeationBrief" as const,
+					state: "output-available" as const,
+					toolCallId: "call-success",
+					toolName: "generateIdeationBrief",
+					input: { customer: "Acme", stream: "Caustic" },
+					output: {
+						attachment_id: "att-retry",
+						filename: "brief-retry.pdf",
+						download_url: null,
+						view_url: null,
+						size_bytes: 1234,
+					},
+				},
+			],
+			createdAt: "2026-01-01T00:00:00.000Z",
+		} as MyUIMessage;
+
+		const markup = renderToStaticMarkup(
+			<MessagePartsRenderer
+				message={message}
+				isLastMessage={false}
+				isStreamingOrSubmitted={false}
+				messages={[message]}
+				setMessages={() => {}}
+				regenerate={() => {}}
+			/>,
+		);
+
+		// Error state must be suppressed because a later success exists.
+		expect(markup).not.toContain("Could not generate");
+		// Success state must still render.
+		expect(markup).toContain("brief-retry.pdf");
+		expect(markup).toContain("View");
+		expect(markup).toContain("Download");
+	});
 });

@@ -26,6 +26,55 @@ import {
 } from "./pdf-document-card";
 import { RegenerateButton } from "./regenerate-button";
 
+const PDF_TOOL_TYPES = [
+	"tool-generateIdeationBrief",
+	"tool-generateAnalyticalRead",
+	"tool-generatePlaybook",
+] as const;
+
+type PdfToolType = (typeof PDF_TOOL_TYPES)[number];
+
+function isPdfToolType(type: string): type is PdfToolType {
+	return (PDF_TOOL_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Defensive dedupe: hide PDF tool output-error parts when the same PDF tool
+ * type has a later output-available part. This prevents transient Pydantic AI
+ * retry signals from rendering alongside the successful retry result.
+ */
+function filterPdfToolPartsForDisplay(
+	parts: MyUIMessage["parts"],
+): MyUIMessage["parts"] {
+	const pdfTypesWithSuccess = new Set<PdfToolType>();
+
+	// First pass: find which PDF tool types eventually succeed.
+	for (const part of parts) {
+		if (
+			"type" in part &&
+			"state" in part &&
+			isPdfToolType(part.type) &&
+			part.state === "output-available"
+		) {
+			pdfTypesWithSuccess.add(part.type);
+		}
+	}
+
+	// Second pass: suppress output-error for types that have a success later.
+	return parts.filter((part) => {
+		if (
+			"type" in part &&
+			"state" in part &&
+			isPdfToolType(part.type) &&
+			part.state === "output-error" &&
+			pdfTypesWithSuccess.has(part.type)
+		) {
+			return false;
+		}
+		return true;
+	});
+}
+
 function renderWebSearchPart(part: MyUIMessage["parts"][number]) {
 	if (part.type !== "tool-webSearch") return null;
 
@@ -133,7 +182,7 @@ function MessagePartsRendererInner({
 	return (
 		<Message from={message.role}>
 			<MessageContent>
-				{message.parts.map((part, partIndex) => {
+				{filterPdfToolPartsForDisplay(message.parts).map((part, partIndex) => {
 					const webSearchNode = renderWebSearchPart(part);
 					if (webSearchNode) {
 						return (

@@ -174,7 +174,8 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_response_maps_tool_output_error_events(monkeypatch):
+async def test_stream_chat_response_suppresses_retry_prompt_part_from_user_stream(monkeypatch):
+    """RetryPromptPart is an internal retry signal; it must not surface as tool-output-error."""
     async def _fake_run_stream_events(_prompt, *, deps):
         _ = deps
         tool_call_id = "call-error"
@@ -205,12 +206,8 @@ async def test_stream_chat_response_maps_tool_output_error_events(monkeypatch):
         )
     ]
 
+    # RetryPromptPart must be suppressed; only terminal events reach the client.
     assert events == [
-        {
-            "event": "tool-output-error",
-            "toolCallId": "call-error",
-            "errorText": "tool failed\n\nFix the errors and try again.",
-        },
         {"event": "completed", "response_text": "done"},
     ]
 

@@ -322,11 +322,18 @@ async def stream_chat_response(
 
             if isinstance(event, FunctionToolResultEvent):
                 if isinstance(event.result, RetryPromptPart):
-                    yield {
-                        "event": "tool-output-error",
-                        "toolCallId": event.result.tool_call_id,
-                        "errorText": event.result.model_response(),
-                    }
+                    error_text = event.result.model_response()
+                    logger.info(
+                        "tool_retry_prompt_suppressed",
+                        tool_call_id=event.result.tool_call_id,
+                        tool_name=event.result.tool_name,
+                        run_id=deps.run_id,
+                        error_text_preview=error_text[:200] if error_text else None,
+                        error_text_length=len(error_text) if error_text else 0,
+                    )
+                    # RetryPromptPart is an internal Pydantic AI retry signal, not a
+                    # terminal user-visible error. Suppress from user-facing stream.
+                    continue
                 else:
                     output_object = event.result.model_response_object()
                     if isinstance(output_object, BaseModel):
