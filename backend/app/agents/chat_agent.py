@@ -79,6 +79,7 @@ async def _upload_pdf(
     payload: Any,
     renderer: Callable[[Any], BytesIO],
     filename_suffix: str,
+    tool_name: str,
 ) -> PdfAttachmentOutput:
     """Render a PDF, upload to S3, persist attachment record, return attachment_id.
 
@@ -118,6 +119,7 @@ async def _upload_pdf(
             filename=filename,
             content_type="application/pdf",
             size_bytes=size_bytes,
+            artifact_type=tool_name,
         )
         attachment_id = str(ref.id)
         # Presigned URLs are intentionally not exposed; frontend resolves via attachment_id
@@ -172,7 +174,7 @@ def _register_tools(agent: Agent) -> None:
         """Generate a SecondStream Ideation Brief PDF and return an attachment handle."""
         from app.services.pdf_renderer import render_ideation_brief
 
-        return await _upload_pdf(ctx, payload=payload, renderer=render_ideation_brief, filename_suffix="ideation-brief")
+        return await _upload_pdf(ctx, payload=payload, renderer=render_ideation_brief, filename_suffix="ideation-brief", tool_name="generateIdeationBrief")
 
     @agent.tool(name="generateAnalyticalRead")
     async def generate_analytical_read(
@@ -182,7 +184,7 @@ def _register_tools(agent: Agent) -> None:
         """Generate a SecondStream Analytical Read PDF and return an attachment handle."""
         from app.services.pdf_renderer import render_analytical_read
 
-        return await _upload_pdf(ctx, payload=payload, renderer=render_analytical_read, filename_suffix="analytical-read")
+        return await _upload_pdf(ctx, payload=payload, renderer=render_analytical_read, filename_suffix="analytical-read", tool_name="generateAnalyticalRead")
 
     @agent.tool(name="generatePlaybook")
     async def generate_playbook(
@@ -192,7 +194,7 @@ def _register_tools(agent: Agent) -> None:
         """Generate a SecondStream Discovery Playbook PDF and return an attachment handle."""
         from app.services.pdf_renderer import render_playbook
 
-        return await _upload_pdf(ctx, payload=payload, renderer=render_playbook, filename_suffix="playbook")
+        return await _upload_pdf(ctx, payload=payload, renderer=render_playbook, filename_suffix="playbook", tool_name="generatePlaybook")
 
 
 chat_agent = _make_agent()

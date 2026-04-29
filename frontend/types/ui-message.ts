@@ -4,7 +4,7 @@ import type { WorkingMemory } from "@/config/working-memory";
 export const DATA_NEW_THREAD_CREATED_PART = "data-new-thread-created" as const;
 export const DATA_CONVERSATION_TITLE_PART = "data-conversation-title" as const;
 
-type PdfOutput = {
+export type PdfOutput = {
 	attachment_id: string;
 	filename: string;
 	download_url: string | null;
@@ -32,6 +32,13 @@ export type MyUIMessage = UIMessage<
 			title: string | null;
 			createdAt: string;
 			updatedAt: string;
+		};
+		"pdf-artifact": {
+			artifactType:
+				| "generateIdeationBrief"
+				| "generateAnalyticalRead"
+				| "generatePlaybook";
+			output: PdfOutput;
 		};
 	},
 	{

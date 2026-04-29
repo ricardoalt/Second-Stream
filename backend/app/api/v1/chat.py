@@ -130,6 +130,7 @@ def _attachment_to_response(attachment: ChatAttachment) -> ChatAttachmentRespons
         content_type=attachment.content_type,
         size_bytes=attachment.size_bytes,
         created_at=attachment.created_at,
+        artifact_type=attachment.artifact_type,
     )
 
 

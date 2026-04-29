@@ -46,6 +46,9 @@ async def test_chat_v1_contract_uses_creator_org_visibility_and_message_owned_at
 
     assert "message_id" in attachment_columns
     assert attachment_columns["message_id"]["nullable"] is True
+    assert "artifact_type" in attachment_columns
+    assert attachment_columns["artifact_type"]["nullable"] is True
+    assert "attachment_metadata" not in attachment_columns
     assert any(
         fk["referred_table"] == "chat_messages"
         and fk["constrained_columns"] == ["message_id"]

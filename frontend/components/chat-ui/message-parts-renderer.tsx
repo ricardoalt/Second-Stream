@@ -180,6 +180,20 @@ function MessagePartsRendererInner({
 									{renderPdfToolPart(part)}
 								</div>
 							);
+						case "data-pdf-artifact": {
+							const config = PDF_DOC_CONFIGS[part.data.artifactType];
+							return (
+								<div key={`${message.id}-${partIndex}`}>
+									<PdfDocumentCard
+										Icon={config.Icon}
+										label={config.label}
+										shimmerText={config.shimmerText}
+										state="output-available"
+										output={part.data.output}
+									/>
+								</div>
+							);
+						}
 						case "tool-updateWorkingMemory":
 							return (
 								<WorkingMemoryUpdate

@@ -214,4 +214,240 @@ describe("chat threads query key", () => {
 			},
 		);
 	});
+
+	it("rehydrates AI PDF artifacts as custom data-pdf-artifact parts from artifactType", async () => {
+		const getSpy = mock(async () => ({
+			id: "thread-7",
+			title: "Título",
+			lastMessagePreview: null,
+			lastMessageAt: null,
+			messages: [
+				{
+					id: "message-1",
+					role: "assistant",
+					contentText: "Here is your brief",
+					status: "completed",
+					createdAt: "2026-01-01T00:00:00.000Z",
+					attachments: [
+						{
+							id: "attachment-1",
+							messageId: "message-1",
+							originalFilename: "brief.pdf",
+							contentType: "application/pdf",
+							sizeBytes: 1234,
+							createdAt: "2026-01-01T00:00:00.000Z",
+							artifactType: "generateIdeationBrief",
+						},
+					],
+				},
+			],
+		}));
+		apiClient.get = getSpy as typeof apiClient.get;
+
+		const messages = await reloadPersistedThreadHistory("thread-7", {
+			organizationId: "org-9",
+		});
+
+		const parts = messages[0]?.parts;
+		expect(parts).toHaveLength(2);
+		expect(parts[0]).toMatchObject({
+			type: "text",
+			text: "Here is your brief",
+		});
+		expect(parts[1]).toMatchObject({
+			type: "data-pdf-artifact",
+			data: {
+				artifactType: "generateIdeationBrief",
+				output: {
+					attachment_id: "attachment-1",
+					filename: "brief.pdf",
+					download_url: null,
+					view_url: null,
+					size_bytes: 1234,
+				},
+			},
+		});
+	});
+
+	it("rehydrates generateAnalyticalRead artifacts as custom data-pdf-artifact parts", async () => {
+		const getSpy = mock(async () => ({
+			id: "thread-7",
+			title: "Título",
+			lastMessagePreview: null,
+			lastMessageAt: null,
+			messages: [
+				{
+					id: "message-1",
+					role: "assistant",
+					contentText: "Here is your read",
+					status: "completed",
+					createdAt: "2026-01-01T00:00:00.000Z",
+					attachments: [
+						{
+							id: "attachment-2",
+							messageId: "message-1",
+							originalFilename: "read.pdf",
+							contentType: "application/pdf",
+							sizeBytes: 5678,
+							createdAt: "2026-01-01T00:00:00.000Z",
+							artifactType: "generateAnalyticalRead",
+						},
+					],
+				},
+			],
+		}));
+		apiClient.get = getSpy as typeof apiClient.get;
+
+		const messages = await reloadPersistedThreadHistory("thread-7", {
+			organizationId: "org-9",
+		});
+
+		const parts = messages[0]?.parts;
+		expect(parts).toHaveLength(2);
+		expect(parts[1]).toMatchObject({
+			type: "data-pdf-artifact",
+			data: {
+				artifactType: "generateAnalyticalRead",
+				output: {
+					attachment_id: "attachment-2",
+					filename: "read.pdf",
+					download_url: null,
+					view_url: null,
+					size_bytes: 5678,
+				},
+			},
+		});
+	});
+
+	it("rehydrates generatePlaybook artifacts as custom data-pdf-artifact parts", async () => {
+		const getSpy = mock(async () => ({
+			id: "thread-7",
+			title: "Título",
+			lastMessagePreview: null,
+			lastMessageAt: null,
+			messages: [
+				{
+					id: "message-1",
+					role: "assistant",
+					contentText: "Here is your playbook",
+					status: "completed",
+					createdAt: "2026-01-01T00:00:00.000Z",
+					attachments: [
+						{
+							id: "attachment-3",
+							messageId: "message-1",
+							originalFilename: "playbook.pdf",
+							contentType: "application/pdf",
+							sizeBytes: 9999,
+							createdAt: "2026-01-01T00:00:00.000Z",
+							artifactType: "generatePlaybook",
+						},
+					],
+				},
+			],
+		}));
+		apiClient.get = getSpy as typeof apiClient.get;
+
+		const messages = await reloadPersistedThreadHistory("thread-7", {
+			organizationId: "org-9",
+		});
+
+		const parts = messages[0]?.parts;
+		expect(parts).toHaveLength(2);
+		expect(parts[1]).toMatchObject({
+			type: "data-pdf-artifact",
+			data: {
+				artifactType: "generatePlaybook",
+				output: {
+					attachment_id: "attachment-3",
+					filename: "playbook.pdf",
+					download_url: null,
+					view_url: null,
+					size_bytes: 9999,
+				},
+			},
+		});
+	});
+
+	it("rehydrates invalid artifactType as generic file parts", async () => {
+		const getSpy = mock(async () => ({
+			id: "thread-7",
+			title: "Título",
+			lastMessagePreview: null,
+			lastMessageAt: null,
+			messages: [
+				{
+					id: "message-1",
+					role: "user",
+					contentText: "hola",
+					status: "completed",
+					createdAt: "2026-01-01T00:00:00.000Z",
+					attachments: [
+						{
+							id: "attachment-4",
+							messageId: "message-1",
+							originalFilename: "unknown.pdf",
+							contentType: "application/pdf",
+							sizeBytes: 111,
+							createdAt: "2026-01-01T00:00:00.000Z",
+							artifactType: "badArtifact",
+						},
+					],
+				},
+			],
+		}));
+		apiClient.get = getSpy as typeof apiClient.get;
+
+		const messages = await reloadPersistedThreadHistory("thread-7", {
+			organizationId: "org-9",
+		});
+
+		expect(messages[0]?.parts[1]).toMatchObject({
+			type: "file",
+			filename: "unknown.pdf",
+			mediaType: "application/pdf",
+			url: buildChatAttachmentDownloadUrl("attachment-4"),
+		});
+	});
+
+	it("rehydrates generic attachments without artifactType as file parts", async () => {
+		const getSpy = mock(async () => ({
+			id: "thread-7",
+			title: "Título",
+			lastMessagePreview: null,
+			lastMessageAt: null,
+			messages: [
+				{
+					id: "message-1",
+					role: "user",
+					contentText: "hola",
+					status: "completed",
+					createdAt: "2026-01-01T00:00:00.000Z",
+					attachments: [
+						{
+							id: "attachment-1",
+							messageId: "message-1",
+							originalFilename: "sample.pdf",
+							contentType: "application/pdf",
+							sizeBytes: 123,
+							createdAt: "2026-01-01T00:00:00.000Z",
+							artifactType: null,
+						},
+					],
+				},
+			],
+		}));
+		apiClient.get = getSpy as typeof apiClient.get;
+
+		const messages = await reloadPersistedThreadHistory("thread-7", {
+			organizationId: "org-9",
+		});
+
+		expect(messages[0]?.parts[1]).toMatchObject({
+			type: "file",
+			filename: "sample.pdf",
+			mediaType: "application/pdf",
+			url: buildChatAttachmentDownloadUrl("attachment-1"),
+		});
+	});
 });

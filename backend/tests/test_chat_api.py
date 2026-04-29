@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from app.agents.chat_agent import ChatAgentError
 from app.api.v1 import chat as chat_api
+from app.models.chat_attachment import ChatAttachment
 from app.models.chat_message import ChatMessage
 from app.models.user import UserRole
 from app.services import chat_service
@@ -986,3 +987,59 @@ async def test_chat_stream_derives_content_text_on_second_turn_with_custom_assis
 
     assert response.status_code == 200
     assert "segundo turno" in captured["prompt"]
+
+
+@pytest.mark.asyncio
+async def test_chat_thread_detail_exposes_artifact_type_for_ai_pdf_artifacts(
+    client: AsyncClient,
+    db_session,
+    set_current_user,
+):
+    """Thread detail must expose artifact_type so frontend can rehydrate rich PDF cards."""
+    org, user = await _create_authed_user(db_session, set_current_user)
+    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Artifact Thread"})
+    thread_id = create_thread.json()["id"]
+
+    async def _fake_stream(*, prompt, deps, attachments):
+        yield {"event": "delta", "delta": "ok"}
+        yield {"event": "completed", "response_text": "ok"}
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream)
+    try:
+        stream_response = await client.post(
+            f"/api/v1/chat/threads/{thread_id}/messages/stream",
+            json={"contentText": "hello"},
+        )
+        assert stream_response.status_code == 200
+    finally:
+        monkeypatch.undo()
+
+    assistant_message_id = await db_session.scalar(
+        select(ChatMessage.id).where(
+            ChatMessage.thread_id == uuid.UUID(thread_id),
+            ChatMessage.role == "assistant",
+        )
+    )
+    assert assistant_message_id is not None
+
+    attachment = ChatAttachment(
+        organization_id=org.id,
+        uploaded_by_user_id=user.id,
+        message_id=assistant_message_id,
+        storage_key=f"chat/test-{uuid.uuid4().hex}.pdf",
+        original_filename="Ideation Brief.pdf",
+        content_type="application/pdf",
+        size_bytes=1024,
+        artifact_type="generateIdeationBrief",
+    )
+    db_session.add(attachment)
+    await db_session.commit()
+
+    detail_response = await client.get(f"/api/v1/chat/threads/{thread_id}")
+    assert detail_response.status_code == 200
+    messages = detail_response.json()["messages"]
+    assistant_messages = [m for m in messages if m["role"] == "assistant"]
+    assert len(assistant_messages) == 1
+    assert len(assistant_messages[0]["attachments"]) == 1
+    assert assistant_messages[0]["attachments"][0]["artifactType"] == "generateIdeationBrief"

@@ -404,6 +404,7 @@ async def test_upload_pdf_requires_persist_attachment_when_upload_is_enabled():
             payload=SimpleNamespace(customer="Acme", stream="Caustic"),
             renderer=lambda _payload: BytesIO(b"%PDF-1.7"),
             filename_suffix="discovery-exec",
+            tool_name="generateIdeationBrief",
         )
 
 
@@ -435,6 +436,7 @@ async def test_upload_pdf_renders_in_thread_offload(monkeypatch):
         payload=payload,
         renderer=_renderer,
         filename_suffix="discovery-exec",
+        tool_name="generateAnalyticalRead",
     )
 
     assert captured["fn"] is _renderer
@@ -458,7 +460,7 @@ async def test_upload_pdf_returns_attachment_id_and_none_urls(monkeypatch):
         view_url = "https://example.com/view"
         signed_url_expires_at = None
 
-    async def _persist(*, storage_key, filename, content_type, size_bytes):
+    async def _persist(*, storage_key, filename, content_type, size_bytes, artifact_type=None):
         return FakeRef()
 
     async def _upload_bytes(storage_key, data, content_type):
@@ -480,9 +482,53 @@ async def test_upload_pdf_returns_attachment_id_and_none_urls(monkeypatch):
         payload=payload,
         renderer=lambda p: BytesIO(b"%PDF-1.7"),
         filename_suffix="discovery-exec",
+        tool_name="generateIdeationBrief",
     )
 
     assert result.attachment_id == "att-ref-1"
     assert result.download_url is None
     assert result.view_url is None
     assert result.expires_at is None
+
+
+@pytest.mark.asyncio
+async def test_upload_pdf_passes_artifact_type_to_persist(monkeypatch):
+    """PDF tool outputs must carry artifact_type for rehydration."""
+    async def _fake_to_thread(fn, payload):
+        return BytesIO(b"%PDF-1.7")
+
+    monkeypatch.setattr(chat_agent_module.asyncio, "to_thread", _fake_to_thread)
+
+    captured: dict[str, object] = {}
+
+    class FakeRef:
+        id = "att-ref-2"
+
+    async def _persist(*, storage_key, filename, content_type, size_bytes, artifact_type=None):
+        captured["artifact_type"] = artifact_type
+        return FakeRef()
+
+    async def _upload_bytes(storage_key, data, content_type):
+        return "ok"
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+        upload_bytes=_upload_bytes,
+        persist_attachment=_persist,
+    )
+    payload = SimpleNamespace(customer="Acme", stream="Caustic")
+    ctx = SimpleNamespace(deps=deps)
+
+    result = await chat_agent_module._upload_pdf(
+        ctx,
+        payload=payload,
+        renderer=lambda p: BytesIO(b"%PDF-1.7"),
+        filename_suffix="playbook",
+        tool_name="generatePlaybook",
+    )
+
+    assert result.attachment_id == "att-ref-2"
+    assert captured["artifact_type"] == "generatePlaybook"

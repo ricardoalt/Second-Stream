@@ -37,6 +37,7 @@ interface ChatAttachmentDTO {
 	contentType: string | null;
 	sizeBytes: number;
 	createdAt: string;
+	artifactType: string | null;
 }
 
 const CHAT_API_BASE_URL = (
@@ -177,6 +178,40 @@ export async function archiveChatThread(
 	);
 }
 
+const PDF_ARTIFACT_TYPES = [
+	"generateIdeationBrief",
+	"generateAnalyticalRead",
+	"generatePlaybook",
+] as const;
+
+type PdfArtifactType = (typeof PDF_ARTIFACT_TYPES)[number];
+
+function isPdfArtifactType(value: unknown): value is PdfArtifactType {
+	return (
+		typeof value === "string" &&
+		(PDF_ARTIFACT_TYPES as readonly string[]).includes(value)
+	);
+}
+
+function buildPersistedPdfArtifactPart(
+	attachment: ChatAttachmentDTO & { artifactType: PdfArtifactType },
+): Extract<MyUIMessage["parts"][number], { type: "data-pdf-artifact" }> {
+	return {
+		type: "data-pdf-artifact",
+		data: {
+			artifactType: attachment.artifactType,
+			output: {
+				attachment_id: attachment.id,
+				filename: attachment.originalFilename,
+				download_url: null,
+				view_url: null,
+				expires_at: null,
+				size_bytes: attachment.sizeBytes,
+			},
+		},
+	};
+}
+
 export async function reloadPersistedThreadHistory(
 	threadId: string,
 	options: ListChatThreadsOptions = {},
@@ -188,12 +223,21 @@ export async function reloadPersistedThreadHistory(
 		content: message.contentText,
 		parts: [
 			{ type: "text", text: message.contentText },
-			...message.attachments.map((attachment) => ({
-				type: "file" as const,
-				filename: attachment.originalFilename,
-				mediaType: attachment.contentType ?? "application/octet-stream",
-				url: buildChatAttachmentDownloadUrl(attachment.id),
-			})),
+			...message.attachments.map((attachment) => {
+				if (isPdfArtifactType(attachment.artifactType)) {
+					return buildPersistedPdfArtifactPart(
+						attachment as ChatAttachmentDTO & {
+							artifactType: PdfArtifactType;
+						},
+					);
+				}
+				return {
+					type: "file" as const,
+					filename: attachment.originalFilename,
+					mediaType: attachment.contentType ?? "application/octet-stream",
+					url: buildChatAttachmentDownloadUrl(attachment.id),
+				};
+			}),
 		],
 		createdAt: message.createdAt,
 	}));

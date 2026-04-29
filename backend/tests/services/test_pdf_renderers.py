@@ -22,8 +22,8 @@ requires_weasyprint = pytest.mark.skipif(
 )
 
 from app.agents.analytical_read_schema import (
-    AnalyticalSection,
     AnalyticalReadPayload,
+    AnalyticalSection,
     AnalyticalTable,
     EvidenceTag,
     GapItem,

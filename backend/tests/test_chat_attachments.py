@@ -14,6 +14,7 @@ from app.services.chat_service import (
     CHAT_ORPHAN_DRAFT_RETENTION_DAYS,
     ChatAttachmentInput,
     ChatAttachmentValidationError,
+    create_attachment_for_message,
     create_draft_attachment,
     create_user_message_with_attachments,
     find_cleanup_eligible_draft_attachments,
@@ -769,3 +770,70 @@ async def test_find_cleanup_eligible_draft_attachments_returns_old_unclaimed_onl
     assert eligible_draft.id in eligible_ids
     assert recent_draft.id not in eligible_ids
     assert claimed_attachment.id not in eligible_ids
+
+
+@pytest.mark.asyncio
+async def test_create_draft_attachment_persists_artifact_type(db_session):
+    org = await create_org(db_session, "Meta Org", "meta-org")
+    owner = await create_user(
+        db_session,
+        email=f"meta-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+
+    attachment_input = ChatAttachmentInput(
+        storage_key=f"chat/test-{uuid.uuid4().hex}.pdf",
+        original_filename="test.pdf",
+        content_type="application/pdf",
+        size_bytes=1024,
+        artifact_type="generateIdeationBrief",
+    )
+
+    attachment = await create_draft_attachment(
+        db=db_session,
+        organization_id=org.id,
+        uploaded_by_user_id=owner.id,
+        attachment=attachment_input,
+    )
+
+    assert attachment.artifact_type == "generateIdeationBrief"
+
+
+@pytest.mark.asyncio
+async def test_create_attachment_for_message_persists_artifact_type(db_session):
+    org = await create_org(db_session, "Meta Org 2", "meta-org-2")
+    owner = await create_user(
+        db_session,
+        email=f"meta2-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+    message = await _create_message(
+        db_session,
+        org_id=org.id,
+        user_id=owner.id,
+        thread_id=thread.id,
+        text="user message",
+    )
+
+    attachment_input = ChatAttachmentInput(
+        storage_key=f"chat/test-{uuid.uuid4().hex}.pdf",
+        original_filename="test.pdf",
+        content_type="application/pdf",
+        size_bytes=1024,
+        artifact_type="generatePlaybook",
+    )
+
+    attachment = await create_attachment_for_message(
+        db=db_session,
+        organization_id=org.id,
+        created_by_user_id=owner.id,
+        message_id=message.id,
+        attachment=attachment_input,
+    )
+
+    assert attachment.artifact_type == "generatePlaybook"

@@ -20,6 +20,17 @@ class StreamFormat(StrEnum):
     LEGACY = "legacy"
 
 
+class ArtifactType(StrEnum):
+    """Controlled artifact types for AI-generated PDF attachments.
+
+    Null means a generic attachment (not an AI artifact).
+    """
+
+    IDEATION_BRIEF = "generateIdeationBrief"
+    ANALYTICAL_READ = "generateAnalyticalRead"
+    PLAYBOOK = "generatePlaybook"
+
+
 class ChatThreadCreateRequest(BaseSchema):
     title: str | None = Field(default=None, max_length=255)
 
@@ -48,6 +59,7 @@ class ChatAttachmentResponse(BaseSchema):
     content_type: str | None
     size_bytes: int
     created_at: datetime
+    artifact_type: ArtifactType | None = None
 
 
 class ChatMessageResponse(BaseSchema):

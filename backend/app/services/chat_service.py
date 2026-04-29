@@ -59,6 +59,7 @@ class ChatAttachmentInput:
     size_bytes: int
     sha256: str | None = None
     extracted_text: str | None = None
+    artifact_type: str | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -405,6 +406,7 @@ async def create_user_message_with_attachments(
                     size_bytes=attachment.size_bytes,
                     sha256=attachment.sha256,
                     extracted_text=attachment.extracted_text,
+                    artifact_type=attachment.artifact_type,
                 )
             )
 
@@ -791,6 +793,7 @@ async def stream_chat_turn(
         filename: str,
         content_type: str,
         size_bytes: int,
+        artifact_type: str | None = None,
     ):
         async with session_factory() as db:
             att = ChatAttachment(
@@ -801,6 +804,7 @@ async def stream_chat_turn(
                 original_filename=filename,
                 content_type=content_type,
                 size_bytes=size_bytes,
+                artifact_type=artifact_type,
             )
             db.add(att)
             await db.commit()
@@ -1264,6 +1268,7 @@ async def create_draft_attachment(
         size_bytes=attachment.size_bytes,
         sha256=attachment.sha256,
         extracted_text=attachment.extracted_text,
+        artifact_type=attachment.artifact_type,
     )
     db.add(attachment_row)
     await db.commit()
@@ -1304,6 +1309,7 @@ async def create_attachment_for_message(
         size_bytes=attachment.size_bytes,
         sha256=attachment.sha256,
         extracted_text=attachment.extracted_text,
+        artifact_type=attachment.artifact_type,
     )
     db.add(attachment_row)
     await db.commit()
