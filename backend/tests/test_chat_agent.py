@@ -532,3 +532,32 @@ async def test_upload_pdf_passes_artifact_type_to_persist(monkeypatch):
 
     assert result.attachment_id == "att-ref-2"
     assert captured["artifact_type"] == "generatePlaybook"
+
+
+def test_chat_agent_model_settings_include_max_tokens():
+    from unittest.mock import MagicMock, patch
+
+    class FakeAgent:
+        def __init__(self, *args, **kwargs):
+            self._init_kwargs = kwargs
+
+        def instructions(self, fn):
+            return fn
+
+        def tool(self, *args, **kwargs):
+            def decorator(fn):
+                return fn
+
+            return decorator
+
+    fake_instance = FakeAgent()
+    with patch(
+        "app.agents.chat_agent.Agent",
+        MagicMock(return_value=fake_instance),
+    ) as mock_agent_cls:
+        from app.agents.chat_agent import _make_agent
+
+        _make_agent()
+        call_kwargs = mock_agent_cls.call_args.kwargs
+        assert "model_settings" in call_kwargs
+        assert call_kwargs["model_settings"]["max_tokens"] == 16384

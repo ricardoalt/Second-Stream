@@ -698,3 +698,89 @@ async def test_persist_assistant_terminal_message_links_produced_attachments_aft
 
     await db_session.refresh(produced)
     assert produced.message_id == message.id
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_turn_preserves_produced_attachment_when_stream_later_fails(
+    db_session,
+    chat_session_factory,
+    monkeypatch,
+):
+    org = await create_org(db_session, "Chat Preserve Org", "chat-preserve-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-preserve-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    deleted_keys: list[str] = []
+    unique_key = f"chat/test/keep-{uuid.uuid4().hex}.pdf"
+
+    async def _capture_delete(storage_key: str):
+        deleted_keys.append(storage_key)
+
+    async def _fake_upload(_data, storage_key: str, _content_type: str):
+        return storage_key
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        _ = (prompt, attachments)
+        await deps.upload_bytes(unique_key, b"%PDF-1.7", "application/pdf")
+        ref = await deps.persist_attachment(
+            storage_key=unique_key,
+            filename="keep.pdf",
+            content_type="application/pdf",
+            size_bytes=len(b"%PDF-1.7"),
+            artifact_type="generateIdeationBrief",
+        )
+        yield {
+            "event": "tool-output-available",
+            "toolCallId": "call-1",
+            "output": {
+                "attachment_id": str(ref.id),
+                "filename": "keep.pdf",
+                "size_bytes": len(b"%PDF-1.7"),
+            },
+        }
+        raise ChatAgentError("later stream failure")
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response, raising=False)
+    monkeypatch.setattr("app.services.s3_service.upload_file_to_s3", _fake_upload)
+    monkeypatch.setattr("app.services.s3_service.delete_file_from_s3", _capture_delete)
+
+    events = [
+        event
+        async for event in stream_chat_turn(
+            session_factory=chat_session_factory,
+            organization_id=org.id,
+            created_by_user_id=owner.id,
+            thread_id=thread.id,
+            content_text="Generate report",
+            run_id="run-preserve-attach",
+        )
+    ]
+
+    assert events == [
+        {"event": "start", "run_id": "run-preserve-attach"},
+        {
+            "event": "tool-output-available",
+            "toolCallId": "call-1",
+            "output": {
+                "attachment_id": events[1]["output"]["attachment_id"],
+                "filename": "keep.pdf",
+                "size_bytes": len(b"%PDF-1.7"),
+            },
+        },
+        {"event": "error", "code": "CHAT_STREAM_FAILED"},
+    ]
+    assert deleted_keys == []
+
+    async with chat_session_factory() as db:
+        rows = await db.execute(
+            select(ChatAttachment).where(ChatAttachment.storage_key == unique_key)
+        )
+        attachment = rows.scalar_one_or_none()
+        assert attachment is not None
+        assert attachment.message_id is None

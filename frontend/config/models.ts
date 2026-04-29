@@ -32,24 +32,24 @@ export const MODELS = [
 		chef: "Amazon",
 		chefSlug: "amazon-bedrock",
 		capabilities: ["text", "image", "pdf"],
-		id: "claude-sonnet-4-6",
-		name: "Claude Sonnet 4.6",
+		id: "claude-opus-4-7",
+		name: "Claude Opus 4.7",
 		provider: "amazon-bedrock",
-		runtimeModelId: "us.anthropic.claude-sonnet-4-6",
+		runtimeModelId: "us.anthropic.claude-opus-4-7",
 	},
 ] as const satisfies ReadonlyArray<ModelOption>;
 
 export type ModelId = (typeof MODELS)[number]["id"];
 
-export const DEFAULT_MODEL_ID: ModelId = "claude-sonnet-4-6";
+export const DEFAULT_MODEL_ID: ModelId = "claude-opus-4-7";
 
-export const FAST_TITLE_MODEL_ID: ModelId = "claude-sonnet-4-6";
+export const FAST_TITLE_MODEL_ID: ModelId = "claude-opus-4-7";
 
 export const DEFAULT_RUNTIME_MODEL_ID =
-	"amazon-bedrock/us.anthropic.claude-sonnet-4-6";
+	"amazon-bedrock/us.anthropic.claude-opus-4-7";
 
 export const FAST_TITLE_RUNTIME_MODEL_ID =
-	"amazon-bedrock/us.anthropic.claude-sonnet-4-6";
+	"amazon-bedrock/us.anthropic.claude-opus-4-7";
 
 export const MODEL_ID_SET = new Set<string>(MODELS.map((model) => model.id));
 

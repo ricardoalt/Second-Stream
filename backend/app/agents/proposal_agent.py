@@ -16,7 +16,6 @@ import structlog
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.bedrock import BedrockConverseModel
 from pydantic_ai.providers.bedrock import BedrockProvider
-from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from app.core.config import settings
@@ -62,7 +61,6 @@ proposal_agent = Agent(
     deps_type=ProposalContext,
     output_type=ProposalOutput,
     instructions=_load_prompt(),
-    model_settings=ModelSettings(temperature=0.4),
     retries=2,
 )
 

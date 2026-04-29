@@ -148,8 +148,8 @@ def _make_agent() -> Agent:
         ),
         deps_type=ChatAgentDeps,
         output_type=str,
-        model_settings=ModelSettings(temperature=0.2),
         retries=2,
+        model_settings=ModelSettings(max_tokens=16384),
         instructions=compile_base_instructions(),
     )
 

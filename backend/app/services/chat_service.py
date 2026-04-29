@@ -972,32 +972,40 @@ async def stream_chat_turn(
         raise
     except Exception as exc:
         stream_outcome = "failed"
-        # Clean up orphan attachments from this run
-        deleted_storage_keys: set[str] = set()
-
+        # Preserve successfully produced attachments so the frontend can still
+        # download them even if the overall stream later fails. Only clean up S3
+        # objects that have no corresponding persisted attachment record.
+        preserved_storage_keys: set[str] = set()
         if produced_attachment_ids:
-            from app.services.s3_service import delete_file_from_s3
-
-            with contextlib.suppress(Exception):
+            try:
                 async with session_factory() as db:
                     rows = await db.execute(
-                        select(ChatAttachment).where(ChatAttachment.id.in_(produced_attachment_ids))
+                        select(ChatAttachment.storage_key).where(
+                            ChatAttachment.id.in_(produced_attachment_ids)
+                        )
                     )
-                    for att in rows.scalars().all():
-                        with contextlib.suppress(Exception):
-                            await delete_file_from_s3(att.storage_key)
-                            deleted_storage_keys.add(att.storage_key)
-                        await db.delete(att)
-                    await db.commit()
+                    preserved_storage_keys = set(rows.scalars().all())
+            except Exception:
+                pass
 
         if produced_storage_keys:
             from app.services.s3_service import delete_file_from_s3
 
             for key in produced_storage_keys:
-                if key in deleted_storage_keys:
+                if key in preserved_storage_keys:
                     continue
                 with contextlib.suppress(Exception):
                     await delete_file_from_s3(key)
+
+        logger.info(
+            "chat_stream_failure_attachment_preservation",
+            produced_attachment_count=len(produced_attachment_ids),
+            preserved_storage_key_count=len(preserved_storage_keys),
+            deleted_orphan_storage_key_count=len(
+                [k for k in produced_storage_keys if k not in preserved_storage_keys]
+            ),
+            run_id=run_id,
+        )
 
         partial_text = "".join(delta_chunks).strip()
         failed_content = (
