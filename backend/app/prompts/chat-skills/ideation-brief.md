@@ -25,8 +25,13 @@ Section emphasis types (optional per section):
 
 ## Tool call
 
-Call `generateIdeationBrief` with the `IdeationBriefPayload` schema. The tool renders
-the PDF and returns a signed download URL. Do not output raw HTML or markdown tables —
-use the tool exclusively.
+Call `generateIdeationBrief` with flat top-level tool arguments. Do not wrap the
+arguments in a `payload` object. The tool renders the PDF and returns a signed download
+URL. Do not output raw HTML or markdown tables — use the tool exclusively.
+
+Valid tool arguments example:
+```json
+{"customer":"Acme Metals","stream":"spent caustic","date":"2026-04-29","gate_status":"OPEN","sections":[{"title":"Commercial fit","lead":"Buyer demand is active.","body":"The stream matches current outlet specs.","emphasis":"insight"}],"strategic_insight":"Prioritize outlets that already accept this chemistry.","markers_used":["insight"]}
+```
 
 markers_used: list only the emphasis types that actually appear in sections (drives legend).

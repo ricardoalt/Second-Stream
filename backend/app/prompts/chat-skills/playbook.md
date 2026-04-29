@@ -20,5 +20,11 @@ Aim for 3–6 themes; more than 8 is unwieldy for a live conversation.
 
 ## Tool call
 
-Call `generatePlaybook` with the `PlaybookPayload` schema. The tool renders the PDF
-and returns a signed download URL. Do not output a markdown list — use the tool.
+Call `generatePlaybook` with flat top-level tool arguments. Do not wrap the arguments
+in a `payload` object. The tool renders the PDF and returns a signed download URL. Do
+not output a markdown list — use the tool.
+
+Valid tool arguments example:
+```json
+{"customer":"Acme Metals","stream":"spent caustic","date":"2026-04-29","opening_context":"Use the call to confirm chemistry and logistics constraints.","themes":[{"number":1,"title":"Chemistry guardrails","body":"Confirm the limits that decide outlet fit.","probe_questions":["What is the latest sulfur result?"],"why_it_matters":["Sulfur drives buyer eligibility."]}]}
+```

@@ -20,5 +20,11 @@ Keep cells concise — tables are rendered at 8.5pt caption size.
 
 ## Tool call
 
-Call `generateAnalyticalRead` with the `AnalyticalReadPayload` schema. The tool renders
-the PDF and returns a signed download URL. Do not output markdown tables — use the tool.
+Call `generateAnalyticalRead` with flat top-level tool arguments. Do not wrap the
+arguments in a `payload` object. The tool renders the PDF and returns a signed download
+URL. Do not output markdown tables — use the tool.
+
+Valid tool arguments example:
+```json
+{"customer":"Acme Metals","stream":"spent caustic","date":"2026-04-29","executive_summary":"The stream has a viable reuse path if sulfur remains inside buyer limits.","tables":[{"title":"Buyer fit","headers":["Buyer","Fit"],"rows":[["Outlet A","Strong"]]}],"strategic_insight":"Confirm sulfur before routing to premium outlets."}
+```

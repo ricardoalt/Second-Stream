@@ -171,7 +171,10 @@ def _register_tools(agent: Agent) -> None:
         ctx: RunContext[ChatAgentDeps],
         payload: IdeationBriefPayload,
     ) -> PdfAttachmentOutput:
-        """Generate a SecondStream Ideation Brief PDF and return an attachment handle."""
+        """Generate an Ideation Brief PDF.
+
+        Tool args are flat top-level fields, e.g. {"customer": "Acme", ...}; do not pass {"payload": {...}}.
+        """
         from app.services.pdf_renderer import render_ideation_brief
 
         return await _upload_pdf(ctx, payload=payload, renderer=render_ideation_brief, filename_suffix="ideation-brief", tool_name="generateIdeationBrief")
@@ -181,7 +184,10 @@ def _register_tools(agent: Agent) -> None:
         ctx: RunContext[ChatAgentDeps],
         payload: AnalyticalReadPayload,
     ) -> PdfAttachmentOutput:
-        """Generate a SecondStream Analytical Read PDF and return an attachment handle."""
+        """Generate an Analytical Read PDF.
+
+        Tool args are flat top-level fields, e.g. {"customer": "Acme", ...}; do not pass {"payload": {...}}.
+        """
         from app.services.pdf_renderer import render_analytical_read
 
         return await _upload_pdf(ctx, payload=payload, renderer=render_analytical_read, filename_suffix="analytical-read", tool_name="generateAnalyticalRead")
@@ -191,7 +197,10 @@ def _register_tools(agent: Agent) -> None:
         ctx: RunContext[ChatAgentDeps],
         payload: PlaybookPayload,
     ) -> PdfAttachmentOutput:
-        """Generate a SecondStream Discovery Playbook PDF and return an attachment handle."""
+        """Generate a Discovery Playbook PDF.
+
+        Tool args are flat top-level fields, e.g. {"customer": "Acme", ...}; do not pass {"payload": {...}}.
+        """
         from app.services.pdf_renderer import render_playbook
 
         return await _upload_pdf(ctx, payload=payload, renderer=render_playbook, filename_suffix="playbook", tool_name="generatePlaybook")
