@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
-from pydantic_ai import BinaryContent
+from pydantic_ai import BinaryContent, ModelRetry
 from pydantic_ai.messages import (
     DocumentUrl,
     FunctionToolCallEvent,
@@ -532,7 +532,7 @@ async def test_upload_pdf_passes_artifact_type_to_persist(monkeypatch):
     assert captured["artifact_type"] == "generatePlaybook"
 
 
-def test_chat_agent_model_settings_include_max_tokens():
+def test_chat_agent_model_settings_include_max_tokens_and_disable_parallel_tools():
     from unittest.mock import MagicMock, patch
 
     class FakeAgent:
@@ -558,7 +558,8 @@ def test_chat_agent_model_settings_include_max_tokens():
         _make_agent()
         call_kwargs = mock_agent_cls.call_args.kwargs
         assert "model_settings" in call_kwargs
-        assert call_kwargs["model_settings"]["max_tokens"] == 16384
+        assert call_kwargs["model_settings"]["max_tokens"] == 32768
+        assert call_kwargs["model_settings"]["parallel_tool_calls"] is False
 
 
 class _CaptureLogger:
@@ -567,6 +568,9 @@ class _CaptureLogger:
 
     def info(self, event, **kwargs):
         self.calls.append({"level": "info", "event": event, "kwargs": kwargs})
+
+    def warning(self, event, **kwargs):
+        self.calls.append({"level": "warning", "event": event, "kwargs": kwargs})
 
     def error(self, event, **kwargs):
         self.calls.append({"level": "error", "event": event, "kwargs": kwargs})
@@ -594,12 +598,13 @@ async def test_generate_chat_response_emits_run_started_event(monkeypatch):
     started = [c for c in capture.calls if c["event"] == "chat_agent_run_started"]
     assert len(started) == 1
     assert started[0]["kwargs"]["run_id"] == "run-123"
-    assert started[0]["kwargs"]["active_skills"] is not None
+    assert "available_skills" in started[0]["kwargs"]
+    assert started[0]["kwargs"]["available_skills"] is not None
     assert isinstance(started[0]["kwargs"]["attachment_count"], int)
 
 
 @pytest.mark.asyncio
-async def test_generate_chat_response_error_log_includes_active_skills(monkeypatch):
+async def test_generate_chat_response_error_log_includes_available_skills(monkeypatch):
     capture = _CaptureLogger()
     monkeypatch.setattr(chat_agent_module, "logger", capture)
 
@@ -619,7 +624,7 @@ async def test_generate_chat_response_error_log_includes_active_skills(monkeypat
 
     error_calls = [c for c in capture.calls if c["event"] == "chat_agent_run_failed"]
     assert len(error_calls) == 1
-    assert "active_skills" in error_calls[0]["kwargs"]
+    assert "available_skills" in error_calls[0]["kwargs"]
 
 
 @pytest.mark.asyncio
@@ -651,7 +656,7 @@ async def test_stream_chat_response_emits_run_started_event(monkeypatch):
     started = [c for c in capture.calls if c["event"] == "chat_agent_run_started"]
     assert len(started) == 1
     assert started[0]["kwargs"]["run_id"] == "run-1"
-    assert "active_skills" in started[0]["kwargs"]
+    assert "available_skills" in started[0]["kwargs"]
     assert started[0]["kwargs"]["attachment_count"] == 0
 
 
@@ -730,7 +735,7 @@ async def test_stream_chat_response_cancel_log_includes_active_skills_and_tools_
 
     cancel_logs = [c for c in capture.calls if c["event"] == "chat_agent_stream_cancelled"]
     assert len(cancel_logs) == 1
-    assert "active_skills" in cancel_logs[0]["kwargs"]
+    assert "available_skills" in cancel_logs[0]["kwargs"]
     assert "tools_called" in cancel_logs[0]["kwargs"]
     assert cancel_logs[0]["kwargs"]["tools_called"] == [
         {"tool_name": "webSearch", "tool_call_id": "call-abc"}
@@ -738,7 +743,7 @@ async def test_stream_chat_response_cancel_log_includes_active_skills_and_tools_
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_response_failure_log_includes_active_skills_and_tools_called(monkeypatch):
+async def test_stream_chat_response_failure_log_includes_available_skills_and_tools_called(monkeypatch):
     capture = _CaptureLogger()
     monkeypatch.setattr(chat_agent_module, "logger", capture)
 
@@ -767,8 +772,301 @@ async def test_stream_chat_response_failure_log_includes_active_skills_and_tools
 
     fail_logs = [c for c in capture.calls if c["event"] == "chat_agent_stream_failed"]
     assert len(fail_logs) == 1
-    assert "active_skills" in fail_logs[0]["kwargs"]
+    assert "available_skills" in fail_logs[0]["kwargs"]
     assert "tools_called" in fail_logs[0]["kwargs"]
     assert fail_logs[0]["kwargs"]["tools_called"] == [
         {"tool_name": "webSearch", "tool_call_id": "call-abc"}
     ]
+
+
+@pytest.mark.asyncio
+async def test_load_skill_tool_returns_skill_content(monkeypatch):
+    monkeypatch.setattr(
+        chat_agent_module,
+        "_load_skill_tool_impl",
+        chat_agent_module._load_skill_tool_impl,
+    )
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    ctx = SimpleNamespace(deps=deps)
+
+    result = await chat_agent_module._load_skill_tool_impl(ctx, name="safety-flagging")
+    assert result["skill_name"] == "safety-flagging"
+    assert len(result["content"]) > 100
+    assert "---" not in result["content"]
+
+
+@pytest.mark.asyncio
+async def test_load_skill_tool_logs_chat_agent_skill_loaded(monkeypatch):
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    ctx = SimpleNamespace(deps=deps)
+
+    result = await chat_agent_module._load_skill_tool_impl(ctx, name="discovery-reporting")
+    assert result["skill_name"] == "discovery-reporting"
+
+    loaded = [c for c in capture.calls if c["event"] == "chat_agent_skill_loaded"]
+    assert len(loaded) == 1
+    assert loaded[0]["kwargs"]["skill_name"] == "discovery-reporting"
+    assert loaded[0]["kwargs"]["run_id"] == "run-1"
+    assert loaded[0]["kwargs"]["source"] == "model_tool_call"
+
+
+@pytest.mark.asyncio
+async def test_load_skill_tool_rejects_unknown_skill():
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    ctx = SimpleNamespace(deps=deps)
+
+    with pytest.raises(ModelRetry):
+        await chat_agent_module._load_skill_tool_impl(ctx, name="nonexistent-skill")
+
+
+@pytest.mark.asyncio
+async def test_load_skill_tool_rejects_path_traversal():
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    ctx = SimpleNamespace(deps=deps)
+
+    with pytest.raises(ModelRetry):
+        await chat_agent_module._load_skill_tool_impl(ctx, name="../../../etc/passwd")
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_sanitizes_load_skill_output(monkeypatch):
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    async def _fake_run_stream_events(_prompt, *, deps):
+        tool_call_id = "call-skill"
+        yield PartStartEvent(index=1, part=ToolCallPart("loadSkill", args={"name": "safety-flagging"}, tool_call_id=tool_call_id))
+        yield FunctionToolCallEvent(part=ToolCallPart("loadSkill", args={"name": "safety-flagging"}, tool_call_id=tool_call_id))
+        yield FunctionToolResultEvent(
+            result=ToolReturnPart(
+                tool_name="loadSkill",
+                tool_call_id=tool_call_id,
+                content={"skill_name": "safety-flagging", "content": "INTERNAL SKILL BODY"},
+            )
+        )
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+
+    assert all("INTERNAL SKILL BODY" not in str(event) for event in events)
+    # Should emit a sanitized tool-output-available event with status-only payload
+    output_events = [e for e in events if e.get("event") == "tool-output-available"]
+    assert len(output_events) == 1
+    assert output_events[0]["output"] == {"skill_name": "safety-flagging", "status": "loaded"}
+    assert events[-1] == {"event": "completed", "response_text": "done"}
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_emits_agent_status_for_load_skill(monkeypatch):
+    """loadSkill start and end must emit semantic agent-status events without leaking skill names."""
+    async def _fake_run_stream_events(_prompt, *, deps):
+        _ = deps
+        tool_call_id = "call-skill"
+        yield PartStartEvent(index=1, part=ToolCallPart("loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id))
+        yield FunctionToolCallEvent(part=ToolCallPart("loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id))
+        yield FunctionToolResultEvent(
+            result=ToolReturnPart(
+                tool_name="loadSkill",
+                tool_call_id=tool_call_id,
+                content={"skill_name": "discovery-reporting", "content": "INTERNAL SKILL BODY"},
+            )
+        )
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+
+    status_events = [e for e in events if e.get("event") == "agent-status"]
+    assert len(status_events) == 1
+    assert status_events[0] == {"event": "agent-status", "phase": "preparing-analysis", "label": "Preparing analysis..."}
+    # No skill name must appear in any agent-status event
+    for e in status_events:
+        assert "discovery-reporting" not in str(e)
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_clears_agent_status_when_pdf_tool_starts(monkeypatch):
+    """When a visible PDF tool starts after loadSkill, agent-status must emit idle to clear shimmer."""
+    async def _fake_run_stream_events(_prompt, *, deps):
+        _ = deps
+        skill_call_id = "call-skill"
+        pdf_call_id = "call-pdf"
+        yield PartStartEvent(index=1, part=ToolCallPart("loadSkill", args={"name": "discovery-reporting"}, tool_call_id=skill_call_id))
+        yield PartStartEvent(index=2, part=ToolCallPart("generateIdeationBrief", args={}, tool_call_id=pdf_call_id))
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+
+    status_events = [e for e in events if e.get("event") == "agent-status"]
+    assert len(status_events) == 2
+    assert status_events[0] == {"event": "agent-status", "phase": "preparing-analysis", "label": "Preparing analysis..."}
+    assert status_events[1] == {"event": "agent-status", "phase": "idle", "label": ""}
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_load_skill_status_persists_until_text_delta(monkeypatch):
+    """Preparing analysis status must remain until the next text delta arrives."""
+    async def _fake_run_stream_events(_prompt, *, deps):
+        _ = deps
+        tool_call_id = "call-skill"
+        yield PartStartEvent(index=1, part=ToolCallPart("loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id))
+        yield FunctionToolCallEvent(part=ToolCallPart("loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id))
+        yield FunctionToolResultEvent(
+            result=ToolReturnPart(
+                tool_name="loadSkill",
+                tool_call_id=tool_call_id,
+                content={"skill_name": "discovery-reporting", "content": "INTERNAL SKILL BODY"},
+            )
+        )
+        yield PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="Here is "))
+        yield PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="the analysis."))
+        yield AgentRunResultEvent(result=SimpleNamespace(output="Here is the analysis."))
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+
+    assert events == [
+        {"event": "agent-status", "phase": "preparing-analysis", "label": "Preparing analysis..."},
+        {"event": "tool-input-start", "toolCallId": "call-skill", "toolName": "loadSkill"},
+        {
+            "event": "tool-input-available",
+            "toolCallId": "call-skill",
+            "toolName": "loadSkill",
+            "input": {"name": "discovery-reporting"},
+        },
+        {
+            "event": "tool-output-available",
+            "toolCallId": "call-skill",
+            "output": {"skill_name": "discovery-reporting", "status": "loaded"},
+        },
+        {"event": "agent-status", "phase": "idle", "label": ""},
+        {"event": "delta", "delta": "Here is "},
+        {"event": "delta", "delta": "the analysis."},
+        {"event": "completed", "response_text": "Here is the analysis."},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_survives_tool_input_parse_failure(monkeypatch):
+    """FunctionToolCallEvent args parse failure must not fail the stream."""
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    class _BadToolCallPart(ToolCallPart):
+        def args_as_dict(self):
+            raise ValueError("malformed json")
+
+    async def _fake_run_stream_events(_prompt, *, deps):
+        tool_call_id = "call-bad"
+        yield PartStartEvent(index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id))
+        yield FunctionToolCallEvent(part=_BadToolCallPart("webSearch", args="not-valid-json", tool_call_id=tool_call_id))
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+
+    assert events[-1] == {"event": "completed", "response_text": "done"}
+    # Input-available should survive with empty input dict
+    input_available = [e for e in events if e.get("event") == "tool-input-available"]
+    assert len(input_available) == 1
+    assert input_available[0]["input"] == {}
+    # Warning should be logged
+    warn_calls = [c for c in capture.calls if c["event"] == "chat_agent_tool_input_parse_failed"]
+    assert len(warn_calls) == 1
+    assert warn_calls[0]["kwargs"]["tool_name"] == "webSearch"

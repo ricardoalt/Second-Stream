@@ -33,11 +33,13 @@ import { uploadAttachmentsFromPromptMessage } from "@/lib/chat-runtime/upload";
 import { useAuth } from "@/lib/contexts";
 import { useOrganizationStore } from "@/lib/stores/organization-store";
 import type {
+	AgentStatusDataPart,
 	ConversationTitleDataPart,
 	MyUIMessage,
 	NewThreadCreatedDataPart,
 } from "@/types/ui-message";
 import {
+	DATA_AGENT_STATUS_PART,
 	DATA_CONVERSATION_TITLE_PART,
 	DATA_NEW_THREAD_CREATED_PART,
 } from "@/types/ui-message";
@@ -65,6 +67,10 @@ export function ChatInterface({
 	const [retryMessage, setRetryMessage] = useState<PromptInputMessage | null>(
 		null,
 	);
+	const [agentStatus, setAgentStatus] = useState<{
+		phase: string;
+		label: string;
+	} | null>(null);
 	const isSubmittingMessageRef = useRef(false);
 
 	// Track how many messages existed on mount so new messages get stagger
@@ -112,12 +118,6 @@ export function ChatInterface({
 		resume: false,
 		experimental_throttle: 50,
 		transport,
-		onFinish: () => {
-			void queryClient.refetchQueries({
-				queryKey: chatThreadsQueryKey,
-				exact: true,
-			});
-		},
 		onData: (part) => {
 			if (part.type === DATA_NEW_THREAD_CREATED_PART) {
 				const eventPart = part as NewThreadCreatedDataPart;
@@ -140,7 +140,25 @@ export function ChatInterface({
 					chatThreadsQueryKey,
 					(old) => applyConversationTitleFromEvent(old, eventPart),
 				);
+				return;
 			}
+
+			if (part.type === DATA_AGENT_STATUS_PART) {
+				const statusPart = part as AgentStatusDataPart;
+				if (statusPart.data.phase === "idle") {
+					setAgentStatus(null);
+				} else {
+					setAgentStatus(statusPart.data);
+				}
+				return;
+			}
+		},
+		onFinish: () => {
+			setAgentStatus(null);
+			void queryClient.refetchQueries({
+				queryKey: chatThreadsQueryKey,
+				exact: true,
+			});
 		},
 	});
 	const statusRef = useRef(status);
@@ -376,14 +394,15 @@ export function ChatInterface({
 											ease: [0.25, 0.1, 0.25, 1],
 										}}
 									>
-										<MessagePartsRenderer
-											message={message}
-											isLastMessage={index === messages.length - 1}
-											isStreamingOrSubmitted={isStreamingOrSubmitted}
-											messages={messages}
-											setMessages={setMessages}
-											regenerate={regenerate}
-										/>
+									<MessagePartsRenderer
+										message={message}
+										isLastMessage={index === messages.length - 1}
+										isStreamingOrSubmitted={isStreamingOrSubmitted}
+										messages={messages}
+										setMessages={setMessages}
+										regenerate={regenerate}
+										agentStatus={agentStatus}
+									/>
 									</motion.div>
 								))}
 

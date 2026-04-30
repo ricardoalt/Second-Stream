@@ -169,6 +169,10 @@ type MessagePartsRendererProps = {
 	messages: MyUIMessage[];
 	setMessages: (messages: MyUIMessage[]) => void;
 	regenerate: () => void;
+	agentStatus?: {
+		phase: string;
+		label: string;
+	} | null;
 };
 
 function MessagePartsRendererInner({
@@ -178,6 +182,7 @@ function MessagePartsRendererInner({
 	messages,
 	setMessages,
 	regenerate,
+	agentStatus,
 }: MessagePartsRendererProps) {
 	return (
 		<Message from={message.role}>
@@ -255,6 +260,15 @@ function MessagePartsRendererInner({
 							return null;
 					}
 				})}
+				{agentStatus?.phase === "preparing-analysis" &&
+				isLastMessage &&
+				isStreamingOrSubmitted ? (
+					<div className="mt-1">
+						<Shimmer as="p" className="text-xs">
+							{agentStatus.label}
+						</Shimmer>
+					</div>
+				) : null}
 			</MessageContent>
 			{message.role === "assistant" ? (
 				<MessageToolbar className="mt-1">

@@ -3,6 +3,7 @@ import type { WorkingMemory } from "@/config/working-memory";
 
 export const DATA_NEW_THREAD_CREATED_PART = "data-new-thread-created" as const;
 export const DATA_CONVERSATION_TITLE_PART = "data-conversation-title" as const;
+export const DATA_AGENT_STATUS_PART = "data-agent-status" as const;
 
 export type PdfOutput = {
 	attachment_id: string;
@@ -40,6 +41,10 @@ export type MyUIMessage = UIMessage<
 				| "generatePlaybook";
 			output: PdfOutput;
 		};
+		"agent-status": {
+			phase: "preparing-analysis" | "idle";
+			label: string;
+		};
 	},
 	{
 		webSearch: {
@@ -54,6 +59,10 @@ export type MyUIMessage = UIMessage<
 		updateWorkingMemory: {
 			input: { memory: WorkingMemory };
 			output: { success: boolean };
+		};
+		loadSkill: {
+			input: { name: string };
+			output: { skill_name: string; status: "loaded" };
 		};
 		generateIdeationBrief: {
 			input: {
@@ -124,5 +133,13 @@ export type ConversationTitleDataPart = {
 	data: {
 		threadId: string;
 		title: string;
+	};
+};
+
+export type AgentStatusDataPart = {
+	type: typeof DATA_AGENT_STATUS_PART;
+	data: {
+		phase: "preparing-analysis" | "idle";
+		label: string;
 	};
 };

@@ -303,6 +303,32 @@ class TestOfficialProtocolStreamAdapter:
         }
 
     @pytest.mark.asyncio
+    async def test_agent_status_event_maps_to_official_data_agent_status_part(self):
+        """Official protocol: agent-status must be emitted as data-agent-status data part."""
+        internal_events = [
+            {"event": "agent-status", "phase": "preparing-analysis", "label": "Preparing analysis..."},
+            {"event": "agent-status", "phase": "idle", "label": ""},
+        ]
+        stream = adapt_stream_to_official_protocol(_stream_events_gen(internal_events))
+        output = await _collect(stream)
+        parsed = _parse_official_output(output)
+
+        assert parsed[0] == {
+            "type": "data-agent-status",
+            "data": {
+                "phase": "preparing-analysis",
+                "label": "Preparing analysis...",
+            },
+        }
+        assert parsed[1] == {
+            "type": "data-agent-status",
+            "data": {
+                "phase": "idle",
+                "label": "",
+            },
+        }
+
+    @pytest.mark.asyncio
     async def test_keepalive_event_maps_to_sse_comment_frame(self):
         """keepalive internal event must be serialized as SSE comment frame only."""
         internal_events = [

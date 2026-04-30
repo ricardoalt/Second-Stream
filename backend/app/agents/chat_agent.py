@@ -13,7 +13,7 @@ from uuid import uuid4
 import structlog
 from anyio import BrokenResourceError
 from pydantic import BaseModel, Field, ValidationError
-from pydantic_ai import Agent, BinaryContent, RunContext
+from pydantic_ai import Agent, BinaryContent, ModelRetry, RunContext
 from pydantic_ai.messages import (
     DocumentUrl,
     FunctionToolCallEvent,
@@ -32,7 +32,7 @@ from pydantic_ai.run import AgentRunResultEvent
 from pydantic_ai.settings import ModelSettings
 
 from app.agents.analytical_read_schema import AnalyticalReadPayload
-from app.agents.chat_skill_loader import resolve_active_skills
+from app.agents.chat_skill_loader import available_skill_names
 from app.agents.ideation_brief_schema import IdeationBriefPayload
 from app.agents.playbook_schema import PlaybookPayload
 from app.agents.shared_schema import PdfAttachmentOutput
@@ -136,11 +136,40 @@ async def _upload_pdf(
     )
 
 
-def _make_agent() -> Agent:
-    from app.agents.chat_skill_loader import (
-        build_conditional_instructions_fn,
-        compile_base_instructions,
+async def _load_skill_tool_impl(
+    ctx: RunContext[ChatAgentDeps],
+    name: str,
+) -> dict[str, str]:
+    """Load a skill's full instructions by name.
+
+    Validates the skill exists among discovered skills, loads its body with
+    frontmatter stripped, and returns a safe structured result. No filesystem
+    access outside the skills directory.
+    """
+    from app.agents.chat_skill_loader import discover_skills, load_skill
+
+    available = {m.name for m in discover_skills()}
+    if name not in available:
+        raise ModelRetry("Unknown skill. Use one of the skills listed in Available Skills.")
+
+    try:
+        skill = load_skill(name)
+    except ValueError as exc:
+        raise ModelRetry("Skill could not be loaded. Use a valid skill name from Available Skills.") from exc
+    logger.info(
+        "chat_agent_skill_loaded",
+        run_id=ctx.deps.run_id,
+        skill_name=name,
+        source="model_tool_call",
     )
+    return {
+        "skill_name": skill.name,
+        "content": skill.body,
+    }
+
+
+def _make_agent() -> Agent:
+    from app.agents.chat_skill_loader import compile_base_instructions
 
     agent: Agent[ChatAgentDeps, str] = Agent(
         BedrockConverseModel(
@@ -150,15 +179,9 @@ def _make_agent() -> Agent:
         deps_type=ChatAgentDeps,
         output_type=str,
         retries=2,
-        model_settings=ModelSettings(max_tokens=16384),
+        model_settings=ModelSettings(parallel_tool_calls=False, max_tokens=32768),
         instructions=compile_base_instructions(),
     )
-
-    conditional_fn = build_conditional_instructions_fn()
-
-    @agent.instructions
-    def _conditional_instructions(ctx: RunContext[ChatAgentDeps]) -> str:
-        return conditional_fn(ctx)
 
     _register_tools(agent)
     return agent
@@ -166,6 +189,18 @@ def _make_agent() -> Agent:
 
 def _register_tools(agent: Agent) -> None:
     """Register all tools on the agent instance."""
+
+    @agent.tool(name="loadSkill")
+    async def load_skill_tool(
+        ctx: RunContext[ChatAgentDeps],
+        name: str,
+    ) -> dict[str, str]:
+        """Load a skill's full instructions by name.
+
+        Call this before performing specialized work. The available skills list
+        is shown in the base instructions. Returns the skill's full content.
+        """
+        return await _load_skill_tool_impl(ctx, name)
 
     @agent.tool(name="generateIdeationBrief")
     async def generate_ideation_brief(
@@ -216,16 +251,14 @@ async def generate_chat_response(
     deps: ChatAgentDeps,
 ) -> ChatAgentOutput:
     """Run the chat agent with typed dependencies and validated output."""
-    from types import SimpleNamespace
-
-    active_skills = resolve_active_skills(SimpleNamespace(deps=deps))
+    available_skills = available_skill_names()
     logger.info(
         "chat_agent_run_started",
         run_id=deps.run_id,
         thread_id=deps.thread_id,
         organization_id=deps.organization_id,
         user_id=deps.user_id,
-        active_skills=active_skills,
+        available_skills=available_skills,
         attachment_count=len(deps.attachments),
     )
     try:
@@ -238,7 +271,7 @@ async def generate_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
-            active_skills=active_skills,
+            available_skills=available_skills,
             error=str(exc),
         )
         raise ChatAgentError("Chat agent returned invalid result schema") from exc
@@ -249,7 +282,7 @@ async def generate_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
-            active_skills=active_skills,
+            available_skills=available_skills,
             error=str(exc),
         )
         raise ChatAgentError("Chat agent execution failed") from exc
@@ -298,21 +331,20 @@ async def stream_chat_response(
     attachments: list[ChatAgentAttachmentInput],
 ):
     """Stream chat response deltas and tool events from the agent runtime."""
-    from types import SimpleNamespace
-
     runtime_input = _build_runtime_user_content(prompt=prompt, attachments=attachments)
     accumulated_text = ""
     tool_call_ids_by_index: dict[int, str] = {}
     tool_names_by_call_id: dict[str, str] = {}
     tools_called: list[dict[str, str]] = []
-    active_skills = resolve_active_skills(SimpleNamespace(deps=deps))
+    agent_status_active = False
+    available_skills = available_skill_names()
     logger.info(
         "chat_agent_run_started",
         run_id=deps.run_id,
         thread_id=deps.thread_id,
         organization_id=deps.organization_id,
         user_id=deps.user_id,
-        active_skills=active_skills,
+        available_skills=available_skills,
         attachment_count=len(attachments),
     )
     try:
@@ -334,6 +366,20 @@ async def stream_chat_response(
                 tools_called.append(
                     {"tool_name": event.part.tool_name, "tool_call_id": event.part.tool_call_id}
                 )
+                if event.part.tool_name == "loadSkill":
+                    agent_status_active = True
+                    yield {
+                        "event": "agent-status",
+                        "phase": "preparing-analysis",
+                        "label": "Preparing analysis...",
+                    }
+                elif event.part.tool_name in _PDF_TOOL_NAMES and agent_status_active:
+                    agent_status_active = False
+                    yield {
+                        "event": "agent-status",
+                        "phase": "idle",
+                        "label": "",
+                    }
                 yield {
                     "event": "tool-input-start",
                     "toolCallId": event.part.tool_call_id,
@@ -358,11 +404,22 @@ async def stream_chat_response(
                 continue
 
             if isinstance(event, FunctionToolCallEvent):
+                try:
+                    tool_input = event.part.args_as_dict()
+                except Exception as parse_exc:
+                    logger.warning(
+                        "chat_agent_tool_input_parse_failed",
+                        run_id=deps.run_id,
+                        tool_name=event.part.tool_name,
+                        tool_call_id=event.part.tool_call_id,
+                        error=str(parse_exc),
+                    )
+                    tool_input = {}
                 yield {
                     "event": "tool-input-available",
                     "toolCallId": event.part.tool_call_id,
                     "toolName": event.part.tool_name,
-                    "input": event.part.args_as_dict(),
+                    "input": tool_input,
                 }
                 continue
 
@@ -387,6 +444,22 @@ async def stream_chat_response(
                         tool_name=event.result.tool_name,
                         tool_call_id=event.result.tool_call_id,
                     )
+                    if event.result.tool_name == "loadSkill":
+                        # Skill bodies are internal operating instructions. They are
+                        # returned to the model as tool output, but must never be
+                        # forwarded to the client stream. Emit a sanitized status-only
+                        # event so the UI can show the skill was loaded without leaking
+                        # the body content.
+                        output_object = event.result.model_response_object()
+                        skill_name = ""
+                        if isinstance(output_object, dict):
+                            skill_name = output_object.get("skill_name", "")
+                        yield {
+                            "event": "tool-output-available",
+                            "toolCallId": event.result.tool_call_id,
+                            "output": {"skill_name": skill_name, "status": "loaded"},
+                        }
+                        continue
                     output_object = event.result.model_response_object()
                     if isinstance(output_object, BaseModel):
                         output: Any = output_object.model_dump()
@@ -405,6 +478,9 @@ async def stream_chat_response(
             if isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
                 delta = event.delta.content_delta
                 if delta:
+                    if agent_status_active:
+                        agent_status_active = False
+                        yield {"event": "agent-status", "phase": "idle", "label": ""}
                     accumulated_text += delta
                     yield {"event": "delta", "delta": delta}
 
@@ -416,7 +492,7 @@ async def stream_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
-            active_skills=active_skills,
+            available_skills=available_skills,
             tools_called=tools_called,
         )
         raise
@@ -429,7 +505,7 @@ async def stream_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
-            active_skills=active_skills,
+            available_skills=available_skills,
             tools_called=tools_called,
             error=str(exc),
         )

@@ -6,7 +6,6 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from time import perf_counter
-from types import SimpleNamespace
 from uuid import UUID
 
 import structlog
@@ -16,7 +15,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.chat_agent import ChatAgentDeps, ChatAgentError, stream_chat_response
-from app.agents.chat_skill_loader import resolve_active_skills
+from app.agents.chat_skill_loader import available_skill_names
 from app.core.database import AsyncSessionLocal
 from app.models.chat_attachment import ChatAttachment
 from app.models.chat_message import ChatMessage
@@ -821,7 +820,7 @@ async def stream_chat_turn(
         persist_attachment=_persist_attachment,
         upload_bytes=_upload_bytes,
     )
-    active_skills = resolve_active_skills(SimpleNamespace(deps=deps))
+    available_skills = available_skill_names()
     logger.info(
         "chat_stream_started",
         thread_id=str(thread_id),
@@ -829,7 +828,7 @@ async def stream_chat_turn(
         organization_id=str(organization_id),
         user_id=str(created_by_user_id),
         keepalive_interval_seconds=keepalive_interval,
-        active_skills=active_skills,
+        available_skills=available_skills,
     )
     media_type_counts, total_binary_bytes, total_text_chars, binary_attachment_count = (
         _summarize_attachments_for_observability(attachments=prepared.agent_attachments)
@@ -846,7 +845,7 @@ async def stream_chat_turn(
         total_binary_bytes=total_binary_bytes,
         total_text_chars=total_text_chars,
         media_type_counts=media_type_counts,
-        active_skills=active_skills,
+        available_skills=available_skills,
     )
 
     for event in prepared.events:
@@ -895,6 +894,11 @@ async def stream_chat_turn(
                     delta_chunks.append(delta)
                     _mark_emitted_event(event_type="delta")
                     yield {"event": "delta", "delta": delta}
+                    continue
+
+                if event_type == "agent-status":
+                    _mark_emitted_event(event_type="agent-status")
+                    yield runtime_event
                     continue
 
                 if event_type == "tool-output-available":
@@ -970,7 +974,7 @@ async def stream_chat_turn(
             run_id=run_id,
             organization_id=str(organization_id),
             user_id=str(created_by_user_id),
-            active_skills=active_skills,
+            available_skills=available_skills,
             tools_called=tools_called,
         )
         raise
@@ -982,7 +986,7 @@ async def stream_chat_turn(
             run_id=run_id,
             organization_id=str(organization_id),
             user_id=str(created_by_user_id),
-            active_skills=active_skills,
+            available_skills=available_skills,
             tools_called=tools_called,
         )
         raise
@@ -1053,7 +1057,7 @@ async def stream_chat_turn(
             run_id=run_id,
             organization_id=str(organization_id),
             user_id=str(created_by_user_id),
-            active_skills=active_skills,
+            available_skills=available_skills,
             tools_called=tools_called,
             error=str(exc),
         )
@@ -1079,7 +1083,7 @@ async def stream_chat_turn(
             max_gap_seconds=max_gap_seconds,
             emitted_events_count=emitted_events_count,
             emitted_keepalive_count=emitted_keepalive_count,
-            active_skills=active_skills,
+            available_skills=available_skills,
             tools_called=tools_called,
         )
 

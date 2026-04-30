@@ -546,6 +546,50 @@ async def test_stream_chat_turn_forwards_incremental_runtime_events_without_sent
 
 
 @pytest.mark.asyncio
+async def test_stream_chat_turn_forwards_agent_status_events_without_persistence(
+    db_session,
+    chat_session_factory,
+    monkeypatch,
+):
+    org = await create_org(db_session, "Chat Status Org", "chat-status-org")
+    owner = await create_user(
+        db_session,
+        email=f"chat-status-owner-{uuid.uuid4().hex[:8]}@example.com",
+        org_id=org.id,
+        role=UserRole.FIELD_AGENT.value,
+        is_superuser=False,
+    )
+    thread = await _create_thread(db_session, org_id=org.id, owner_id=owner.id)
+
+    async def _fake_stream_response(*, prompt, deps, attachments):
+        yield {"event": "agent-status", "phase": "preparing-analysis", "label": "Preparing analysis..."}
+        yield {"event": "delta", "delta": "Working"}
+        yield {"event": "agent-status", "phase": "idle", "label": ""}
+        yield {"event": "completed", "response_text": "Working"}
+
+    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response, raising=False)
+
+    events = [
+        event
+        async for event in stream_chat_turn(
+            session_factory=chat_session_factory,
+            organization_id=org.id,
+            created_by_user_id=owner.id,
+            thread_id=thread.id,
+            content_text="Help me analyze",
+            run_id="run-agent-status",
+        )
+    ]
+
+    assert events[0] == {"event": "start", "run_id": "run-agent-status"}
+    assert events[1] == {"event": "agent-status", "phase": "preparing-analysis", "label": "Preparing analysis..."}
+    assert events[2] == {"event": "delta", "delta": "Working"}
+    assert events[3] == {"event": "agent-status", "phase": "idle", "label": ""}
+    assert events[4]["event"] == "completed"
+    assert uuid.UUID(events[4]["message_id"])
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_turn_resolves_existing_attachments_and_passes_agent_consumable_inputs(
     db_session,
     chat_session_factory,

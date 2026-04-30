@@ -183,4 +183,76 @@ describe("MessagePartsRenderer", () => {
 		expect(markup).toContain("View");
 		expect(markup).toContain("Download");
 	});
+
+	it("renders agent-status shimmer for last streaming message", () => {
+		const message = {
+			id: "msg-status",
+			role: "assistant",
+			content: "",
+			parts: [{ type: "text" as const, text: "Working on it." }],
+			createdAt: "2026-01-01T00:00:00.000Z",
+		} as MyUIMessage;
+
+		const markup = renderToStaticMarkup(
+			<MessagePartsRenderer
+				message={message}
+				isLastMessage={true}
+				isStreamingOrSubmitted={true}
+				messages={[message]}
+				setMessages={() => {}}
+				regenerate={() => {}}
+				agentStatus={{ phase: "preparing-analysis", label: "Preparing analysis..." }}
+			/>,
+		);
+
+		expect(markup).toContain("Preparing analysis...");
+	});
+
+	it("does not render agent-status shimmer when not last message", () => {
+		const message = {
+			id: "msg-status-old",
+			role: "assistant",
+			content: "Previous response",
+			parts: [{ type: "text" as const, text: "Previous response" }],
+			createdAt: "2026-01-01T00:00:00.000Z",
+		} as MyUIMessage;
+
+		const markup = renderToStaticMarkup(
+			<MessagePartsRenderer
+				message={message}
+				isLastMessage={false}
+				isStreamingOrSubmitted={true}
+				messages={[message]}
+				setMessages={() => {}}
+				regenerate={() => {}}
+				agentStatus={{ phase: "preparing-analysis", label: "Preparing analysis..." }}
+			/>,
+		);
+
+		expect(markup).not.toContain("Preparing analysis...");
+	});
+
+	it("does not render agent-status shimmer when idle", () => {
+		const message = {
+			id: "msg-idle",
+			role: "assistant",
+			content: "",
+			parts: [],
+			createdAt: "2026-01-01T00:00:00.000Z",
+		} as MyUIMessage;
+
+		const markup = renderToStaticMarkup(
+			<MessagePartsRenderer
+				message={message}
+				isLastMessage={true}
+				isStreamingOrSubmitted={true}
+				messages={[message]}
+				setMessages={() => {}}
+				regenerate={() => {}}
+				agentStatus={{ phase: "idle", label: "" }}
+			/>,
+		);
+
+		expect(markup).not.toContain("Preparing analysis...");
+	});
 });

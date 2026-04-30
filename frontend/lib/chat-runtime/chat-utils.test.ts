@@ -42,7 +42,7 @@ describe("chat-utils", () => {
 		).toBe(false);
 	});
 
-	it("oculta shimmer cuando assistant ya muestra actividad de tool", () => {
+	it("oculta shimmer cuando assistant ya muestra actividad de tool visible", () => {
 		expect(
 			shouldShowLoadingShimmer("streaming", [
 				{
@@ -53,6 +53,47 @@ describe("chat-utils", () => {
 							type: "tool-generateIdeationBrief",
 							state: "input-available",
 							input: undefined,
+						},
+					],
+				},
+			]),
+		).toBe(false);
+	});
+
+	it("mantiene shimmer cuando solo hay carga de skills interna sin texto visible", () => {
+		expect(
+			shouldShowLoadingShimmer("streaming", [
+				{
+					id: "1",
+					role: "assistant",
+					parts: [
+						{
+							type: "tool-loadSkill",
+							state: "input-available",
+							toolCallId: "call-skill",
+							toolName: "loadSkill",
+							input: { name: "discovery-reporting" },
+						},
+					],
+				},
+			]),
+		).toBe(true);
+	});
+
+	it("oculta shimmer cuando carga de skills interna ya tiene texto visible", () => {
+		expect(
+			shouldShowLoadingShimmer("streaming", [
+				{
+					id: "1",
+					role: "assistant",
+					parts: [
+						{ type: "text", text: "Aquí está tu respuesta." },
+						{
+							type: "tool-loadSkill",
+							state: "output-available",
+							toolCallId: "call-skill",
+							toolName: "loadSkill",
+							output: { skill_name: "discovery-reporting", status: "loaded" },
 						},
 					],
 				},

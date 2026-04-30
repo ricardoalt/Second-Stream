@@ -207,6 +207,17 @@ async def adapt_stream_to_official_protocol(
                 },
             )
 
+        elif event_type == "agent-status":
+            yield encode_official_sse(
+                "data-agent-status",
+                {
+                    "data": {
+                        "phase": event.get("phase", ""),
+                        "label": event.get("label", ""),
+                    },
+                },
+            )
+
         elif event_type == "keepalive":
             # SSE standard keepalive frame; intentionally not part of AI SDK data JSON.
             yield encode_sse_comment("keepalive")
