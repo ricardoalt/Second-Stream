@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 from io import BytesIO
 from types import SimpleNamespace
@@ -558,3 +559,216 @@ def test_chat_agent_model_settings_include_max_tokens():
         call_kwargs = mock_agent_cls.call_args.kwargs
         assert "model_settings" in call_kwargs
         assert call_kwargs["model_settings"]["max_tokens"] == 16384
+
+
+class _CaptureLogger:
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    def info(self, event, **kwargs):
+        self.calls.append({"level": "info", "event": event, "kwargs": kwargs})
+
+    def error(self, event, **kwargs):
+        self.calls.append({"level": "error", "event": event, "kwargs": kwargs})
+
+
+@pytest.mark.asyncio
+async def test_generate_chat_response_emits_run_started_event(monkeypatch):
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    async def _fake_run(prompt, *, deps):
+        return SimpleNamespace(output="Answer.")
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run", _fake_run)
+
+    deps = ChatAgentDeps(
+        organization_id="org-123",
+        user_id="user-123",
+        thread_id="thread-123",
+        run_id="run-123",
+    )
+    result = await generate_chat_response(prompt="Hello", deps=deps)
+    assert result.response_text == "Answer."
+
+    started = [c for c in capture.calls if c["event"] == "chat_agent_run_started"]
+    assert len(started) == 1
+    assert started[0]["kwargs"]["run_id"] == "run-123"
+    assert started[0]["kwargs"]["active_skills"] is not None
+    assert isinstance(started[0]["kwargs"]["attachment_count"], int)
+
+
+@pytest.mark.asyncio
+async def test_generate_chat_response_error_log_includes_active_skills(monkeypatch):
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    async def _boom(*_args, **_kwargs):
+        raise RuntimeError("fail")
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run", _boom)
+
+    deps = ChatAgentDeps(
+        organization_id="org-123",
+        user_id="user-123",
+        thread_id="thread-123",
+        run_id="run-123",
+    )
+    with pytest.raises(ChatAgentError):
+        await generate_chat_response(prompt="Hello", deps=deps)
+
+    error_calls = [c for c in capture.calls if c["event"] == "chat_agent_run_failed"]
+    assert len(error_calls) == 1
+    assert "active_skills" in error_calls[0]["kwargs"]
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_emits_run_started_event(monkeypatch):
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    async def _fake_run_stream_events(prompt, *, deps):
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+    assert events == [{"event": "completed", "response_text": "done"}]
+
+    started = [c for c in capture.calls if c["event"] == "chat_agent_run_started"]
+    assert len(started) == 1
+    assert started[0]["kwargs"]["run_id"] == "run-1"
+    assert "active_skills" in started[0]["kwargs"]
+    assert started[0]["kwargs"]["attachment_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_emits_tool_started_and_completed(monkeypatch):
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    async def _fake_run_stream_events(_prompt, *, deps):
+        tool_call_id = "call-abc"
+        yield PartStartEvent(index=1, part=ToolCallPart("generateIdeationBrief", args={}, tool_call_id=tool_call_id))
+        yield FunctionToolResultEvent(
+            result=ToolReturnPart(
+                tool_name="generateIdeationBrief",
+                tool_call_id=tool_call_id,
+                content={"attachment_id": "att-1", "filename": "report.pdf"},
+            )
+        )
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    _ = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+
+    started = [c for c in capture.calls if c["event"] == "chat_agent_tool_started"]
+    assert len(started) == 1
+    assert started[0]["kwargs"]["tool_name"] == "generateIdeationBrief"
+    assert started[0]["kwargs"]["tool_call_id"] == "call-abc"
+
+    completed = [c for c in capture.calls if c["event"] == "chat_agent_tool_completed"]
+    assert len(completed) == 1
+    assert completed[0]["kwargs"]["tool_name"] == "generateIdeationBrief"
+    assert completed[0]["kwargs"]["tool_call_id"] == "call-abc"
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_cancel_log_includes_active_skills_and_tools_called(monkeypatch):
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    async def _fake_run_stream_events(_prompt, *, deps):
+        tool_call_id = "call-abc"
+        yield PartStartEvent(index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id))
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    with pytest.raises(asyncio.CancelledError):
+        _ = [
+            event
+            async for event in stream_chat_response(
+                prompt="Question",
+                deps=deps,
+                attachments=[],
+            )
+        ]
+
+    cancel_logs = [c for c in capture.calls if c["event"] == "chat_agent_stream_cancelled"]
+    assert len(cancel_logs) == 1
+    assert "active_skills" in cancel_logs[0]["kwargs"]
+    assert "tools_called" in cancel_logs[0]["kwargs"]
+    assert cancel_logs[0]["kwargs"]["tools_called"] == [
+        {"tool_name": "webSearch", "tool_call_id": "call-abc"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_failure_log_includes_active_skills_and_tools_called(monkeypatch):
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    async def _fake_run_stream_events(_prompt, *, deps):
+        tool_call_id = "call-abc"
+        yield PartStartEvent(index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id))
+        raise RuntimeError("stream broke")
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+    with pytest.raises(ChatAgentError):
+        _ = [
+            event
+            async for event in stream_chat_response(
+                prompt="Question",
+                deps=deps,
+                attachments=[],
+            )
+        ]
+
+    fail_logs = [c for c in capture.calls if c["event"] == "chat_agent_stream_failed"]
+    assert len(fail_logs) == 1
+    assert "active_skills" in fail_logs[0]["kwargs"]
+    assert "tools_called" in fail_logs[0]["kwargs"]
+    assert fail_logs[0]["kwargs"]["tools_called"] == [
+        {"tool_name": "webSearch", "tool_call_id": "call-abc"}
+    ]

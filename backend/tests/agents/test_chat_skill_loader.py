@@ -1,8 +1,10 @@
 from app.agents.chat_skill_loader import (
+    _ALWAYS_ON,
     _is_sds_attachment,
     build_conditional_instructions_fn,
     compile_base_instructions,
     load_skill,
+    resolve_active_skills,
 )
 from app.services.chat_stream_protocol import ChatAgentAttachmentInput
 
@@ -119,3 +121,90 @@ def test_conditional_excluded_when_attachments_are_text_only():
     result = fn(FakeCtx())
     # For text-only, no conditionals apply
     assert "multimodal-intake" not in result
+
+
+def test_resolve_active_skills_returns_always_on_without_attachments():
+    class FakeDeps:
+        attachments = ()
+
+    class FakeCtx:
+        deps = FakeDeps()
+
+    skills = resolve_active_skills(FakeCtx())
+    assert skills == list(_ALWAYS_ON)
+
+
+def test_resolve_active_skills_includes_multimodal_intake_for_image():
+    class FakeDeps:
+        pass
+
+    class FakeCtx:
+        deps = FakeDeps()
+        deps.attachments = (
+            ChatAgentAttachmentInput(
+                attachment_id="1",
+                media_type="image/jpeg",
+                filename="photo.jpg",
+            ),
+        )
+
+    skills = resolve_active_skills(FakeCtx())
+    assert "multimodal-intake" in skills
+    assert skills[: len(_ALWAYS_ON)] == list(_ALWAYS_ON)
+
+
+def test_resolve_active_skills_includes_sds_for_sds_filename():
+    class FakeDeps:
+        pass
+
+    class FakeCtx:
+        deps = FakeDeps()
+        deps.attachments = (
+            ChatAgentAttachmentInput(
+                attachment_id="1",
+                media_type="application/pdf",
+                filename="SDS_HF_acid.pdf",
+            ),
+        )
+
+    skills = resolve_active_skills(FakeCtx())
+    assert "sds-interpretation" in skills
+
+
+def test_resolve_active_skills_includes_both_conditionals_when_both_apply():
+    class FakeDeps:
+        pass
+
+    class FakeCtx:
+        deps = FakeDeps()
+        deps.attachments = (
+            ChatAgentAttachmentInput(
+                attachment_id="1",
+                media_type="image/png",
+                filename="sds_photo.png",
+            ),
+        )
+
+    skills = resolve_active_skills(FakeCtx())
+    assert "multimodal-intake" in skills
+    assert "sds-interpretation" in skills
+
+
+def test_resolve_active_skills_excludes_conditionals_for_text_only():
+    class FakeDeps:
+        pass
+
+    class FakeCtx:
+        deps = FakeDeps()
+        deps.attachments = (
+            ChatAgentAttachmentInput(
+                attachment_id="1",
+                media_type="text/plain",
+                filename="notes.txt",
+            ),
+        )
+
+    skills = resolve_active_skills(FakeCtx())
+    assert "multimodal-intake" not in skills
+    assert "sds-interpretation" not in skills
+    assert skills == list(_ALWAYS_ON)

@@ -32,6 +32,7 @@ from pydantic_ai.run import AgentRunResultEvent
 from pydantic_ai.settings import ModelSettings
 
 from app.agents.analytical_read_schema import AnalyticalReadPayload
+from app.agents.chat_skill_loader import resolve_active_skills
 from app.agents.ideation_brief_schema import IdeationBriefPayload
 from app.agents.playbook_schema import PlaybookPayload
 from app.agents.shared_schema import PdfAttachmentOutput
@@ -215,6 +216,18 @@ async def generate_chat_response(
     deps: ChatAgentDeps,
 ) -> ChatAgentOutput:
     """Run the chat agent with typed dependencies and validated output."""
+    from types import SimpleNamespace
+
+    active_skills = resolve_active_skills(SimpleNamespace(deps=deps))
+    logger.info(
+        "chat_agent_run_started",
+        run_id=deps.run_id,
+        thread_id=deps.thread_id,
+        organization_id=deps.organization_id,
+        user_id=deps.user_id,
+        active_skills=active_skills,
+        attachment_count=len(deps.attachments),
+    )
     try:
         result = await chat_agent.run(prompt, deps=deps)
         return ChatAgentOutput(response_text=result.output.strip())
@@ -225,6 +238,7 @@ async def generate_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
+            active_skills=active_skills,
             error=str(exc),
         )
         raise ChatAgentError("Chat agent returned invalid result schema") from exc
@@ -235,6 +249,7 @@ async def generate_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
+            active_skills=active_skills,
             error=str(exc),
         )
         raise ChatAgentError("Chat agent execution failed") from exc
@@ -283,10 +298,23 @@ async def stream_chat_response(
     attachments: list[ChatAgentAttachmentInput],
 ):
     """Stream chat response deltas and tool events from the agent runtime."""
+    from types import SimpleNamespace
+
     runtime_input = _build_runtime_user_content(prompt=prompt, attachments=attachments)
     accumulated_text = ""
     tool_call_ids_by_index: dict[int, str] = {}
     tool_names_by_call_id: dict[str, str] = {}
+    tools_called: list[dict[str, str]] = []
+    active_skills = resolve_active_skills(SimpleNamespace(deps=deps))
+    logger.info(
+        "chat_agent_run_started",
+        run_id=deps.run_id,
+        thread_id=deps.thread_id,
+        organization_id=deps.organization_id,
+        user_id=deps.user_id,
+        active_skills=active_skills,
+        attachment_count=len(attachments),
+    )
     try:
         async for event in chat_agent.run_stream_events(runtime_input, deps=deps):
             if isinstance(event, AgentRunResultEvent):
@@ -297,6 +325,15 @@ async def stream_chat_response(
             if isinstance(event, PartStartEvent) and isinstance(event.part, ToolCallPart):
                 tool_call_ids_by_index[event.index] = event.part.tool_call_id
                 tool_names_by_call_id[event.part.tool_call_id] = event.part.tool_name
+                logger.info(
+                    "chat_agent_tool_started",
+                    run_id=deps.run_id,
+                    tool_name=event.part.tool_name,
+                    tool_call_id=event.part.tool_call_id,
+                )
+                tools_called.append(
+                    {"tool_name": event.part.tool_name, "tool_call_id": event.part.tool_call_id}
+                )
                 yield {
                     "event": "tool-input-start",
                     "toolCallId": event.part.tool_call_id,
@@ -344,6 +381,12 @@ async def stream_chat_response(
                     # terminal user-visible error. Suppress from user-facing stream.
                     continue
                 else:
+                    logger.info(
+                        "chat_agent_tool_completed",
+                        run_id=deps.run_id,
+                        tool_name=event.result.tool_name,
+                        tool_call_id=event.result.tool_call_id,
+                    )
                     output_object = event.result.model_response_object()
                     if isinstance(output_object, BaseModel):
                         output: Any = output_object.model_dump()
@@ -373,6 +416,8 @@ async def stream_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
+            active_skills=active_skills,
+            tools_called=tools_called,
         )
         raise
     except ChatAgentError:
@@ -384,6 +429,8 @@ async def stream_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
+            active_skills=active_skills,
+            tools_called=tools_called,
             error=str(exc),
         )
         raise ChatAgentError("Chat agent streaming failed") from exc

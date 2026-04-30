@@ -78,25 +78,38 @@ def _is_sds_attachment(att: ChatAgentAttachmentInput) -> bool:
     return bool(_SDS_FILENAME_PATTERNS.search(filename)) or "safety-data-sheet" in media_type
 
 
+def _resolve_conditional_skills(ctx) -> list[str]:
+    """Return conditional skill names active for the given context."""
+    attachments = getattr(getattr(ctx, "deps", None), "attachments", ()) or ()
+    skills: list[str] = []
+
+    has_non_text = any(
+        not (getattr(att, "media_type", "") or "").startswith("text/") for att in attachments
+    )
+    if has_non_text:
+        skills.append("multimodal-intake")
+
+    has_sds = any(_is_sds_attachment(att) for att in attachments)
+    if has_sds:
+        skills.append("sds-interpretation")
+
+    return skills
+
+
 def build_conditional_instructions_fn():
     """Return a function RunContext -> str that appends conditional skill instructions."""
 
     def _fn(ctx) -> str:
-        attachments = getattr(getattr(ctx, "deps", None), "attachments", ()) or ()
         blocks: list[str] = []
-
-        has_non_text = any(
-            not (getattr(att, "media_type", "") or "").startswith("text/") for att in attachments
-        )
-        if has_non_text:
-            skill = load_skill("multimodal-intake")
-            blocks.append(f"## Skill: multimodal-intake\n\n{skill.body}")
-
-        has_sds = any(_is_sds_attachment(att) for att in attachments)
-        if has_sds:
-            skill = load_skill("sds-interpretation")
-            blocks.append(f"## Skill: sds-interpretation\n\n{skill.body}")
+        for skill_name in _resolve_conditional_skills(ctx):
+            skill = load_skill(skill_name)
+            blocks.append(f"## Skill: {skill_name}\n\n{skill.body}")
 
         return "\n\n---\n\n".join(blocks)
 
     return _fn
+
+
+def resolve_active_skills(ctx) -> list[str]:
+    """Return all active skill names (always-on + conditional) for a given context."""
+    return list(_ALWAYS_ON) + _resolve_conditional_skills(ctx)

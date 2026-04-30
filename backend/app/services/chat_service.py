@@ -6,6 +6,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from time import perf_counter
+from types import SimpleNamespace
 from uuid import UUID
 
 import structlog
@@ -15,6 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.chat_agent import ChatAgentDeps, ChatAgentError, stream_chat_response
+from app.agents.chat_skill_loader import resolve_active_skills
 from app.core.database import AsyncSessionLocal
 from app.models.chat_attachment import ChatAttachment
 from app.models.chat_message import ChatMessage
@@ -698,15 +700,6 @@ async def stream_chat_turn(
         last_event_at = now
         emitted_events_count += 1
 
-    logger.info(
-        "chat_stream_started",
-        thread_id=str(thread_id),
-        run_id=run_id,
-        organization_id=str(organization_id),
-        user_id=str(created_by_user_id),
-        keepalive_interval_seconds=keepalive_interval,
-    )
-
     preparation_events: list[dict] = []
 
     async with session_factory() as db:
@@ -828,6 +821,16 @@ async def stream_chat_turn(
         persist_attachment=_persist_attachment,
         upload_bytes=_upload_bytes,
     )
+    active_skills = resolve_active_skills(SimpleNamespace(deps=deps))
+    logger.info(
+        "chat_stream_started",
+        thread_id=str(thread_id),
+        run_id=run_id,
+        organization_id=str(organization_id),
+        user_id=str(created_by_user_id),
+        keepalive_interval_seconds=keepalive_interval,
+        active_skills=active_skills,
+    )
     media_type_counts, total_binary_bytes, total_text_chars, binary_attachment_count = (
         _summarize_attachments_for_observability(attachments=prepared.agent_attachments)
     )
@@ -843,6 +846,7 @@ async def stream_chat_turn(
         total_binary_bytes=total_binary_bytes,
         total_text_chars=total_text_chars,
         media_type_counts=media_type_counts,
+        active_skills=active_skills,
     )
 
     for event in prepared.events:
@@ -852,6 +856,7 @@ async def stream_chat_turn(
     _mark_emitted_event(event_type="start")
     yield {"event": "start", "run_id": run_id}
     delta_chunks: list[str] = []
+    tools_called: list[dict[str, str]] = []
     try:
         runtime_terminal_text: str | None = None
 
@@ -907,6 +912,13 @@ async def stream_chat_turn(
                     "tool-input-available",
                     "tool-output-error",
                 ):
+                    if event_type == "tool-input-start":
+                        tool_name = runtime_event.get("toolName")
+                        tool_call_id = runtime_event.get("toolCallId")
+                        if isinstance(tool_name, str) and isinstance(tool_call_id, str):
+                            tools_called.append(
+                                {"tool_name": tool_name, "tool_call_id": tool_call_id}
+                            )
                     _mark_emitted_event(event_type=str(event_type))
                     yield runtime_event
                     continue
@@ -958,6 +970,8 @@ async def stream_chat_turn(
             run_id=run_id,
             organization_id=str(organization_id),
             user_id=str(created_by_user_id),
+            active_skills=active_skills,
+            tools_called=tools_called,
         )
         raise
     except BrokenResourceError:
@@ -968,6 +982,8 @@ async def stream_chat_turn(
             run_id=run_id,
             organization_id=str(organization_id),
             user_id=str(created_by_user_id),
+            active_skills=active_skills,
+            tools_called=tools_called,
         )
         raise
     except Exception as exc:
@@ -1037,6 +1053,8 @@ async def stream_chat_turn(
             run_id=run_id,
             organization_id=str(organization_id),
             user_id=str(created_by_user_id),
+            active_skills=active_skills,
+            tools_called=tools_called,
             error=str(exc),
         )
         _mark_emitted_event(event_type="error")
@@ -1061,6 +1079,8 @@ async def stream_chat_turn(
             max_gap_seconds=max_gap_seconds,
             emitted_events_count=emitted_events_count,
             emitted_keepalive_count=emitted_keepalive_count,
+            active_skills=active_skills,
+            tools_called=tools_called,
         )
 
 
