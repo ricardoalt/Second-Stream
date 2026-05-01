@@ -1,6 +1,6 @@
 ---
 name: qualification-gate
-description: Assess readiness of a Discovery-mode opportunity to move to Assessment mode, against a fixed criteria checklist — identity pinned, composition documented or with committed analytical plan, quantity and frequency stated with stated confidence, all identified sub-streams decomposed, Required gaps closed (or explicitly deferred with rationale), no unresolved stop-flag safety concerns. Trigger on every substantive Discovery turn (silent check, report status in working picture), whenever the user asks if the opportunity is ready or what's next, and whenever a gap is resolved (re-evaluate). When the gate is open, explicitly propose crossing to Assessment with a one-line rationale. When closed, state exactly which criterion is not yet met. The gate is a visible, user-facing event — it is never crossed silently. This skill is the mechanism by which Discovery hands off to Assessment cleanly.
+description: "Assess whether a Discovery opportunity is ready to move to Assessment. Always consider the gate from metadata on substantive Discovery turns; load when the user asks readiness/next steps, when a required gap is resolved, when preparing a report, or when deciding whether to propose crossing into Assessment. Use to state the exact blocking criterion or the rationale for opening the gate."
 ---
 
 # Qualification gate

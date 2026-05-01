@@ -5,36 +5,16 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import structlog
-
-if TYPE_CHECKING:
-    from app.services.chat_stream_protocol import ChatAgentAttachmentInput
 
 logger = structlog.get_logger(__name__)
 
 _SKILLS_DIR = Path(__file__).parent.parent / "prompts" / "chat-skills"
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
-_ALWAYS_ON = [
-    "safety-flagging",
-    "qualification-gate",
-    "sub-discipline-router",
-    "specialist-lens-light",
-    "commercial-shaping",
-    "discovery-gap-analysis",
-    "discovery-reporting",
-    "ideation-brief",
-    "analytical-read",
-    "playbook",
-]
-
-_SDS_FILENAME_PATTERNS = re.compile(
-    r"(sds|safety.data.sheet|material.safety|msds|tds)", re.IGNORECASE
-)
-
 _SAFE_SKILL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+_SKILL_FILE_NAME = "SKILL.md"
 
 
 @dataclass(slots=True, frozen=True)
@@ -83,7 +63,7 @@ def load_skill(name: str) -> SkillPrompt:
     """
     if not _SAFE_SKILL_NAME_RE.match(name):
         raise ValueError(f"Invalid skill name: {name}")
-    path = _SKILLS_DIR / f"{name}.md"
+    path = _SKILLS_DIR / name / _SKILL_FILE_NAME
     resolved = path.resolve()
     if not str(resolved).startswith(str(_SKILLS_DIR.resolve())):
         raise ValueError(f"Skill path traversal attempt: {name}")
@@ -96,16 +76,16 @@ def load_skill(name: str) -> SkillPrompt:
 
 
 def discover_skills() -> list[SkillMetadata]:
-    """Discover all skills in the skills directory from YAML frontmatter."""
+    """Discover standard folder-per-skill Agent Skills from SKILL.md frontmatter."""
     skills: list[SkillMetadata] = []
     if not _SKILLS_DIR.exists():
         logger.warning("chat_skills_directory_not_found", path=str(_SKILLS_DIR))
         return skills
 
-    for file_path in sorted(_SKILLS_DIR.glob("*.md")):
+    for file_path in sorted(_SKILLS_DIR.glob(f"*/{_SKILL_FILE_NAME}")):
         raw = file_path.read_text(encoding="utf-8").strip()
         meta, _ = _parse_frontmatter(raw)
-        name = meta.get("name") or file_path.stem
+        name = meta.get("name") or file_path.parent.name
         description = meta.get("description") or ""
         skills.append(
             SkillMetadata(
@@ -133,10 +113,11 @@ _SKILLS_USAGE_GUIDANCE = """\
 # Skill Loading
 
 You have access to the skills listed below. Only metadata is shown initially.
-Before performing specialized work, call `loadSkill` for the relevant skills.
-Do not narrate skill loading to the user. If skills are needed, load them silently before writing user-facing text.
+Before performing specialized work, identify the full set of relevant skills from the metadata and call `loadSkill` for that set before applying their instructions.
+Skill loading is read-only and independent. When multiple skills are relevant, request all of those `loadSkill` calls in the same model step; do not wait for one skill to load before requesting the next.
+Do not narrate skill loading to the user. Load skills silently before writing user-facing analysis. If unsure which skills apply, load the most likely set and proceed rather than delaying for perfect selection.
 
-- For report generation, load `discovery-reporting` and the relevant artefact skills (`ideation-brief`, `analytical-read`, `playbook`) before using PDF tools.
+- For report generation, load `discovery-reporting` and all relevant artefact skills (`ideation-brief`, `analytical-read`, `playbook`) together before beginning PDF generation.
 - For commercial positioning, load `commercial-shaping`.
 - For technical documents such as SDS, COA, lab analysis, TCLP/SPLP, waste profile, composition reports, load `sds-interpretation`.
 - For images/audio/video/PDF visual documents, load `multimodal-intake` when relevant.
@@ -150,52 +131,6 @@ def compile_base_instructions() -> str:
     base_prompt = (_PROMPTS_DIR / "chat-agent-prompt.md").read_text(encoding="utf-8").strip()
     skills_prompt = build_skills_prompt()
     return f"{base_prompt}\n\n---\n\n{_SKILLS_USAGE_GUIDANCE}\n\n{skills_prompt}"
-
-
-def _is_sds_attachment(att: ChatAgentAttachmentInput) -> bool:
-    filename = (getattr(att, "filename", "") or "").lower()
-    media_type = (getattr(att, "media_type", "") or "").lower()
-    return bool(_SDS_FILENAME_PATTERNS.search(filename)) or "safety-data-sheet" in media_type
-
-
-def _resolve_conditional_skills(ctx) -> list[str]:
-    """Return conditional skill names relevant for the given context."""
-    attachments = getattr(getattr(ctx, "deps", None), "attachments", ()) or ()
-    skills: list[str] = []
-
-    has_non_text = any(
-        not (getattr(att, "media_type", "") or "").startswith("text/") for att in attachments
-    )
-    if has_non_text:
-        skills.append("multimodal-intake")
-
-    has_sds = any(_is_sds_attachment(att) for att in attachments)
-    if has_sds:
-        skills.append("sds-interpretation")
-
-    return skills
-
-
-def build_conditional_instructions_fn():
-    """Return a function RunContext -> str.
-
-    DEPRECATED: With progressive disclosure, skills are loaded on-demand via the
-    loadSkill tool. This function now returns an empty string for backward
-    compatibility.
-    """
-
-    def _fn(_ctx) -> str:
-        return ""
-
-    return _fn
-
-
-def resolve_active_skills(ctx) -> list[str]:
-    """Return all active skill names (always-on + conditional) for a given context.
-
-    Kept for backward compatibility; logs should prefer available_skill_names().
-    """
-    return list(_ALWAYS_ON) + _resolve_conditional_skills(ctx)
 
 
 def available_skill_names() -> list[str]:

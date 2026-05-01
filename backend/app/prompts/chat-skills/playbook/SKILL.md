@@ -1,6 +1,6 @@
 ---
 name: playbook
-description: Guides the agent to generate a Discovery Playbook PDF via the generatePlaybook tool.
+description: "Support generation of the Discovery Call Playbook PDF. Load only when discovery-reporting is preparing Discovery outputs and the agent is about to call generatePlaybook, or when the user explicitly requests a producer-call playbook. Use to shape question sets, talk tracks, and why-it-matters prompts for the field call; do not use as a regulatory record."
 ---
 
 ## When to generate a Playbook

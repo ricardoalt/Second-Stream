@@ -1,6 +1,6 @@
 ---
 name: discovery-reporting
-description: "Produce SecondStream Discovery outputs — Snapshot (inline prose only, 4-5 sentences, never a PDF), Ideation Brief (PDF, loose consultant voice, 1-2 pages), Analytical Read (PDF, rigorous evidenced voice, 2-4 pages), Call Playbook (PDF, reference tool, 1-2 pages). Trigger when the user asks for a summary, brief, snapshot, report, write-up, handover, or export, and proactively once commercial-shaping has run. The three PDFs serve different cognitive functions and have different voices — Ideation helps the agent see the opportunity, Analytical stress-tests the ideation with evidence, Playbook is a reference tool for during the producer call. Share a common header line across all three (customer, stream, date, version); tailored cover blocks below. Qualification gate and safety flags on Ideation and Analytical; Playbook is a tool, not a record. PDF generation is handled by registered tools that return signed URLs in `tool-output-available`. Do not attempt low-level layout control."
+description: "Produce SecondStream Discovery outputs: inline Snapshot plus the Ideation Brief, Analytical Read, and Call Playbook PDFs. Load when the user asks for a summary, brief, snapshot, report, write-up, handover, export, or once commercial-shaping has prepared the content blocks. Use to coordinate the three distinct deliverables and decide which PDF tool-support skills to load next."
 ---
 
 # Discovery reporting — three artefacts, three voices
@@ -18,6 +18,12 @@ Run proactively once `commercial-shaping` has produced its three output blocks (
 Also run on direct request: "summary," "brief," "report," "export," "send to my manager," "put together a write-up."
 
 Produce all outputs (snapshot + 3 PDFs + full annex) together by default. Do not ask the user to choose.
+
+Before PDF generation begins, ensure all PDF support skills needed for the requested deliverables are loaded in the same run. Load the support skills together rather than one-at-a-time before each PDF tool:
+
+- `ideation-brief` supports `generateIdeationBrief`.
+- `analytical-read` supports `generateAnalyticalRead`.
+- `playbook` supports `generatePlaybook`.
 
 ## The four outputs
 

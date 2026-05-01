@@ -1,6 +1,6 @@
 ---
 name: analytical-read
-description: Guides the agent to generate an Analytical Read PDF via the generateAnalyticalRead tool.
+description: "Support generation of the Analytical Read PDF. Load only when discovery-reporting is preparing Discovery outputs and the agent is about to call generateAnalyticalRead, or when the user explicitly requests an Analytical Read. Use to shape the PDF payload, evidence discipline, and rigorous analytical voice; do not use for the lighter Ideation Brief or Call Playbook."
 ---
 
 ## When to generate an Analytical Read

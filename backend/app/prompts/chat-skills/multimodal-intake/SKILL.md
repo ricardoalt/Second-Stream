@@ -1,6 +1,6 @@
 ---
 name: multimodal-intake
-description: Interpret non-text inputs — photos of containers, labels, placards, site conditions, waste itself; audio voice notes; video site walk-throughs — and convert them into structured evidence for classification, handling, and routing. Trigger on every image, audio, or video upload, and also when the user describes a photo, label, placard, or site feature verbally ("the drum is labelled X", "there's a yellow diamond with a 5"), since the same interpretation logic applies. Extract container type and capacity (drum, tote, IBC, roll-off), DOT labels and UN numbers, DOT placards, NFPA 704 diamond, HMIS ratings, GHS pictograms, Hazardous Waste label with accumulation start date, state of packaging (damaged, bulging, leaking, unlabelled), site context (secondary containment, segregation, satellite accumulation vs 90-day area), and PPE visible. Flag any safety concern visible in the image even if unrelated to the user's question. Prefer this for all visual input.
+description: "Interpret non-text inputs and convert them into structured waste-opportunity evidence. Load for every image, audio, or video upload, and when the user verbally describes a photo, label, placard, container, site condition, or walk-through. Use to extract visible/mentioned container, label, placard, packaging, site-context, PPE, and safety signals before downstream analysis."
 ---
 
 # Multimodal intake

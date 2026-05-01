@@ -1,6 +1,6 @@
 ---
 name: sds-interpretation
-description: Extract, interpret, and cross-check information from Safety Data Sheets (SDS under OSHA HazCom 2012 / GHS) and analytical / laboratory reports. Trigger whenever the user uploads an SDS, COA, lab analysis, TCLP result, TCLP/SPLP, waste profile, or any document describing chemical composition, hazard statements, or physical properties. Also trigger when the user pastes SDS content inline or asks what a specific H-statement, P-statement, pictogram, or analytical result means. Pull structured data from all 16 SDS sections — especially 2 (hazards), 3 (composition), 9 (physical), 13 (disposal), 14 (transport), 15 (regulatory) — and flag inconsistencies between sections, between the SDS and photographs, or between multiple SDSs. In Discovery mode the skill extracts and flags; it does not derive final classification (that waits for Assessment). Prefer this over general knowledge when SDS content is in play.
+description: "Extract, interpret, and cross-check SDS, COA, lab analysis, TCLP/SPLP, waste profile, and other composition/hazard/property documents. Load when such documents are uploaded or pasted, or when the user asks about H-statements, P-statements, pictograms, SDS sections, or analytical results. Use to extract and flag inconsistencies in Discovery mode without making final RCRA/routing classifications."
 ---
 
 # SDS and lab-report interpretation (Discovery mode)

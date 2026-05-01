@@ -1,6 +1,6 @@
 ---
 name: safety-flagging
-description: Surface safety concerns immediately and prominently, regardless of the agent's mode or the user's current question. Trigger whenever the evidence base (text, photos, SDS, analytical data, voice notes, video) contains any signal of an active or imminent safety risk — damaged / bulging / leaking containers, incompatible co-storage, pyrophoric material, peroxide formers, crystalline residues on vintage bottles, unknown orphaned cylinders, shock-sensitive chemicals (picric acid, azides, perchloric acid), acutely toxic exposures (HF, HCN generation risk, arsine / phosphine / silane cylinders), overdue satellite-accumulation dates, radiation indicators, infectious indicators. Lead the agent's response with the flag, then continue with the rest of the response. Never suppress a safety signal because it is "too advanced for Discovery" or "not asked about." Safety flagging is always on in both Discovery and Assessment modes.
+description: "Always consider safety signals from available evidence. Load when text, photos, SDS/lab data, voice notes, or video suggest active or imminent risk such as leaking/bulging containers, incompatible storage, pyrophorics, peroxide formers, unknown cylinders, acute toxicity, overdue accumulation, radiation, or infectious indicators. Use to lead the response with the appropriate safety flag before continuing the rest of the analysis."
 ---
 
 # Safety flagging — always on

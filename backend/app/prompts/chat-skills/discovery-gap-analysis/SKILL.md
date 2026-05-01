@@ -1,6 +1,6 @@
 ---
 name: discovery-gap-analysis
-description: Produce the Discovery gap list for a waste-stream opportunity — what is needed to qualify the stream commercially, separated into Required (blocks progress toward Assessment) and Nice to have (would improve positioning, pricing, or optionality). Trigger on every substantive intake turn, whenever the user asks what to do next or what to chase, whenever classification or routing reasoning stalls, and at the end of any turn where new evidence has come in. Themed by intake area (identity, composition, physical properties, quantity, packaging, logistics, commercial, producer context) with a one-line "why it matters" per item. Always end with the top three questions to put to the producer in the next conversation — this is the field agent's action list. Prefer this over ad-hoc questioning. Required items here are the specific checklist for the qualification-gate skill's readiness determination.
+description: "Produce a Discovery gap list for a waste-stream opportunity, separated into Required blockers and Nice-to-have improvements. Load on substantive intake turns with new evidence, when the user asks what to do next, when reasoning stalls, or before readiness/reporting decisions. Use to turn missing identity, composition, quantity, packaging, logistics, commercial, or producer-context data into the top producer questions."
 ---
 
 # Discovery gap analysis

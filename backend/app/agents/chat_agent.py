@@ -179,7 +179,7 @@ def _make_agent() -> Agent:
         deps_type=ChatAgentDeps,
         output_type=str,
         retries=2,
-        model_settings=ModelSettings(parallel_tool_calls=False, max_tokens=32768),
+        model_settings=ModelSettings(max_tokens=32768),
         instructions=compile_base_instructions(),
     )
 
@@ -336,8 +336,23 @@ async def stream_chat_response(
     tool_call_ids_by_index: dict[int, str] = {}
     tool_names_by_call_id: dict[str, str] = {}
     tools_called: list[dict[str, str]] = []
+    pending_tool_call_batch: list[dict[str, str]] = []
     agent_status_active = False
     available_skills = available_skill_names()
+
+    def _flush_tool_call_batch() -> None:
+        nonlocal pending_tool_call_batch
+        if not pending_tool_call_batch:
+            return
+        logger.info(
+            "chat_agent_tool_call_batch",
+            run_id=deps.run_id,
+            batch_size=len(pending_tool_call_batch),
+            tool_names=[call["tool_name"] for call in pending_tool_call_batch],
+            tool_call_ids=[call["tool_call_id"] for call in pending_tool_call_batch],
+        )
+        pending_tool_call_batch = []
+
     logger.info(
         "chat_agent_run_started",
         run_id=deps.run_id,
@@ -350,6 +365,7 @@ async def stream_chat_response(
     try:
         async for event in chat_agent.run_stream_events(runtime_input, deps=deps):
             if isinstance(event, AgentRunResultEvent):
+                _flush_tool_call_batch()
                 response_text = accumulated_text.strip() or str(event.result.output).strip()
                 yield {"event": "completed", "response_text": response_text}
                 return
@@ -364,6 +380,9 @@ async def stream_chat_response(
                     tool_call_id=event.part.tool_call_id,
                 )
                 tools_called.append(
+                    {"tool_name": event.part.tool_name, "tool_call_id": event.part.tool_call_id}
+                )
+                pending_tool_call_batch.append(
                     {"tool_name": event.part.tool_name, "tool_call_id": event.part.tool_call_id}
                 )
                 if event.part.tool_name == "loadSkill":
@@ -386,6 +405,8 @@ async def stream_chat_response(
                     "toolName": event.part.tool_name,
                 }
                 continue
+
+            _flush_tool_call_batch()
 
             if isinstance(event, PartDeltaEvent) and isinstance(event.delta, ToolCallPartDelta):
                 args_delta = event.delta.args_delta

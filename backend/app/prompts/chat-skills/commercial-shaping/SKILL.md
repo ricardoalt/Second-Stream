@@ -1,6 +1,6 @@
 ---
 name: commercial-shaping
-description: Apply a commercial lens to a qualifying secondary-stream opportunity — produce the interpretive content a senior operator would give a field agent before a producer conversation. Trigger after sub-discipline-router has decomposed and specialist-lens-light has run, but before discovery-reporting. Also trigger when the user asks for sizing, positioning, treatment options, buyer landscape, commercial framing, win strategy, or "what should I ask next." Produces three labelled output blocks — Ideation content (five sections, loose consultant voice, bullet-dense), Analytical content (six sections, evidence-tagged, rigorous), and Playbook content (fixed 11-theme question set with why-it-matters blocks). Voice differs per block. Never fabricate company names, firm CAPEX figures, or specific prices. Reason from chemistry and category.
+description: "Apply a commercial lens to a qualified secondary-stream opportunity. Load after sub-discipline-router and specialist-lens-light have run, before discovery-reporting, or when the user asks for sizing, positioning, treatment options, buyer landscape, commercial framing, win strategy, or what to ask next. Use to create separate Ideation, Analytical, and Playbook content blocks without fabricating company names, firm CAPEX, or prices."
 ---
 
 # Commercial shaping — three artefacts, three voices

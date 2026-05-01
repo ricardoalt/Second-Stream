@@ -532,7 +532,7 @@ async def test_upload_pdf_passes_artifact_type_to_persist(monkeypatch):
     assert captured["artifact_type"] == "generatePlaybook"
 
 
-def test_chat_agent_model_settings_include_max_tokens_and_disable_parallel_tools():
+def test_chat_agent_model_settings_include_max_tokens():
     from unittest.mock import MagicMock, patch
 
     class FakeAgent:
@@ -559,7 +559,7 @@ def test_chat_agent_model_settings_include_max_tokens_and_disable_parallel_tools
         call_kwargs = mock_agent_cls.call_args.kwargs
         assert "model_settings" in call_kwargs
         assert call_kwargs["model_settings"]["max_tokens"] == 32768
-        assert call_kwargs["model_settings"]["parallel_tool_calls"] is False
+        assert "parallel_tool_calls" not in call_kwargs["model_settings"]
 
 
 class _CaptureLogger:
@@ -893,6 +893,76 @@ async def test_stream_chat_response_sanitizes_load_skill_output(monkeypatch):
     assert len(output_events) == 1
     assert output_events[0]["output"] == {"skill_name": "safety-flagging", "status": "loaded"}
     assert events[-1] == {"event": "completed", "response_text": "done"}
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_logs_parallel_load_skill_batch(monkeypatch):
+    """Multiple tool starts in the same model step must be logged as one batch."""
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    skill_names = ["sds-interpretation", "sub-discipline-router", "safety-flagging"]
+
+    async def _fake_run_stream_events(_prompt, *, deps):
+        _ = deps
+        for index, skill_name in enumerate(skill_names, start=1):
+            yield PartStartEvent(
+                index=index,
+                part=ToolCallPart(
+                    "loadSkill",
+                    args={"name": skill_name},
+                    tool_call_id=f"call-{index}",
+                ),
+            )
+        for index, skill_name in enumerate(skill_names, start=1):
+            yield FunctionToolCallEvent(
+                part=ToolCallPart(
+                    "loadSkill",
+                    args={"name": skill_name},
+                    tool_call_id=f"call-{index}",
+                )
+            )
+        for index, skill_name in enumerate(skill_names, start=1):
+            yield FunctionToolResultEvent(
+                result=ToolReturnPart(
+                    tool_name="loadSkill",
+                    tool_call_id=f"call-{index}",
+                    content={"skill_name": skill_name, "content": f"INTERNAL {skill_name}"},
+                )
+            )
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
+
+    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-batch",
+    )
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+
+    batch_logs = [c for c in capture.calls if c["event"] == "chat_agent_tool_call_batch"]
+    assert len(batch_logs) == 1
+    assert batch_logs[0]["kwargs"]["run_id"] == "run-batch"
+    assert batch_logs[0]["kwargs"]["batch_size"] == 3
+    assert batch_logs[0]["kwargs"]["tool_names"] == ["loadSkill", "loadSkill", "loadSkill"]
+    assert batch_logs[0]["kwargs"]["tool_call_ids"] == ["call-1", "call-2", "call-3"]
+
+    output_events = [e for e in events if e.get("event") == "tool-output-available"]
+    assert [e["output"] for e in output_events] == [
+        {"skill_name": "sds-interpretation", "status": "loaded"},
+        {"skill_name": "sub-discipline-router", "status": "loaded"},
+        {"skill_name": "safety-flagging", "status": "loaded"},
+    ]
+    assert all("INTERNAL" not in str(event) for event in events)
 
 
 @pytest.mark.asyncio

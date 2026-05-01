@@ -107,9 +107,110 @@ Do not make users manage the stream through chat.
 Make the stream workspace intelligent enough that chat becomes the fastest way to operate it.
 ```
 
+
 ---
 
-## 3. What we have today
+## 3. Platform risk update — April 30, 2026
+
+OpenAI's April 2026 Codex direction changes the competitive landscape.
+
+Codex is no longer positioned only as a coding tool. It is moving toward a general work agent layer: work automation, documents, spreadsheets, slides, recurring tasks, memory, computer use, browser use, plugins, MCP servers, reusable skills, and permissioned actions.
+
+```mermaid
+flowchart TD
+  OpenAI["OpenAI / Codex / ChatGPT"] --> Agents["Agents"]
+  OpenAI --> Skills["Reusable Skills"]
+  OpenAI --> Memory["Memory / Chronicle-like context"]
+  OpenAI --> Tools["Plugins + MCP + Connectors"]
+  OpenAI --> Work["Docs / Sheets / Slides / Email / Tasks"]
+  OpenAI --> Actions["Permissioned Actions"]
+
+  Risk["High-risk commodity layer"] --> Agents
+  Risk --> Skills
+  Risk --> Memory
+  Risk --> Work
+```
+
+### What this means
+
+Anything that can be described as a generic AI work assistant is becoming hard to defend.
+
+
+> Note: even a waste-specialized chat-first product is still risky if chat and AI become the main operating layer. The durable advantage must come from waste-specific objects, workflows, evidence, pricing, outcomes, compliance state, and counterparties — with AI embedded in controlled places.
+
+| Product idea | Risk now | Why |
+|---|---:|---|
+| Chat with agents | Very high | ChatGPT/Codex already provide shared agents and long-running workflows. |
+| Skills library | Very high | Codex has reusable skills and a skill ecosystem. |
+| Generic memory | Very high | Codex is adding memory and screen/context-aware workflows. |
+| Document/report generator | Very high | Codex for Work directly targets docs, summaries, briefs, decks, spreadsheets. |
+| Email/task automation | Very high | Codex for Work and workspace agents target recurring work and follow-ups. |
+| Generic agentic workspace | High | Codex desktop is becoming a general agentic workspace with connectors and MCP. |
+| Vertical system of record | Lower | Codex needs domain systems to operate against. |
+| Regulated stream workflow | Lower | Requires domain data, stages, compliance, vendors, pricing, and outcomes. |
+| Marketplace/network layer | Lower | Requires counterparties, trust, data history, and transaction workflows. |
+
+### Updated strategic rule
+
+```text
+If Codex can do it with docs, spreadsheets, Slack, email, memory, skills, and MCP,
+it should not be SecondStream's core product.
+```
+
+SecondStream's core should be what Codex and other agents need to use:
+
+```text
+Clients
+Locations
+Streams
+Evidence
+Assessments
+Offer Readiness
+Vendors
+Pricing
+Outcomes
+Compliance State
+Marketplace Actions
+```
+
+### Product implication
+
+The product should become more vertical, not more generic.
+
+```mermaid
+flowchart LR
+  Generic["Generic AI work"] -->|Commoditized by Codex| Avoid["Do not make core"]
+  Vertical["Regulated stream workflow"] --> Own["Own system of record"]
+  Own --> Tools["Expose tools / MCP later"]
+  Tools --> Agents["ChatGPT / Codex can operate SecondStream"]
+```
+
+The best future position is:
+
+```text
+Codex/ChatGPT = horizontal agent layer.
+SecondStream = vertical operating/data layer for regulated streams.
+```
+
+
+### What to add, change, or rethink now
+
+| Area | Decision | Why |
+|---|---|---|
+| **Add** | Canonical Stream Workspace as the core product surface. | This is the vertical object Codex cannot provide generically. |
+| **Add** | Vendor, pricing, outcome, and compliance data capture from day one. | These create the moat and make recommendations better over time. |
+| **Add** | Tool/API layer around stream objects. | Lets internal agents and future MCP operate trusted data safely. |
+| **Add** | Agent Activity + approvals + receipts. | Users need to know what AI did before trusting actions. |
+| **Change** | Treat chat as an operation layer, not a product layer. | Chat is increasingly commoditized by OpenAI/Codex. |
+| **Change** | Treat reports/docs as outputs, not the main artifact. | Codex for Work can already generate briefs, docs, spreadsheets, and updates. |
+| **Change** | Make dashboards deterministic. | Admin metrics should query structured records, not agent memory. |
+| **Rethink** | Generic skills marketplace. | Skills are becoming platform infrastructure. Build vertical tools instead. |
+| **Rethink** | Generic workflow automation. | Only automate workflows that require SecondStream's stream data, permissions, evidence, and domain state. |
+| **Rethink** | Memory as moat. | Generic memory is not enough; approved vertical facts and outcomes are the moat. |
+
+---
+
+## 4. What we have today
 
 SecondStream already has the right backbone:
 
@@ -135,7 +236,7 @@ flowchart TD
 
 ---
 
-## 4. What changes
+## 5. What changes
 
 The change is not “add chat to Stream Detail.”
 
@@ -208,7 +309,7 @@ The current form should stay, but become **Structured Capture** — a secondary 
 
 ---
 
-## 5. Core product objects
+## 6. Core product objects
 
 ```mermaid
 flowchart LR
@@ -242,7 +343,7 @@ flowchart LR
 
 ---
 
-## 6. What is missing
+## 7. What is missing
 
 | Missing layer | Why it matters | Priority |
 |---|---|---:|
@@ -261,7 +362,7 @@ flowchart LR
 
 ---
 
-## 7. Data moat
+## 8. Data moat
 
 The moat is not just “we use AI.” The moat is the operational data accumulated while users work.
 
@@ -293,7 +394,7 @@ The data moat should capture:
 
 ---
 
-## 8. Roadmap
+## 9. Roadmap
 
 ```mermaid
 flowchart LR
@@ -305,6 +406,7 @@ flowchart LR
 
 ### Now — Stream Workspace
 
+- Make Stream, Evidence, Assessment, Offer Readiness, Vendors, Pricing, and Outcomes the canonical objects Codex cannot own.
 - Make Discovery Brief the primary view.
 - Move existing form into Structured Capture.
 - Add Evidence/provenance.
@@ -346,7 +448,7 @@ flowchart LR
 
 ---
 
-## 9. Long-term vision
+## 10. Long-term vision
 
 ```mermaid
 flowchart TD
@@ -378,7 +480,7 @@ Internal tools → read-only MCP → controlled write actions → governed comme
 
 ---
 
-## 10. Adjacent vertical expansion
+## 11. Adjacent vertical expansion
 
 Expansion should follow workflow similarity, not broad industry labels.
 
@@ -418,12 +520,13 @@ AI-native workspace for regulated industrial streams.
 
 ---
 
-## 11. Decision checklist for the team
+## 12. Decision checklist for the team
 
 When deciding features, ask:
 
 | Question | If yes | If no |
 |---|---|---|
+| Could Codex do this generically with docs/email/Slack/skills? | Do not make it core. | Good candidate for vertical product value. |
 | Does it make the stream more structured? | Build/consider. | Probably distraction. |
 | Does it improve evidence/provenance? | Build/consider. | Be careful. |
 | Does it move toward assessment or offer readiness? | Build/consider. | Maybe later. |
@@ -435,7 +538,7 @@ When deciding features, ask:
 
 ---
 
-## 12. Strategic conclusion
+## 13. Strategic conclusion
 
 SecondStream should avoid becoming:
 
@@ -480,6 +583,10 @@ If executed correctly, SecondStream can grow from a broker workflow tool into th
 
 ### AI-native product references
 
+
+- [OpenAI — Codex for Work](https://chatgpt.com/codex/for-work/)
+- [OpenAI — Codex for almost everything](https://openai.com/index/codex-for-almost-everything/)
+- [OpenAI — Workspace agents in ChatGPT](https://openai.com/index/introducing-workspace-agents-in-chatgpt/)
 - [OpenAI — Apps SDK](https://developers.openai.com/apps-sdk/)
 - [OpenAI — Apps SDK UX principles](https://developers.openai.com/apps-sdk/concepts/ux-principles)
 - [OpenAI — MCP tools and connectors](https://platform.openai.com/docs/guides/tools-connectors-mcp)

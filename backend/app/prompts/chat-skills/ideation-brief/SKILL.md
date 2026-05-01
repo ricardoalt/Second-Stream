@@ -1,6 +1,6 @@
 ---
 name: ideation-brief
-description: Guides the agent to generate an Ideation Brief PDF via the generateIdeationBrief tool.
+description: "Support generation of the Ideation Brief PDF. Load only when discovery-reporting is preparing Discovery outputs and the agent is about to call generateIdeationBrief, or when the user explicitly requests an Ideation Brief. Use to shape the PDF payload, structure, and loose consultant voice; do not use for inline chat-only summaries."
 ---
 
 ## When to generate an Ideation Brief

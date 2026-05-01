@@ -1,6 +1,6 @@
 ---
 name: specialist-lens-light
-description: Apply a light specialist lens to each sub-stream identified by the sub-discipline-router — solids, aqueous liquids, organic liquids, sludges, gases/vapours, or containerised/lab-pack — producing profile questions, analytical needs, and red flags only. This is the Discovery-mode version of specialist analysis — no routing recommendations, no RCRA classification, no LDR analysis, no DOT specs. Trigger whenever the sub-discipline-router assigns a lens to a sub-stream. Output the questions a specialist would ask a producer about this phase, the analytical workup a specialist would want, and the safety / hazard red flags that apply. Do not advance into monetisation routing or regulatory determination — those belong to Assessment mode. Prefer this skill over skipping specialist input; even in Discovery, a phase-specific question set is far more productive than generic elicitation.
+description: "Apply a Discovery-mode specialist lens to sub-streams identified by sub-discipline-router. Load after a sub-stream is assigned to solids, aqueous liquids, organic liquids, sludges, gases/vapours, or containerised/lab-pack. Use to produce phase-specific producer questions, analytical needs, and red flags only; do not make routing, RCRA, LDR, DOT, or monetisation determinations."
 ---
 
 # Specialist lens (light) — Discovery mode

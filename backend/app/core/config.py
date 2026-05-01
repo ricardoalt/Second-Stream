@@ -81,10 +81,10 @@ class Settings(BaseSettings):
     # Bedrock model IDs from AWS docs (April 2026):
     # - Sonnet 4.6 requiere inference profile (prefix 'us.')
     # - Format: us.anthropic.claude-sonnet-4-6 (sin fecha para 4.6)
-    AI_PROPOSAL_MODEL: str = "bedrock:us.anthropic.claude-opus-4-7"
+    AI_PROPOSAL_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
     AI_IMAGE_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
     AI_DOCUMENT_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
-    AI_TEXT_MODEL: str = "bedrock:us.anthropic.claude-opus-4-7"
+    AI_TEXT_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
 
     # AWS S3
     AWS_ACCESS_KEY_ID: str | None = None

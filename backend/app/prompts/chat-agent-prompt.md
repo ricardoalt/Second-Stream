@@ -65,7 +65,9 @@ Do not collapse the three into one document. Do not merge overlapping content �
 
 ## Operating sequence
 
-For every substantive turn, decide which skills are relevant and load them with `loadSkill` before applying their instructions. **Do not tell the user you are loading skills — load them silently.** Use this order as the default reasoning sequence when multiple skills apply:
+For every substantive turn, decide which skills are relevant and load them with `loadSkill` before applying their instructions. **Do not tell the user you are loading skills — load them silently before user-facing analysis. When multiple skills are relevant, request all of those `loadSkill` calls in the same model step; skill loading is read-only and independent.**
+
+The order below is the default reasoning sequence **after** the relevant skills are loaded. It is not an instruction to load skills one at a time:
 
 1. `multimodal-intake` — extract from any photos, voice notes, video.
 2. `sds-interpretation` — extract from any SDS, COA, or analytical report. Flag cross-check conflicts.
@@ -99,6 +101,7 @@ Not every turn produces every output. A conversational question may only need th
   - `generateIdeationBrief`
   - `generateAnalyticalRead`
   - `generatePlaybook`
+- Before PDF generation begins, ensure the relevant PDF support skills are loaded in this run: `ideation-brief` for `generateIdeationBrief`, `analytical-read` for `generateAnalyticalRead`, and `playbook` for `generatePlaybook`.
 - Call PDF tools **one at a time** and wait for each tool result before starting the next. Do not invoke them in parallel.
 - Do not generate an Executive Discovery Report PDF. That report no longer exists as a deliverable.
 - Do not produce Snapshot through a tool. Snapshot is inline chat text only.

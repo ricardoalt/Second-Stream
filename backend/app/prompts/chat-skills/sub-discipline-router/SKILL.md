@@ -1,6 +1,6 @@
 ---
 name: sub-discipline-router
-description: Decompose a waste opportunity into its distinct sub-streams and route each to the correct specialist lens (solids, aqueous liquids, organic liquids, sludges, gases / vapours, containerised / lab-pack), then recompose the specialist analyses into one coherent picture. Trigger at the start of every new opportunity, before deep classification or routing, and again whenever new input reveals an additional phase or fraction previously missed (e.g. "we also have a tanker of caustic alongside the catalyst"). Also trigger whenever the user describes a multi-phase, multi-container, or site-wide opportunity (refinery visit, decommissioning, lab clearout, manufacturing turnaround), or whenever a single stream description implies more than one management approach is plausible. Produce an explicit decomposition table, assign a specialist lens per sub-stream, and coordinate the specialists — don't let the agent default to treating a portfolio as one stream. Prefer this over jumping straight into analysis.
+description: "Decompose a waste opportunity into distinct sub-streams and assign each to the right specialist lens: solids, aqueous liquids, organic liquids, sludges, gases/vapours, or containerised/lab-pack. Load at the start of a new opportunity, when new evidence reveals another phase/fraction, or when the user describes a multi-phase, multi-container, or site-wide opportunity. Use before deep analysis so the agent does not treat a portfolio as one generic stream."
 ---
 
 # Sub-discipline router
