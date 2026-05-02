@@ -108,13 +108,17 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
         captured["prompt"] = prompt
         captured["deps"] = deps
         tool_call_id = "call-abc"
-        yield PartStartEvent(index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id))
+        yield PartStartEvent(
+            index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id)
+        )
         yield PartDeltaEvent(
             index=1,
             delta=ToolCallPartDelta(args_delta='{"customer":"Ex', tool_call_id=tool_call_id),
         )
         yield FunctionToolCallEvent(
-            part=ToolCallPart("webSearch", args={"customer": "ExxonMobil"}, tool_call_id=tool_call_id)
+            part=ToolCallPart(
+                "webSearch", args={"customer": "ExxonMobil"}, tool_call_id=tool_call_id
+            )
         )
         yield FunctionToolResultEvent(
             result=ToolReturnPart(
@@ -155,7 +159,11 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
 
     assert events == [
         {"event": "tool-input-start", "toolCallId": "call-abc", "toolName": "webSearch"},
-        {"event": "tool-input-delta", "toolCallId": "call-abc", "inputTextDelta": '{"customer":"Ex'},
+        {
+            "event": "tool-input-delta",
+            "toolCallId": "call-abc",
+            "inputTextDelta": '{"customer":"Ex',
+        },
         {
             "event": "tool-input-available",
             "toolCallId": "call-abc",
@@ -177,6 +185,7 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
 @pytest.mark.asyncio
 async def test_stream_chat_response_suppresses_retry_prompt_part_from_user_stream(monkeypatch):
     """RetryPromptPart is an internal retry signal; it must not surface as tool-output-error."""
+
     async def _fake_run_stream_events(_prompt, *, deps):
         _ = deps
         tool_call_id = "call-error"
@@ -214,7 +223,9 @@ async def test_stream_chat_response_suppresses_retry_prompt_part_from_user_strea
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_response_uses_tool_call_id_from_part_index_for_delta_without_id(monkeypatch):
+async def test_stream_chat_response_uses_tool_call_id_from_part_index_for_delta_without_id(
+    monkeypatch,
+):
     async def _fake_run_stream_events(_prompt, *, deps):
         _ = deps
         yield PartStartEvent(
@@ -295,9 +306,17 @@ async def test_stream_chat_response_suppresses_pdf_tool_input_delta_only(monkeyp
     ]
 
     assert events == [
-        {"event": "tool-input-start", "toolCallId": "pdf-call", "toolName": "generateIdeationBrief"},
+        {
+            "event": "tool-input-start",
+            "toolCallId": "pdf-call",
+            "toolName": "generateIdeationBrief",
+        },
         {"event": "tool-input-start", "toolCallId": "web-call", "toolName": "webSearch"},
-        {"event": "tool-input-delta", "toolCallId": "web-call", "inputTextDelta": '{"query":"waste"}'},
+        {
+            "event": "tool-input-delta",
+            "toolCallId": "web-call",
+            "inputTextDelta": '{"query":"waste"}',
+        },
         {"event": "completed", "response_text": "done"},
     ]
 
@@ -309,7 +328,9 @@ async def test_stream_chat_response_raises_when_stream_crashes_before_terminal_r
         raise RuntimeError("stream unavailable")
         yield
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _broken_run_stream_events)
+    monkeypatch.setattr(
+        chat_agent_module.chat_agent, "run_stream_events", _broken_run_stream_events
+    )
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -322,10 +343,10 @@ async def test_stream_chat_response_raises_when_stream_crashes_before_terminal_r
         _ = [
             event
             async for event in stream_chat_response(
-            prompt="Question",
-            deps=deps,
-            attachments=[],
-        )
+                prompt="Question",
+                deps=deps,
+                attachments=[],
+            )
         ]
 
     assert isinstance(exc_info.value.__cause__, RuntimeError)
@@ -447,6 +468,7 @@ async def test_upload_pdf_renders_in_thread_offload(monkeypatch):
 @pytest.mark.asyncio
 async def test_upload_pdf_returns_attachment_id_and_none_urls(monkeypatch):
     """Presigned URLs must not be exposed; attachment_id is the canonical handle."""
+
     async def _fake_to_thread(fn, payload):
         return BytesIO(b"%PDF-1.7")
 
@@ -492,6 +514,7 @@ async def test_upload_pdf_returns_attachment_id_and_none_urls(monkeypatch):
 @pytest.mark.asyncio
 async def test_upload_pdf_passes_artifact_type_to_persist(monkeypatch):
     """PDF tool outputs must carry artifact_type for rehydration."""
+
     async def _fake_to_thread(fn, payload):
         return BytesIO(b"%PDF-1.7")
 
@@ -532,7 +555,7 @@ async def test_upload_pdf_passes_artifact_type_to_persist(monkeypatch):
     assert captured["artifact_type"] == "generatePlaybook"
 
 
-def test_chat_agent_model_settings_include_max_tokens():
+def test_chat_agent_model_settings_include_max_tokens_and_bedrock_cache():
     from unittest.mock import MagicMock, patch
 
     class FakeAgent:
@@ -559,6 +582,9 @@ def test_chat_agent_model_settings_include_max_tokens():
         call_kwargs = mock_agent_cls.call_args.kwargs
         assert "model_settings" in call_kwargs
         assert call_kwargs["model_settings"]["max_tokens"] == 32768
+        assert call_kwargs["model_settings"]["bedrock_cache_instructions"] is True
+        assert call_kwargs["model_settings"]["bedrock_cache_tool_definitions"] is True
+        assert "bedrock_cache_messages" not in call_kwargs["model_settings"]
         assert "parallel_tool_calls" not in call_kwargs["model_settings"]
 
 
@@ -667,7 +693,9 @@ async def test_stream_chat_response_emits_tool_started_and_completed(monkeypatch
 
     async def _fake_run_stream_events(_prompt, *, deps):
         tool_call_id = "call-abc"
-        yield PartStartEvent(index=1, part=ToolCallPart("generateIdeationBrief", args={}, tool_call_id=tool_call_id))
+        yield PartStartEvent(
+            index=1, part=ToolCallPart("generateIdeationBrief", args={}, tool_call_id=tool_call_id)
+        )
         yield FunctionToolResultEvent(
             result=ToolReturnPart(
                 tool_name="generateIdeationBrief",
@@ -712,7 +740,9 @@ async def test_stream_chat_response_cancel_log_includes_active_skills_and_tools_
 
     async def _fake_run_stream_events(_prompt, *, deps):
         tool_call_id = "call-abc"
-        yield PartStartEvent(index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id))
+        yield PartStartEvent(
+            index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id)
+        )
         raise asyncio.CancelledError()
 
     monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
@@ -743,13 +773,17 @@ async def test_stream_chat_response_cancel_log_includes_active_skills_and_tools_
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_response_failure_log_includes_available_skills_and_tools_called(monkeypatch):
+async def test_stream_chat_response_failure_log_includes_available_skills_and_tools_called(
+    monkeypatch,
+):
     capture = _CaptureLogger()
     monkeypatch.setattr(chat_agent_module, "logger", capture)
 
     async def _fake_run_stream_events(_prompt, *, deps):
         tool_call_id = "call-abc"
-        yield PartStartEvent(index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id))
+        yield PartStartEvent(
+            index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id)
+        )
         raise RuntimeError("stream broke")
 
     monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
@@ -859,8 +893,17 @@ async def test_stream_chat_response_sanitizes_load_skill_output(monkeypatch):
 
     async def _fake_run_stream_events(_prompt, *, deps):
         tool_call_id = "call-skill"
-        yield PartStartEvent(index=1, part=ToolCallPart("loadSkill", args={"name": "safety-flagging"}, tool_call_id=tool_call_id))
-        yield FunctionToolCallEvent(part=ToolCallPart("loadSkill", args={"name": "safety-flagging"}, tool_call_id=tool_call_id))
+        yield PartStartEvent(
+            index=1,
+            part=ToolCallPart(
+                "loadSkill", args={"name": "safety-flagging"}, tool_call_id=tool_call_id
+            ),
+        )
+        yield FunctionToolCallEvent(
+            part=ToolCallPart(
+                "loadSkill", args={"name": "safety-flagging"}, tool_call_id=tool_call_id
+            )
+        )
         yield FunctionToolResultEvent(
             result=ToolReturnPart(
                 tool_name="loadSkill",
@@ -968,11 +1011,21 @@ async def test_stream_chat_response_logs_parallel_load_skill_batch(monkeypatch):
 @pytest.mark.asyncio
 async def test_stream_chat_response_emits_agent_status_for_load_skill(monkeypatch):
     """loadSkill start and end must emit semantic agent-status events without leaking skill names."""
+
     async def _fake_run_stream_events(_prompt, *, deps):
         _ = deps
         tool_call_id = "call-skill"
-        yield PartStartEvent(index=1, part=ToolCallPart("loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id))
-        yield FunctionToolCallEvent(part=ToolCallPart("loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id))
+        yield PartStartEvent(
+            index=1,
+            part=ToolCallPart(
+                "loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id
+            ),
+        )
+        yield FunctionToolCallEvent(
+            part=ToolCallPart(
+                "loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id
+            )
+        )
         yield FunctionToolResultEvent(
             result=ToolReturnPart(
                 tool_name="loadSkill",
@@ -1001,7 +1054,11 @@ async def test_stream_chat_response_emits_agent_status_for_load_skill(monkeypatc
 
     status_events = [e for e in events if e.get("event") == "agent-status"]
     assert len(status_events) == 1
-    assert status_events[0] == {"event": "agent-status", "phase": "preparing-analysis", "label": "Preparing analysis..."}
+    assert status_events[0] == {
+        "event": "agent-status",
+        "phase": "preparing-analysis",
+        "label": "Preparing analysis...",
+    }
     # No skill name must appear in any agent-status event
     for e in status_events:
         assert "discovery-reporting" not in str(e)
@@ -1010,12 +1067,20 @@ async def test_stream_chat_response_emits_agent_status_for_load_skill(monkeypatc
 @pytest.mark.asyncio
 async def test_stream_chat_response_clears_agent_status_when_pdf_tool_starts(monkeypatch):
     """When a visible PDF tool starts after loadSkill, agent-status must emit idle to clear shimmer."""
+
     async def _fake_run_stream_events(_prompt, *, deps):
         _ = deps
         skill_call_id = "call-skill"
         pdf_call_id = "call-pdf"
-        yield PartStartEvent(index=1, part=ToolCallPart("loadSkill", args={"name": "discovery-reporting"}, tool_call_id=skill_call_id))
-        yield PartStartEvent(index=2, part=ToolCallPart("generateIdeationBrief", args={}, tool_call_id=pdf_call_id))
+        yield PartStartEvent(
+            index=1,
+            part=ToolCallPart(
+                "loadSkill", args={"name": "discovery-reporting"}, tool_call_id=skill_call_id
+            ),
+        )
+        yield PartStartEvent(
+            index=2, part=ToolCallPart("generateIdeationBrief", args={}, tool_call_id=pdf_call_id)
+        )
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
     monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
@@ -1037,18 +1102,32 @@ async def test_stream_chat_response_clears_agent_status_when_pdf_tool_starts(mon
 
     status_events = [e for e in events if e.get("event") == "agent-status"]
     assert len(status_events) == 2
-    assert status_events[0] == {"event": "agent-status", "phase": "preparing-analysis", "label": "Preparing analysis..."}
+    assert status_events[0] == {
+        "event": "agent-status",
+        "phase": "preparing-analysis",
+        "label": "Preparing analysis...",
+    }
     assert status_events[1] == {"event": "agent-status", "phase": "idle", "label": ""}
 
 
 @pytest.mark.asyncio
 async def test_stream_chat_response_load_skill_status_persists_until_text_delta(monkeypatch):
     """Preparing analysis status must remain until the next text delta arrives."""
+
     async def _fake_run_stream_events(_prompt, *, deps):
         _ = deps
         tool_call_id = "call-skill"
-        yield PartStartEvent(index=1, part=ToolCallPart("loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id))
-        yield FunctionToolCallEvent(part=ToolCallPart("loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id))
+        yield PartStartEvent(
+            index=1,
+            part=ToolCallPart(
+                "loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id
+            ),
+        )
+        yield FunctionToolCallEvent(
+            part=ToolCallPart(
+                "loadSkill", args={"name": "discovery-reporting"}, tool_call_id=tool_call_id
+            )
+        )
         yield FunctionToolResultEvent(
             result=ToolReturnPart(
                 tool_name="loadSkill",
@@ -1110,8 +1189,12 @@ async def test_stream_chat_response_survives_tool_input_parse_failure(monkeypatc
 
     async def _fake_run_stream_events(_prompt, *, deps):
         tool_call_id = "call-bad"
-        yield PartStartEvent(index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id))
-        yield FunctionToolCallEvent(part=_BadToolCallPart("webSearch", args="not-valid-json", tool_call_id=tool_call_id))
+        yield PartStartEvent(
+            index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id)
+        )
+        yield FunctionToolCallEvent(
+            part=_BadToolCallPart("webSearch", args="not-valid-json", tool_call_id=tool_call_id)
+        )
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
     monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)

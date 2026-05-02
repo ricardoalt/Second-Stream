@@ -1,81 +1,13 @@
 {% extends '_base.html.j2' %}
-{% from '_macros.html.j2' import theme_header, why_it_matters_box %}
+{% from '_macros.html.j2' import cover_block, page_band_line_2, theme_header, why_it_matters_box %}
 
 {% block title %}SecondStream Discovery Playbook — {{ payload.customer | e }}{% endblock %}
-{% block footer_center %}Discovery Playbook — Internal use only{% endblock %}
+{% block footer_left %}SecondStream · Discovery Agent v3{% endblock %}
+{% block footer_center %}Internal handover · Discovery{% endblock %}
 
 {% block head_extra %}
 <style>
-  /* ── Call Playbook reportlab-inspired overrides ── */
-  .call-playbook .playbook-cover {
-    margin-bottom: 16pt;
-    page-break-inside: avoid;
-  }
-
-  .call-playbook .cover-topline {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 6pt;
-  }
-
-  .call-playbook .cover-logo-cell {
-    width: 124pt;
-    padding: 0;
-    vertical-align: top;
-  }
-
-  .call-playbook .cover-logo-cell img {
-    width: 112pt;
-    height: auto;
-  }
-
-  .call-playbook .cover-heading-cell {
-    padding: 0;
-    vertical-align: top;
-  }
-
-  .call-playbook .cover-header-line {
-    margin: 0 0 2pt 0;
-    font-size: 9pt;
-    font-weight: bold;
-    color: var(--ink);
-    line-height: 1.25;
-  }
-
-  .call-playbook .cover-header-meta {
-    margin: 0;
-    font-size: 8pt;
-    color: var(--ink-muted);
-    line-height: 1.25;
-  }
-
-  .call-playbook .cover-rule {
-    margin: 7pt 0 12pt 0;
-  }
-
-  .call-playbook .cover-title {
-    margin: 0 0 4pt 0;
-    font-size: 22pt;
-    line-height: 1.16;
-    font-weight: bold;
-    color: var(--brand-primary);
-  }
-
-  .call-playbook .cover-subtitle {
-    margin: 0 0 2pt 0;
-    font-size: 13pt;
-    line-height: 1.25;
-    font-style: italic;
-    font-weight: bold;
-    color: var(--ink-muted);
-  }
-
-  .call-playbook .cover-handover-tag {
-    margin: 0;
-    font-size: 8pt;
-    color: var(--ink-soft);
-  }
-
+  /* ── Call Playbook overrides — cover styles come from design/base.css ── */
   .call-playbook .opening-note {
     margin: 0 0 14pt 0;
     font-size: 9.5pt;
@@ -165,23 +97,13 @@
 
 <div class="call-playbook">
 
-<div class="playbook-cover">
-  <table class="cover-topline">
-    <tr>
-      <td class="cover-logo-cell">
-        <img src="assets/secondstream_logo.svg" alt="SecondStream">
-      </td>
-      <td class="cover-heading-cell">
-        <p class="cover-header-line">{{ payload.customer }}</p>
-        <p class="cover-header-meta">Sites: {{ payload.stream }}&nbsp;&nbsp;|&nbsp;&nbsp;{{ payload.date }}</p>
-      </td>
-    </tr>
-  </table>
-  <hr class="cover-rule">
-  <h1 class="cover-title">Call Playbook</h1>
-  <p class="cover-subtitle">Open during the producer call. Flip to any theme.</p>
-  <p class="cover-handover-tag">Discovery Call Playbook · SecondStream Discovery Agent v3.1</p>
-</div>
+{{ cover_block(
+    title="Call Playbook",
+    subtitle="Open during the producer call. Flip to any theme.",
+    header_line_1=payload.header_line,
+    header_line_2=page_band_line_2("Discovery Call Playbook"),
+    evidence_caption=payload.evidence_caption,
+) }}
 
 {% if payload.orientation_note %}
 <div class="avoid-break">

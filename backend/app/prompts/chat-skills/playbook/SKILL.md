@@ -18,6 +18,11 @@ Each theme has: title, body explanation, probe questions for the call, and
 Themes should be ordered by priority for the call — most important first.
 Aim for 3–6 themes; more than 8 is unwieldy for a live conversation.
 
+## Cover fields
+
+- **`header_line`** (string, **required**): one rich line of context. Weave customer + portfolio + sites + in-offer summary, e.g. `"ExxonMobil — Gulf Coast Spent Caustic Portfolio · Beaumont (2 barges/mo) + GCGV (1 barge/mo) in offer"`.
+- **`evidence_caption`** (string, optional): caption shown beneath the cover subtitle for evidence/producer state flags. Omit when there is nothing notable.
+
 ## Tool call
 
 Call `generatePlaybook` with flat top-level tool arguments. Do not wrap the arguments
@@ -26,5 +31,5 @@ not output a markdown list — use the tool.
 
 Valid tool arguments example:
 ```json
-{"customer":"Acme Metals","stream":"spent caustic","date":"2026-04-29","opening_context":"Use the call to confirm chemistry and logistics constraints.","themes":[{"number":1,"title":"Chemistry guardrails","body":"Confirm the limits that decide outlet fit.","probe_questions":["What is the latest sulfur result?"],"why_it_matters":["Sulfur drives buyer eligibility."]}]}
+{"customer":"Acme Metals","stream":"spent caustic","date":"2026-04-29","header_line":"Acme Metals — Spent Caustic Portfolio · Plant 3 (1 barge/mo) in offer","opening_context":"Use the call to confirm chemistry and logistics constraints.","themes":[{"number":1,"title":"Chemistry guardrails","body":"Confirm the limits that decide outlet fit.","probe_questions":["What is the latest sulfur result?"],"why_it_matters":["Sulfur drives buyer eligibility."]}]}
 ```

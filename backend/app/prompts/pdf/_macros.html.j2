@@ -10,44 +10,45 @@
 #}
 
 
-{%- macro cover_block(customer, stream, date, doc_type=none, gate=none, gate_blocker=none, handover_tag=none) -%}
-{%- set gate_norm = none -%}
-{%- if gate is not none -%}
-  {%- set _g = gate | lower -%}
-  {%- set gate_norm = 'open' if _g in ('open', 'green') else ('amber' if _g in ('amber', 'conditional', 'conditionally_open', 'open_conditional') else 'closed') -%}
-{%- endif -%}
-<div class="avoid-break" style="margin-bottom: 24pt;">
-  <table style="width:100%;border-collapse:collapse;margin-bottom:6pt;">
+{%- macro cover_block(title, subtitle, header_line_1, header_line_2, evidence_caption=none) -%}
+{#
+  Display cover used by every SecondStream PDF.
+
+  - header_line_1 : rich one-line context (LLM-authored), e.g.
+      "ExxonMobil — Gulf Coast Spent Caustic Portfolio · Beaumont (2 barges/mo) + GCGV (1 barge/mo) in offer"
+  - header_line_2 : composed band line, e.g.
+      "Discovery Analytical Read · Revision 2 (post-offer) · SecondStream Discovery Agent v3 · Internal handover"
+    Both are ALSO captured into CSS strings (header-line-1 / header-line-2) and
+    repeated at the top of every subsequent page via @top-left / @top-right.
+  - title             : poster-sized display heading ("Analytical Read", etc.)
+  - subtitle          : italic tagline beneath the title
+  - evidence_caption  : optional caption under the subtitle (evidence/state flags)
+#}
+<div class="cover-block">
+  <table class="cover-topline">
     <tr>
-      <td style="padding:0;vertical-align:bottom;">
-        <img src="assets/secondstream_logo.svg" style="width:160pt;height:auto;" alt="SecondStream">
+      <td class="cover-logo-cell">
+        <img src="assets/secondstream_logo.svg" alt="SecondStream">
       </td>
-      {%- if doc_type is not none -%}
-      <td style="padding:0;vertical-align:bottom;text-align:right;font-size:9pt;color:#8892A0;text-transform:uppercase;letter-spacing:0.08em;">
-        {{ doc_type }}
+      <td class="cover-heading-cell">
+        <p class="cover-header-line-1">{{ header_line_1 }}</p>
+        <p class="cover-header-line-2">{{ header_line_2 }}</p>
       </td>
-      {%- endif -%}
     </tr>
   </table>
   <hr class="cover-rule">
-  <table class="cover-fields">
-    <tr><td class="cover-key">Customer</td><td class="cover-val">{{ customer }}</td></tr>
-    <tr><td class="cover-key">Stream</td><td class="cover-val">{{ stream }}</td></tr>
-    <tr><td class="cover-key">Date</td><td class="cover-val">{{ date }}</td></tr>
-    {%- if gate_norm is not none -%}
-    <tr>
-      <td class="cover-key">Qualification Gate</td>
-      <td class="cover-val"><span class="gate-badge gate-badge-{{ gate_norm }}">{{ gate }}</span></td>
-    </tr>
-    {%- if gate_blocker is not none -%}
-    <tr><td></td><td class="gate-blocker">{{ gate_blocker }}</td></tr>
-    {%- endif -%}
-    {%- endif -%}
-  </table>
-  {%- if handover_tag is not none -%}
-  <p class="cover-handover-tag">{{ handover_tag }}</p>
+  <h1 class="cover-title">{{ title }}</h1>
+  <p class="cover-subtitle">{{ subtitle }}</p>
+  {%- if evidence_caption -%}
+  <p class="cover-handover-tag">{{ evidence_caption }}</p>
   {%- endif -%}
 </div>
+{%- endmacro -%}
+
+
+{%- macro page_band_line_2(doc_label, agent_version='v3', classification='Internal handover') -%}
+{#- Helper to compose the per-page band line 2 from its parts. -#}
+{{ doc_label }} · SecondStream Discovery Agent {{ agent_version }} · {{ classification }}
 {%- endmacro -%}
 
 

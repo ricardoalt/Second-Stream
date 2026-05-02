@@ -1,80 +1,13 @@
 {% extends '_base.html.j2' %}
-{% from '_macros.html.j2' import gate_callout, safety_callout, insight_callout %}
+{% from '_macros.html.j2' import cover_block, page_band_line_2, gate_callout, safety_callout, insight_callout %}
 
 {% block title %}SecondStream Analytical Read — {{ payload.customer | e }}{% endblock %}
-{% block footer_center %}Internal handover{% endblock %}
+{% block footer_left %}SecondStream · Discovery Agent v3{% endblock %}
+{% block footer_center %}Internal handover · Discovery{% endblock %}
 
 {% block head_extra %}
 <style>
-  /* ── Analytical Read customer-reference layout ── */
-  .analytical-read .document-header {
-    margin-bottom: 18pt;
-    page-break-inside: avoid;
-  }
-
-  .analytical-read .header-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 8pt;
-  }
-
-  .analytical-read .header-logo-cell {
-    width: 124pt;
-    padding: 0;
-    vertical-align: top;
-  }
-
-  .analytical-read .header-logo-cell img {
-    width: 112pt;
-    height: auto;
-  }
-
-  .analytical-read .header-copy-cell {
-    padding: 0;
-    vertical-align: top;
-  }
-
-  .analytical-read .header-title {
-    margin: 0 0 2pt 0;
-    font-size: 9pt;
-    line-height: 1.25;
-    font-weight: bold;
-    color: var(--ink);
-  }
-
-  .analytical-read .header-meta {
-    margin: 0;
-    font-size: 8pt;
-    line-height: 1.25;
-    color: var(--ink-muted);
-  }
-
-  .analytical-read .cover-rule {
-    margin: 7pt 0 12pt 0;
-  }
-
-  .analytical-read .doc-title {
-    margin: 0 0 4pt 0;
-    font-size: 22pt;
-    line-height: 1.16;
-    font-weight: bold;
-    color: var(--brand-primary);
-  }
-
-  .analytical-read .doc-subtitle {
-    margin: 0 0 2pt 0;
-    font-size: 13pt;
-    line-height: 1.25;
-    font-style: italic;
-    color: var(--ink-muted);
-  }
-
-  .analytical-read .handover-tag {
-    margin: 0;
-    font-size: 8pt;
-    color: var(--ink-soft);
-  }
-
+  /* ── Analytical Read overrides — cover styles come from design/base.css ── */
   .analytical-read .section-h1 {
     font-size: 15pt;
     font-weight: bold;
@@ -192,23 +125,13 @@
 
 <div class="analytical-read">
 
-<div class="document-header">
-  <table class="header-table">
-    <tr>
-      <td class="header-logo-cell">
-        <img src="assets/secondstream_logo.svg" alt="SecondStream">
-      </td>
-      <td class="header-copy-cell">
-        <p class="header-title">{{ payload.customer }}</p>
-        <p class="header-meta">Sites: {{ payload.stream }}&nbsp;&nbsp;|&nbsp;&nbsp;{{ payload.date }}</p>
-      </td>
-    </tr>
-  </table>
-  <hr class="cover-rule">
-  <h1 class="doc-title">Analytical Read</h1>
-  <p class="doc-subtitle">The evidenced case behind the ideation</p>
-  <p class="handover-tag">Discovery Analytical Read · SecondStream Discovery Agent v3.1</p>
-</div>
+{{ cover_block(
+    title="Analytical Read",
+    subtitle="The evidenced case behind the ideation",
+    header_line_1=payload.header_line,
+    header_line_2=page_band_line_2("Discovery Analytical Read"),
+    evidence_caption=payload.evidence_caption,
+) }}
 
 {% if payload.gate_status %}
 {{ gate_callout(payload.gate_status, payload.gate_blockers | join(' ') if payload.gate_blockers else payload.executive_summary) }}
@@ -247,7 +170,9 @@
     <tbody>
       {% for row in table.rows %}
       <tr>
-        {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+        {% for cell in row %}
+          <td{% if cell.emphasis != 'normal' %} class="cell-{{ cell.emphasis }}"{% endif %}>{{ cell.value }}</td>
+        {% endfor %}
       </tr>
       {% endfor %}
     </tbody>

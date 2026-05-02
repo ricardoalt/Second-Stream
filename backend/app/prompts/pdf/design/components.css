@@ -136,6 +136,7 @@
   border-collapse: collapse;
   margin: var(--space-sm) 0 var(--space-md) 0;
   font-size: var(--type-caption);
+  font-variant-numeric: tabular-nums;
   page-break-inside: auto;
 }
 
@@ -160,7 +161,7 @@
   font-size: var(--type-caption);
   color: var(--ink);
   text-align: center;
-  padding: 4pt 6pt;
+  padding: 3pt 6pt;
   vertical-align: middle;
 }
 
@@ -168,6 +169,19 @@
   text-align: left;
   font-weight: bold;
 }
+
+/* Cell emphasis — three named variants the agent can choose. All three use the
+   soft yellow background to draw the eye; the left border encodes the *kind*
+   of attention so a print reader can scan reasons without colour vision.
+   `!important` on the background wins over zebra striping via specificity. */
+.analytical-table tbody td.cell-changed,
+.analytical-table tbody td.cell-outlier,
+.analytical-table tbody td.cell-newly_detected {
+  background: var(--safety-yellow-bg) !important;
+}
+.analytical-table tbody td.cell-changed         { border-left: 2pt solid var(--marker-insight); }
+.analytical-table tbody td.cell-outlier         { border-left: 2pt solid var(--marker-caution); }
+.analytical-table tbody td.cell-newly_detected  { border-left: 2pt solid var(--marker-gap); }
 
 /* ── Markers (inline ■ glyphs) ───────────────────────────────────────────── */
 

@@ -1,23 +1,56 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.agents.base_pdf_schema import BasePdfPayload
 from app.agents.shared_schema import PdfAttachmentOutput as PDFOutput  # noqa: F401
 from app.agents.shared_schema import SafetyFlag
 
+CellEmphasis = Literal["normal", "changed", "outlier", "newly_detected"]
+
+
+class Cell(BaseModel):
+    """A single analytical-table cell — value plus optional emphasis.
+
+    Co-locating the display flag with the value (instead of a parallel boolean
+    matrix) makes it impossible to desync flags from rows when the model
+    reorders or edits the table.
+    """
+
+    value: str
+    emphasis: CellEmphasis = Field(
+        default="normal",
+        description=(
+            "How the cell should be visually emphasized. 'normal' renders without "
+            "tint. 'changed' marks a value that moved meaningfully since the prior "
+            "sample. 'outlier' marks an anomalous reading. 'newly_detected' marks "
+            "a substance/parameter that was previously below detection."
+        ),
+    )
+
 
 class AnalyticalTable(BaseModel):
     title: str
     headers: list[str]
-    rows: list[list[str]]
+    rows: list[list[Cell]] = Field(
+        description=(
+            "Rows of cells. Each cell is an object with `value` and optional "
+            '`emphasis`. Use plain `{"value": "3.4"}` for normal cells; raise '
+            "`emphasis` only on the cells that genuinely deserve attention — "
+            "flagging everything teaches the reader to ignore the highlight."
+        ),
+    )
 
 
 class EvidenceTag(BaseModel):
     tag: str = Field(description="Evidence handle, e.g. EV-01.")
     title: str
     description: str
-    confidence: str | None = Field(default=None, description="HIGH, MEDIUM, LOW, or equivalent confidence language.")
+    confidence: str | None = Field(
+        default=None, description="HIGH, MEDIUM, LOW, or equivalent confidence language."
+    )
 
 
 class AnalyticalSection(BaseModel):
@@ -32,13 +65,17 @@ class GapItem(BaseModel):
 
 
 class GapSection(BaseModel):
-    title: str = Field(description="Group label such as REQUIRED, NICE TO HAVE, or REGULATORY FLAG.")
+    title: str = Field(
+        description="Group label such as REQUIRED, NICE TO HAVE, or REGULATORY FLAG."
+    )
     items: list[GapItem] = Field(default_factory=list)
 
 
 class AnalyticalReadPayload(BasePdfPayload):
     executive_summary: str
-    gate_status: str | None = Field(default=None, description="OPEN, CONDITIONALLY OPEN, CLOSED, or similar gate status.")
+    gate_status: str | None = Field(
+        default=None, description="OPEN, CONDITIONALLY OPEN, CLOSED, or similar gate status."
+    )
     gate_blockers: list[str] = Field(default_factory=list)
     safety_callouts: list[SafetyFlag] = Field(default_factory=list)
     tables: list[AnalyticalTable] = Field(

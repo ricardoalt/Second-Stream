@@ -25,6 +25,7 @@ from app.agents.analytical_read_schema import (
     AnalyticalReadPayload,
     AnalyticalSection,
     AnalyticalTable,
+    Cell,
     EvidenceTag,
     GapItem,
     GapSection,
@@ -32,6 +33,12 @@ from app.agents.analytical_read_schema import (
 from app.agents.ideation_brief_schema import IdeationBriefPayload, IdeationSection
 from app.agents.playbook_schema import PlaybookPayload, PlaybookTheme
 from app.agents.shared_schema import SafetyFlag
+
+
+def _row(*values: str) -> list[Cell]:
+    """Concise helper to build a row of normal cells in tests."""
+    return [Cell(value=v) for v in values]
+
 
 PDF_TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "app" / "prompts" / "pdf"
 
@@ -43,6 +50,7 @@ def _ideation_payload(**overrides) -> IdeationBriefPayload:
         "customer": "ExxonMobil",
         "stream": "Spent Sulfidic Caustic",
         "date": "2026-04-25",
+        "header_line": "ExxonMobil — Spent Sulfidic Caustic Portfolio · 4 sites in scope",
         "gate_status": "OPEN",
         "gate_blocker": None,
         "sections": [
@@ -71,6 +79,7 @@ def _analytical_payload(**overrides) -> AnalyticalReadPayload:
         "customer": "Chevron",
         "stream": "Spent Caustic — Gulf Coast",
         "date": "2026-04-25",
+        "header_line": "Chevron — Gulf Coast Spent Caustic Portfolio · Baytown + Beaumont + Corpus Christi",
         "gate_status": "CONDITIONALLY OPEN",
         "gate_blockers": ["Per-site volume split not stated", "Phenol result pending"],
         "executive_summary": "Three streams with distinct H2S profiles across two facilities.",
@@ -86,22 +95,32 @@ def _analytical_payload(**overrides) -> AnalyticalReadPayload:
             AnalyticalTable(
                 title="1. Per-site chemistry read",
                 headers=["Parameter", "Baytown", "Beaumont", "Corpus Christi"],
-                rows=[["pH", "13.13", "13.7", "13.9"], ["Sulfide as S", "0.74", "0.13", "3.35"]],
+                rows=[
+                    _row("pH", "13.13", "13.7", "13.9"),
+                    [
+                        Cell(value="Sulfide as S"),
+                        Cell(value="0.74"),
+                        Cell(value="0.13"),
+                        Cell(value="3.35", emphasis="outlier"),
+                    ],
+                ],
             ),
             AnalyticalTable(
                 title="2. Treatment fit by site",
                 headers=["Route", "Baytown", "Beaumont", "Corpus Christi"],
-                rows=[["Industrial alkaline reuse", "Strong fit", "Unlikely", "Strong fit*"]],
+                rows=[_row("Industrial alkaline reuse", "Strong fit", "Unlikely", "Strong fit*")],
             ),
             AnalyticalTable(
                 title="3. Buyer archetype matrix",
                 headers=["Buyer archetype", "Baytown", "Beaumont", "Key requirements"],
-                rows=[["Industrial alkaline user", "Fit", "Borderline", "Na >3%, Cl <100 mg/kg"]],
+                rows=[
+                    _row("Industrial alkaline user", "Fit", "Borderline", "Na >3%, Cl <100 mg/kg")
+                ],
             ),
             AnalyticalTable(
                 title="5. Sizing",
                 headers=["Input", "Value", "Confidence", "Source"],
-                rows=[["Mass rate", "~3,400 MT/month (~40,800 MT/yr)", "MEDIUM", "Calculated"]],
+                rows=[_row("Mass rate", "~3,400 MT/month (~40,800 MT/yr)", "MEDIUM", "Calculated")],
             ),
         ],
         "evidence_tags": [
@@ -123,7 +142,10 @@ def _analytical_payload(**overrides) -> AnalyticalReadPayload:
             GapSection(
                 title="Required",
                 items=[
-                    GapItem(label="Per-site volume split", detail="Blocks routing and commercial scenario selection.")
+                    GapItem(
+                        label="Per-site volume split",
+                        detail="Blocks routing and commercial scenario selection.",
+                    )
                 ],
             ),
             GapSection(
@@ -132,7 +154,11 @@ def _analytical_payload(**overrides) -> AnalyticalReadPayload:
             ),
             GapSection(
                 title="Regulatory flags",
-                items=[GapItem(label="RCRA corrosivity", detail="Assessment must determine waste status.")],
+                items=[
+                    GapItem(
+                        label="RCRA corrosivity", detail="Assessment must determine waste status."
+                    )
+                ],
             ),
         ],
         "strategic_insight": "Caustic C is gate-ready. A and B need pre-treatment first.",
@@ -146,6 +172,7 @@ def _playbook_payload(**overrides) -> PlaybookPayload:
         "customer": "BP",
         "stream": "Refinery Waste",
         "date": "2026-04-25",
+        "header_line": "BP — Refinery Waste · Greenfield opportunity (sites TBD)",
         "opening_context": "Greenfield opportunity — first meeting. Focus on volume validation.",
         "orientation_note": "The killer questions are in Theme 11. The questions you need to ask first are in Theme 1.",
         "themes": [

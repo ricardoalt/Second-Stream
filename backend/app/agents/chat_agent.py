@@ -26,10 +26,9 @@ from pydantic_ai.messages import (
     ToolCallPartDelta,
     UserContent,
 )
-from pydantic_ai.models.bedrock import BedrockConverseModel
+from pydantic_ai.models.bedrock import BedrockConverseModel, BedrockModelSettings
 from pydantic_ai.providers.bedrock import BedrockProvider
 from pydantic_ai.run import AgentRunResultEvent
-from pydantic_ai.settings import ModelSettings
 
 from app.agents.analytical_read_schema import AnalyticalReadPayload
 from app.agents.chat_skill_loader import available_skill_names
@@ -155,7 +154,9 @@ async def _load_skill_tool_impl(
     try:
         skill = load_skill(name)
     except ValueError as exc:
-        raise ModelRetry("Skill could not be loaded. Use a valid skill name from Available Skills.") from exc
+        raise ModelRetry(
+            "Skill could not be loaded. Use a valid skill name from Available Skills."
+        ) from exc
     logger.info(
         "chat_agent_skill_loaded",
         run_id=ctx.deps.run_id,
@@ -179,7 +180,11 @@ def _make_agent() -> Agent:
         deps_type=ChatAgentDeps,
         output_type=str,
         retries=2,
-        model_settings=ModelSettings(max_tokens=32768),
+        model_settings=BedrockModelSettings(
+            max_tokens=32768,
+            bedrock_cache_instructions=True,
+            bedrock_cache_tool_definitions=True,
+        ),
         instructions=compile_base_instructions(),
     )
 
@@ -213,7 +218,13 @@ def _register_tools(agent: Agent) -> None:
         """
         from app.services.pdf_renderer import render_ideation_brief
 
-        return await _upload_pdf(ctx, payload=payload, renderer=render_ideation_brief, filename_suffix="ideation-brief", tool_name="generateIdeationBrief")
+        return await _upload_pdf(
+            ctx,
+            payload=payload,
+            renderer=render_ideation_brief,
+            filename_suffix="ideation-brief",
+            tool_name="generateIdeationBrief",
+        )
 
     @agent.tool(name="generateAnalyticalRead")
     async def generate_analytical_read(
@@ -226,7 +237,13 @@ def _register_tools(agent: Agent) -> None:
         """
         from app.services.pdf_renderer import render_analytical_read
 
-        return await _upload_pdf(ctx, payload=payload, renderer=render_analytical_read, filename_suffix="analytical-read", tool_name="generateAnalyticalRead")
+        return await _upload_pdf(
+            ctx,
+            payload=payload,
+            renderer=render_analytical_read,
+            filename_suffix="analytical-read",
+            tool_name="generateAnalyticalRead",
+        )
 
     @agent.tool(name="generatePlaybook")
     async def generate_playbook(
@@ -239,7 +256,13 @@ def _register_tools(agent: Agent) -> None:
         """
         from app.services.pdf_renderer import render_playbook
 
-        return await _upload_pdf(ctx, payload=payload, renderer=render_playbook, filename_suffix="playbook", tool_name="generatePlaybook")
+        return await _upload_pdf(
+            ctx,
+            payload=payload,
+            renderer=render_playbook,
+            filename_suffix="playbook",
+            tool_name="generatePlaybook",
+        )
 
 
 chat_agent = _make_agent()

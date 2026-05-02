@@ -7,20 +7,43 @@
   <link rel="stylesheet" href="design/base.css">
   <link rel="stylesheet" href="design/components.css">
   <style>
-    /* @page lives here so Jinja can override footer_center per document.
-       CSS vars don't reach into @page content — colours are hardcoded here. */
+    /* @page rules live here so Jinja blocks can parametrise footer/header
+       content per document. CSS vars don't cascade into @page content boxes,
+       so colours and fonts are hardcoded here. */
     @page {
       size: letter;
-      margin: 0.75in;
+      margin: 0.95in 0.75in 0.85in 0.75in;
+
+      /* Per-page header band — the cover's .cover-header-line-1 /
+         .cover-header-line-2 elements set these strings via string-set, then
+         every subsequent page picks them up here. */
+      @top-left {
+        content: string(header-line-1);
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 9pt;
+        font-weight: bold;
+        color: #1A1D24;
+        vertical-align: bottom;
+        padding-bottom: 4pt;
+      }
+      @top-right {
+        content: string(header-line-2);
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #4A5260;
+        vertical-align: bottom;
+        padding-bottom: 4pt;
+      }
+
       @bottom-left {
-        content: "SecondStream";
+        content: "{% block footer_left %}SecondStream · Discovery Agent v3{% endblock %}";
         font-family: Helvetica, Arial, sans-serif;
         font-size: 8pt;
         font-weight: bold;
         color: #273B77;
       }
       @bottom-center {
-        content: "{% block footer_center %}Confidential — internal use{% endblock %}";
+        content: "{% block footer_center %}Internal handover · Discovery{% endblock %}";
         font-family: Helvetica, Arial, sans-serif;
         font-size: 8pt;
         color: #8892A0;
@@ -31,6 +54,15 @@
         font-size: 8pt;
         color: #8892A0;
       }
+    }
+
+    /* Cover page hides the per-page header band — the visible cover already
+       carries the same two context lines, so repeating them at @top would be
+       redundant. */
+    @page :first {
+      margin-top: 0.75in;
+      @top-left  { content: ""; }
+      @top-right { content: ""; }
     }
     {% block page_extra_rules %}{% endblock %}
   </style>
