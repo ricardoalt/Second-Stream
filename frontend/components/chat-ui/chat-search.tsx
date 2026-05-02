@@ -49,14 +49,14 @@ export function ChatSearch({
 					"outline! border-none! p-0 outline-border! outline-solid!",
 				)}
 			>
-				<DialogTitle className="sr-only">Search chats</DialogTitle>
+				<DialogTitle className="sr-only">Search streams</DialogTitle>
 				<Command className="**:data-[slot=command-input-wrapper]:h-auto">
 					<CommandInput
-						placeholder="Search chats..."
+						placeholder="Search streams..."
 						className="h-auto py-3.5"
 					/>
 					<CommandList>
-						<CommandEmpty>No chats found.</CommandEmpty>
+						<CommandEmpty>No streams found.</CommandEmpty>
 						{groupedThreads.map((group) => (
 							<CommandGroup key={group.label} heading={group.label}>
 								{group.items.map((thread) => (
@@ -65,7 +65,7 @@ export function ChatSearch({
 										value={thread.title ?? thread.id}
 										onSelect={() => handleSelect(thread.id)}
 									>
-										{thread.title ?? "Untitled chat"}
+										{thread.title ?? "Untitled stream"}
 									</CommandItem>
 								))}
 							</CommandGroup>

@@ -201,7 +201,10 @@ describe("MessagePartsRenderer", () => {
 				messages={[message]}
 				setMessages={() => {}}
 				regenerate={() => {}}
-				agentStatus={{ phase: "preparing-analysis", label: "Preparing analysis..." }}
+				agentStatus={{
+					phase: "preparing-analysis",
+					label: "Preparing analysis...",
+				}}
 			/>,
 		);
 
@@ -225,7 +228,10 @@ describe("MessagePartsRenderer", () => {
 				messages={[message]}
 				setMessages={() => {}}
 				regenerate={() => {}}
-				agentStatus={{ phase: "preparing-analysis", label: "Preparing analysis..." }}
+				agentStatus={{
+					phase: "preparing-analysis",
+					label: "Preparing analysis...",
+				}}
 			/>,
 		);
 

@@ -4,7 +4,7 @@ import type {
 	NewThreadCreatedDataPart,
 } from "@/types/ui-message";
 
-const EMPTY_CHAT_TITLE = "New chat";
+const EMPTY_CHAT_TITLE = "New stream";
 const MAX_PROVISIONAL_TITLE_LENGTH = 80;
 const MAX_PREVIEW_LENGTH = 280;
 

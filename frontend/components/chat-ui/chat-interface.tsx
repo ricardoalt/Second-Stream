@@ -333,11 +333,7 @@ export function ChatInterface({
 						transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
 						className="mx-auto flex w-full max-w-[70ch] flex-1 flex-col items-center justify-center gap-14 px-6 pb-24"
 					>
-						<ChatEmptyGreeting
-							onSuggestionClick={(text) =>
-								void handleSubmitMessage({ text, files: [] }, () => undefined)
-							}
-						/>
+						<ChatEmptyGreeting />
 						<ChatPromptComposer
 							className="w-full"
 							busy={isComposerBusy}
@@ -394,15 +390,15 @@ export function ChatInterface({
 											ease: [0.25, 0.1, 0.25, 1],
 										}}
 									>
-									<MessagePartsRenderer
-										message={message}
-										isLastMessage={index === messages.length - 1}
-										isStreamingOrSubmitted={isStreamingOrSubmitted}
-										messages={messages}
-										setMessages={setMessages}
-										regenerate={regenerate}
-										agentStatus={agentStatus}
-									/>
+										<MessagePartsRenderer
+											message={message}
+											isLastMessage={index === messages.length - 1}
+											isStreamingOrSubmitted={isStreamingOrSubmitted}
+											messages={messages}
+											setMessages={setMessages}
+											regenerate={regenerate}
+											agentStatus={agentStatus}
+										/>
 									</motion.div>
 								))}
 

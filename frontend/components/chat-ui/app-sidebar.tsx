@@ -82,12 +82,12 @@ type SidebarActionItem = {
 const SIDEBAR_ACTIONS: ReadonlyArray<SidebarActionItem> = [
 	{
 		id: "new-chat",
-		label: "New chat",
+		label: "New stream",
 		icon: SquarePen,
 	},
 	{
 		id: "search-chats",
-		label: "Search chats",
+		label: "Search streams",
 		icon: Search,
 	},
 ];
@@ -478,9 +478,9 @@ export function AppSidebar({
 											<SidebarMenuButton
 												isActive={thread.id === activeThreadId}
 												onClick={() => handleSelectThread(thread.id)}
-												aria-label={thread.title ?? "Untitled chat"}
+												aria-label={thread.title ?? "Untitled stream"}
 											>
-												<span>{thread.title ?? "Untitled chat"}</span>
+												<span>{thread.title ?? "Untitled stream"}</span>
 											</SidebarMenuButton>
 											<DropdownMenu>
 												<DropdownMenuTrigger
