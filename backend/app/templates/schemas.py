@@ -6,12 +6,12 @@ before they are used in the system. Catches errors at startup rather
 than runtime.
 """
 
-from typing import TYPE_CHECKING, ClassVar, TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from app.templates.registry import TemplateDict
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TemplateField(BaseModel):
@@ -60,8 +60,9 @@ class TemplateField(BaseModel):
 
         return v
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {"example": {"id": "ph"}}
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"id": "ph"}},
+    )
 
 
 class TemplateSection(BaseModel):
@@ -118,15 +119,16 @@ class TemplateSection(BaseModel):
 
         return v
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "water-quality",
                 "title": "Water Quality Parameters",
                 "description": "Basic water quality measurements",
                 "fields": [{"id": "ph"}, {"id": "turbidity"}, {"id": "tds"}],
             }
-        }
+        },
+    )
 
 
 class TemplateConfig(BaseModel):
@@ -174,8 +176,8 @@ class TemplateConfig(BaseModel):
         """Get total number of fields in template."""
         return sum(len(section.fields) for section in self.sections)
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Base Water Treatment Template",
                 "description": "Universal template for all water treatment projects",
@@ -188,7 +190,8 @@ class TemplateConfig(BaseModel):
                     }
                 ],
             }
-        }
+        },
+    )
 
 
 # ============================================================================

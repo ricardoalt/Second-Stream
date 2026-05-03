@@ -11,7 +11,7 @@ This is the Discovery-mode specialist layer. For each sub-stream assigned a lens
 2. **Analytical needs** — what a specialist would want in the lab workup.
 3. **Red flags** — the safety and hazard concerns specific to this phase.
 
-That is all. No RCRA codes, no routing recommendations, no LDR treatment standards, no DOT packaging specs. The full specialist lenses (with routing and classification) are Assessment-mode work.
+That is all. No RCRA codes, no routing recommendations, no LDR treatment standards, no DOT packaging specs. The specialist lenses (with routing and classification) are post-Discovery compliance review work.
 
 The point of running this in Discovery is that **phase-specific questions produce better evidence than generic intake questions**. A specialist knows what to ask about a refinery tank-bottom sludge that a generalist does not.
 
@@ -75,7 +75,7 @@ Each lens has a profile-question set, an analytical-needs set, and a red-flags s
 - **H<sub>2</sub>S evolution risk** — high sulfide caustic on acidification or in enclosed transfer. STOP-FLAG on unprotected transfer; SPECIALIST-FLAG on routing decisions.
 - **HF-containing streams** — hydrofluoric acid contamination (from alkylation, glass etching, semiconductor) is a specialist-only material. SPECIALIST-FLAG always.
 - **Cyanide-containing aqueous streams** — D003 reactive if conditions permit HCN generation. SPECIALIST-FLAG.
-- **pH ≥ 12.5 or ≤ 2.0** — likely D002 corrosive in Assessment; in Discovery, flagged as probable characteristic waste.
+- **pH ≥ 12.5 or ≤ 2.0** — likely D002 corrosive in post-Discovery specialist review; in Discovery, flagged as probable characteristic waste.
 - **Unknown or unstable composition** — rinsate from unknown process history is a labpack-equivalent risk.
 
 ### Lens 3 — organic-liquids-specialist
@@ -213,14 +213,14 @@ Analytical needs (for the specialist, commissionable during Discovery):
 
 Red flags:
 - H<sub>2</sub>S evolution risk on acidification or enclosed transfer. SPECIALIST-FLAG.
-- pH likely ≥ 12.5 — probable D002 in Assessment.
+- pH likely ≥ 12.5 — probable D002 in post-Discovery specialist review.
 - If sulfide > threshold and reactive-waste definition met — potential D003. Flag.
 ```
 
 ## What this skill never does in Discovery
 
-- **Does not recommend routes.** No "send this to a CWT facility" or "regeneration is viable." Routing is Assessment work.
-- **Does not produce RCRA codes.** Flags ("likely D002," "possible D003") are allowed as probability signals; determinations are Assessment.
+- **Does not recommend routes.** No "send this to a CWT facility" or "regeneration is viable." Routing is post-Discovery compliance review.
+- **Does not produce RCRA codes.** Flags ("likely D002," "possible D003") are allowed as probability signals; determinations are post-Discovery compliance review.
 - **Does not price.** No $/ton on outlets. Commercial-shaping produces directional ranges with arithmetic, not the lens.
-- **Does not design transport.** UN / class / PG appear if visible in the SDS; full DOT packaging is Assessment.
+- **Does not design transport.** UN / class / PG appear if visible in the SDS; full DOT packaging is post-Discovery compliance review.
 - **Does not decide whether the opportunity is commercially viable.** That is commercial-shaping's lens. This skill produces technical inputs to that decision.

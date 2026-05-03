@@ -3,10 +3,10 @@ File-related schemas for uploads and downloads.
 """
 
 from datetime import datetime
-from typing import Any, ClassVar
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FileUploadResponse(BaseModel):
@@ -23,8 +23,8 @@ class FileUploadResponse(BaseModel):
     cached_from_date: datetime | None = None
     message: str = "File uploaded successfully"
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "filename": "water_analysis.pdf",
@@ -37,7 +37,8 @@ class FileUploadResponse(BaseModel):
                 "cached_from_date": None,
                 "message": "File uploaded successfully",
             }
-        }
+        },
+    )
 
 
 class FileInfo(BaseModel):
@@ -63,8 +64,8 @@ class FileListResponse(BaseModel):
     files: list[FileInfo]
     total: int
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "project_id": "123e4567-e89b-12d3-a456-426614174000",
                 "files": [
@@ -82,7 +83,8 @@ class FileListResponse(BaseModel):
                 ],
                 "total": 1,
             }
-        }
+        },
+    )
 
 
 class FileDetailResponse(BaseModel):
@@ -98,5 +100,4 @@ class FileDetailResponse(BaseModel):
     processed_text: str | None = Field(None, description="Extracted text content")
     ai_analysis: dict[str, Any] | None = Field(None, description="AI analysis results")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

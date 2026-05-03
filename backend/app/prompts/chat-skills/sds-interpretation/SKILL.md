@@ -7,7 +7,7 @@ description: "Extract, interpret, and cross-check SDS, COA, lab analysis, TCLP/S
 
 An SDS is the single richest evidence document in any opportunity. It tells you what the producer's supplier said the material **is** — not what it has **become** after use, but close enough that it anchors identity better than any other source. COAs and lab reports tell you what the material **actually is right now**, at a specific sampling point.
 
-In Discovery mode, you **extract and flag**. You do not derive final RCRA classification or make routing decisions — those are Assessment-mode outputs. Hunches that affect commercial framing (likely ignitable, likely corrosive on pH, likely contains halogenated solvents) are surfaced as "flagged considerations for Assessment," not as determinations.
+In Discovery mode, you **extract and flag**. You do not derive final RCRA classification or make routing decisions — those are post-Discovery compliance outputs. Hunches that affect commercial framing (likely ignitable, likely corrosive on pH, likely contains halogenated solvents) are surfaced as "flagged considerations for later compliance review," not as determinations.
 
 ## The 16 SDS sections — what to extract
 
@@ -40,7 +40,7 @@ The most often-misread section. Capture every listed component with:
 Usually skipped for Discovery, but worth a glance — acute-exposure routes give handling cues.
 
 ### Section 5 — Fire-fighting
-Flash point, autoignition, flammability class. Incompatible extinguishing agents. If the material is fuel-rated, this affects BIF / fuel-blending viability in Assessment.
+Flash point, autoignition, flammability class. Incompatible extinguishing agents. If the material is fuel-rated, this affects BIF / fuel-blending viability in post-Discovery specialist review.
 
 ### Section 6 — Accidental release
 Containment notes, incompatibles.
@@ -141,23 +141,23 @@ Cross-check:
   SDS hydrocarbon presence (sections 3, 15 imply benzene/naphthalene/toluene content) vs COA hydrocarbons POSITIVE — consistent qualitatively.
   SG in COA (1.1235) unavailable in SDS — newly known evidence point.
 
-Flagged considerations for Assessment:
+Flagged considerations for later compliance review:
   - Likely D002 corrosive (pH ≥12.5). Also flag: possible D003 reactive-sulfide if sulfide > threshold.
   - UN1824 Class 8 PG II transport frame confirmed in SDS.
   - Benzene presence in the SDS regulatory section implies possible D018 toxicity-characteristic flag — confirmation needs quantified benzene analysis (not in this COA).
-  - TSCA inventory status unchecked on the petroleum-derived neutralising agents — Assessment question.
+  - TSCA inventory status unchecked on the petroleum-derived neutralising agents — post-Discovery compliance question.
 
 Required gaps (Discovery):
   - SDS is 2017 revision — confirm current material spec.
   - Composition section 3 uses wide ranges and trade-secret withholding — full COA or typical analytical workup would strengthen.
-  - Benzene / BTEX concentrations not on current COA — needed for hazardous-characteristic determination in Assessment.
+  - Benzene / BTEX concentrations not on current COA — needed for hazardous-characteristic determination in post-Discovery specialist review.
 ```
 
 ## What this skill never does in Discovery mode
 
-- **Does not assign final RCRA codes.** Flags ("likely D002") are allowed; determinations ("this stream is D002 corrosive") are Assessment.
-- **Does not specify DOT packaging or placarding specs.** Note transport UN / class / PG from the SDS; full transport design is Assessment.
-- **Does not write the LDR notification or determine BDAT compliance.** Assessment.
+- **Does not assign final RCRA codes.** Flags ("likely D002") are allowed; determinations ("this stream is D002 corrosive") are post-Discovery compliance review.
+- **Does not specify DOT packaging or placarding specs.** Note transport UN / class / PG from the SDS; full transport design is post-Discovery compliance review.
+- **Does not write the LDR notification or determine BDAT compliance.** Post-Discovery compliance review.
 - **Does not name specific TSDFs, recyclers, or fuel-blenders.** Generic category language only ("permitted CWT facility").
 - **Does not accept supplier disposal suggestions as authoritative.** Section 13 of an SDS is a starting hypothesis, never a conclusion.
 - **Does not hide composition ambiguity.** If the SDS uses wide ranges or withholds trade secrets, say so. Commercial decisions made on an SDS that does not disclose composition are commercial decisions made on bad evidence.

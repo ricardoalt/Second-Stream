@@ -257,6 +257,12 @@ export function ChatInterface({
 	);
 
 	const handleRetry = useCallback(async () => {
+		const isChatBusy =
+			statusRef.current === "submitted" || statusRef.current === "streaming";
+		if (isSubmittingMessageRef.current || isChatBusy) {
+			return;
+		}
+
 		setSubmitError(null);
 		if (error) {
 			clearError();

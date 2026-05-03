@@ -110,7 +110,7 @@ SPECIALIST-FLAG
   specialist has physically verified hydration state.
 
 ATTENTION-FLAG
-  Sub-stream 2 — Merox spent caustic: H₂S evolution risk on acidification or enclosed
+  Sub-stream 2 — Merox spent caustic: H2S evolution risk on acidification or enclosed
   transfer. Carry forward in handling plan; PPE and ventilation protocol needed before
   any transfer activity.
 ```

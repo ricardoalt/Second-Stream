@@ -127,8 +127,8 @@ Safety flags raised:
 
 ## What this skill never does
 
-- **Does not classify waste.** A corrosion pictogram is evidence, not a RCRA D002 determination. Classification belongs to Assessment-mode skills.
+- **Does not classify waste.** A corrosion pictogram is evidence, not a RCRA D002 determination. Classification belongs to post-Discovery compliance review.
 - **Does not identify people.** Faces in photos are not subjects of interpretation; PPE on bodies is.
 - **Does not guess content from container colour.** Blue drums are not always caustics; red drums are not always flammables. Marketing trumps convention and the evidence is the label, not the shell.
-- **Does not produce DOT packaging specs.** Noting UN1824 on a label is evidence; specifying the correct packaging for a shipment is Assessment.
+- **Does not produce DOT packaging specs.** Noting UN1824 on a label is evidence; specifying the correct packaging for a shipment is post-Discovery compliance review.
 - **Does not overstate certainty.** If the image is blurry or partial, say so. "UN1824 partially legible — appears to be UN1824, confidence MEDIUM" is better than pretending you saw it clearly.

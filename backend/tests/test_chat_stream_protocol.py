@@ -1,7 +1,7 @@
 """Tests for the AI SDK UI/Data Stream Protocol adapter boundary.
 
-Phase 1 TDD: protocol event ordering, terminal states, attachment resolution,
-and legacy/official encoding contracts.
+Protocol event ordering, terminal states, attachment resolution, and official
+AI SDK encoding contracts.
 """
 
 import json
@@ -10,14 +10,11 @@ import uuid
 import pytest
 
 from app.services.chat_stream_protocol import (
-    LEGACY_STREAM_FORMAT,
     OFFICIAL_STREAM_FORMAT,
     PROTOCOL_HEADER,
     PROTOCOL_VERSION,
     ChatAgentAttachmentInput,
-    adapt_stream_to_legacy_protocol,
     adapt_stream_to_official_protocol,
-    encode_legacy_sse,
     encode_official_sse,
     encode_sse_comment,
     extract_latest_user_text_with_vercel_adapter,
@@ -78,35 +75,16 @@ class TestEncodeOfficialSSE:
         assert payload["delta"] == "Hello"
 
     def test_finish_event_format(self):
-        """Official protocol: finish event is a simple type-only event."""
-        result = encode_official_sse("finish", {})
+        """Official protocol: finish event includes finishReason."""
+        result = encode_official_sse("finish", {"finishReason": "stop"})
         payload = json.loads(result[len("data: "):].rstrip("\n"))
         assert payload["type"] == "finish"
+        assert payload["finishReason"] == "stop"
 
     def test_keepalive_comment_format(self):
         """SSE keepalive must be emitted as comment, not data JSON."""
         result = encode_sse_comment("keepalive")
         assert result == ": keepalive\n\n"
-
-
-class TestEncodeLegacySSE:
-    """Unit tests for the legacy SSE encoder (temporary compatibility)."""
-
-    def test_legacy_format_uses_event_and_data_lines(self):
-        """Legacy SSE uses 'event: type\\ndata: json' format."""
-        result = encode_legacy_sse("start", {"run_id": "run-1"})
-        lines = result.strip().split("\n")
-        assert lines[0] == "event: start"
-        data = json.loads(lines[1].removeprefix("data: "))
-        assert data["run_id"] == "run-1"
-
-    def test_legacy_delta_event(self):
-        """Legacy SSE delta must carry delta text in data."""
-        result = encode_legacy_sse("delta", {"delta": "chunk text"})
-        lines = result.strip().split("\n")
-        assert lines[0] == "event: delta"
-        data = json.loads(lines[1].removeprefix("data: "))
-        assert data["delta"] == "chunk text"
 
 
 # ---------------------------------------------------------------------------
@@ -342,50 +320,7 @@ class TestOfficialProtocolStreamAdapter:
 
 
 # ---------------------------------------------------------------------------
-# 3. Protocol stream adapter — legacy protocol
-# ---------------------------------------------------------------------------
-
-
-class TestLegacyProtocolStreamAdapter:
-    """Integration tests for adapt_stream_to_legacy_protocol."""
-
-    @pytest.mark.asyncio
-    async def test_legacy_passthrough_preserves_event_format(self):
-        """Legacy adapter must pass through internal events without transformation."""
-        run_id = "run-legacy-test"
-        internal_events = [
-            {"event": "start", "run_id": run_id},
-            {"event": "delta", "delta": "Chunk"},
-            {"event": "completed", "message_id": str(uuid.uuid4())},
-        ]
-        stream = adapt_stream_to_legacy_protocol(_stream_events_gen(internal_events))
-        output = await _collect(stream)
-
-        event_names = []
-        for frame in output:
-            lines = frame.strip().split("\n")
-            event_names.append(lines[0].removeprefix("event: "))
-
-        assert event_names == ["start", "delta", "completed"]
-
-    @pytest.mark.asyncio
-    async def test_legacy_error_passthrough(self):
-        """Legacy adapter must pass through error events."""
-        internal_events = [
-            {"event": "start", "run_id": "run-legacy-error"},
-            {"event": "error", "code": "CHAT_STREAM_FAILED"},
-        ]
-        stream = adapt_stream_to_legacy_protocol(_stream_events_gen(internal_events))
-        output = await _collect(stream)
-
-        # Second frame should be the error
-        error_frame = output[1]
-        data = json.loads(error_frame.strip().split("\n")[1].removeprefix("data: "))
-        assert data["code"] == "CHAT_STREAM_FAILED"
-
-
-# ---------------------------------------------------------------------------
-# 4. Protocol constants and header contract
+# 3. Protocol constants and header contract
 # ---------------------------------------------------------------------------
 
 
@@ -400,11 +335,9 @@ class TestProtocolConstants:
         """Protocol version must be v1 as per official spec."""
         assert PROTOCOL_VERSION == "v1"
 
-    def test_format_constants_are_distinct(self):
-        """Official and legacy format identifiers must be distinct strings."""
-        assert OFFICIAL_STREAM_FORMAT != LEGACY_STREAM_FORMAT
+    def test_official_format_constant(self):
+        """Official format identifier must be 'official'."""
         assert OFFICIAL_STREAM_FORMAT == "official"
-        assert LEGACY_STREAM_FORMAT == "legacy"
 
 
 # ---------------------------------------------------------------------------
@@ -591,8 +524,6 @@ class TestResolveAttachmentsToAgentInputForModel:
     async def test_image_falls_back_to_binary_content_without_s3(self, monkeypatch):
         from app.models.chat_attachment import ChatAttachment
 
-        monkeypatch.setattr("app.services.chat_stream_protocol.USE_S3", False)
-
         async def _fake_download(_key: str) -> bytes:
             return b"PNG-BYTES"
 
@@ -620,8 +551,6 @@ class TestResolveAttachmentsToAgentInputForModel:
     @pytest.mark.asyncio
     async def test_text_attachment_remains_usable_text(self, monkeypatch):
         from app.models.chat_attachment import ChatAttachment
-
-        monkeypatch.setattr("app.services.chat_stream_protocol.USE_S3", False)
 
         attachment = ChatAttachment(
             organization_id=uuid.uuid4(),
@@ -695,46 +624,3 @@ class TestExtractLatestUserTextWithVercelAdapter:
 
         assert extract_latest_user_text_with_vercel_adapter(messages) == "segundo mensaje"
 
-
-# ---------------------------------------------------------------------------
-# 7. Protocol negotiation resolution unit tests
-# ---------------------------------------------------------------------------
-
-
-class TestResolveStreamFormat:
-    """Tests for the _resolve_stream_format helper in the API endpoint."""
-
-    def test_official_is_default(self):
-        """When no body field or header is set, official protocol is the default."""
-        from app.api.v1.chat import _resolve_stream_format
-        from app.schemas.chat import StreamFormat
-
-        assert _resolve_stream_format(StreamFormat.OFFICIAL, None) is True
-
-    def test_legacy_body_overrides_default(self):
-        """Explicit legacy body format returns False (use legacy)."""
-        from app.api.v1.chat import _resolve_stream_format
-        from app.schemas.chat import StreamFormat
-
-        assert _resolve_stream_format(StreamFormat.LEGACY, None) is False
-
-    def test_header_v1_triggers_official(self):
-        """Header x-vercel-ai-ui-message-stream: v1 triggers official protocol."""
-        from app.api.v1.chat import _resolve_stream_format
-        from app.schemas.chat import StreamFormat
-
-        assert _resolve_stream_format(StreamFormat.OFFICIAL, "v1") is True
-
-    def test_header_case_insensitive(self):
-        """Header value is compared case-insensitively."""
-        from app.api.v1.chat import _resolve_stream_format
-        from app.schemas.chat import StreamFormat
-
-        assert _resolve_stream_format(StreamFormat.OFFICIAL, "V1") is True
-
-    def test_legacy_body_overrides_header(self):
-        """Legacy body takes priority over header — explicit opt-out."""
-        from app.api.v1.chat import _resolve_stream_format
-        from app.schemas.chat import StreamFormat
-
-        assert _resolve_stream_format(StreamFormat.LEGACY, "v1") is False

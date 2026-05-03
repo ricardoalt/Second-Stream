@@ -2,9 +2,9 @@
 Pydantic schemas for flexible project data.
 """
 
-from typing import Any, ClassVar
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.offer import OfferV1Data
 
@@ -126,8 +126,8 @@ class ProjectAIInput(BaseModel):
     # Raw data backup
     raw_data: dict[str, Any] | None = None
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "company_name": "IBYMA",
                 "client_contact_info": "Ricardo Marquez",
@@ -153,4 +153,5 @@ class ProjectAIInput(BaseModel):
                     "Save costs / Achieve a return on investment",
                 ],
             }
-        }
+        },
+    )

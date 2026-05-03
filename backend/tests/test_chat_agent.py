@@ -33,16 +33,32 @@ from app.services.chat_stream_protocol import ChatAgentAttachmentInput
 chat_agent_module = importlib.import_module("app.agents.chat_agent")
 
 
+def _make_fake_agent(*, run=None, run_stream_events=None):
+    """Build a fake agent with overridable run / run_stream_events methods."""
+    fake = SimpleNamespace()
+    fake.run = run or (lambda *_a, **_kw: SimpleNamespace(output="ok"))
+    fake.run_stream_events = run_stream_events or (lambda *_a, **_kw: (_ for _ in ()))
+    return fake
+
+
+@pytest.fixture(autouse=True)
+def _clear_chat_agent_cache():
+    chat_agent_module.clear_chat_agent_cache()
+
+
 @pytest.mark.asyncio
 async def test_generate_chat_response_uses_typed_deps_and_validates_output(monkeypatch):
     captured: dict[str, object] = {}
 
-    async def _fake_run(prompt, *, deps):
+    async def _fake_run(prompt, *, deps, **kwargs):
         captured["prompt"] = prompt
         captured["deps"] = deps
+        captured["kwargs"] = kwargs
         return SimpleNamespace(output="Here is the answer.")
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run", _fake_run)
+    monkeypatch.setattr(
+        chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run=_fake_run)
+    )
 
     deps = ChatAgentDeps(
         organization_id="org-123",
@@ -58,6 +74,7 @@ async def test_generate_chat_response_uses_typed_deps_and_validates_output(monke
     assert captured["prompt"] == "Hello"
     assert isinstance(captured["deps"], ChatAgentDeps)
     assert captured["deps"] == deps
+    assert "usage_limits" in captured["kwargs"]
 
 
 @pytest.mark.asyncio
@@ -65,7 +82,9 @@ async def test_generate_chat_response_wraps_result_schema_validation_errors(monk
     async def _fake_run(*_args, **_kwargs):
         return SimpleNamespace(output="")
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run", _fake_run)
+    monkeypatch.setattr(
+        chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run=_fake_run)
+    )
 
     deps = ChatAgentDeps(
         organization_id="org-123",
@@ -85,7 +104,9 @@ async def test_generate_chat_response_wraps_agent_runtime_failures(monkeypatch):
     async def _boom(*_args, **_kwargs):
         raise RuntimeError("bedrock timeout")
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run", _boom)
+    monkeypatch.setattr(
+        chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run=_boom)
+    )
 
     deps = ChatAgentDeps(
         organization_id="org-123",
@@ -104,9 +125,10 @@ async def test_generate_chat_response_wraps_agent_runtime_failures(monkeypatch):
 async def test_stream_chat_response_emits_incremental_deltas_and_completed(monkeypatch):
     captured: dict[str, object] = {}
 
-    async def _fake_run_stream_events(prompt, *, deps):
+    async def _fake_run_stream_events(prompt, *, deps, **kwargs):
         captured["prompt"] = prompt
         captured["deps"] = deps
+        captured["kwargs"] = kwargs
         tool_call_id = "call-abc"
         yield PartStartEvent(
             index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id)
@@ -131,7 +153,11 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
         yield PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="chunk"))
         yield AgentRunResultEvent(result=SimpleNamespace(output="First chunk"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(
+        chat_agent_module,
+        "get_chat_agent",
+        lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events),
+    )
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -180,13 +206,14 @@ async def test_stream_chat_response_emits_incremental_deltas_and_completed(monke
         {"event": "completed", "response_text": "First chunk"},
     ]
     assert "Attachment extracted content" in str(captured["prompt"])
+    assert "usage_limits" in captured["kwargs"]
 
 
 @pytest.mark.asyncio
 async def test_stream_chat_response_suppresses_retry_prompt_part_from_user_stream(monkeypatch):
     """RetryPromptPart is an internal retry signal; it must not surface as tool-output-error."""
 
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         _ = deps
         tool_call_id = "call-error"
         yield FunctionToolResultEvent(
@@ -198,7 +225,11 @@ async def test_stream_chat_response_suppresses_retry_prompt_part_from_user_strea
         )
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(
+        chat_agent_module,
+        "get_chat_agent",
+        lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events),
+    )
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -226,7 +257,7 @@ async def test_stream_chat_response_suppresses_retry_prompt_part_from_user_strea
 async def test_stream_chat_response_uses_tool_call_id_from_part_index_for_delta_without_id(
     monkeypatch,
 ):
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         _ = deps
         yield PartStartEvent(
             index=5,
@@ -235,7 +266,11 @@ async def test_stream_chat_response_uses_tool_call_id_from_part_index_for_delta_
         yield PartDeltaEvent(index=5, delta=ToolCallPartDelta(args_delta='{"gate_status":"OPEN"}'))
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(
+        chat_agent_module,
+        "get_chat_agent",
+        lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events),
+    )
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -267,7 +302,7 @@ async def test_stream_chat_response_uses_tool_call_id_from_part_index_for_delta_
 
 @pytest.mark.asyncio
 async def test_stream_chat_response_suppresses_pdf_tool_input_delta_only(monkeypatch):
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         _ = deps
         yield PartStartEvent(
             index=1,
@@ -287,7 +322,11 @@ async def test_stream_chat_response_suppresses_pdf_tool_input_delta_only(monkeyp
         )
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(
+        chat_agent_module,
+        "get_chat_agent",
+        lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events),
+    )
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -323,13 +362,15 @@ async def test_stream_chat_response_suppresses_pdf_tool_input_delta_only(monkeyp
 
 @pytest.mark.asyncio
 async def test_stream_chat_response_raises_when_stream_crashes_before_terminal_result(monkeypatch):
-    async def _broken_run_stream_events(_prompt, *, deps):
+    async def _broken_run_stream_events(_prompt, *, deps, **kwargs):
         _ = deps
         raise RuntimeError("stream unavailable")
         yield
 
     monkeypatch.setattr(
-        chat_agent_module.chat_agent, "run_stream_events", _broken_run_stream_events
+        chat_agent_module,
+        "get_chat_agent",
+        lambda: _make_fake_agent(run_stream_events=_broken_run_stream_events),
     )
 
     deps = ChatAgentDeps(
@@ -578,7 +619,7 @@ def test_chat_agent_model_settings_include_max_tokens_and_bedrock_cache():
     ) as mock_agent_cls:
         from app.agents.chat_agent import _make_agent
 
-        _make_agent()
+        _make_agent(instructions="test instructions")
         call_kwargs = mock_agent_cls.call_args.kwargs
         assert "model_settings" in call_kwargs
         assert call_kwargs["model_settings"]["max_tokens"] == 32768
@@ -586,6 +627,7 @@ def test_chat_agent_model_settings_include_max_tokens_and_bedrock_cache():
         assert call_kwargs["model_settings"]["bedrock_cache_tool_definitions"] is True
         assert "bedrock_cache_messages" not in call_kwargs["model_settings"]
         assert "parallel_tool_calls" not in call_kwargs["model_settings"]
+        assert call_kwargs["tool_timeout"] == 30
 
 
 class _CaptureLogger:
@@ -607,10 +649,10 @@ async def test_generate_chat_response_emits_run_started_event(monkeypatch):
     capture = _CaptureLogger()
     monkeypatch.setattr(chat_agent_module, "logger", capture)
 
-    async def _fake_run(prompt, *, deps):
+    async def _fake_run(prompt, *, deps, **kwargs):
         return SimpleNamespace(output="Answer.")
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run", _fake_run)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run=_fake_run))
 
     deps = ChatAgentDeps(
         organization_id="org-123",
@@ -627,6 +669,9 @@ async def test_generate_chat_response_emits_run_started_event(monkeypatch):
     assert "available_skills" in started[0]["kwargs"]
     assert started[0]["kwargs"]["available_skills"] is not None
     assert isinstance(started[0]["kwargs"]["attachment_count"], int)
+    assert "prompt_hash" in started[0]["kwargs"]
+    assert isinstance(started[0]["kwargs"]["prompt_hash"], str)
+    assert len(started[0]["kwargs"]["prompt_hash"]) == 16
 
 
 @pytest.mark.asyncio
@@ -637,7 +682,7 @@ async def test_generate_chat_response_error_log_includes_available_skills(monkey
     async def _boom(*_args, **_kwargs):
         raise RuntimeError("fail")
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run", _boom)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run=_boom))
 
     deps = ChatAgentDeps(
         organization_id="org-123",
@@ -658,10 +703,10 @@ async def test_stream_chat_response_emits_run_started_event(monkeypatch):
     capture = _CaptureLogger()
     monkeypatch.setattr(chat_agent_module, "logger", capture)
 
-    async def _fake_run_stream_events(prompt, *, deps):
+    async def _fake_run_stream_events(prompt, *, deps, **kwargs):
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events))
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -684,6 +729,9 @@ async def test_stream_chat_response_emits_run_started_event(monkeypatch):
     assert started[0]["kwargs"]["run_id"] == "run-1"
     assert "available_skills" in started[0]["kwargs"]
     assert started[0]["kwargs"]["attachment_count"] == 0
+    assert "prompt_hash" in started[0]["kwargs"]
+    assert isinstance(started[0]["kwargs"]["prompt_hash"], str)
+    assert len(started[0]["kwargs"]["prompt_hash"]) == 16
 
 
 @pytest.mark.asyncio
@@ -691,7 +739,7 @@ async def test_stream_chat_response_emits_tool_started_and_completed(monkeypatch
     capture = _CaptureLogger()
     monkeypatch.setattr(chat_agent_module, "logger", capture)
 
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         tool_call_id = "call-abc"
         yield PartStartEvent(
             index=1, part=ToolCallPart("generateIdeationBrief", args={}, tool_call_id=tool_call_id)
@@ -705,7 +753,7 @@ async def test_stream_chat_response_emits_tool_started_and_completed(monkeypatch
         )
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events))
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -738,14 +786,14 @@ async def test_stream_chat_response_cancel_log_includes_active_skills_and_tools_
     capture = _CaptureLogger()
     monkeypatch.setattr(chat_agent_module, "logger", capture)
 
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         tool_call_id = "call-abc"
         yield PartStartEvent(
             index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id)
         )
         raise asyncio.CancelledError()
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events))
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -779,14 +827,14 @@ async def test_stream_chat_response_failure_log_includes_available_skills_and_to
     capture = _CaptureLogger()
     monkeypatch.setattr(chat_agent_module, "logger", capture)
 
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         tool_call_id = "call-abc"
         yield PartStartEvent(
             index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id)
         )
         raise RuntimeError("stream broke")
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events))
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -891,7 +939,7 @@ async def test_stream_chat_response_sanitizes_load_skill_output(monkeypatch):
     capture = _CaptureLogger()
     monkeypatch.setattr(chat_agent_module, "logger", capture)
 
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         tool_call_id = "call-skill"
         yield PartStartEvent(
             index=1,
@@ -913,7 +961,7 @@ async def test_stream_chat_response_sanitizes_load_skill_output(monkeypatch):
         )
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events))
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -946,7 +994,7 @@ async def test_stream_chat_response_logs_parallel_load_skill_batch(monkeypatch):
 
     skill_names = ["sds-interpretation", "sub-discipline-router", "safety-flagging"]
 
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         _ = deps
         for index, skill_name in enumerate(skill_names, start=1):
             yield PartStartEvent(
@@ -975,7 +1023,7 @@ async def test_stream_chat_response_logs_parallel_load_skill_batch(monkeypatch):
             )
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events))
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -1012,7 +1060,7 @@ async def test_stream_chat_response_logs_parallel_load_skill_batch(monkeypatch):
 async def test_stream_chat_response_emits_agent_status_for_load_skill(monkeypatch):
     """loadSkill start and end must emit semantic agent-status events without leaking skill names."""
 
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         _ = deps
         tool_call_id = "call-skill"
         yield PartStartEvent(
@@ -1035,7 +1083,7 @@ async def test_stream_chat_response_emits_agent_status_for_load_skill(monkeypatc
         )
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events))
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -1068,7 +1116,7 @@ async def test_stream_chat_response_emits_agent_status_for_load_skill(monkeypatc
 async def test_stream_chat_response_clears_agent_status_when_pdf_tool_starts(monkeypatch):
     """When a visible PDF tool starts after loadSkill, agent-status must emit idle to clear shimmer."""
 
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         _ = deps
         skill_call_id = "call-skill"
         pdf_call_id = "call-pdf"
@@ -1083,7 +1131,7 @@ async def test_stream_chat_response_clears_agent_status_when_pdf_tool_starts(mon
         )
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events))
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -1114,7 +1162,7 @@ async def test_stream_chat_response_clears_agent_status_when_pdf_tool_starts(mon
 async def test_stream_chat_response_load_skill_status_persists_until_text_delta(monkeypatch):
     """Preparing analysis status must remain until the next text delta arrives."""
 
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         _ = deps
         tool_call_id = "call-skill"
         yield PartStartEvent(
@@ -1139,7 +1187,7 @@ async def test_stream_chat_response_load_skill_status_persists_until_text_delta(
         yield PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="the analysis."))
         yield AgentRunResultEvent(result=SimpleNamespace(output="Here is the analysis."))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events))
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -1187,7 +1235,7 @@ async def test_stream_chat_response_survives_tool_input_parse_failure(monkeypatc
         def args_as_dict(self):
             raise ValueError("malformed json")
 
-    async def _fake_run_stream_events(_prompt, *, deps):
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
         tool_call_id = "call-bad"
         yield PartStartEvent(
             index=1, part=ToolCallPart("webSearch", args={}, tool_call_id=tool_call_id)
@@ -1197,7 +1245,7 @@ async def test_stream_chat_response_survives_tool_input_parse_failure(monkeypatc
         )
         yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
 
-    monkeypatch.setattr(chat_agent_module.chat_agent, "run_stream_events", _fake_run_stream_events)
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events))
 
     deps = ChatAgentDeps(
         organization_id="org-1",
@@ -1223,3 +1271,147 @@ async def test_stream_chat_response_survives_tool_input_parse_failure(monkeypatc
     warn_calls = [c for c in capture.calls if c["event"] == "chat_agent_tool_input_parse_failed"]
     assert len(warn_calls) == 1
     assert warn_calls[0]["kwargs"]["tool_name"] == "webSearch"
+
+
+@pytest.mark.asyncio
+async def test_generate_chat_response_catches_usage_limit_exceeded(monkeypatch):
+    from pydantic_ai import UsageLimitExceeded
+
+    async def _boom(*_args, **_kwargs):
+        raise UsageLimitExceeded("request_limit exceeded")
+
+    monkeypatch.setattr(chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run=_boom))
+
+    deps = ChatAgentDeps(
+        organization_id="org-123",
+        user_id="user-123",
+        thread_id="thread-123",
+        run_id="run-123",
+    )
+
+    with pytest.raises(ChatAgentError) as exc_info:
+        await generate_chat_response(prompt="Hello", deps=deps)
+
+    assert isinstance(exc_info.value.__cause__, UsageLimitExceeded)
+    assert "usage limit exceeded" in str(exc_info.value).lower()
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_catches_usage_limit_exceeded(monkeypatch):
+    from pydantic_ai import UsageLimitExceeded
+
+    async def _boom(*_args, **_kwargs):
+        raise UsageLimitExceeded("request_limit exceeded")
+        yield
+
+    monkeypatch.setattr(
+        chat_agent_module,
+        "get_chat_agent",
+        lambda: _make_fake_agent(run_stream_events=_boom),
+    )
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+    )
+
+    with pytest.raises(ChatAgentError) as exc_info:
+        _ = [
+            event
+            async for event in stream_chat_response(
+                prompt="Question",
+                deps=deps,
+                attachments=[],
+            )
+        ]
+
+    assert isinstance(exc_info.value.__cause__, UsageLimitExceeded)
+    assert "usage limit exceeded" in str(exc_info.value).lower()
+
+
+def test_get_chat_agent_caches_by_prompt_hash():
+    chat_agent_module.clear_chat_agent_cache()
+    agent_a = chat_agent_module.get_chat_agent()
+    agent_b = chat_agent_module.get_chat_agent()
+    assert agent_a is agent_b
+
+
+def test_clear_chat_agent_cache_invalidation():
+    chat_agent_module.clear_chat_agent_cache()
+    agent_a = chat_agent_module.get_chat_agent()
+    chat_agent_module.clear_chat_agent_cache()
+    agent_b = chat_agent_module.get_chat_agent()
+    assert agent_a is not agent_b
+
+
+def test_get_chat_agent_prompt_hash_returns_stable_hex():
+    h = chat_agent_module.get_chat_agent_prompt_hash()
+    assert isinstance(h, str)
+    assert len(h) == 16
+    # Should be stable across calls without prompt changes
+    assert chat_agent_module.get_chat_agent_prompt_hash() == h
+
+
+@pytest.mark.asyncio
+async def test_generate_chat_response_includes_request_id_in_logs(monkeypatch):
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    async def _fake_run(prompt, *, deps, **kwargs):
+        return SimpleNamespace(output="Answer.")
+
+    monkeypatch.setattr(
+        chat_agent_module, "get_chat_agent", lambda: _make_fake_agent(run=_fake_run)
+    )
+
+    deps = ChatAgentDeps(
+        organization_id="org-123",
+        user_id="user-123",
+        thread_id="thread-123",
+        run_id="run-123",
+        request_id="req-abc",
+    )
+    result = await generate_chat_response(prompt="Hello", deps=deps)
+    assert result.response_text == "Answer."
+
+    started = [c for c in capture.calls if c["event"] == "chat_agent_run_started"]
+    assert len(started) == 1
+    assert started[0]["kwargs"]["request_id"] == "req-abc"
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_response_includes_request_id_in_logs(monkeypatch):
+    capture = _CaptureLogger()
+    monkeypatch.setattr(chat_agent_module, "logger", capture)
+
+    async def _fake_run_stream_events(_prompt, *, deps, **kwargs):
+        yield AgentRunResultEvent(result=SimpleNamespace(output="done"))
+
+    monkeypatch.setattr(
+        chat_agent_module,
+        "get_chat_agent",
+        lambda: _make_fake_agent(run_stream_events=_fake_run_stream_events),
+    )
+
+    deps = ChatAgentDeps(
+        organization_id="org-1",
+        user_id="user-1",
+        thread_id="thread-1",
+        run_id="run-1",
+        request_id="req-stream",
+    )
+    events = [
+        event
+        async for event in stream_chat_response(
+            prompt="Question",
+            deps=deps,
+            attachments=[],
+        )
+    ]
+    assert events == [{"event": "completed", "response_text": "done"}]
+
+    started = [c for c in capture.calls if c["event"] == "chat_agent_run_started"]
+    assert len(started) == 1
+    assert started[0]["kwargs"]["request_id"] == "req-stream"

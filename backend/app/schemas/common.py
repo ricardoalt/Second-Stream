@@ -3,7 +3,7 @@ Common schemas shared across the API.
 """
 
 from datetime import UTC, datetime
-from typing import ClassVar, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -71,8 +71,8 @@ class PaginatedResponse(BaseModel, Generic[T]):
     size: int = Field(..., description="Number of items per page")
     pages: int = Field(..., description="Total number of pages")
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "items": [],
                 "total": 100,
@@ -81,6 +81,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
                 "pages": 5,
             }
         }
+    )
 
 
 class APIError(BaseModel):
@@ -102,14 +103,15 @@ class APIError(BaseModel):
     code: str = Field(..., description="Machine-readable error code")
     details: dict | None = Field(default=None, description="Additional error details")
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message": "Project not found",
                 "code": "NOT_FOUND",
                 "details": {"project_id": "123e4567-e89b-12d3-a456-426614174000"},
             }
         }
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -126,11 +128,12 @@ class SuccessResponse(BaseModel):
     message: str | None = None
     data: dict | None = None
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Operation completed successfully",
                 "data": {},
             }
         }
+    )

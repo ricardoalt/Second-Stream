@@ -4,8 +4,9 @@ from app.agents.chat_agent import (
     ChatAgentDeps,
     ChatAgentError,
     ChatAgentOutput,
-    chat_agent,
+    clear_chat_agent_cache,
     generate_chat_response,
+    get_chat_agent,
     stream_chat_response,
 )
 from app.agents.image_analysis_agent import (
@@ -26,8 +27,9 @@ __all__ = [
     "PdfAttachmentOutput",
     "ProposalGenerationError",
     "analyze_image",
-    "chat_agent",
+    "clear_chat_agent_cache",
     "generate_chat_response",
     "generate_enhanced_proposal",
+    "get_chat_agent",
     "stream_chat_response",
 ]

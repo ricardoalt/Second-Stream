@@ -9,8 +9,8 @@
 # FastAPI y dependencias core
 fastapi==0.115.13
 uvicorn==0.34.3
-pydantic==2.11.7
-pydantic-settings==2.9.1
+pydantic==2.12.5
+pydantic-settings==2.12.0
 python-dotenv==1.1.0
 
 # Seguridad y Authentication
@@ -20,7 +20,7 @@ fastapi-users[sqlalchemy]==14.0.1
 langgraph==0.2.39
 langchain-core==0.3.65
 langsmith==0.3.45
-pydantic-ai-slim[openai]==1.38.0
+pydantic-ai-slim[bedrock]==1.89.1
 openai>=1.75.0
 python-multipart==0.0.20
 
@@ -36,14 +36,11 @@ redis==6.4.0
 # HTTP y Networking
 httpx==0.28.1
 httpcore==1.0.9
-aiohttp==3.12.13
 requests==2.32.4
 
 # AWS
-aioboto3>=13.2.0
-aiobotocore>=2.20.0  
-boto3>=1.35.0
-botocore>=1.35.0
+boto3>=1.42.63
+botocore>=1.42.63
 
 # Procesamiento de Documentos - SIN docling (no se usa)
 reportlab==4.4.2

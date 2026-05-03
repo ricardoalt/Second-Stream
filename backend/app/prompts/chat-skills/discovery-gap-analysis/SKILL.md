@@ -73,7 +73,7 @@ Composition and chemistry:
   - BTEX / benzene concentration on the caustic fraction
       Why: benzene > 0.5 mg/L TCLP triggers D018 flag in Assessment; affects positioning.
   - Sulfide concentration range (historic, not one sample)
-      Why: reactive-waste D003 threshold probability; drives H₂S handling design.
+      Why: reactive-waste D003 threshold probability; drives H2S handling design.
 
 Physical properties:
   - Specific gravity confirmation across sites

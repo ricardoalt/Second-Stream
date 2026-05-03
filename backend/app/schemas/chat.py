@@ -13,11 +13,9 @@ class StreamFormat(StrEnum):
     """Protocol format for chat stream responses.
 
     - ``official``: AI SDK UI/Data Stream Protocol (canonical, product target)
-    - ``legacy``: Temporary backward-compat SSE format (will be removed)
     """
 
     OFFICIAL = "official"
-    LEGACY = "legacy"
 
 
 class ArtifactType(StrEnum):
@@ -88,5 +86,5 @@ class ChatStreamRequest(BaseSchema):
     )
     stream_format: StreamFormat = Field(
         default=StreamFormat.OFFICIAL,
-        description="Protocol format for the SSE stream. 'official' = AI SDK UI/Data Stream Protocol (default), 'legacy' = temporary backward-compat format.",
+        description="Protocol format for the SSE stream. 'official' = AI SDK UI/Data Stream Protocol (default).",
     )

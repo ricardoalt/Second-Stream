@@ -73,8 +73,9 @@ class GapSection(BaseModel):
 
 class AnalyticalReadPayload(BasePdfPayload):
     executive_summary: str
-    gate_status: str | None = Field(
-        default=None, description="OPEN, CONDITIONALLY OPEN, CLOSED, or similar gate status."
+    gate_status: Literal["OPEN", "OPEN_CONDITIONAL", "CLOSED"] | None = Field(
+        default=None,
+        description="Qualification gate status. Must match the vocabulary used by the Ideation Brief.",
     )
     gate_blockers: list[str] = Field(default_factory=list)
     safety_callouts: list[SafetyFlag] = Field(default_factory=list)

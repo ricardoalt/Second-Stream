@@ -191,8 +191,30 @@ function MessagePartsRendererInner({
 					const webSearchNode = renderWebSearchPart(part);
 					if (webSearchNode) {
 						return (
-							<div key={`${message.id}-${partIndex}`}>{webSearchNode}</div>
+							<div key={`${message.id}-webSearch-${partIndex}`}>{webSearchNode}</div>
 						);
+					}
+
+					// Stable keys prevent React reconciliation issues when parts
+					// are inserted, reordered, or updated during streaming.
+					let partKey: string;
+					if (part.type.startsWith("tool-")) {
+						partKey = `tool-${(part as { toolCallId: string }).toolCallId}`;
+					} else if (part.type.startsWith("data-")) {
+						const dataPart = part as { data?: { attachment_id?: string; threadId?: string } };
+						const dataId =
+							dataPart.data?.attachment_id ??
+							dataPart.data?.threadId ??
+							part.type;
+						partKey = `data-${part.type}-${dataId}`;
+					} else if (part.type === "text") {
+						partKey = `text-${message.id}`;
+					} else if (part.type === "file") {
+						partKey = `file-${message.id}-${partIndex}`;
+					} else if (part.type === "reasoning") {
+						partKey = `reasoning-${message.id}-${partIndex}`;
+					} else {
+						partKey = `${message.id}-${partIndex}`;
 					}
 
 					switch (part.type) {
@@ -202,7 +224,7 @@ function MessagePartsRendererInner({
 								part.url.startsWith("data:");
 							return (
 								<ChatAttachmentChip
-									key={`${message.id}-${partIndex}`}
+									key={partKey}
 									filename={part.filename}
 									mediaType={part.mediaType}
 									url={part.url}
@@ -213,7 +235,7 @@ function MessagePartsRendererInner({
 						case "reasoning":
 							return (
 								<Reasoning
-									key={`${message.id}-${partIndex}`}
+									key={partKey}
 									isStreaming={part.state === "streaming"}
 								>
 									<ReasoningTrigger />
@@ -222,7 +244,7 @@ function MessagePartsRendererInner({
 							);
 						case "text":
 							return (
-								<MessageResponse key={`${message.id}-${partIndex}`}>
+								<MessageResponse key={partKey}>
 									{part.text}
 								</MessageResponse>
 							);
@@ -230,14 +252,14 @@ function MessagePartsRendererInner({
 						case "tool-generateAnalyticalRead":
 						case "tool-generatePlaybook":
 							return (
-								<div key={`${message.id}-${partIndex}`}>
+								<div key={partKey}>
 									{renderPdfToolPart(part)}
 								</div>
 							);
 						case "data-pdf-artifact": {
 							const config = PDF_DOC_CONFIGS[part.data.artifactType];
 							return (
-								<div key={`${message.id}-${partIndex}`}>
+								<div key={partKey}>
 									<PdfDocumentCard
 										Icon={config.Icon}
 										label={config.label}
@@ -251,7 +273,7 @@ function MessagePartsRendererInner({
 						case "tool-updateWorkingMemory":
 							return (
 								<WorkingMemoryUpdate
-									key={`${message.id}-${partIndex}`}
+									key={partKey}
 									input={part.input}
 									state={part.state}
 								/>
@@ -304,7 +326,9 @@ export const MessagePartsRenderer = memo(
 	(prev, next) =>
 		!next.isLastMessage &&
 		prev.message.id === next.message.id &&
-		prev.message.parts.length === next.message.parts.length &&
+		prev.message.parts === next.message.parts &&
 		prev.isLastMessage === next.isLastMessage &&
-		prev.isStreamingOrSubmitted === next.isStreamingOrSubmitted,
+		prev.isStreamingOrSubmitted === next.isStreamingOrSubmitted &&
+		prev.agentStatus?.phase === next.agentStatus?.phase &&
+		prev.agentStatus?.label === next.agentStatus?.label,
 );

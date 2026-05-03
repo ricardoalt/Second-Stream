@@ -816,6 +816,7 @@ async def stream_chat_turn(
         user_id=str(created_by_user_id),
         thread_id=str(thread_id),
         run_id=run_id,
+        request_id=run_id,
         attachments=tuple(prepared.agent_attachments),
         persist_attachment=_persist_attachment,
         upload_bytes=_upload_bytes,

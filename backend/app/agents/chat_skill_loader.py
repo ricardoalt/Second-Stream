@@ -1,4 +1,10 @@
-"""Skill loader for chat agent — progressive disclosure via metadata + loadSkill tool."""
+"""Skill loader for chat agent — progressive disclosure via metadata + loadSkill tool.
+
+Frontmatter is parsed as standard YAML and validated against the Anthropic Agent
+Skills spec: `name` matches `^[a-z0-9-]{1,64}$`, `description` is non-empty and
+≤ 1024 characters. Validation is fail-fast at discovery time so a malformed
+skill surfaces as a startup error rather than a silent runtime omission.
+"""
 
 from __future__ import annotations
 
@@ -7,14 +13,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import structlog
+import yaml
 
 logger = structlog.get_logger(__name__)
 
 _SKILLS_DIR = Path(__file__).parent.parent / "prompts" / "chat-skills"
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
-_SAFE_SKILL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+# Anthropic Agent Skills spec: lowercase, digits, hyphens only, 1-64 chars.
+_SPEC_NAME_RE = re.compile(r"^[a-z0-9-]{1,64}$")
+_SPEC_DESCRIPTION_MAX = 1024
 _SKILL_FILE_NAME = "SKILL.md"
+
+
+class SkillSpecError(ValueError):
+    """Raised when a skill's frontmatter does not match the Agent Skills spec."""
 
 
 @dataclass(slots=True, frozen=True)
@@ -30,45 +43,61 @@ class SkillPrompt:
     body: str  # frontmatter stripped
 
 
-def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
+def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """Parse YAML frontmatter block, return (meta_dict, body).
 
-    Handles simple key: "value" single-line frontmatter. Multi-line values
-    are not supported; all skill files currently use single-line quoted strings.
+    Uses `yaml.safe_load` so multi-line values, escapes, and quoted strings are
+    handled per the YAML 1.1 spec. Returns ({}, text) when no frontmatter is
+    present.
     """
     if not text.startswith("---"):
         return {}, text
     parts = text.split("---", 2)
     if len(parts) < 3:
         return {}, text
-    fm_text = parts[1].strip()
+    fm_text = parts[1]
     body = parts[2].strip()
 
-    meta: dict[str, str] = {}
-    for line in fm_text.splitlines():
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key:
-            meta[key] = value
-    return meta, body
+    loaded = yaml.safe_load(fm_text) or {}
+    if not isinstance(loaded, dict):
+        raise SkillSpecError(
+            f"Frontmatter must be a YAML mapping, got {type(loaded).__name__}"
+        )
+    return loaded, body
+
+
+def _validate_spec(name: str, description: str, source: str) -> None:
+    """Validate frontmatter against the Anthropic Agent Skills spec.
+
+    `source` is the file path used for error messages.
+    """
+    if not isinstance(name, str) or not _SPEC_NAME_RE.match(name):
+        raise SkillSpecError(
+            f"{source}: name must match ^[a-z0-9-]{{1,64}}$, got {name!r}"
+        )
+    if not isinstance(description, str) or not description.strip():
+        raise SkillSpecError(f"{source}: description is required and non-empty")
+    if len(description) > _SPEC_DESCRIPTION_MAX:
+        raise SkillSpecError(
+            f"{source}: description is {len(description)} chars, "
+            f"spec max is {_SPEC_DESCRIPTION_MAX}"
+        )
 
 
 def load_skill(name: str) -> SkillPrompt:
     """Load a skill from disk, stripping frontmatter.
 
-    Validates the skill name to prevent path traversal outside the skills directory.
+    Validates the skill name against the spec regex, which also prevents path
+    traversal outside the skills directory.
     """
-    if not _SAFE_SKILL_NAME_RE.match(name):
-        raise ValueError(f"Invalid skill name: {name}")
+    if not _SPEC_NAME_RE.match(name):
+        raise SkillSpecError(f"Invalid skill name: {name!r}")
     path = _SKILLS_DIR / name / _SKILL_FILE_NAME
     resolved = path.resolve()
     if not str(resolved).startswith(str(_SKILLS_DIR.resolve())):
-        raise ValueError(f"Skill path traversal attempt: {name}")
+        raise SkillSpecError(f"Skill path traversal attempt: {name}")
     if not path.exists():
-        raise ValueError(f"Skill not found: {name}")
+        raise SkillSpecError(f"Skill not found: {name}")
 
     raw = path.read_text(encoding="utf-8").strip()
     _, body = _parse_frontmatter(raw)
@@ -76,7 +105,10 @@ def load_skill(name: str) -> SkillPrompt:
 
 
 def discover_skills() -> list[SkillMetadata]:
-    """Discover standard folder-per-skill Agent Skills from SKILL.md frontmatter."""
+    """Discover folder-per-skill Agent Skills from SKILL.md frontmatter.
+
+    Fails fast if any discovered skill violates the spec.
+    """
     skills: list[SkillMetadata] = []
     if not _SKILLS_DIR.exists():
         logger.warning("chat_skills_directory_not_found", path=str(_SKILLS_DIR))
@@ -87,12 +119,10 @@ def discover_skills() -> list[SkillMetadata]:
         meta, _ = _parse_frontmatter(raw)
         name = meta.get("name") or file_path.parent.name
         description = meta.get("description") or ""
+        rel_path = str(file_path.relative_to(Path(__file__).parent.parent.parent))
+        _validate_spec(name=name, description=description, source=rel_path)
         skills.append(
-            SkillMetadata(
-                name=name,
-                description=description,
-                path=str(file_path.relative_to(Path(__file__).parent.parent.parent)),
-            )
+            SkillMetadata(name=name, description=description, path=rel_path)
         )
     return skills
 

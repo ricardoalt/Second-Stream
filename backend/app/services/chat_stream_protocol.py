@@ -1,8 +1,7 @@
 """Protocol adapter boundary for the official AI SDK UI/Data Stream Protocol.
 
-Translates internal runtime stream events to either:
-- Official AI SDK UI/Data Stream Protocol (v1) — canonical product contract
-- Legacy SSE format — temporary backward compatibility only
+Translates internal runtime stream events to the official AI SDK UI/Data Stream
+Protocol (v1), which is the canonical product contract.
 
 See: https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol
 """
@@ -29,7 +28,6 @@ PROTOCOL_HEADER = "x-vercel-ai-ui-message-stream"
 PROTOCOL_VERSION = "v1"
 
 OFFICIAL_STREAM_FORMAT = "official"
-LEGACY_STREAM_FORMAT = "legacy"
 
 
 # ---------------------------------------------------------------------------
@@ -73,16 +71,6 @@ def encode_official_sse(event_type: str, data: dict[str, Any]) -> str:
 def encode_sse_comment(comment: str) -> str:
     """Encode a keepalive/comment frame following SSE comment format."""
     return f": {comment}\n\n"
-
-
-def encode_legacy_sse(event_type: str, data: dict[str, Any]) -> str:
-    """Encode an event in the legacy SSE format (temporary compatibility).
-
-    Format: ``event: {type}\\ndata: {json}\\n\\n``
-    The ``type`` field is NOT duplicated inside the data payload.
-    """
-    filtered_data = {k: v for k, v in data.items() if k != "event"}
-    return f"event: {event_type}\ndata: {json.dumps(filtered_data)}\n\n"
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +118,7 @@ async def adapt_stream_to_official_protocol(
                 yield encode_official_sse("text-end", {"id": text_block_id})
                 text_block_id = None
 
-            yield encode_official_sse("finish", {})
+            yield encode_official_sse("finish", {"finishReason": "stop"})
 
         elif event_type == "error":
             error_text = event.get("code", "UNKNOWN_ERROR")
@@ -224,19 +212,6 @@ async def adapt_stream_to_official_protocol(
 
     # Stream termination marker per the official protocol
     yield "data: [DONE]\n\n"
-
-
-async def adapt_stream_to_legacy_protocol(
-    internal_stream: AsyncGenerator[dict, None],
-) -> AsyncGenerator[str, None]:
-    """Pass through internal events in the legacy SSE format.
-
-    Temporary compatibility adapter — will be removed once frontend
-    migration to the official protocol is complete.
-    """
-    async for event in internal_stream:
-        event_type = str(event.get("event", ""))
-        yield encode_legacy_sse(event_type, event)
 
 
 # ---------------------------------------------------------------------------

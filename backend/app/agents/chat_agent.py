@@ -1,6 +1,8 @@
 """Single chat agent wrapper for phase-1 chat responses."""
 
 import asyncio
+import functools
+import hashlib
 import json
 import re
 from collections.abc import Callable
@@ -13,7 +15,7 @@ from uuid import uuid4
 import structlog
 from anyio import BrokenResourceError
 from pydantic import BaseModel, Field, ValidationError
-from pydantic_ai import Agent, BinaryContent, ModelRetry, RunContext
+from pydantic_ai import Agent, BinaryContent, ModelRetry, RunContext, UsageLimitExceeded
 from pydantic_ai.messages import (
     DocumentUrl,
     FunctionToolCallEvent,
@@ -29,6 +31,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.bedrock import BedrockConverseModel, BedrockModelSettings
 from pydantic_ai.providers.bedrock import BedrockProvider
 from pydantic_ai.run import AgentRunResultEvent
+from pydantic_ai.usage import UsageLimits
 
 from app.agents.analytical_read_schema import AnalyticalReadPayload
 from app.agents.chat_skill_loader import available_skill_names
@@ -52,6 +55,7 @@ class ChatAgentDeps:
     user_id: str
     thread_id: str
     run_id: str
+    request_id: str | None = None
     attachments: tuple[ChatAgentAttachmentInput, ...] = ()
     persist_attachment: Callable[..., Any] | None = None
     upload_bytes: Callable[..., Any] | None = None
@@ -71,6 +75,16 @@ _PDF_TOOL_NAMES = {
     "generateAnalyticalRead",
     "generatePlaybook",
 }
+
+_CHAT_AGENT_REQUEST_LIMIT = 10
+_CHAT_AGENT_TOOL_CALLS_LIMIT = 20
+_CHAT_AGENT_RESPONSE_TOKENS_LIMIT = 32768
+
+_CHAT_AGENT_USAGE_LIMITS = UsageLimits(
+    request_limit=_CHAT_AGENT_REQUEST_LIMIT,
+    tool_calls_limit=_CHAT_AGENT_TOOL_CALLS_LIMIT,
+    response_tokens_limit=_CHAT_AGENT_RESPONSE_TOKENS_LIMIT,
+)
 
 
 async def _upload_pdf(
@@ -169,27 +183,13 @@ async def _load_skill_tool_impl(
     }
 
 
-def _make_agent() -> Agent:
+def _compile_chat_agent_instructions() -> tuple[str, str]:
+    """Compile base instructions and return (instructions, prompt_hash)."""
     from app.agents.chat_skill_loader import compile_base_instructions
 
-    agent: Agent[ChatAgentDeps, str] = Agent(
-        BedrockConverseModel(
-            _BEDROCK_MODEL_NAME,
-            provider=BedrockProvider(region_name=settings.AWS_REGION),
-        ),
-        deps_type=ChatAgentDeps,
-        output_type=str,
-        retries=2,
-        model_settings=BedrockModelSettings(
-            max_tokens=32768,
-            bedrock_cache_instructions=True,
-            bedrock_cache_tool_definitions=True,
-        ),
-        instructions=compile_base_instructions(),
-    )
-
-    _register_tools(agent)
-    return agent
+    instructions = compile_base_instructions()
+    prompt_hash = hashlib.sha256(instructions.encode("utf-8")).hexdigest()[:16]
+    return instructions, prompt_hash
 
 
 def _register_tools(agent: Agent) -> None:
@@ -207,7 +207,7 @@ def _register_tools(agent: Agent) -> None:
         """
         return await _load_skill_tool_impl(ctx, name)
 
-    @agent.tool(name="generateIdeationBrief")
+    @agent.tool(name="generateIdeationBrief", timeout=120)
     async def generate_ideation_brief(
         ctx: RunContext[ChatAgentDeps],
         payload: IdeationBriefPayload,
@@ -226,7 +226,7 @@ def _register_tools(agent: Agent) -> None:
             tool_name="generateIdeationBrief",
         )
 
-    @agent.tool(name="generateAnalyticalRead")
+    @agent.tool(name="generateAnalyticalRead", timeout=120)
     async def generate_analytical_read(
         ctx: RunContext[ChatAgentDeps],
         payload: AnalyticalReadPayload,
@@ -245,7 +245,7 @@ def _register_tools(agent: Agent) -> None:
             tool_name="generateAnalyticalRead",
         )
 
-    @agent.tool(name="generatePlaybook")
+    @agent.tool(name="generatePlaybook", timeout=120)
     async def generate_playbook(
         ctx: RunContext[ChatAgentDeps],
         payload: PlaybookPayload,
@@ -265,7 +265,48 @@ def _register_tools(agent: Agent) -> None:
         )
 
 
-chat_agent = _make_agent()
+def _make_agent(*, instructions: str) -> Agent[ChatAgentDeps, str]:
+    agent: Agent[ChatAgentDeps, str] = Agent(
+        BedrockConverseModel(
+            _BEDROCK_MODEL_NAME,
+            provider=BedrockProvider(region_name=settings.AWS_REGION),
+        ),
+        deps_type=ChatAgentDeps,
+        output_type=str,
+        retries=2,
+        tool_timeout=30,
+        model_settings=BedrockModelSettings(
+            max_tokens=32768,
+            bedrock_cache_instructions=True,
+            bedrock_cache_tool_definitions=True,
+        ),
+        instructions=instructions,
+    )
+
+    _register_tools(agent)
+    return agent
+
+
+@functools.lru_cache(maxsize=4)
+def get_chat_agent() -> Agent[ChatAgentDeps, str]:
+    """Return a cached chat agent instance keyed by compiled instructions hash.
+
+    The cache is bounded (maxsize=4) to prevent unbounded growth if prompts
+    change frequently in development or testing.
+    """
+    instructions, _ = _compile_chat_agent_instructions()
+    return _make_agent(instructions=instructions)
+
+
+def clear_chat_agent_cache() -> None:
+    """Clear the chat agent LRU cache. Useful in tests and development."""
+    get_chat_agent.cache_clear()
+
+
+def get_chat_agent_prompt_hash() -> str:
+    """Return the prompt hash for the current compiled instructions."""
+    _, prompt_hash = _compile_chat_agent_instructions()
+    return prompt_hash
 
 
 async def generate_chat_response(
@@ -275,18 +316,37 @@ async def generate_chat_response(
 ) -> ChatAgentOutput:
     """Run the chat agent with typed dependencies and validated output."""
     available_skills = available_skill_names()
+    prompt_hash = get_chat_agent_prompt_hash()
+    agent = get_chat_agent()
     logger.info(
         "chat_agent_run_started",
         run_id=deps.run_id,
+        request_id=deps.request_id,
         thread_id=deps.thread_id,
         organization_id=deps.organization_id,
         user_id=deps.user_id,
         available_skills=available_skills,
         attachment_count=len(deps.attachments),
+        prompt_hash=prompt_hash,
     )
     try:
-        result = await chat_agent.run(prompt, deps=deps)
+        result = await agent.run(
+            prompt, deps=deps, usage_limits=_CHAT_AGENT_USAGE_LIMITS
+        )
         return ChatAgentOutput(response_text=result.output.strip())
+    except UsageLimitExceeded as exc:
+        logger.error(
+            "chat_agent_usage_limit_exceeded",
+            organization_id=deps.organization_id,
+            user_id=deps.user_id,
+            thread_id=deps.thread_id,
+            run_id=deps.run_id,
+            request_id=deps.request_id,
+            available_skills=available_skills,
+            prompt_hash=prompt_hash,
+            error=str(exc),
+        )
+        raise ChatAgentError("Chat agent usage limit exceeded") from exc
     except ValidationError as exc:
         logger.error(
             "chat_agent_result_validation_failed",
@@ -294,7 +354,9 @@ async def generate_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
+            request_id=deps.request_id,
             available_skills=available_skills,
+            prompt_hash=prompt_hash,
             error=str(exc),
         )
         raise ChatAgentError("Chat agent returned invalid result schema") from exc
@@ -305,7 +367,9 @@ async def generate_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
+            request_id=deps.request_id,
             available_skills=available_skills,
+            prompt_hash=prompt_hash,
             error=str(exc),
         )
         raise ChatAgentError("Chat agent execution failed") from exc
@@ -362,6 +426,8 @@ async def stream_chat_response(
     pending_tool_call_batch: list[dict[str, str]] = []
     agent_status_active = False
     available_skills = available_skill_names()
+    prompt_hash = get_chat_agent_prompt_hash()
+    agent = get_chat_agent()
 
     def _flush_tool_call_batch() -> None:
         nonlocal pending_tool_call_batch
@@ -370,6 +436,7 @@ async def stream_chat_response(
         logger.info(
             "chat_agent_tool_call_batch",
             run_id=deps.run_id,
+            request_id=deps.request_id,
             batch_size=len(pending_tool_call_batch),
             tool_names=[call["tool_name"] for call in pending_tool_call_batch],
             tool_call_ids=[call["tool_call_id"] for call in pending_tool_call_batch],
@@ -379,14 +446,18 @@ async def stream_chat_response(
     logger.info(
         "chat_agent_run_started",
         run_id=deps.run_id,
+        request_id=deps.request_id,
         thread_id=deps.thread_id,
         organization_id=deps.organization_id,
         user_id=deps.user_id,
         available_skills=available_skills,
         attachment_count=len(attachments),
+        prompt_hash=prompt_hash,
     )
     try:
-        async for event in chat_agent.run_stream_events(runtime_input, deps=deps):
+        async for event in agent.run_stream_events(
+            runtime_input, deps=deps, usage_limits=_CHAT_AGENT_USAGE_LIMITS
+        ):
             if isinstance(event, AgentRunResultEvent):
                 _flush_tool_call_batch()
                 response_text = accumulated_text.strip() or str(event.result.output).strip()
@@ -536,10 +607,25 @@ async def stream_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
+            request_id=deps.request_id,
             available_skills=available_skills,
             tools_called=tools_called,
         )
         raise
+    except UsageLimitExceeded as exc:
+        logger.error(
+            "chat_agent_stream_usage_limit_exceeded",
+            organization_id=deps.organization_id,
+            user_id=deps.user_id,
+            thread_id=deps.thread_id,
+            run_id=deps.run_id,
+            request_id=deps.request_id,
+            available_skills=available_skills,
+            tools_called=tools_called,
+            prompt_hash=prompt_hash,
+            error=str(exc),
+        )
+        raise ChatAgentError("Chat agent usage limit exceeded") from exc
     except ChatAgentError:
         raise
     except Exception as exc:
@@ -549,8 +635,10 @@ async def stream_chat_response(
             user_id=deps.user_id,
             thread_id=deps.thread_id,
             run_id=deps.run_id,
+            request_id=deps.request_id,
             available_skills=available_skills,
             tools_called=tools_called,
+            prompt_hash=prompt_hash,
             error=str(exc),
         )
         raise ChatAgentError("Chat agent streaming failed") from exc

@@ -1,16 +1,19 @@
 # FastAPI y dependencias core
 fastapi==0.115.13
 uvicorn==0.34.3
-pydantic==2.11.7
-pydantic-settings==2.9.1
+pydantic==2.12.5
+pydantic-settings==2.12.0
 python-dotenv==1.1.0
 
 # Seguridad y Authentication
 fastapi-users[sqlalchemy]==14.0.1 
 
 # Agentes AI - VERSIONES ESTABLES (COMPATIBLES)
-# 1.38.0 includes the Vercel AI UI adapter and multimodal input primitives used by chat.
-pydantic-ai-slim[openai]==1.38.0
+# 1.89.1: latest stable line. Provides AbstractCapability, Hooks, ReinjectSystemPrompt,
+# UsageLimits, output_validator, BedrockConverseModel + prompt caching.
+# Extra is [bedrock] (pulls boto3 metadata used by the Bedrock provider). The OpenAI
+# SDK is brought in independently below for non-pydantic-ai usage (Whisper, etc.).
+pydantic-ai-slim[bedrock]==1.89.1
 openai>=1.75.0
 python-multipart==0.0.20
 
@@ -26,14 +29,14 @@ redis==6.4.0  # Latest - includes redis.asyncio
 # HTTP y Networking
 httpx==0.28.1
 httpcore==1.0.9
-aiohttp==3.12.13
 requests==2.32.4
 
 # AWS 
-aioboto3>=13.2.0
-aiobotocore>=2.20.0  
-boto3>=1.35.0
-botocore>=1.35.0
+# S3 access uses sync boto3 wrapped in asyncio.to_thread (see app/services/s3_service.py).
+# aioboto3/aiobotocore were dropped: they crónicamente atrasan el floor de boto3 vs
+# pydantic-ai-slim, lo que bloqueaba el upgrade del agente.
+boto3>=1.42.63
+botocore>=1.42.63
 
 # Procesamiento de Documentos - CRÍTICO PARA TUS PDFs
 markdown==3.8.2

@@ -9,10 +9,7 @@ import uuid
 
 import pytest
 
-from app.services.chat_stream_protocol import (
-    adapt_stream_to_legacy_protocol,
-    adapt_stream_to_official_protocol,
-)
+from app.services.chat_stream_protocol import adapt_stream_to_official_protocol
 
 
 async def _collect(async_gen):
@@ -137,29 +134,3 @@ class TestDataNewThreadCreatedEventOfficial:
         assert event["data"]["title"] is None
 
 
-class TestDataNewThreadCreatedEventLegacy:
-    """Legacy protocol: data-new-thread-created is passed through."""
-
-    @pytest.mark.asyncio
-    async def test_data_new_thread_created_legacy_passthrough(self):
-        """Legacy adapter passes through data-new-thread-created event."""
-        thread_id = str(uuid.uuid4())
-        internal_events = [
-            {
-                "event": "data-new-thread-created",
-                "thread_id": thread_id,
-                "title": None,
-                "created_at": "2026-04-23T12:00:00+00:00",
-                "updated_at": "2026-04-23T12:00:00+00:00",
-            },
-        ]
-        stream = adapt_stream_to_legacy_protocol(_stream_events_gen(internal_events))
-        output = await _collect(stream)
-
-        # Legacy format: event: data-new-thread-created\ndata: {json}\n\n
-        assert len(output) == 1
-        frame = output[0]
-        lines = frame.strip().split("\n")
-        assert lines[0] == "event: data-new-thread-created"
-        data = json.loads(lines[1].removeprefix("data: "))
-        assert data["thread_id"] == thread_id

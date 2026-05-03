@@ -66,7 +66,7 @@ Cross-links drive shared analytical plans. A shared BTEX analysis on a composite
 
 After decomposition:
 
-1. For each sub-stream, hand off to the assigned specialist lens (specialist-lens-light in Discovery mode; full specialist in Assessment).
+1. For each sub-stream, hand off to the assigned specialist lens (specialist-lens-light in Discovery mode; later specialist review after Discovery).
 2. Shared evidence and cross-linked questions propagate back to the router, which then reassembles the specialist outputs into a unified opportunity view.
 3. The recomposition is the input to `commercial-shaping`, which sizes and positions the whole opportunity, and to `discovery-reporting`, which produces the three tiers.
 
@@ -98,7 +98,7 @@ Decomposition:
 
 Cross-link notes: "Sub-streams 2, 3, 4 likely share hydrocarbon species (BTEX) — a composite BTEX sweep covers three sub-streams. Sub-streams 1 and 4 may share pyrophoric iron sulfide risk if sulfided catalyst present — specialist safety review on each."
 
-This decomposition is now the agenda for specialist-lens-light (or full specialist in Assessment).
+This decomposition is now the agenda for specialist-lens-light (or later specialist review after Discovery).
 
 ## What this skill never does
 

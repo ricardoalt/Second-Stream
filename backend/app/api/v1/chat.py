@@ -52,7 +52,6 @@ from app.services.chat_service import (
 from app.services.chat_stream_protocol import (
     PROTOCOL_HEADER,
     PROTOCOL_VERSION,
-    adapt_stream_to_legacy_protocol,
     adapt_stream_to_official_protocol,
     extract_latest_user_text_with_vercel_adapter,
 )
@@ -489,12 +488,9 @@ async def stream_chat_message(
     org: OrganizationContext,
     x_vercel_ai_ui_message_stream: Annotated[str | None, Header()] = None,
 ):
-    """Stream a chat turn using the negotiated protocol format.
+    """Stream a chat turn using the official AI SDK UI/Data Stream Protocol.
 
-    Protocol negotiation (priority order):
-    1. Request body ``stream_format`` field (``official`` | ``legacy``)
-    2. Header ``x-vercel-ai-ui-message-stream: v1`` → official
-    3. Default → official (canonical product target)
+    The protocol header is always set; legacy format has been removed.
     """
     require_permission(current_user, permissions.CHAT_WRITE)
     run_id = f"run-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
@@ -506,14 +502,11 @@ async def stream_chat_message(
         thread_id=thread_id,
     )
 
-    # Resolve negotiated format: body field > header > default
-    use_official = _resolve_stream_format(payload.stream_format, x_vercel_ai_ui_message_stream)
-
     previous_session = _active_chat_stream_sessions.get(session_key)
     if previous_session is not None:
         await previous_session.close()
 
-    stream_session = _ChatStreamSession(protocol_official=use_official)
+    stream_session = _ChatStreamSession(protocol_official=True)
     _active_chat_stream_sessions[session_key] = stream_session
 
     logger.info(
@@ -522,7 +515,7 @@ async def stream_chat_message(
         run_id=run_id,
         organization_id=str(org.id),
         user_id=str(current_user.id),
-        stream_format="official" if use_official else "legacy",
+        stream_format="official",
         existing_attachment_ids_count=len(payload.existing_attachment_ids),
         payload_messages_count=payload_messages_count,
         payload_file_parts_count=payload_file_parts_count,
@@ -538,14 +531,9 @@ async def stream_chat_message(
                 run_id=run_id,
                 existing_attachment_ids=payload.existing_attachment_ids,
             )
-            if use_official:
-                async for frame in adapt_stream_to_official_protocol(internal_stream):
-                    await stream_session.publish(frame)
-                    yield frame
-            else:
-                async for frame in adapt_stream_to_legacy_protocol(internal_stream):
-                    await stream_session.publish(frame)
-                    yield frame
+            async for frame in adapt_stream_to_official_protocol(internal_stream):
+                await stream_session.publish(frame)
+                yield frame
         except asyncio.CancelledError:
             logger.info(
                 "chat_stream_client_disconnected",
@@ -565,21 +553,16 @@ async def stream_chat_message(
             )
         except ChatAttachmentValidationError as exc:
             # Attachment validation errors bypass the stream adapter —
-            # they are emitted directly in the negotiated format.
-            if use_official:
-                from app.services.chat_stream_protocol import encode_official_sse
+            # they are emitted directly in the official protocol format.
+            from app.services.chat_stream_protocol import encode_official_sse
 
-                error_frame = encode_official_sse("error", {"errorText": exc.code})
-                await stream_session.publish(error_frame)
-                yield error_frame
+            error_frame = encode_official_sse("error", {"errorText": exc.code})
+            await stream_session.publish(error_frame)
+            yield error_frame
 
-                done_frame = "data: [DONE]\n\n"
-                await stream_session.publish(done_frame)
-                yield done_frame
-            else:
-                error_frame = _sse_encode({"event": "error", "code": exc.code})
-                await stream_session.publish(error_frame)
-                yield error_frame
+            done_frame = "data: [DONE]\n\n"
+            await stream_session.publish(done_frame)
+            yield done_frame
         finally:
             await stream_session.close()
             if _active_chat_stream_sessions.get(session_key) is stream_session:
@@ -590,9 +573,8 @@ async def stream_chat_message(
     headers = {
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
+        PROTOCOL_HEADER: PROTOCOL_VERSION,
     }
-    if use_official:
-        headers[PROTOCOL_HEADER] = PROTOCOL_VERSION
 
     return StreamingResponse(
         _event_generator(),
@@ -628,33 +610,14 @@ async def reconnect_chat_message_stream(
     headers = {
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
+        PROTOCOL_HEADER: PROTOCOL_VERSION,
     }
-    if stream_session.protocol_official:
-        headers[PROTOCOL_HEADER] = PROTOCOL_VERSION
 
     return StreamingResponse(
         stream_session.iter_frames(),
         media_type="text/event-stream",
         headers=headers,
     )
-
-
-def _resolve_stream_format(
-    body_format: StreamFormat,
-    header_value: str | None,
-) -> bool:
-    """Return True for official protocol, False for legacy.
-
-    Priority: body field > header > default (official).
-    """
-    if body_format == StreamFormat.LEGACY:
-        return False
-    if body_format == StreamFormat.OFFICIAL:
-        return True
-    # Body was default (official) but check header for explicit opt-in
-    if header_value and header_value.strip().lower() == PROTOCOL_VERSION:
-        return True
-    return True  # Default to official
 
 
 def _summarize_ui_messages(messages: list[dict[str, Any]]) -> tuple[int, int]:

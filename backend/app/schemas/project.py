@@ -3,10 +3,10 @@ Project schemas matching frontend interfaces.
 """
 
 from datetime import datetime
-from typing import Annotated, ClassVar
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import Field, field_serializer
+from pydantic import ConfigDict, Field, field_serializer
 
 from app.schemas.common import BaseSchema
 from app.schemas.dashboard import ProposalFollowUpState
@@ -36,8 +36,8 @@ class ProjectCreate(BaseSchema):
     schedule_summary: str = Field(default="To be defined", max_length=255)
     tags: list[str] = Field(default_factory=list)
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "location_id": "550e8400-e29b-41d4-a716-446655440000",
                 "name": "Waste Resource Assessment - ABC Factory",
@@ -47,7 +47,8 @@ class ProjectCreate(BaseSchema):
                 "schedule_summary": "2 weeks",
                 "tags": ["assessment", "recycling"],
             }
-        }
+        },
+    )
 
 
 class ProjectUpdate(BaseSchema):
@@ -70,14 +71,15 @@ class ProjectUpdate(BaseSchema):
         description="Optional owner override (org admin/superadmin only)",
     )
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "In Engineering",
                 "progress": 35,
                 "budget": 165000.0,
             }
-        }
+        },
+    )
 
 
 class ProjectSummary(BaseSchema):

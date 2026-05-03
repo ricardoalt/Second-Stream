@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.common import BaseSchema
 
@@ -39,8 +39,8 @@ class ProposalGenerationRequest(BaseModel):
         description="User preferences (focus_areas, constraints)",
     )
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "project_id": "123e4567-e89b-12d3-a456-426614174000",
                 "proposal_type": "Technical",
@@ -49,7 +49,8 @@ class ProposalGenerationRequest(BaseModel):
                     "constraints": {"max_area_m2": 500},
                 },
             }
-        }
+        },
+    )
 
 
 class ProposalPreview(BaseSchema):
@@ -179,8 +180,8 @@ class UsageStatsResponse(BaseModel):
     generation_time_seconds: float | None = Field(None, ge=0, description="Generation time")
     success: bool = Field(default=True, description="Whether generation succeeded")
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total_tokens": 45234,
                 "model_used": "gpt-4o-mini",
@@ -188,7 +189,8 @@ class UsageStatsResponse(BaseModel):
                 "generation_time_seconds": 28.5,
                 "success": True,
             }
-        }
+        },
+    )
 
 
 class ProvenCaseResponse(BaseModel):
@@ -215,8 +217,8 @@ class ProvenCaseResponse(BaseModel):
             raise ValueError("Similarity score must be between 0 and 1")
         return v
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "case_id": "muni_sbr_uv_500",
                 "application_type": "Municipal Wastewater",
@@ -226,7 +228,8 @@ class ProvenCaseResponse(BaseModel):
                 "capex_usd": 250000,
                 "similarity_score": 0.92,
             }
-        }
+        },
+    )
 
 
 class AlternativeTechnologyResponse(BaseModel):
@@ -235,13 +238,14 @@ class AlternativeTechnologyResponse(BaseModel):
     technology: str = Field(..., description="Technology name")
     reason_rejected: str = Field(..., description="Why it was not selected")
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "technology": "MBBR",
                 "reason_rejected": "Higher footprint required for this flow rate",
             }
-        }
+        },
+    )
 
 
 class TechnologyJustificationResponse(BaseModel):
@@ -251,14 +255,15 @@ class TechnologyJustificationResponse(BaseModel):
     technology: str = Field(..., description="Technology selected")
     justification: str = Field(..., description="Detailed reasoning")
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "stage": "Secondary",
                 "technology": "SBR",
                 "justification": "Space-efficient biological treatment with proven reliability...",
             }
-        }
+        },
+    )
 
 
 class AIMetadataResponse(BaseModel):
@@ -313,8 +318,8 @@ class AIMetadataResponse(BaseModel):
             raise ValueError("generated_at must be valid ISO 8601 timestamp") from e
         return v
 
-    class Config:
-        json_schema_extra: ClassVar[dict[str, object]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "usage_stats": {
                     "total_tokens": 45234,
@@ -355,4 +360,5 @@ class AIMetadataResponse(BaseModel):
                 ],
                 "generated_at": "2025-10-04T21:00:00.000000Z",
             }
-        }
+        },
+    )

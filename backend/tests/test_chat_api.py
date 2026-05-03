@@ -36,19 +36,6 @@ def _assert_error_contract(response, expected_status: int, expected_code: str) -
     assert isinstance(payload["message"], str)
 
 
-def _parse_sse_events(payload: str) -> list[dict[str, object]]:
-    """Parse legacy SSE format: event: name\\ndata: json."""
-    events: list[dict[str, object]] = []
-    for raw_event in payload.strip().split("\n\n"):
-        if not raw_event:
-            continue
-        lines = raw_event.splitlines()
-        event_name = lines[0].removeprefix("event: ")
-        data = json.loads(lines[1].removeprefix("data: "))
-        events.append({"event": event_name, "data": data})
-    return events
-
-
 def _parse_official_sse_events(payload: str) -> list[dict[str, object]]:
     """Parse official AI SDK UI/Data Stream Protocol format: data: {json}\\n\\n."""
     events: list[dict[str, object]] = []
@@ -226,12 +213,12 @@ async def test_chat_thread_archive_soft_delete_hides_thread_from_list_detail_and
 
     stream_response = await client.post(
         f"/api/v1/chat/threads/{thread_id}/messages/stream",
-        json={"contentText": "Should fail", "streamFormat": "legacy"},
+        json={"contentText": "Should fail"},
     )
     assert stream_response.status_code == 200
-    events = _parse_sse_events(stream_response.text)
-    assert [event["event"] for event in events] == ["error"]
-    assert events[0]["data"] == {"code": "THREAD_NOT_FOUND"}
+    events = _parse_official_sse_events(stream_response.text)
+    assert [event["type"] for event in events] == ["error", "DONE"]
+    assert events[0]["errorText"] == "THREAD_NOT_FOUND"
 
 
 @pytest.mark.asyncio
@@ -379,18 +366,19 @@ async def test_chat_stream_success_contract(client: AsyncClient, db_session, set
 
     response = await client.post(
         f"/api/v1/chat/threads/{thread_id}/messages/stream",
-        json={"contentText": "Stream me", "streamFormat": "legacy"},
+        json={"contentText": "Stream me"},
     )
-    events = _parse_sse_events(response.text)
+    events = _parse_official_sse_events(response.text)
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
-    assert [event["event"] for event in events] == ["start", "delta", "delta", "completed"]
-    assert isinstance(events[0]["data"]["run_id"], str)
-    assert events[0]["data"]["run_id"]
-    assert events[1]["data"] == {"delta": "First chunk"}
-    assert events[2]["data"] == {"delta": "Second chunk."}
-    assert uuid.UUID(events[3]["data"]["message_id"])
+    assert "x-vercel-ai-ui-message-stream" in response.headers
+    types = [event["type"] for event in events]
+    assert types == ["start", "text-start", "text-delta", "text-delta", "text-end", "finish", "DONE"]
+    assert isinstance(events[0]["messageId"], str)
+    assert events[0]["messageId"]
+    assert events[2]["delta"] == "First chunk"
+    assert events[3]["delta"] == "Second chunk."
 
     assistant_count = await db_session.scalar(
         select(func.count())
@@ -460,15 +448,15 @@ async def test_chat_stream_error_contract_persists_failed_assistant_for_real_run
 
     response = await client.post(
         f"/api/v1/chat/threads/{thread_id}/messages/stream",
-        json={"contentText": "This should fail", "streamFormat": "legacy"},
+        json={"contentText": "This should fail"},
     )
-    events = _parse_sse_events(response.text)
+    events = _parse_official_sse_events(response.text)
 
     assert response.status_code == 200
-    assert [event["event"] for event in events] == ["start", "error"]
-    assert isinstance(events[0]["data"]["run_id"], str)
-    assert events[0]["data"]["run_id"]
-    assert events[1]["data"] == {"code": "CHAT_STREAM_FAILED"}
+    assert [event["type"] for event in events] == ["start", "error", "DONE"]
+    assert isinstance(events[0]["messageId"], str)
+    assert events[0]["messageId"]
+    assert events[1]["errorText"] == "CHAT_STREAM_FAILED"
 
     assistant = await db_session.scalar(
         select(ChatMessage)
@@ -867,30 +855,6 @@ async def test_chat_stream_official_protocol_header_override(client: AsyncClient
     assert "start" in types
     assert "finish" in types
     assert "DONE" in types
-
-
-@pytest.mark.asyncio
-async def test_chat_stream_legacy_explicit_request(client: AsyncClient, db_session, set_current_user, monkeypatch):
-    """Legacy format: explicit streamFormat=legacy produces legacy SSE events."""
-    _org, _user = await _create_authed_user(db_session, set_current_user)
-    create_thread = await client.post("/api/v1/chat/threads", json={"title": "Legacy Explicit"})
-    thread_id = create_thread.json()["id"]
-
-    async def _fake_stream_response(*, prompt, deps, attachments):
-        yield {"event": "delta", "delta": "Legacy response"}
-        yield {"event": "completed", "response_text": "Legacy response"}
-
-    monkeypatch.setattr(chat_service, "stream_chat_response", _fake_stream_response)
-
-    response = await client.post(
-        f"/api/v1/chat/threads/{thread_id}/messages/stream",
-        json={"contentText": "Legacy format", "streamFormat": "legacy"},
-    )
-    assert response.status_code == 200
-    # Legacy format does NOT include the protocol header
-    assert "x-vercel-ai-ui-message-stream" not in response.headers
-    events = _parse_sse_events(response.text)
-    assert [e["event"] for e in events] == ["start", "delta", "completed"]
 
 
 @pytest.mark.asyncio

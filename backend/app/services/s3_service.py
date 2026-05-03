@@ -1,12 +1,15 @@
+import asyncio
+import functools
 import re
 import unicodedata
 from io import BytesIO
 from pathlib import Path, PurePosixPath
 from typing import IO, Literal
 
-import aioboto3
 import aiofiles
+import boto3
 import structlog
+from botocore.client import BaseClient
 
 from app.core.config import settings
 
@@ -44,6 +47,24 @@ _ALLOWED_LOCAL_PREFIXES = (
 )
 ATTACHMENT_PRESIGNED_TTL_SECONDS = 600
 _MAX_HEADER_FILENAME_LENGTH = 150
+
+
+@functools.lru_cache(maxsize=1)
+def _get_s3_client() -> BaseClient:
+    """Return a process-wide cached boto3 S3 client.
+
+    boto3 clients are thread-safe for use. The lru_cache provides a thread-safe
+    one-shot construction. Tests can call ``_get_s3_client.cache_clear()`` to
+    reset between scenarios.
+    """
+    kwargs: dict[str, object] = {"region_name": S3_REGION}
+    if S3_ACCESS_KEY and S3_SECRET_KEY:
+        logger.warning(
+            "Using explicit S3 credentials. This is not recommended in AWS production."
+        )
+        kwargs["aws_access_key_id"] = S3_ACCESS_KEY
+        kwargs["aws_secret_access_key"] = S3_SECRET_KEY
+    return boto3.client("s3", **kwargs)
 
 
 def _ascii_safe_filename(filename: str, fallback: str = "attachment") -> str:
@@ -116,6 +137,42 @@ def _resolve_local_file(filename: str) -> tuple[Path, Path]:
     return storage_path, rel_path
 
 
+# --- S3 sync helpers (run on threadpool via asyncio.to_thread) -----------------
+
+
+def _sync_upload_fileobj(
+    file_obj: IO[bytes] | BytesIO,
+    bucket: str,
+    key: str,
+    extra_args: dict[str, str],
+) -> None:
+    _get_s3_client().upload_fileobj(file_obj, bucket, key, ExtraArgs=extra_args)
+
+
+def _sync_generate_presigned_url(params: dict[str, object], expires: int) -> str:
+    return _get_s3_client().generate_presigned_url(
+        "get_object",
+        Params=params,
+        ExpiresIn=expires,
+    )
+
+
+def _sync_get_object_bytes(bucket: str, key: str) -> bytes:
+    response = _get_s3_client().get_object(Bucket=bucket, Key=key)
+    body = response["Body"]
+    try:
+        return body.read()
+    finally:
+        body.close()
+
+
+def _sync_delete_object(bucket: str, key: str) -> None:
+    _get_s3_client().delete_object(Bucket=bucket, Key=key)
+
+
+# --- Public async API ----------------------------------------------------------
+
+
 async def upload_file_to_s3(
     file_obj: IO[bytes] | BytesIO, filename: str, content_type: str | None = None
 ) -> str:
@@ -123,23 +180,10 @@ async def upload_file_to_s3(
     try:
         if USE_S3:  # Production mode: use S3
             logger.info(f"Uploading file to S3: {filename}")
-            session = aioboto3.Session()
             extra_args = {"ContentType": content_type} if content_type else {}
-
-            if S3_ACCESS_KEY and S3_SECRET_KEY:
-                logger.warning(
-                    "Using explicit S3 credentials. This is not recommended in AWS production."
-                )
-                async with session.client(
-                    "s3",
-                    region_name=S3_REGION,
-                    aws_access_key_id=S3_ACCESS_KEY,
-                    aws_secret_access_key=S3_SECRET_KEY,
-                ) as s3:
-                    await s3.upload_fileobj(file_obj, S3_BUCKET, filename, ExtraArgs=extra_args)
-            else:
-                async with session.client("s3", region_name=S3_REGION) as s3:
-                    await s3.upload_fileobj(file_obj, S3_BUCKET, filename, ExtraArgs=extra_args)
+            await asyncio.to_thread(
+                _sync_upload_fileobj, file_obj, S3_BUCKET, filename, extra_args
+            )
         else:  # Development mode: save locally
             logger.info(f"Saving file locally (dev mode): {filename}")
             normalized = _normalize_relative_key(filename)
@@ -169,27 +213,10 @@ async def get_presigned_url(filename: str, expires: int = 3600) -> str:
         # Production mode: S3 URL
         try:
             normalized = _normalize_relative_key(filename)
-            session = aioboto3.Session()
-            if S3_ACCESS_KEY and S3_SECRET_KEY:
-                async with session.client(
-                    "s3",
-                    region_name=S3_REGION,
-                    aws_access_key_id=S3_ACCESS_KEY,
-                    aws_secret_access_key=S3_SECRET_KEY,
-                ) as s3:
-                    url = await s3.generate_presigned_url(
-                        "get_object",
-                        Params={"Bucket": S3_BUCKET, "Key": normalized},
-                        ExpiresIn=expires,
-                    )
-            else:
-                async with session.client("s3", region_name=S3_REGION) as s3:
-                    url = await s3.generate_presigned_url(
-                        "get_object",
-                        Params={"Bucket": S3_BUCKET, "Key": normalized},
-                        ExpiresIn=expires,
-                    )
-            return url
+            params: dict[str, object] = {"Bucket": S3_BUCKET, "Key": normalized}
+            return await asyncio.to_thread(
+                _sync_generate_presigned_url, params, expires
+            )
         except Exception as e:
             logger.error("S3 presigned URL generation failed", error=str(e), key=filename)
             raise StorageError(f"Failed to generate S3 URL: {e}") from e
@@ -231,26 +258,7 @@ async def get_presigned_url_with_headers(
         params["ResponseContentType"] = content_type
 
     try:
-        session = aioboto3.Session()
-        if S3_ACCESS_KEY and S3_SECRET_KEY:
-            async with session.client(
-                "s3",
-                region_name=S3_REGION,
-                aws_access_key_id=S3_ACCESS_KEY,
-                aws_secret_access_key=S3_SECRET_KEY,
-            ) as s3:
-                return await s3.generate_presigned_url(
-                    "get_object",
-                    Params=params,
-                    ExpiresIn=expires,
-                )
-
-        async with session.client("s3", region_name=S3_REGION) as s3:
-            return await s3.generate_presigned_url(
-                "get_object",
-                Params=params,
-                ExpiresIn=expires,
-            )
+        return await asyncio.to_thread(_sync_generate_presigned_url, params, expires)
     except Exception as e:
         logger.error("S3 presigned URL generation failed", error=str(e), key=filename)
         raise StorageError(f"Failed to generate S3 URL: {e}") from e
@@ -261,36 +269,23 @@ async def download_file_content(filename: str) -> bytes:
     try:
         if USE_S3:  # Production mode: download from S3
             logger.info(f"Downloading file from S3: {filename}")
-            session = aioboto3.Session()
+            content = await asyncio.to_thread(
+                _sync_get_object_bytes, S3_BUCKET, filename
+            )
+            logger.info(f"✅ File downloaded from S3: {len(content)} bytes")
+            return content
 
-            if S3_ACCESS_KEY and S3_SECRET_KEY:
-                async with session.client(
-                    "s3",
-                    region_name=S3_REGION,
-                    aws_access_key_id=S3_ACCESS_KEY,
-                    aws_secret_access_key=S3_SECRET_KEY,
-                ) as s3:
-                    response = await s3.get_object(Bucket=S3_BUCKET, Key=filename)
-                    content = await response["Body"].read()
-                    logger.info(f"✅ File downloaded from S3: {len(content)} bytes")
-                    return content
+        # Local mode: read local file
+        local_path, _ = _resolve_local_file(filename)
+        logger.info(f"Reading local file: {local_path}")
 
-            async with session.client("s3", region_name=S3_REGION) as s3:
-                response = await s3.get_object(Bucket=S3_BUCKET, Key=filename)
-                content = await response["Body"].read()
-                logger.info(f"✅ File downloaded from S3: {len(content)} bytes")
-                return content
-        else:  # Local mode: read local file
-            local_path, _ = _resolve_local_file(filename)
-            logger.info(f"Reading local file: {local_path}")
+        if not local_path.exists():
+            raise FileNotFoundError(f"Local file not found: {local_path}")
 
-            if not local_path.exists():
-                raise FileNotFoundError(f"Local file not found: {local_path}")
-
-            async with aiofiles.open(local_path, "rb") as f:
-                content = await f.read()
-                logger.info(f"✅ File read locally: {len(content)} bytes")
-                return content
+        async with aiofiles.open(local_path, "rb") as f:
+            content = await f.read()
+            logger.info(f"✅ File read locally: {len(content)} bytes")
+            return content
 
     except Exception as e:
         logger.error(f"Error downloading file {filename}: {e!s}")
@@ -310,25 +305,8 @@ async def delete_file_from_s3(filename: str) -> None:
             return
 
         normalized = _normalize_relative_key(filename)
-
         logger.info(f"Deleting file from S3: {normalized}")
-        session = aioboto3.Session()
-        if S3_ACCESS_KEY and S3_SECRET_KEY:
-            logger.warning(
-                "Using explicit S3 credentials for delete; avoid this in AWS production."
-            )
-
-            async with session.client(
-                "s3",
-                region_name=S3_REGION,
-                aws_access_key_id=S3_ACCESS_KEY,
-                aws_secret_access_key=S3_SECRET_KEY,
-            ) as s3:
-                await s3.delete_object(Bucket=S3_BUCKET, Key=normalized)
-            return
-
-        async with session.client("s3", region_name=S3_REGION) as s3:
-            await s3.delete_object(Bucket=S3_BUCKET, Key=normalized)
+        await asyncio.to_thread(_sync_delete_object, S3_BUCKET, normalized)
     except Exception as e:
         logger.error(f"Error deleting file {filename} from S3: {e!s}")
         raise
