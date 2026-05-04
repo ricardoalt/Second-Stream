@@ -1315,6 +1315,7 @@ dependencies = [
     { name = "plotly" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
+    { name = "pydantic-ai-skills" },
     { name = "pydantic-ai-slim", extra = ["bedrock"] },
     { name = "pydantic-settings" },
     { name = "pyjwt" },
@@ -1368,6 +1369,7 @@ requires-dist = [
     { name = "plotly", specifier = ">=5.22.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "pydantic", specifier = ">=2.8.0" },
+    { name = "pydantic-ai-skills", specifier = "==0.9.0" },
     { name = "pydantic-ai-slim", extras = ["bedrock"], specifier = "==1.89.1" },
     { name = "pydantic-settings", specifier = ">=2.4.0" },
     { name = "pyjwt", specifier = ">=2.8.0" },
@@ -2961,6 +2963,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/69/44/36f1a6e523abc58ae5f928898e4aca2e0ea509b5aa6f6f392a5d882be928/pydantic-2.12.5.tar.gz", hash = "sha256:4d351024c75c0f085a9febbb665ce8c0c6ec5d30e903bdb6394b7ede26aebb49", size = 821591 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5a/87/b70ad306ebb6f9b585f114d0ac2137d792b48be34d732d60e597c2f8465a/pydantic-2.12.5-py3-none-any.whl", hash = "sha256:e561593fccf61e8a20fc46dfc2dfe075b8be7d0188df33f221ad1f0139180f9d", size = 463580 },
+]
+
+[[package]]
+name = "pydantic-ai-skills"
+version = "0.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "pydantic-ai-slim" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/59/b2/9e861796ceb2cc021a9a7f505b1861b6cd24234c7492389b1c2ca2303869/pydantic_ai_skills-0.9.0.tar.gz", hash = "sha256:9f944576ed21d1732267f7b5dda8cdf4d57c715692b080add562b9f6f83d47dd", size = 9011432 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/40/58/c84b6626eaaec3082f63e7fd1e2c7839d4349d3b4a82c7d4e7cce65036c2/pydantic_ai_skills-0.9.0-py3-none-any.whl", hash = "sha256:81c28b5be5e553f5c9edc666add8c5c1763abb70761c5aed813c9a42b695558c", size = 55649 },
 ]
 
 [[package]]

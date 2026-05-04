@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -31,7 +30,6 @@ from app.schemas.chat import (
     ChatThreadListResponse,
     ChatThreadSummaryResponse,
     ChatThreadUpdateRequest,
-    StreamFormat,
 )
 from app.services.chat_service import (
     MAX_ATTACHMENT_SIZE_BYTES,
@@ -131,12 +129,6 @@ def _attachment_to_response(attachment: ChatAttachment) -> ChatAttachmentRespons
         created_at=attachment.created_at,
         artifact_type=attachment.artifact_type,
     )
-
-
-def _sse_encode(event_payload: dict[str, Any]) -> str:
-    event_name = str(event_payload["event"])
-    data_payload = {k: v for k, v in event_payload.items() if k != "event"}
-    return f"event: {event_name}\ndata: {json.dumps(data_payload)}\n\n"
 
 
 def _normalize_attachment_content_type(content_type: str | None) -> str:
@@ -488,9 +480,9 @@ async def stream_chat_message(
     org: OrganizationContext,
     x_vercel_ai_ui_message_stream: Annotated[str | None, Header()] = None,
 ):
-    """Stream a chat turn using the official AI SDK UI/Data Stream Protocol.
+    """Stream a chat turn using the AI SDK UI/Data Stream Protocol.
 
-    The protocol header is always set; legacy format has been removed.
+    Emits SSE frames following the official protocol spec (v1).
     """
     require_permission(current_user, permissions.CHAT_WRITE)
     run_id = f"run-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"

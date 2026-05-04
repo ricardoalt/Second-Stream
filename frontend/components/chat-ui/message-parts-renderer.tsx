@@ -191,7 +191,9 @@ function MessagePartsRendererInner({
 					const webSearchNode = renderWebSearchPart(part);
 					if (webSearchNode) {
 						return (
-							<div key={`${message.id}-webSearch-${partIndex}`}>{webSearchNode}</div>
+							<div key={`${message.id}-webSearch-${partIndex}`}>
+								{webSearchNode}
+							</div>
 						);
 					}
 
@@ -201,7 +203,9 @@ function MessagePartsRendererInner({
 					if (part.type.startsWith("tool-")) {
 						partKey = `tool-${(part as { toolCallId: string }).toolCallId}`;
 					} else if (part.type.startsWith("data-")) {
-						const dataPart = part as { data?: { attachment_id?: string; threadId?: string } };
+						const dataPart = part as {
+							data?: { attachment_id?: string; threadId?: string };
+						};
 						const dataId =
 							dataPart.data?.attachment_id ??
 							dataPart.data?.threadId ??
@@ -244,18 +248,12 @@ function MessagePartsRendererInner({
 							);
 						case "text":
 							return (
-								<MessageResponse key={partKey}>
-									{part.text}
-								</MessageResponse>
+								<MessageResponse key={partKey}>{part.text}</MessageResponse>
 							);
 						case "tool-generateIdeationBrief":
 						case "tool-generateAnalyticalRead":
 						case "tool-generatePlaybook":
-							return (
-								<div key={partKey}>
-									{renderPdfToolPart(part)}
-								</div>
-							);
+							return <div key={partKey}>{renderPdfToolPart(part)}</div>;
 						case "data-pdf-artifact": {
 							const config = PDF_DOC_CONFIGS[part.data.artifactType];
 							return (

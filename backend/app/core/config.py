@@ -142,6 +142,18 @@ class Settings(BaseSettings):
     # Monitoring
     SENTRY_DSN: str | None = None
 
+    # Chat Agent Skill Runtime
+    CHAT_SKILLS_RUNTIME: str = "pydantic-ai-skills"
+
+    @field_validator("CHAT_SKILLS_RUNTIME")
+    @classmethod
+    def validate_chat_skills_runtime(cls, v: str) -> str:
+        """Validate chat skills runtime selection."""
+        allowed = ["custom", "pydantic-ai-skills"]
+        if v not in allowed:
+            raise ValueError(f"CHAT_SKILLS_RUNTIME must be one of: {', '.join(allowed)}")
+        return v
+
     # Auth Flow Toggles
     AUTH_ENABLE_REGISTRATION: bool = False
     AUTH_ENABLE_PASSWORD_RESET: bool = False
