@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.agents.base_pdf_schema import BasePdfPayload
 from app.agents.shared_schema import PdfAttachmentOutput as PDFOutput  # noqa: F401
@@ -42,6 +42,18 @@ class AnalyticalTable(BaseModel):
             "flagging everything teaches the reader to ignore the highlight."
         ),
     )
+
+    @model_validator(mode="after")
+    def rows_must_match_headers(self) -> AnalyticalTable:
+        header_count = len(self.headers)
+        for row_index, row in enumerate(self.rows, start=1):
+            cell_count = len(row)
+            if cell_count != header_count:
+                raise ValueError(
+                    "table rows must match headers: "
+                    f"row {row_index} has {cell_count} cells but headers has {header_count}"
+                )
+        return self
 
 
 class EvidenceTag(BaseModel):
