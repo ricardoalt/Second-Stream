@@ -30,9 +30,14 @@ from app.agents.analytical_read_schema import (
     GapItem,
     GapSection,
 )
-from app.agents.ideation_brief_schema import IdeationBriefPayload, IdeationSection
+from app.agents.ideation_brief_schema import (
+    IdeationBriefPayload,
+    IdeationSection,
+    IdeationSubSection,
+)
 from app.agents.playbook_schema import PlaybookPayload, PlaybookTheme
 from app.agents.shared_schema import SafetyFlag
+from app.services.pdf_template_filters import configure_pdf_environment
 
 
 def _row(*values: str) -> list[Cell]:
@@ -80,7 +85,7 @@ def _analytical_payload(**overrides) -> AnalyticalReadPayload:
         "stream": "Spent Caustic — Gulf Coast",
         "date": "2026-04-25",
         "header_line": "Chevron — Gulf Coast Spent Caustic Portfolio · Baytown + Beaumont + Corpus Christi",
-        "gate_status": "CONDITIONALLY OPEN",
+        "gate_status": "OPEN_CONDITIONAL",
         "gate_blockers": ["Per-site volume split not stated", "Phenol result pending"],
         "executive_summary": "Three streams with distinct H2S profiles across two facilities.",
         "safety_callouts": [
@@ -202,7 +207,9 @@ def _playbook_payload(**overrides) -> PlaybookPayload:
 
 
 def _render_html(template_name: str, payload: object) -> str:
-    env = Environment(loader=FileSystemLoader(PDF_TEMPLATE_DIR), autoescape=True)
+    env = configure_pdf_environment(
+        Environment(loader=FileSystemLoader(PDF_TEMPLATE_DIR), autoescape=True)
+    )
     return env.get_template(template_name).render(payload=payload)
 
 
@@ -257,6 +264,152 @@ def test_analytical_read_template_renders_structured_sections():
     assert "Buyer archetype matrix" in html
     assert "~3,400 MT/month" in html
     assert "Required gaps and regulatory flags" in html
+
+
+def test_ideation_brief_template_converts_emoji_markers_to_professional_markers():
+    payload = _ideation_payload(
+        sections=[
+            IdeationSection(
+                title="Commercial angle",
+                lead="💡 Insight: Buyer fit is strongest in alkaline reuse.",
+                body=(
+                    "🔴 Red flag: H2S needs specialist handling. "
+                    "👉 Next step: validate volumes. "
+                    "✅ Fit: route as segregated stream. "
+                    "⚠️ Warning: do not blend. "
+                    "❌ Gap: latest COA missing."
+                ),
+                close="No emojis should remain in the rendered handover.",
+                emphasis="insight",
+            )
+        ],
+        strategic_insight="💡 Lead with segregation economics.",
+        markers_used=["insight", "caution", "gap"],
+    )
+
+    html = _render_html("ideation_brief.html.j2", payload)
+
+    for emoji in ("🔴", "👉", "✅", "⚠️", "⚠", "❌", "💡"):
+        assert emoji not in html
+    assert 'class="marker-insight"' in html
+    assert 'class="marker-caution"' in html
+    assert 'class="marker-gap"' in html
+    assert "Insight:" in html
+    assert "Caution:" in html
+    assert "Gap:" in html
+
+
+def test_ideation_brief_template_renders_structured_sub_sections():
+    payload = _ideation_payload(
+        gate_blockers=["Volume split pending", "Route economics need validation"],
+        sections=[
+            IdeationSection(
+                title="Commercial Shape",
+                lead="The opportunity is real, but it is not one stream.",
+                sub_sections=[
+                    IdeationSubSection(
+                        title="Segregate before pricing",
+                        lead="Treat the four sites as a portfolio, not a blend.",
+                        bullets=[
+                            "Preserve high-fit alkaline reuse material.",
+                            "Keep H2S-heavy material out of buyer qualification.",
+                        ],
+                        emphasis="insight",
+                    ),
+                    IdeationSubSection(
+                        label="B",
+                        title="Open risk",
+                        body="The missing volume split still blocks firm routing.",
+                        emphasis="gap",
+                    ),
+                ],
+                close="Assessment should validate the split first.",
+            )
+        ],
+    )
+
+    html = _render_html("ideation_brief.html.j2", payload)
+
+    assert 'class="section-h2"' in html
+    assert "A.</span>" in html
+    assert "B.</span>" in html
+    assert "Segregate before pricing" in html
+    assert "Preserve high-fit alkaline reuse material." in html
+    assert "The missing volume split still blocks firm routing." in html
+    assert "Volume split pending<br>Route economics need validation" in html
+
+
+def test_ideation_brief_template_renders_safety_callouts():
+    payload = _ideation_payload(
+        safety_callouts=[
+            SafetyFlag(
+                severity="specialist",
+                sub_stream="Site A",
+                description="H2S handling risk above normal thresholds",
+                intervention="Specialist review before routing",
+            )
+        ]
+    )
+
+    html = _render_html("ideation_brief.html.j2", payload)
+
+    assert "SAFETY FLAG — AMBER" in html
+    assert "Site A: H2S handling risk above normal thresholds" in html
+    assert "Specialist review before routing" in html
+
+
+def test_ideation_brief_template_supports_legacy_gate_blocker():
+    html = _render_html(
+        "ideation_brief.html.j2",
+        _ideation_payload(gate_blocker="Single blocker remains", gate_blockers=[]),
+    )
+
+    assert "Single blocker remains" in html
+
+
+def test_ideation_brief_template_still_renders_flat_payload():
+    html = _render_html("ideation_brief.html.j2", _ideation_payload())
+
+    assert "Four sites, four different streams." in html
+    assert "The opportunity requires segregation strategy." in html
+    assert '<h3 class="section-h2"' not in html
+
+
+def test_ideation_brief_template_does_not_duplicate_numbered_headings():
+    payload = _ideation_payload(
+        sections=[
+            IdeationSection(
+                title="1. Volume & Continuity",
+                lead="Four sites, four streams.",
+                body="Segregation strategy required.",
+            ),
+            IdeationSection(
+                title="2) Safety Profile",
+                lead="H2S risk present.",
+                body="Specialist handling required.",
+            ),
+        ]
+    )
+
+    html = _render_html("ideation_brief.html.j2", payload)
+
+    assert "1. Volume &amp; Continuity" in html
+    assert "2. Safety Profile" in html
+    assert "1. 1. Volume" not in html
+    assert "2. 2) Safety" not in html
+
+
+def test_ideation_brief_template_renders_professional_marker_legend():
+    html = _render_html(
+        "ideation_brief.html.j2",
+        _ideation_payload(markers_used=["insight", "caution", "gap"]),
+    )
+
+    assert "Marker legend" in html
+    assert "Commercial insight — the move that changes the deal" in html
+    assert "Caution — a nuance that changes routing or pricing" in html
+    assert "Gap — information needed before moving forward" in html
+    assert "💡" not in html
 
 
 def test_pdf_cover_uses_current_secondstream_logo_asset():

@@ -14,6 +14,8 @@ import structlog
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 
+from app.services.pdf_template_filters import configure_pdf_environment
+
 logger = structlog.get_logger(__name__)
 
 _TEMPLATE_DIR = Path(__file__).parent.parent / "prompts" / "pdf"
@@ -28,9 +30,11 @@ def render_pdf(template_name: str, payload: BaseModel) -> BytesIO:
     from weasyprint import HTML
 
     t0 = time.monotonic()
-    env = Environment(
-        loader=FileSystemLoader(str(_TEMPLATE_DIR)),
-        autoescape=True,
+    env = configure_pdf_environment(
+        Environment(
+            loader=FileSystemLoader(str(_TEMPLATE_DIR)),
+            autoescape=True,
+        )
     )
     html_content = env.get_template(template_name).render(payload=payload)
     buf = BytesIO()

@@ -1,5 +1,5 @@
 {% extends '_base.html.j2' %}
-{% from '_macros.html.j2' import cover_block, page_band_line_2, gate_callout, insight_callout, marker, marker_legend %}
+{% from '_macros.html.j2' import cover_block, page_band_line_2, gate_callout, safety_callout, insight_callout, marker, marker_legend %}
 
 {% block title %}SecondStream Ideation Brief — {{ payload.customer | e }}{% endblock %}
 {% block footer_left %}SecondStream · Discovery Agent v3{% endblock %}
@@ -9,10 +9,27 @@
 <style>
   /* ── Ideation Brief overrides — cover styles come from design/base.css ── */
   .ideation-brief .callout-gate {
-    margin: 6pt 0;
-    padding: 6pt 9pt;
+    margin: 5pt 0 11pt 0;
+    padding: 5pt 9pt;
     border: 0.75pt solid transparent;
     border-left-width: 3pt;
+  }
+
+  .ideation-brief .callout-safety {
+    margin: 5pt 0 8pt 0;
+    padding: 5pt 9pt;
+    border: 0.75pt solid var(--safety-amber);
+    border-left: 3pt solid var(--safety-amber);
+  }
+
+  .ideation-brief .callout-safety-red {
+    border-color: var(--safety-red);
+    border-left-color: var(--safety-red);
+  }
+
+  .ideation-brief .callout-safety-yellow {
+    border-color: var(--safety-yellow);
+    border-left-color: var(--safety-yellow);
   }
 
   .ideation-brief .callout-gate-amber {
@@ -28,11 +45,11 @@
   }
 
   .ideation-brief .section-block {
-    margin-bottom: 17pt;
+    margin-bottom: 12pt;
   }
 
   .ideation-brief .section-h1 {
-    margin: 17pt 0 7pt 0;
+    margin: 13pt 0 5pt 0;
     padding-bottom: 0;
     border-bottom: 0;
     font-size: 14pt;
@@ -48,30 +65,56 @@
   }
 
   .ideation-brief .body-lead {
-    margin-bottom: 4pt;
+    margin-bottom: 3pt;
     font-size: 9.5pt;
     line-height: 1.35;
   }
 
   .ideation-brief .body-text {
     font-size: 9.5pt;
-    line-height: 1.45;
+    line-height: 1.38;
     white-space: pre-line;
   }
 
+  .ideation-brief .subsection-block {
+    margin: 7pt 0 6pt 0;
+  }
+
+  .ideation-brief .section-h2 {
+    margin: 8pt 0 3pt 0;
+    font-size: 11pt;
+    line-height: 1.28;
+    color: var(--brand-secondary);
+  }
+
+  .ideation-brief .subsection-label {
+    color: var(--ink-muted);
+  }
+
+  .ideation-brief .subsection-bullets {
+    margin-top: 2pt;
+    font-size: 9pt;
+  }
+
   .ideation-brief .body-close {
-    margin-top: 3pt;
+    margin-top: 2pt;
     font-size: 9pt;
     line-height: 1.4;
   }
 
   .ideation-brief .insight-callout {
-    margin: 24pt 0 18pt 0;
+    margin: 16pt 0 12pt 0;
+    padding: 8pt 14pt;
     background: var(--paper-tint);
   }
 
+  .ideation-brief .insight-callout p {
+    font-size: 11pt;
+    line-height: 1.38;
+  }
+
   .ideation-brief .marker-legend {
-    margin-top: 10pt;
+    margin-top: 8pt;
   }
 </style>
 {% endblock %}
@@ -90,22 +133,54 @@
 
 {{ gate_callout(
     payload.gate_status,
-    payload.gate_blocker if payload.gate_blocker else "No qualification blockers identified."
+    payload.gate_blockers | join_gate_blockers
+      if payload.gate_blockers
+      else (payload.gate_blocker | professionalize_markers if payload.gate_blocker else "No qualification blockers identified.")
 ) }}
+
+{% if payload.safety_callouts %}
+<div style="margin-bottom:11pt;">
+  {% for flag in payload.safety_callouts %}
+  {% set safety_message = (flag.sub_stream ~ ": " ~ flag.description ~ (" — " ~ flag.intervention if flag.intervention else "")) | professionalize_markers %}
+  {{ safety_callout(flag.severity, safety_message) }}
+  {% endfor %}
+</div>
+{% endif %}
 
 {% for section in payload.sections %}
 <div class="section-block avoid-break">
   <h2 class="section-h1">
     {%- if section.emphasis %}{{ marker(section.emphasis) }} {% endif -%}
-    {{ loop.index }}. {{ section.title }}
+    {{ (section.title | section_heading(loop.index)) | professionalize_markers }}
   </h2>
-  <p class="body-lead">{{ section.lead }}</p>
-  <p class="body-text">{{ section.body }}</p>
-  {% if section.close %}<p class="body-close">{{ section.close }}</p>{% endif %}
+  {% if section.sub_sections %}
+    {% if section.lead %}<p class="body-lead">{{ section.lead | professionalize_markers }}</p>{% endif %}
+    {% if section.body %}<p class="body-text">{{ section.body | professionalize_markers }}</p>{% endif %}
+    {% for sub_section in section.sub_sections %}
+    <div class="subsection-block">
+      <h3 class="section-h2">
+        {%- if sub_section.emphasis %}{{ marker(sub_section.emphasis) }} {% endif -%}
+        <span class="subsection-label">{{ (sub_section.label if sub_section.label else loop.index | alpha_label) | professionalize_markers }}.</span>
+        {{ sub_section.title | professionalize_markers }}
+      </h3>
+      {% if sub_section.lead %}<p class="body-lead">{{ sub_section.lead | professionalize_markers }}</p>{% endif %}
+      {% if sub_section.body %}<p class="body-text">{{ sub_section.body | professionalize_markers }}</p>{% endif %}
+      {% if sub_section.bullets %}
+      <ul class="subsection-bullets">
+        {% for bullet in sub_section.bullets %}<li>{{ bullet | professionalize_markers }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+  {% if section.lead %}<p class="body-lead">{{ section.lead | professionalize_markers }}</p>{% endif %}
+  {% if section.body %}<p class="body-text">{{ section.body | professionalize_markers }}</p>{% endif %}
+  {% endif %}
+  {% if section.close %}<p class="body-close">{{ section.close | professionalize_markers }}</p>{% endif %}
 </div>
 {% endfor %}
 
-{{ insight_callout(payload.strategic_insight) }}
+{{ insight_callout(payload.strategic_insight | professionalize_markers) }}
 
 {% if payload.markers_used %}
 {{ marker_legend(payload.markers_used) }}
