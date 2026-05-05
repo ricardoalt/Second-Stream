@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     AI_PROPOSAL_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
     AI_IMAGE_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
     AI_DOCUMENT_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
-    AI_TEXT_MODEL: str = "bedrock:us.anthropic.claude-sonnet-4-6"
+    AI_TEXT_MODEL: str = "bedrock:us.anthropic.claude-opus-4-7"
 
     # AWS S3
     AWS_ACCESS_KEY_ID: str | None = None
