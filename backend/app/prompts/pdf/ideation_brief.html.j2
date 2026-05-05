@@ -55,6 +55,7 @@
     font-size: 14pt;
     line-height: 1.25;
     color: var(--brand-primary);
+    page-break-after: avoid;
   }
 
   .ideation-brief .section-h1 .marker-insight,
@@ -81,10 +82,11 @@
   }
 
   .ideation-brief .section-h2 {
-    margin: 8pt 0 3pt 0;
-    font-size: 11pt;
-    line-height: 1.28;
-    color: var(--brand-secondary);
+    margin: 7pt 0 2.5pt 0;
+    font-size: 10.5pt;
+    line-height: 1.22;
+    color: var(--ink);
+    page-break-after: avoid;
   }
 
   .ideation-brief .subsection-label {
@@ -148,7 +150,7 @@
 {% endif %}
 
 {% for section in payload.sections %}
-<div class="section-block avoid-break">
+<div class="section-block">
   <h2 class="section-h1">
     {%- if section.emphasis %}{{ marker(section.emphasis) }} {% endif -%}
     {{ (section.title | section_heading(loop.index)) | professionalize_markers }}
@@ -160,8 +162,7 @@
     <div class="subsection-block">
       <h3 class="section-h2">
         {%- if sub_section.emphasis %}{{ marker(sub_section.emphasis) }} {% endif -%}
-        <span class="subsection-label">{{ (sub_section.label if sub_section.label else loop.index | alpha_label) | professionalize_markers }}.</span>
-        {{ sub_section.title | professionalize_markers }}
+        {{ (sub_section.label | subsection_heading(sub_section.title, loop.index)) | professionalize_markers }}
       </h3>
       {% if sub_section.lead %}<p class="body-lead">{{ sub_section.lead | professionalize_markers }}</p>{% endif %}
       {% if sub_section.body %}<p class="body-text">{{ sub_section.body | professionalize_markers }}</p>{% endif %}

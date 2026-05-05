@@ -37,7 +37,7 @@ from app.agents.ideation_brief_schema import (
 )
 from app.agents.playbook_schema import PlaybookPayload, PlaybookTheme
 from app.agents.shared_schema import SafetyFlag
-from app.services.pdf_template_filters import configure_pdf_environment
+from app.services.pdf_template_filters import configure_pdf_environment, subsection_heading
 
 
 def _row(*values: str) -> list[Cell]:
@@ -436,12 +436,42 @@ def test_ideation_brief_template_renders_structured_sub_sections():
     html = _render_html("ideation_brief.html.j2", payload)
 
     assert 'class="section-h2"' in html
-    assert "A.</span>" in html
-    assert "B.</span>" in html
+    assert "A. Segregate before pricing" in html
+    assert "B. Open risk" in html
     assert "Segregate before pricing" in html
     assert "Preserve high-fit alkaline reuse material." in html
     assert "The missing volume split still blocks firm routing." in html
     assert "Volume split pending<br>Route economics need validation" in html
+
+
+def test_subsection_heading_deduplicates_alpha_labels():
+    assert subsection_heading(None, "A. The picture as it stands", 1) == "A. The picture as it stands"
+    assert subsection_heading(None, "B) Market dynamics", 2) == "B. Market dynamics"
+    assert subsection_heading("C", "C. Buyer fit", 3) == "C. Buyer fit"
+
+
+def test_ideation_brief_template_allows_large_sections_to_break_across_pages():
+    payload = _ideation_payload(
+        sections=[
+            IdeationSection(
+                title="Commercial Shape",
+                lead="The opportunity is real, but it is not one stream.",
+                sub_sections=[
+                    IdeationSubSection(title="A. The picture as it stands", body="Current read."),
+                    IdeationSubSection(label="B", title="B) Market dynamics", body="Market read."),
+                ],
+            )
+        ]
+    )
+
+    html = _render_html("ideation_brief.html.j2", payload)
+
+    assert 'class="section-block avoid-break"' not in html
+    assert 'class="section-block"' in html
+    assert "A. The picture as it stands" in html
+    assert "B. Market dynamics" in html
+    assert "A. A." not in html
+    assert "B. B" not in html
 
 
 def test_ideation_brief_template_renders_safety_callouts():
@@ -544,11 +574,12 @@ def test_playbook_single_theme():
     assert len(buf.read()) > 1024
 
 
-def test_playbook_template_renders_orientation_followups_and_killer_questions():
+def test_playbook_template_renders_orientation_followups_and_smart_questions_as_probes():
     html = _render_html("playbook.html.j2", _playbook_payload())
 
     assert "The killer questions are in Theme 11" in html
     assert "Ballpark is fine." in html
     assert "Smart Questions — The High-Impact Set" in html
-    assert "killer-question-box" in html
+    assert "killer-question-box" not in html
     assert "Can you give me a rough volume split" in html
+    assert html.count("Can you give me a rough volume split") == 1

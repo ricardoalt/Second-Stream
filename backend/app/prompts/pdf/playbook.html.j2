@@ -59,14 +59,6 @@
     color: var(--ink);
   }
 
-  .call-playbook .killer-question-box {
-    margin-top: 7pt;
-  }
-
-  .call-playbook .killer-question-box + .killer-question-box {
-    margin-top: 5pt;
-  }
-
   .call-playbook .why-it-matters {
     margin: 7pt 0 0 0;
     padding: 7pt 10pt 7pt 12pt;
@@ -130,15 +122,6 @@
 
   {% if theme.why_it_matters %}
   {{ why_it_matters_box(theme.why_it_matters) }}
-  {% endif %}
-
-  {% if theme.number == 11 and theme.probe_questions %}
-    {% for question in theme.probe_questions %}
-    <div class="killer-question-box">
-      <p class="kq-label">Smart question</p>
-      <p class="kq-text">{{ question }}</p>
-    </div>
-    {% endfor %}
   {% endif %}
 </div>
 {% endfor %}

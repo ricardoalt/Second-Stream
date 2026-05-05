@@ -214,41 +214,6 @@
   line-height: 1.4;
 }
 
-/* ── Killer question box (Executive Discovery) ───────────────────────────── */
-
-.killer-question-box {
-  border: 2pt solid var(--brand-primary);
-  border-radius: 3pt;
-  padding: var(--space-md) var(--space-lg);
-  margin: var(--space-sm) 0 var(--space-lg) 0;
-  background: var(--paper-tint);
-  page-break-inside: avoid;
-}
-
-.killer-question-box .kq-label {
-  font-size: var(--type-caption);
-  font-weight: bold;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--ink-muted);
-  margin: 0 0 4pt 0;
-}
-
-.killer-question-box .kq-text {
-  font-size: 12pt;
-  font-weight: bold;
-  color: var(--ink);
-  margin: 0 0 var(--space-xs) 0;
-  line-height: 1.4;
-}
-
-.killer-question-box .kq-why {
-  font-size: var(--type-caption);
-  color: var(--ink-muted);
-  font-style: italic;
-  margin: 0;
-}
-
 /* ── Follow-up questions ─────────────────────────────────────────────────── */
 
 .followup-item {

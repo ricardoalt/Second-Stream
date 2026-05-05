@@ -7,6 +7,7 @@ from jinja2 import Environment
 from markupsafe import Markup, escape
 
 _LEADING_NUMBER_RE = re.compile(r"^\s*(?:\d+[.)]\s+)+")
+_LEADING_ALPHA_RE = re.compile(r"^\s*(?:[A-Za-z]+[.)]\s+)+")
 _ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 _EMOJI_MARKER_REPLACEMENTS: tuple[tuple[re.Pattern[str], str], ...] = (
@@ -41,6 +42,13 @@ def section_heading(title: str, number: int) -> str:
     """Return one canonical numeric prefix for a section heading."""
     clean_title = _LEADING_NUMBER_RE.sub("", title).strip()
     return f"{number}. {clean_title}"
+
+
+def subsection_heading(label: str | None, title: str, index: int) -> str:
+    """Return one canonical alpha prefix for an ideation subsection heading."""
+    clean_label = (label or alpha_label(index)).strip().upper().rstrip(".)")
+    clean_title = _LEADING_ALPHA_RE.sub("", title).strip()
+    return f"{clean_label}. {clean_title}"
 
 
 def professionalize_markers(text: str | None) -> Markup:
@@ -78,6 +86,7 @@ def configure_pdf_environment(env: Environment) -> Environment:
     """Register shared filters used by PDF templates."""
     filters: dict[str, Callable[..., object]] = {
         "section_heading": section_heading,
+        "subsection_heading": subsection_heading,
         "professionalize_markers": professionalize_markers,
         "alpha_label": alpha_label,
         "join_gate_blockers": join_gate_blockers,
