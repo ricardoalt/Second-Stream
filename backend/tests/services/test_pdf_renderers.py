@@ -266,6 +266,111 @@ def test_analytical_read_template_renders_structured_sections():
     assert "Required gaps and regulatory flags" in html
 
 
+def test_analytical_read_template_renders_flexible_sections_with_attached_content():
+    payload = _analytical_payload(
+        tables=[],
+        evidence_tags=[],
+        narrative_sections=[],
+        gap_sections=[],
+        sections=[
+            AnalyticalSection(
+                title="Treatment fit by site",
+                lead="Corpus Christi is the cleanest first move.",
+                body="💡 Insight: Route this as segregated alkaline material before blending.",
+                bullets=[
+                    "Validate buyer sodium and sulfide acceptance.",
+                    "Keep Beaumont out of Phase 1.",
+                ],
+                close="Assessment should confirm the buyer gate before pricing.",
+                emphasis="insight",
+                table=AnalyticalTable(
+                    title="Embedded treatment matrix",
+                    headers=["Site", "Fit", "Reason"],
+                    rows=[
+                        _row("Corpus Christi", "Strong", "High alkalinity"),
+                        _row("Beaumont", "Weak", "Phenol pending"),
+                    ],
+                ),
+                evidence_tags=[
+                    EvidenceTag(
+                        tag="EV-SEC-01",
+                        title="Corpus Christi COA",
+                        description="Latest site-specific chemistry supports reuse screening.",
+                        confidence="HIGH",
+                    )
+                ],
+            )
+        ],
+    )
+
+    html = _render_html("analytical_read.html.j2", payload)
+
+    assert "1. Treatment fit by site" in html
+    assert 'class="marker-insight"' in html
+    assert "Corpus Christi is the cleanest first move." in html
+    assert "Insight:" in html
+    assert "Embedded treatment matrix" in html
+    assert "Validate buyer sodium and sulfide acceptance." in html
+    assert "[EV-SEC-01]" in html
+    assert "Assessment should confirm the buyer gate before pricing." in html
+    assert "💡" not in html
+
+
+def test_analytical_read_template_uses_legacy_path_when_flexible_sections_empty():
+    html = _render_html("analytical_read.html.j2", _analytical_payload(sections=[]))
+
+    assert "Per-site chemistry read" in html
+    assert "Treatment fit by site" in html
+    assert "Phase 1 — Portfolio disposal + partial reuse qualification." in html
+    assert "Required gaps and regulatory flags" in html
+    assert "Caustic C is gate-ready" in html
+
+
+def test_analytical_read_template_does_not_duplicate_numbered_flexible_headings():
+    payload = _analytical_payload(
+        tables=[],
+        narrative_sections=[],
+        gap_sections=[],
+        sections=[
+            AnalyticalSection(title="1. Per-site chemistry read", body="Chemistry varies by site."),
+            AnalyticalSection(title="2) Treatment fit", body="Fit depends on segregation."),
+        ],
+    )
+
+    html = _render_html("analytical_read.html.j2", payload)
+
+    assert "1. Per-site chemistry read" in html
+    assert "2. Treatment fit" in html
+    assert "1. 1. Per-site" not in html
+    assert "2. 2) Treatment" not in html
+
+
+def test_analytical_read_template_converts_professional_markers_in_narrative():
+    payload = _analytical_payload(
+        tables=[],
+        evidence_tags=[],
+        narrative_sections=[
+            AnalyticalSection(
+                title="4. Phased commercial scenarios",
+                body="🔴 Red flag: H2S handling changes routing. 👉 Next step: validate volumes.",
+                bullets=[
+                    "✅ Fit: start with segregated material.",
+                    "❌ Gap: phenol result missing.",
+                ],
+            )
+        ],
+    )
+
+    html = _render_html("analytical_read.html.j2", payload)
+
+    for emoji in ("🔴", "👉", "✅", "❌"):
+        assert emoji not in html
+    assert "Caution:" in html
+    assert "Implication:" in html
+    assert "Recommended:" in html
+    assert "Gap:" in html
+
+
 def test_ideation_brief_template_converts_emoji_markers_to_professional_markers():
     payload = _ideation_payload(
         sections=[

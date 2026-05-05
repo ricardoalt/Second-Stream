@@ -1,5 +1,31 @@
 {% extends '_base.html.j2' %}
-{% from '_macros.html.j2' import cover_block, page_band_line_2, gate_callout, safety_callout, insight_callout %}
+{% from '_macros.html.j2' import cover_block, page_band_line_2, gate_callout, safety_callout, insight_callout, marker %}
+
+{% macro render_analytical_table(table, show_title=false) -%}
+  {% if show_title %}<p class="table-title">{{ table.title | professionalize_markers }}</p>{% endif %}
+  <table class="analytical-table">
+    <thead>
+      <tr>
+        {% for header in table.headers %}<th>{{ header }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in table.rows %}
+      <tr>
+        {% for cell in row %}
+          <td{% if cell.emphasis != 'normal' %} class="cell-{{ cell.emphasis }}"{% endif %}>{{ cell.value }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{%- endmacro %}
+
+{% macro render_evidence_tags(evidence_tags) -%}
+  {% for ev in evidence_tags %}
+  <p class="evidence-item"><span class="evidence-tag">[{{ ev.tag }}] {{ ev.title | professionalize_markers }}:</span> {{ ev.description | professionalize_markers }}{% if ev.confidence %} <span class="confidence">Confidence: {{ ev.confidence }}</span>{% endif %}</p>
+  {% endfor %}
+{%- endmacro %}
 
 {% block title %}SecondStream Analytical Read — {{ payload.customer | e }}{% endblock %}
 {% block footer_left %}SecondStream · Discovery Agent v3{% endblock %}
@@ -9,18 +35,47 @@
 <style>
   /* ── Analytical Read overrides — cover styles come from design/base.css ── */
   .analytical-read .section-h1 {
-    font-size: 15pt;
+    font-size: 14pt;
+    line-height: 1.25;
     font-weight: bold;
     color: var(--brand-primary);
-    margin: 20pt 0 6pt 0;
+    margin: 13pt 0 5pt 0;
     padding-bottom: 0;
     border-bottom: 0;
     page-break-after: avoid;
   }
 
+  .analytical-read .section-h1 .marker-insight,
+  .analytical-read .section-h1 .marker-caution,
+  .analytical-read .section-h1 .marker-gap {
+    font-size: 10pt;
+    margin-right: 3pt;
+  }
+
+  .analytical-read .section-block {
+    margin-bottom: 12pt;
+  }
+
   .analytical-read .body-text {
+    font-size: 9.5pt;
     line-height: 1.4;
     margin: 0 0 6pt 0;
+    white-space: pre-line;
+  }
+
+  .analytical-read .body-close {
+    margin: 2pt 0 6pt 0;
+    font-size: 9pt;
+    line-height: 1.4;
+    font-style: italic;
+    color: var(--ink-muted);
+  }
+
+  .analytical-read .table-title {
+    margin: 6pt 0 2pt 0;
+    font-size: 9pt;
+    font-weight: bold;
+    color: var(--brand-secondary);
   }
 
   .analytical-read .analytical-table {
@@ -78,6 +133,7 @@
   .analytical-read .section-lead {
     margin: 0 0 6pt 0;
     font-size: 9.5pt;
+    line-height: 1.35;
     font-weight: bold;
     color: var(--ink);
   }
@@ -115,7 +171,7 @@
   .analytical-read .narrative-bullets {
     margin: 2pt 0 0 0;
     padding-left: 13pt;
-    font-size: 8.5pt;
+    font-size: 9pt;
     color: var(--ink-muted);
   }
 </style>
@@ -134,15 +190,20 @@
 ) }}
 
 {% if payload.gate_status %}
-{{ gate_callout(payload.gate_status, payload.gate_blockers | join(' ') if payload.gate_blockers else payload.executive_summary) }}
+{{ gate_callout(
+    payload.gate_status,
+    payload.gate_blockers | join_gate_blockers
+      if payload.gate_blockers
+      else payload.executive_summary | professionalize_markers
+) }}
 {% endif %}
 
 {% if payload.safety_callouts %}
 <div style="margin-bottom:14pt;">
   {% for flag in payload.safety_callouts %}
-  {% set safety_message = (flag.sub_stream ~ ": " ~ flag.description ~ (" — " ~ flag.intervention if flag.intervention else ""))
+  {% set safety_message = ((flag.sub_stream ~ ": " ~ flag.description ~ (" — " ~ flag.intervention if flag.intervention else ""))
       | replace('H&lt;sub&gt;2&lt;/sub&gt;S', 'H₂S')
-      | replace('H&amp;lt;sub&amp;gt;2&amp;lt;/sub&amp;gt;S', 'H₂S') %}
+      | replace('H&amp;lt;sub&amp;gt;2&amp;lt;/sub&amp;gt;S', 'H₂S')) | professionalize_markers %}
   {{ safety_callout(
       flag.severity,
       safety_message
@@ -151,56 +212,58 @@
 </div>
 {% endif %}
 
+{% if payload.sections %}
+  {% for section in payload.sections %}
+  <div class="section-block avoid-break">
+    <h2 class="section-h1">
+      {%- if section.emphasis %}{{ marker(section.emphasis) }} {% endif -%}
+      {{ (section.title | section_heading(loop.index)) | professionalize_markers }}
+    </h2>
+    {% if section.lead %}<p class="section-lead">{{ section.lead | professionalize_markers }}</p>{% endif %}
+    {% if section.body %}<p class="body-text">{{ section.body | professionalize_markers }}</p>{% endif %}
+    {% if section.table %}{{ render_analytical_table(section.table, true) }}{% endif %}
+    {% if section.bullets %}
+    <ul class="narrative-bullets">
+      {% for item in section.bullets %}<li>{{ item | professionalize_markers }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if section.evidence_tags %}{{ render_evidence_tags(section.evidence_tags) }}{% endif %}
+    {% if section.close %}<p class="body-close">{{ section.close | professionalize_markers }}</p>{% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+
 {% if not payload.tables %}
 <div class="avoid-break" style="margin-bottom:12pt;">
   <h2 class="section-h1">Executive Summary</h2>
-  <p class="body-text">{{ payload.executive_summary }}</p>
+  <p class="body-text">{{ payload.executive_summary | professionalize_markers }}</p>
 </div>
 {% endif %}
 
 {% for table in payload.tables %}
 <div class="avoid-break" style="margin-bottom:14pt;">
-  <h2 class="section-h1">{{ table.title }}</h2>
-  <table class="analytical-table">
-    <thead>
-      <tr>
-        {% for header in table.headers %}<th>{{ header }}</th>{% endfor %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in table.rows %}
-      <tr>
-        {% for cell in row %}
-          <td{% if cell.emphasis != 'normal' %} class="cell-{{ cell.emphasis }}"{% endif %}>{{ cell.value }}</td>
-        {% endfor %}
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <h2 class="section-h1">{{ table.title | professionalize_markers }}</h2>
+  {{ render_analytical_table(table) }}
 </div>
 {% if loop.index == 1 and payload.evidence_tags %}
 <div class="avoid-break" style="margin-bottom:14pt;">
-  {% for ev in payload.evidence_tags %}
-  <p class="evidence-item"><span class="evidence-tag">[{{ ev.tag }}] {{ ev.title }}:</span> {{ ev.description }}{% if ev.confidence %} <span class="confidence">Confidence: {{ ev.confidence }}</span>{% endif %}</p>
-  {% endfor %}
+  {{ render_evidence_tags(payload.evidence_tags) }}
 </div>
 {% endif %}
 {% endfor %}
 
 {% if not payload.tables and payload.evidence_tags %}
 <div class="avoid-break" style="margin-bottom:14pt;">
-  {% for ev in payload.evidence_tags %}
-  <p class="evidence-item"><span class="evidence-tag">[{{ ev.tag }}] {{ ev.title }}:</span> {{ ev.description }}{% if ev.confidence %} <span class="confidence">Confidence: {{ ev.confidence }}</span>{% endif %}</p>
-  {% endfor %}
+  {{ render_evidence_tags(payload.evidence_tags) }}
 </div>
 {% endif %}
 
 {% for section in payload.narrative_sections %}
 <div class="avoid-break" style="margin-bottom:14pt;">
-  <h2 class="section-h1">{{ section.title }}</h2>
-  {% if section.body %}<p class="narrative-item">{{ section.body }}</p>{% endif %}
+  <h2 class="section-h1">{{ section.title | professionalize_markers }}</h2>
+  {% if section.body %}<p class="narrative-item">{{ section.body | professionalize_markers }}</p>{% endif %}
   {% if section.bullets %}
-  <ul class="narrative-bullets">{% for item in section.bullets %}<li>{{ item }}</li>{% endfor %}</ul>
+  <ul class="narrative-bullets">{% for item in section.bullets %}<li>{{ item | professionalize_markers }}</li>{% endfor %}</ul>
   {% endif %}
 </div>
 {% endfor %}
@@ -209,13 +272,15 @@
 <div class="avoid-break" style="margin-bottom:14pt;">
   <h2 class="section-h1">Required gaps and regulatory flags for Assessment</h2>
   {% for section in payload.gap_sections %}
-  <p class="gap-group-title">{{ section.title }}</p>
-  {% for gap in section.items %}<p class="gap-item"><span class="gap-label">{{ gap.label }}:</span> {{ gap.detail }}</p>{% endfor %}
+  <p class="gap-group-title">{{ section.title | professionalize_markers }}</p>
+  {% for gap in section.items %}<p class="gap-item"><span class="gap-label">{{ gap.label | professionalize_markers }}:</span> {{ gap.detail | professionalize_markers }}</p>{% endfor %}
   {% endfor %}
 </div>
 {% endif %}
 
-{{ insight_callout(payload.strategic_insight) }}
+{% endif %}
+
+{{ insight_callout(payload.strategic_insight | professionalize_markers) }}
 
 </div>
 

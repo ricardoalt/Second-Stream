@@ -67,8 +67,13 @@ class EvidenceTag(BaseModel):
 
 class AnalyticalSection(BaseModel):
     title: str
+    lead: str | None = None
     body: str = ""
     bullets: list[str] = Field(default_factory=list)
+    close: str | None = None
+    emphasis: Literal["insight", "caution", "gap"] | None = None
+    table: AnalyticalTable | None = None
+    evidence_tags: list[EvidenceTag] = Field(default_factory=list)
 
 
 class GapItem(BaseModel):
@@ -96,6 +101,14 @@ class AnalyticalReadPayload(BasePdfPayload):
         description="Ordered analytical tables such as chemistry matrix, treatment fit, buyer matrix, and sizing.",
     )
     evidence_tags: list[EvidenceTag] = Field(default_factory=list)
+    sections: list[AnalyticalSection] = Field(
+        default_factory=list,
+        description=(
+            "Optional flexible consulting-memo sections. When present, PDF rendering "
+            "uses this ordered path so narrative, table, bullets, close, and evidence "
+            "can stay attached to the section they support."
+        ),
+    )
     narrative_sections: list[AnalyticalSection] = Field(
         default_factory=list,
         description="Ordered narrative sections such as phased commercial scenarios or routing logic.",
