@@ -259,6 +259,14 @@ def test_analytical_read_template_renders_structured_sections():
     assert "Required gaps and regulatory flags" in html
 
 
+def test_pdf_cover_uses_current_secondstream_logo_asset():
+    """The agent PDFs should use the canonical frontend brand logo."""
+    frontend_logo = Path(__file__).resolve().parents[3] / "frontend" / "public" / "3.svg"
+    pdf_logo = PDF_TEMPLATE_DIR / "assets" / "secondstream_logo.svg"
+
+    assert pdf_logo.read_text() == frontend_logo.read_text()
+
+
 @requires_weasyprint
 def test_playbook_renders_pdf():
     from app.services.pdf_renderer import render_playbook
