@@ -68,8 +68,8 @@ ul ul > li::before { content: "\2013"; }
    per-page header strings consumed by @top-left / @top-right in _base.html.j2. */
 .cover-block { margin-bottom: var(--space-xl); page-break-inside: avoid; }
 .cover-topline { width: 100%; border-collapse: collapse; margin-bottom: var(--space-sm); }
-.cover-logo-cell { width: 124pt; padding: 0; vertical-align: top; }
-.cover-logo-cell img { width: 112pt; height: auto; }
+.cover-logo-cell { width: 164pt; padding: 0; vertical-align: top; }
+.cover-logo-cell img { width: 150pt; height: auto; }
 .cover-heading-cell { padding: 0; vertical-align: top; }
 
 .cover-header-line-1 {
