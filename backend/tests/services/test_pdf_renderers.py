@@ -490,7 +490,11 @@ def test_ideation_brief_template_renders_structured_sub_sections():
                     IdeationSubSection(
                         label="B",
                         title="Open risk",
-                        body="The missing volume split still blocks firm routing.",
+                        body="🔴 Red flag: The missing volume split still blocks firm routing.",
+                        bullets=[
+                            "💡 Insight: Price the cleanest lane first.",
+                            "❌ Gap: Latest COA missing before buyer qualification.",
+                        ],
                         emphasis="gap",
                     ),
                 ],
@@ -508,6 +512,11 @@ def test_ideation_brief_template_renders_structured_sub_sections():
     assert "Segregate before pricing" in html
     assert "Preserve high-fit alkaline reuse material." in html
     assert "The missing volume split still blocks firm routing." in html
+    assert 'class="marker-insight"' in html
+    assert 'class="marker-caution"' in html
+    assert 'class="marker-gap"' in html
+    for emoji in ("🔴", "💡", "❌"):
+        assert emoji not in html
     assert "Volume split pending<br>Route economics need validation" in html
 
 
