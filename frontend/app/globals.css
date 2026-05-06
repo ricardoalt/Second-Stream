@@ -333,6 +333,65 @@
 	--badge-info-bg: color-mix(in oklch, var(--info) 28%, var(--background));
 	--badge-info-text: oklch(0.26 0.12 238);
 	--badge-info-border: color-mix(in oklch, var(--info) 52%, transparent);
+
+	--auth-water-tint-primary: oklch(0.6 0.16 175 / 0.3);
+	--auth-water-tint-secondary: oklch(0.6 0.16 175 / 0.2);
+	--auth-water-tint-tertiary: oklch(0.6 0.16 175 / 0.15);
+	--auth-glow-strong: oklch(0.6 0.16 175);
+	--auth-glow-medium: oklch(0.6 0.16 175 / 0.8);
+	--auth-glow-subtle: oklch(0.6 0.16 175 / 0.7);
+	--auth-glow-muted: oklch(0.6 0.16 175 / 0.6);
+	--auth-glow-soft: oklch(0.6 0.16 175 / 0.5);
+}
+
+/* ── Login Theme — DSR-inspired blue accent, scoped to /login only ── */
+.auth-blue-theme {
+	--surface-tint: oklch(0.62 0.16 220);
+	--surface-elevated: color-mix(
+		in oklch,
+		var(--surface-bright) 92%,
+		oklch(0.62 0.16 220) 8%
+	);
+
+	--primary: oklch(0.62 0.16 220);
+	--primary-foreground: oklch(0.99 0.003 220);
+	--primary-container: oklch(0.42 0.13 230);
+	--primary-fixed: oklch(0.86 0.08 220);
+	--primary-fixed-dim: oklch(0.74 0.1 220);
+	--inverse-primary: oklch(0.82 0.09 220);
+
+	--accent: oklch(0.91 0.024 220);
+	--ring: oklch(0.62 0.16 220);
+	--focus-ring: 0 0 0 3px oklch(0.62 0.16 220 / 0.2);
+
+	--gradient-primary: linear-gradient(
+		135deg,
+		oklch(0.42 0.13 230) 0%,
+		oklch(0.62 0.16 220) 100%
+	);
+	--gradient-hero: linear-gradient(
+		135deg,
+		oklch(0.34 0.11 235) 0%,
+		oklch(0.48 0.13 225) 50%,
+		oklch(0.62 0.16 220) 100%
+	);
+
+	--badge-primary-bg: color-mix(
+		in oklch,
+		var(--primary) 26%,
+		var(--background)
+	);
+	--badge-primary-text: oklch(0.3 0.12 230);
+	--badge-primary-border: color-mix(in oklch, var(--primary) 50%, transparent);
+
+	--auth-water-tint-primary: oklch(0.62 0.16 220 / 0.3);
+	--auth-water-tint-secondary: oklch(0.62 0.16 220 / 0.2);
+	--auth-water-tint-tertiary: oklch(0.62 0.16 220 / 0.15);
+	--auth-glow-strong: oklch(0.62 0.16 220);
+	--auth-glow-medium: oklch(0.62 0.16 220 / 0.8);
+	--auth-glow-subtle: oklch(0.62 0.16 220 / 0.7);
+	--auth-glow-muted: oklch(0.62 0.16 220 / 0.6);
+	--auth-glow-soft: oklch(0.62 0.16 220 / 0.5);
 }
 
 /* ── Chat Theme — DSR-inspired blue accent, scoped to /chat only ── */

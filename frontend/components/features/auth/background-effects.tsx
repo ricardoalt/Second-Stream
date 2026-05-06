@@ -50,9 +50,9 @@ const ANIMATION_CONFIG = {
 const COLORS = {
 	// Water tints (very subtle, for overlays)
 	waterTint: {
-		primary: "oklch(0.60 0.16 175 / 0.3)",
-		secondary: "oklch(0.60 0.16 175 / 0.2)",
-		tertiary: "oklch(0.60 0.16 175 / 0.15)",
+		primary: "var(--auth-water-tint-primary)",
+		secondary: "var(--auth-water-tint-secondary)",
+		tertiary: "var(--auth-water-tint-tertiary)",
 	},
 	// Grid and effects
 	grid: "oklch(1 0 0 / 0.06)",

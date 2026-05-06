@@ -59,105 +59,107 @@ export default function LoginPage() {
 	};
 
 	return (
-		<AuthLayout
-			title="Welcome back"
-			subtitle="Sign in with the credentials provided by your admin"
-			footer={
-				<div className="text-center text-sm text-muted-foreground">
-					Accounts are created by your organization admin. If you need access or
-					forgot your password, please contact your admin.
-				</div>
-			}
-		>
-			<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-				{authError ? (
-					<Alert variant="destructive">
-						<AlertCircle className="h-4 w-4" aria-hidden="true" />
-						<AlertDescription>{authError}</AlertDescription>
-					</Alert>
-				) : null}
-
-				{/* Email Field */}
-				<AuthFormField
-					label="Email"
-					htmlFor="email"
-					error={errors.email}
-					required
-				>
-					<div className="relative">
-						<Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-						<Input
-							id="email"
-							type="email"
-							placeholder="you@company.com"
-							className="h-11 pl-10"
-							disabled={isLoading}
-							{...emailField}
-						/>
+		<div className="auth-blue-theme">
+			<AuthLayout
+				title="Welcome back"
+				subtitle="Sign in with the credentials provided by your admin"
+				footer={
+					<div className="text-center text-sm text-muted-foreground">
+						Accounts are created by your organization admin. If you need access
+						or forgot your password, please contact your admin.
 					</div>
-				</AuthFormField>
+				}
+			>
+				<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+					{authError ? (
+						<Alert variant="destructive">
+							<AlertCircle className="h-4 w-4" aria-hidden="true" />
+							<AlertDescription>{authError}</AlertDescription>
+						</Alert>
+					) : null}
 
-				{/* Password Field */}
-				<AuthFormField
-					label="Password"
-					htmlFor="password"
-					error={errors.password}
-					required
-				>
-					<SimplePasswordInput
-						id="password"
-						placeholder="Enter your password"
-						className="h-11"
-						disabled={isLoading}
-						{...passwordField}
-					/>
-				</AuthFormField>
-
-				{/* Remember Me & Forgot Password */}
-				<div className="flex items-center justify-between">
-					<div className="flex items-center space-x-2">
-						<Checkbox
-							id="rememberMe"
-							disabled={isLoading}
-							{...register("rememberMe")}
-						/>
-						<label
-							htmlFor="rememberMe"
-							className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-						>
-							Remember me
-						</label>
-					</div>
-
-					<span className="text-xs text-muted-foreground">
-						Forgot your password? Ask your admin to reset it.
-					</span>
-				</div>
-
-				{/* Submit Button */}
-				<motion.div
-					whileHover={{ scale: isLoading ? 1 : 1.01 }}
-					whileTap={{ scale: isLoading ? 1 : 0.99 }}
-				>
-					<Button
-						type="submit"
-						className="w-full h-11 text-base font-medium"
-						disabled={isLoading}
+					{/* Email Field */}
+					<AuthFormField
+						label="Email"
+						htmlFor="email"
+						error={errors.email}
+						required
 					>
-						{isLoading ? (
-							<>
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								Signing in...
-							</>
-						) : (
-							<>
-								Sign in
-								<ArrowRight className="ml-2 h-4 w-4" />
-							</>
-						)}
-					</Button>
-				</motion.div>
-			</form>
-		</AuthLayout>
+						<div className="relative">
+							<Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+							<Input
+								id="email"
+								type="email"
+								placeholder="you@company.com"
+								className="h-11 pl-10"
+								disabled={isLoading}
+								{...emailField}
+							/>
+						</div>
+					</AuthFormField>
+
+					{/* Password Field */}
+					<AuthFormField
+						label="Password"
+						htmlFor="password"
+						error={errors.password}
+						required
+					>
+						<SimplePasswordInput
+							id="password"
+							placeholder="Enter your password"
+							className="h-11"
+							disabled={isLoading}
+							{...passwordField}
+						/>
+					</AuthFormField>
+
+					{/* Remember Me & Forgot Password */}
+					<div className="flex items-center justify-between">
+						<div className="flex items-center space-x-2">
+							<Checkbox
+								id="rememberMe"
+								disabled={isLoading}
+								{...register("rememberMe")}
+							/>
+							<label
+								htmlFor="rememberMe"
+								className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+							>
+								Remember me
+							</label>
+						</div>
+
+						<span className="text-xs text-muted-foreground">
+							Forgot your password? Ask your admin to reset it.
+						</span>
+					</div>
+
+					{/* Submit Button */}
+					<motion.div
+						whileHover={{ scale: isLoading ? 1 : 1.01 }}
+						whileTap={{ scale: isLoading ? 1 : 0.99 }}
+					>
+						<Button
+							type="submit"
+							className="w-full h-11 text-base font-medium"
+							disabled={isLoading}
+						>
+							{isLoading ? (
+								<>
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+									Signing in...
+								</>
+							) : (
+								<>
+									Sign in
+									<ArrowRight className="ml-2 h-4 w-4" />
+								</>
+							)}
+						</Button>
+					</motion.div>
+				</form>
+			</AuthLayout>
+		</div>
 	);
 }
