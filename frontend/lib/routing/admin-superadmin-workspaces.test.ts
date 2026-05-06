@@ -11,6 +11,9 @@ const adminPageSource = readFileSync(
 	join(process.cwd(), "app", "admin", "page.tsx"),
 	"utf8",
 );
+
+const homePageSource = readFileSync(join(process.cwd(), "app", "page.tsx"), "utf8");
+
 const adminTeamPageSource = readFileSync(
 	join(process.cwd(), "app", "admin", "team", "page.tsx"),
 	"utf8",
@@ -56,7 +59,7 @@ const orgAdminOffersPageSource = readFileSync(
 const legacyWorkspaceRedirectMappings = [
 	{
 		filePath: ["app", "admin", "workspace", "page.tsx"],
-		expectedRedirect: 'redirect("/dashboard")',
+		expectedRedirect: 'redirect("/chat")',
 	},
 	{
 		filePath: ["app", "admin", "workspace", "team", "page.tsx"],
@@ -118,7 +121,7 @@ const legacyRedirectMappings = [
 
 describe("org-admin guard behavior", () => {
 	it("keeps legacy /org-admin routes redirected to /admin family", () => {
-		expect(orgAdminPageSource.includes('redirect("/dashboard")')).toBe(true);
+		expect(orgAdminPageSource.includes('redirect("/chat")')).toBe(true);
 		expect(orgAdminTeamPageSource.includes('redirect("/settings/team")')).toBe(
 			true,
 		);
@@ -159,11 +162,15 @@ describe("shared admin guard behavior", () => {
 			getPostAuthLandingPath({ role: "field_agent", isSuperuser: false }),
 		).toBe("/chat");
 	});
+
+	it("keeps root entry aligned with post-auth chat landing", () => {
+		expect(homePageSource.includes('redirect("/chat")')).toBe(true);
+	});
 });
 
 describe("admin entry route", () => {
-	it("redirects obsolete /admin workspace entry to shared dashboard", () => {
-		expect(adminPageSource.includes('redirect("/dashboard")')).toBe(true);
+	it("redirects obsolete /admin workspace entry to chat landing", () => {
+		expect(adminPageSource.includes('redirect("/chat")')).toBe(true);
 		expect(adminTeamPageSource.includes('redirect("/settings/team")')).toBe(
 			true,
 		);
@@ -221,12 +228,14 @@ describe("admin-first dashboard and navigation", () => {
 		expect(fieldAgentNav).toEqual([
 			"/dashboard",
 			"/streams",
+			"/leads",
 			"/clients",
 			"/offers",
 		]);
 		expect(orgAdminNav).toEqual([
 			"/dashboard",
 			"/streams",
+			"/leads",
 			"/clients",
 			"/offers",
 			"/settings/team",
@@ -234,6 +243,7 @@ describe("admin-first dashboard and navigation", () => {
 		expect(superadminNav).toEqual([
 			"/dashboard",
 			"/streams",
+			"/leads",
 			"/clients",
 			"/offers",
 			"/settings/team",

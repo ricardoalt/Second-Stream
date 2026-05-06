@@ -7,5 +7,5 @@ export default function LegacyOrgAdminLayout({
 	children: ReactNode;
 }) {
 	void children;
-	redirect("/dashboard");
+	redirect("/chat");
 }
