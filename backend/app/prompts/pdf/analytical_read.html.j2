@@ -22,9 +22,11 @@
 {%- endmacro %}
 
 {% macro render_evidence_tags(evidence_tags) -%}
+  <ul class="evidence-list">
   {% for ev in evidence_tags %}
-  <p class="evidence-item"><span class="evidence-tag">[{{ ev.tag }}] {{ ev.title | professionalize_markers }}:</span> {{ ev.description | professionalize_markers }}{% if ev.confidence %} <span class="confidence">Confidence: {{ ev.confidence }}</span>{% endif %}</p>
+    <li class="evidence-item"><span class="evidence-tag">[{{ ev.tag }}] {{ ev.title | professionalize_markers }}:</span> {{ ev.description | professionalize_markers }}{% if ev.confidence %} <span class="confidence">Confidence: {{ ev.confidence }}</span>{% endif %}</li>
   {% endfor %}
+  </ul>
 {%- endmacro %}
 
 {% block title %}SecondStream Analytical Read — {{ payload.customer | e }}{% endblock %}
@@ -34,6 +36,14 @@
 {% block head_extra %}
 <style>
   /* ── Analytical Read overrides — cover styles come from design/base.css ── */
+  .analytical-read .cover-title {
+    font-size: 22pt;
+  }
+
+  .analytical-read .cover-block {
+    margin-bottom: 16pt;
+  }
+
   .analytical-read .section-h1 {
     font-size: 14pt;
     line-height: 1.25;
@@ -85,20 +95,21 @@
     border-collapse: collapse;
   }
   .analytical-read .analytical-table thead th {
-    padding: 3pt 5pt;
+    padding: 2pt 4pt;
     font-size: 8pt;
   }
   .analytical-read .analytical-table tbody td {
-    padding: 3pt 5pt;
+    padding: 2pt 4pt;
     font-size: 8pt;
+    line-height: 1.25;
   }
 
   .analytical-read .callout-gate,
   .analytical-read .callout-safety {
     border: 0.75pt solid var(--gate-amber);
     border-left: 3pt solid var(--gate-amber);
-    margin: 6pt 0;
-    padding: 7pt 10pt;
+    margin: 4pt 0;
+    padding: 5pt 8pt;
   }
 
   .analytical-read .callout-gate-closed {
@@ -117,8 +128,8 @@
   }
 
   .analytical-read .insight-callout {
-    margin: 16pt 0;
-    padding: 10pt 14pt;
+    margin: 10pt 0;
+    padding: 8pt 12pt;
     background: #EAF2FB;
   }
   .analytical-read .insight-callout p {
@@ -138,6 +149,13 @@
     color: var(--ink);
   }
 
+  .analytical-read .evidence-list {
+    margin: 2pt 0 0 0;
+    padding-left: 13pt;
+    font-size: 9pt;
+    color: var(--ink);
+  }
+
   .analytical-read .evidence-item,
   .analytical-read .gap-item,
   .analytical-read .narrative-item {
@@ -145,6 +163,11 @@
     font-size: 9pt;
     line-height: 1.4;
     color: var(--ink);
+  }
+
+  .analytical-read .evidence-item {
+    margin-bottom: 2pt;
+    line-height: 1.35;
   }
 
   .analytical-read .evidence-tag,
@@ -214,7 +237,7 @@
 
 {% if payload.sections %}
   {% for section in payload.sections %}
-  <div class="section-block avoid-break">
+  <div class="section-block">
     <h2 class="section-h1">
       {%- if section.emphasis %}{{ marker(section.emphasis) }} {% endif -%}
       {{ (section.title | section_heading(loop.index)) | professionalize_markers }}
@@ -231,35 +254,35 @@
     {% if section.close %}<p class="body-close">{{ section.close | professionalize_markers }}</p>{% endif %}
   </div>
   {% endfor %}
-{% else %}
+{% endif %}
 
-{% if not payload.tables %}
-<div class="avoid-break" style="margin-bottom:12pt;">
+{% if not payload.sections and not payload.tables %}
+<div style="margin-bottom:12pt;">
   <h2 class="section-h1">Executive Summary</h2>
   <p class="body-text">{{ payload.executive_summary | professionalize_markers }}</p>
 </div>
 {% endif %}
 
 {% for table in payload.tables %}
-<div class="avoid-break" style="margin-bottom:14pt;">
-  <h2 class="section-h1">{{ table.title | professionalize_markers }}</h2>
+<div style="margin-bottom:14pt;">
+  <p class="table-title">{{ table.title | professionalize_markers }}</p>
   {{ render_analytical_table(table) }}
 </div>
 {% if loop.index == 1 and payload.evidence_tags %}
-<div class="avoid-break" style="margin-bottom:14pt;">
+<div style="margin-bottom:14pt;">
   {{ render_evidence_tags(payload.evidence_tags) }}
 </div>
 {% endif %}
 {% endfor %}
 
 {% if not payload.tables and payload.evidence_tags %}
-<div class="avoid-break" style="margin-bottom:14pt;">
+<div style="margin-bottom:14pt;">
   {{ render_evidence_tags(payload.evidence_tags) }}
 </div>
 {% endif %}
 
 {% for section in payload.narrative_sections %}
-<div class="avoid-break" style="margin-bottom:14pt;">
+<div style="margin-bottom:14pt;">
   <h2 class="section-h1">{{ section.title | professionalize_markers }}</h2>
   {% if section.body %}<p class="narrative-item">{{ section.body | professionalize_markers }}</p>{% endif %}
   {% if section.bullets %}
@@ -269,15 +292,13 @@
 {% endfor %}
 
 {% if payload.gap_sections %}
-<div class="avoid-break" style="margin-bottom:14pt;">
+<div style="margin-bottom:14pt;">
   <h2 class="section-h1">Required gaps and regulatory flags for Assessment</h2>
   {% for section in payload.gap_sections %}
   <p class="gap-group-title">{{ section.title | professionalize_markers }}</p>
   {% for gap in section.items %}<p class="gap-item"><span class="gap-label">{{ gap.label | professionalize_markers }}:</span> {{ gap.detail | professionalize_markers }}</p>{% endfor %}
   {% endfor %}
 </div>
-{% endif %}
-
 {% endif %}
 
 {{ insight_callout(payload.strategic_insight | professionalize_markers) }}

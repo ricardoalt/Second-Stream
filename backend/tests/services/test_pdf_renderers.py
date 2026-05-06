@@ -5,6 +5,7 @@ Tests are skipped when those are not present (dev machine without brew deps).
 Run these in Docker via `make test-file FILE=tests/services/test_pdf_renderers.py`.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -259,7 +260,11 @@ def test_analytical_read_template_renders_structured_sections():
 
     assert "QUALIFICATION GATE" in html
     assert "Per-site chemistry read" in html
+    assert re.search(r'<p class="table-title">1\. Per-site chemistry read</p>', html)
+    assert not re.search(r'<h2 class="section-h1">\s*1\. Per-site chemistry read\s*</h2>', html)
     assert "[EV-01]" in html
+    assert '<ul class="evidence-list">' in html
+    assert '<li class="evidence-item"><span class="evidence-tag">[EV-01] Baytown COA:</span>' in html
     assert "Treatment fit by site" in html
     assert "Buyer archetype matrix" in html
     assert "~3,400 MT/month" in html
@@ -312,8 +317,69 @@ def test_analytical_read_template_renders_flexible_sections_with_attached_conten
     assert "Embedded treatment matrix" in html
     assert "Validate buyer sodium and sulfide acceptance." in html
     assert "[EV-SEC-01]" in html
+    assert '<ul class="evidence-list">' in html
     assert "Assessment should confirm the buyer gate before pricing." in html
     assert "💡" not in html
+
+
+def test_analytical_read_template_renders_mixed_flexible_and_legacy_content_once():
+    payload = _analytical_payload(
+        sections=[
+            AnalyticalSection(
+                title="Treatment strategy",
+                lead="Start with the cleanest reusable caustic lane.",
+                body="Flexible section prose should not suppress structured appendices.",
+                evidence_tags=[
+                    EvidenceTag(
+                        tag="EV-SEC-02",
+                        title="Attached site note",
+                        description="Evidence attached directly to the flexible section.",
+                    )
+                ],
+            )
+        ],
+        evidence_tags=[
+            EvidenceTag(
+                tag="EV-GLOBAL-01",
+                title="Global COA packet",
+                description="Standalone evidence should still render when flexible sections exist.",
+                confidence="MEDIUM",
+            )
+        ],
+        narrative_sections=[
+            AnalyticalSection(
+                title="Commercial scenario",
+                body="Legacy narrative remains visible after flexible sections.",
+                bullets=["Scenario bullet remains visible."],
+            )
+        ],
+        gap_sections=[
+            GapSection(
+                title="Required",
+                items=[
+                    GapItem(
+                        label="Volume split",
+                        detail="Still needed before routing decision.",
+                    )
+                ],
+            )
+        ],
+        strategic_insight="Render the strategic insight exactly once.",
+    )
+
+    html = _render_html("analytical_read.html.j2", payload)
+
+    assert "1. Treatment strategy" in html
+    assert "Start with the cleanest reusable caustic lane." in html
+    assert "[EV-SEC-02]" in html
+    assert "Per-site chemistry read" in html
+    assert "Treatment fit by site" in html
+    assert "[EV-GLOBAL-01]" in html
+    assert "Commercial scenario" in html
+    assert "Legacy narrative remains visible after flexible sections." in html
+    assert "Required gaps and regulatory flags" in html
+    assert "Volume split" in html
+    assert html.count("Render the strategic insight exactly once.") == 1
 
 
 def test_analytical_read_template_uses_legacy_path_when_flexible_sections_empty():
@@ -438,6 +504,7 @@ def test_ideation_brief_template_renders_structured_sub_sections():
     assert 'class="section-h2"' in html
     assert "A. Segregate before pricing" in html
     assert "B. Open risk" in html
+    assert re.search(r'<h3 class="section-h2">\s*<span class="marker-(insight|gap)"', html) is None
     assert "Segregate before pricing" in html
     assert "Preserve high-fit alkaline reuse material." in html
     assert "The missing volume split still blocks firm routing." in html
