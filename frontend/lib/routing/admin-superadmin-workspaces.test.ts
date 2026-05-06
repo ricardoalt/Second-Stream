@@ -12,7 +12,10 @@ const adminPageSource = readFileSync(
 	"utf8",
 );
 
-const homePageSource = readFileSync(join(process.cwd(), "app", "page.tsx"), "utf8");
+const homePageSource = readFileSync(
+	join(process.cwd(), "app", "page.tsx"),
+	"utf8",
+);
 
 const adminTeamPageSource = readFileSync(
 	join(process.cwd(), "app", "admin", "team", "page.tsx"),
