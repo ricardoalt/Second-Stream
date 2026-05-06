@@ -335,6 +335,57 @@
 	--badge-info-border: color-mix(in oklch, var(--info) 52%, transparent);
 }
 
+/* ── Chat Theme — DSR-inspired blue accent, scoped to /chat only ── */
+.chat-blue-theme {
+	--surface-tint: oklch(0.62 0.16 220);
+	--surface-elevated: color-mix(
+		in oklch,
+		var(--surface-bright) 92%,
+		oklch(0.62 0.16 220) 8%
+	);
+
+	--primary: oklch(0.62 0.16 220);
+	--primary-foreground: oklch(0.99 0.003 220);
+	--primary-container: oklch(0.42 0.13 230);
+	--primary-fixed: oklch(0.86 0.08 220);
+	--primary-fixed-dim: oklch(0.74 0.1 220);
+	--inverse-primary: oklch(0.82 0.09 220);
+
+	--accent: oklch(0.91 0.024 220);
+	--ring: oklch(0.62 0.16 220);
+	--focus-ring: 0 0 0 3px oklch(0.62 0.16 220 / 0.2);
+
+	--sidebar-primary: oklch(0.42 0.13 230);
+	--sidebar-primary-foreground: oklch(0.99 0.003 220);
+	--sidebar-accent: oklch(0.9 0.026 220);
+	--sidebar-ring: oklch(0.62 0.16 220);
+
+	--gradient-primary: linear-gradient(
+		135deg,
+		oklch(0.42 0.13 230) 0%,
+		oklch(0.62 0.16 220) 100%
+	);
+	--gradient-hero: linear-gradient(
+		135deg,
+		oklch(0.34 0.11 235) 0%,
+		oklch(0.48 0.13 225) 50%,
+		oklch(0.62 0.16 220) 100%
+	);
+	--gradient-progress: linear-gradient(
+		90deg,
+		var(--primary) 0%,
+		var(--primary-container) 100%
+	);
+
+	--badge-primary-bg: color-mix(
+		in oklch,
+		var(--primary) 26%,
+		var(--background)
+	);
+	--badge-primary-text: oklch(0.3 0.12 230);
+	--badge-primary-border: color-mix(in oklch, var(--primary) 50%, transparent);
+}
+
 /* ── Dark Mode — Pure OKLCH, with dimension ── */
 .dark {
 	--background: oklch(0.17 0.02 225); /* Deep navy-teal, not flat grey */
@@ -494,6 +545,48 @@
 		oklch(0.52 0.12 175) 0%,
 		oklch(0.65 0.14 172) 100%
 	);
+}
+
+.dark .chat-blue-theme {
+	--surface-tint: oklch(0.76 0.12 220);
+	--surface-elevated: color-mix(
+		in oklch,
+		var(--card) 92%,
+		oklch(0.76 0.12 220) 8%
+	);
+
+	--primary: oklch(0.76 0.12 220);
+	--primary-foreground: oklch(0.16 0.04 230);
+	--primary-container: oklch(0.38 0.1 230);
+	--inverse-primary: oklch(0.56 0.15 225);
+
+	--accent: oklch(0.28 0.03 230);
+	--ring: oklch(0.76 0.12 220);
+	--focus-ring: 0 0 0 3px oklch(0.76 0.12 220 / 0.3);
+
+	--sidebar-primary: oklch(0.76 0.12 220);
+	--sidebar-primary-foreground: oklch(0.16 0.04 230);
+	--sidebar-accent: oklch(0.28 0.03 230);
+	--sidebar-ring: oklch(0.76 0.12 220);
+
+	--gradient-primary: linear-gradient(
+		135deg,
+		oklch(0.38 0.1 230) 0%,
+		oklch(0.58 0.14 220) 100%
+	);
+	--gradient-hero: linear-gradient(
+		135deg,
+		oklch(0.28 0.09 235) 0%,
+		oklch(0.38 0.1 230) 50%,
+		oklch(0.52 0.13 220) 100%
+	);
+	--gradient-progress: linear-gradient(
+		90deg,
+		var(--primary) 0%,
+		var(--primary-container) 100%
+	);
+
+	--badge-primary-text: oklch(0.8 0.13 225);
 }
 
 /* ============================================================================

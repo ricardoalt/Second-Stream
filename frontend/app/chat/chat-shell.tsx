@@ -24,7 +24,7 @@ export function ChatShell({ routeThreadId }: { routeThreadId: string | null }) {
 	}, []);
 
 	return (
-		<div className="flex h-screen w-full bg-background">
+		<div className="chat-blue-theme flex h-screen w-full bg-background">
 			<AppSidebar
 				{...(activeThreadId !== undefined ? { activeThreadId } : {})}
 				onNewChat={handleNewChat}
